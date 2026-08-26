@@ -39,3 +39,6 @@ jobs:
 
       - name: Validate Odoo manifests
         run: python scripts/validate_manifests.py
+
+      - name: Validate Codestra identity and signed webhook contract
+        run: python scripts/validate_codestra_contract.py
