@@ -26,7 +26,7 @@ fi
 [[ -n "$odoo_container_id" ]] || fail "running Odoo application container was not found"
 
 printf 'ODOO_CONTAINER_ID=%s\n' "$odoo_container_id"
-docker inspect "$odoo_container_id" --format 'ODOO_CONTAINER_NAME={{trimPrefix "/" .Name}}'
+docker inspect "$odoo_container_id" --format 'ODOO_CONTAINER_NAME={{.Name}}'
 docker inspect "$odoo_container_id" --format 'ODOO_IMAGE={{.Config.Image}}'
 docker inspect "$odoo_container_id" --format 'COMPOSE_PROJECT={{index .Config.Labels "com.docker.compose.project"}}'
 docker inspect "$odoo_container_id" --format 'COMPOSE_SERVICE={{index .Config.Labels "com.docker.compose.service"}}'
