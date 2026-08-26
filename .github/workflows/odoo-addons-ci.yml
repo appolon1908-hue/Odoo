@@ -39,3 +39,6 @@ jobs:
 
       - name: Validate Odoo manifests
         run: python scripts/validate_manifests.py
+
+      - name: Validate Middleware and Odoo write boundary
+        run: python scripts/validate_integration_boundary.py
