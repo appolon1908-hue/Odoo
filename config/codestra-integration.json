@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "sourceState": "adapter-source-missing",
+  "issuer": "https://auth.codestra.co/realms/codestra",
+  "clientId": "odoo-integration",
+  "clientType": "confidential",
+  "grantType": "client_credentials",
+  "maximumAccessTokenLifetimeSeconds": 300,
+  "serviceAccountsEnabled": true,
+  "standardFlowEnabled": false,
+  "implicitFlowEnabled": false,
+  "directAccessGrantsEnabled": false,
+  "fullScopeAllowed": false,
+  "inboundApi": {
+    "baseUrlEnvironment": "ODOO_INTEGRATION_BASE_URL",
+    "audience": "odoo-integration",
+    "allowedCallers": [
+      {
+        "clientId": "middleware-api",
+        "scopes": [
+          "odoo.activities.write",
+          "odoo.leads.read",
+          "odoo.leads.write"
+        ]
+      },
+      {
+        "clientId": "monitoring-readonly",
+        "scopes": [
+          "health.read",
+          "metrics.read"
+        ]
+      }
+    ]
+  },
+  "outboundMiddleware": {
+    "baseUrlEnvironment": "MIDDLEWARE_API_BASE_URL",
+    "audience": "middleware-api",
+    "scopes": [
+      "odoo.delivery.result.publish",
+      "odoo.events.publish"
+    ],
+    "eventPath": "/api/v1/odoo/events"
+  },
+  "prohibitedDirectCallers": [
+    "n8n-automation"
+  ],
+  "webhookSecurity": {
+    "authorization": "oidc_bearer",
+    "signatureAlgorithm": "hmac-sha256",
+    "signatureVersion": "v1",
+    "maximumClockSkewSeconds": 300,
+    "replayRetentionSeconds": 86400,
+    "delivery": "at_least_once",
+    "idempotencyHeader": "X-Codestra-Event-Id",
+    "requiredHeaders": [
+      "Authorization",
+      "Content-Type",
+      "Idempotency-Key",
+      "X-Codestra-Event-Id",
+      "X-Codestra-Event-Type",
+      "X-Codestra-Source",
+      "X-Codestra-Tenant-Id",
+      "X-Codestra-Timestamp",
+      "X-Codestra-Signature",
+      "X-Correlation-Id"
+    ]
+  },
+  "eventTypes": [
+    "codestra.odoo.activity.completed",
+    "codestra.odoo.lead.created",
+    "codestra.odoo.lead.updated"
+  ],
+  "secretStorage": "odoo-system-parameters-and-protected-runtime-only"
+}
