@@ -14,31 +14,89 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate:
-    name: Validate Odoo custom addons
+  source-head-validation:
+    if: github.event_name == 'pull_request'
+    name: Validate Odoo source head
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
-      - name: Check out repository
+      - name: Check out exact source head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Verify exact source head identity
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          printf 'VALIDATED_SOURCE_SHA=%s\n' "$EXPECTED_SHA"
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
-      - name: Reject whitespace errors
-        run: git diff --check
+      - name: Run Odoo source-head validation
+        run: bash scripts/run_ci.sh
 
-      - name: Compile Python files
-        run: python -m compileall -q custom-addons scripts
+  merge-result-validation:
+    if: github.event_name == 'pull_request'
+    name: Validate Odoo merge result
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
 
-      - name: Validate Odoo manifests
-        run: python scripts/validate_manifests.py
+    steps:
+      - name: Check out exact merge result
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
 
-      - name: Validate Middleware and Odoo write boundary
-        run: python scripts/validate_integration_boundary.py
+      - name: Verify exact merge-result identity
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          printf 'VALIDATED_MERGE_SHA=%s\n' "$EXPECTED_SHA"
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Run Odoo merge-result validation
+        run: bash scripts/run_ci.sh
+
+  main-validation:
+    if: github.event_name == 'push'
+    name: Validate Odoo main push
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out exact pushed SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact pushed SHA identity
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          printf 'VALIDATED_PUSH_SHA=%s\n' "$EXPECTED_SHA"
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Run Odoo main validation
+        run: bash scripts/run_ci.sh
