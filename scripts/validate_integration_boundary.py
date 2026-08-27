@@ -323,9 +323,10 @@ def validate_sql_exception(
         if any(sql != "SELECT 1" for sql in sql_values):
             errors.append(f"{relative}: readiness exception permits only SELECT 1")
     elif kind == "odoo_cursor_locking":
-        forbidden = ("INSERT ", "UPDATE ", "DELETE ", "DROP ", "ALTER ", "CREATE ", "TRUNCATE ")
-        if any(not sql.startswith("SELECT ") or any(token in sql for token in forbidden) for sql in sql_values):
-            errors.append(f"{relative}: cursor-locking exception permits SELECT statements only")
+        if any(not sql.startswith("SELECT ") or ";" in sql for sql in sql_values):
+            errors.append(
+                f"{relative}: cursor-locking exception permits one SELECT statement only"
+            )
         if not any("FOR UPDATE" in sql for sql in sql_values):
             errors.append(f"{relative}: cursor-locking exception requires a FOR UPDATE lock")
     elif kind == "odoo_sql_view":
