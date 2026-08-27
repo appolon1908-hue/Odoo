@@ -1,8 +1,9 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "source_commit": "9674951f4b2c9c53f88412885ed5c96fcb0769cc",
   "source_pull_request": 9,
-  "policy": "An unchanged pinned subtree may retain its separately reviewed Odoo hook and local ORM-locking implementation. Any subtree change removes the exception and triggers the strict mission review.",
+  "module_count": 32,
+  "policy": "An unchanged pinned subtree may retain its separately reviewed Odoo hook and local ORM-locking implementation. Any subtree change removes the exception, must be declared as a strict mission override, and must pass the current strict module review at its exact tree SHA.",
   "modules": {
     "call_center_campaign": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
     "call_center_compliance": "85610757c8f9bd140611b6ca99e435283b803e63",
@@ -28,7 +29,6 @@
     "codestra_lead_ingestion": "071935b8becbaa636b656d05a040d4650b15ae24",
     "codestra_mail_inbox": "396f22ab185e538e4781b4d75a8ae01b5ae0eeff",
     "codestra_middleware_bridge": "d5f2785ea737689dfc1bdc88bb1eb1650a334e02",
-    "codestra_odoo_certification": "fa57c82248ff878aaa18933fefc9eba6bbc45e61",
     "codestra_social_orchestration": "1850feb3a99c90babccb9a3ec79d30374f0c0bd9",
     "codestra_staging_campaign_design": "fd0fdb619d2f60a3e3dfcc4a0ccba7e7cd32abc7",
     "codestra_telephony_bridge": "b6b377e715ff4754e20d1e7a3dc8fcc9d75d18c0",
@@ -36,5 +36,13 @@
     "codestra_vicidial_connector": "44ca7d4ff9f2afd6241faaeac28843ac4976188c",
     "codestra_vicidial_crm": "cf0783918b94c3e396d24ebe868c4fb04096e4a1",
     "codestra_vicidial_recording": "3ef18226525231684891fc59d00d2b365b3350ed"
+  },
+  "strict_mission_overrides": {
+    "codestra_odoo_certification": {
+      "base_tree": "fa57c82248ff878aaa18933fefc9eba6bbc45e61",
+      "current_tree": "8c1171f31cf42a5170747a72ff0b7de4ed5c0176",
+      "reason": "Repair Odoo 19 inactive synthetic-company hierarchy compatibility while preserving a disabled, non-production certification tenant.",
+      "pull_request": 21
+    }
   }
 }
