@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_codestra_ai_assistant_draft_list" model="ir.ui.view">
+    <field name="name">codestra.ai.assistant.draft.list</field>
+    <field name="model">codestra.ai.assistant.draft</field>
+    <field name="arch" type="xml">
+      <list string="AI Assistant Drafts" default_order="create_date desc">
+        <field name="request_type"/>
+        <field name="call_id"/>
+        <field name="partner_id"/>
+        <field name="lead_id"/>
+        <field name="output_classification"/>
+        <field name="requested_by_id"/>
+        <field name="reviewed_by_id"/>
+        <field name="state"/>
+        <field name="company_id" groups="base.group_multi_company"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_codestra_ai_assistant_draft_form" model="ir.ui.view">
+    <field name="name">codestra.ai.assistant.draft.form</field>
+    <field name="model">codestra.ai.assistant.draft</field>
+    <field name="arch" type="xml">
+      <form string="AI Assistant Draft">
+        <header>
+          <button name="action_approve" type="object" string="Approve Draft" class="btn-primary" invisible="state != 'generated'" groups="codestra_ai_agent_assistant.group_codestra_ai_reviewer"/>
+          <button name="action_reject" type="object" string="Reject" invisible="state != 'generated'" groups="codestra_ai_agent_assistant.group_codestra_ai_reviewer"/>
+          <button name="action_expire" type="object" string="Expire" invisible="state not in ('generated', 'approved')"/>
+          <field name="state" widget="statusbar" statusbar_visible="requested,generated,approved,rejected,expired"/>
+        </header>
+        <sheet>
+          <group>
+            <group>
+              <field name="request_type"/>
+              <field name="call_id"/>
+              <field name="partner_id"/>
+              <field name="lead_id"/>
+              <field name="input_reference"/>
+              <field name="prompt_hash" readonly="1"/>
+            </group>
+            <group>
+              <field name="provider" readonly="1"/>
+              <field name="model_name" readonly="1"/>
+              <field name="response_hash" readonly="1"/>
+              <field name="output_classification" readonly="1"/>
+              <field name="requested_by_id" readonly="1"/>
+              <field name="generated_at" readonly="1"/>
+              <field name="reviewed_by_id" readonly="1"/>
+              <field name="reviewed_at" readonly="1"/>
+              <field name="expires_at"/>
+              <field name="company_id" groups="base.group_multi_company"/>
+            </group>
+          </group>
+          <group string="Advisory output only">
+            <field name="output_text" readonly="1"/>
+            <field name="review_note"/>
+          </group>
+        </sheet>
+        <chatter/>
+      </form>
+    </field>
+  </record>
+  <record id="action_codestra_ai_assistant_drafts" model="ir.actions.act_window">
+    <field name="name">AI Assistant Drafts</field>
+    <field name="res_model">codestra.ai.assistant.draft</field>
+    <field name="view_mode">list,form</field>
+  </record>
+  <menuitem id="menu_codestra_ai_assistant" name="AI Assistant" parent="call_center_core.menu_call_center_root" action="action_codestra_ai_assistant_drafts" sequence="82" groups="call_center_core.group_call_center_user"/>
+</odoo>

@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_codestra_ai_assistant_draft_user,codestra.ai.assistant.draft user,model_codestra_ai_assistant_draft,call_center_core.group_call_center_user,1,0,1,0
+access_codestra_ai_assistant_draft_reviewer,codestra.ai.assistant.draft reviewer,model_codestra_ai_assistant_draft,codestra_ai_agent_assistant.group_codestra_ai_reviewer,1,1,0,0
+access_codestra_ai_assistant_draft_service,codestra.ai.assistant.draft service,model_codestra_ai_assistant_draft,codestra_ai_agent_assistant.group_codestra_ai_service,1,1,0,0
+access_codestra_ai_assistant_draft_admin,codestra.ai.assistant.draft admin,model_codestra_ai_assistant_draft,call_center_core.group_call_center_admin,1,1,1,1
