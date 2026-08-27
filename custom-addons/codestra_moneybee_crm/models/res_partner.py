@@ -1,5 +1,7 @@
+from psycopg2 import IntegrityError
+
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 
 
 FORBIDDEN_IDENTITY_FIELDS = frozenset(
@@ -17,10 +19,26 @@ FORBIDDEN_IDENTITY_FIELDS = frozenset(
         "keycloak_admin_credential",
     }
 )
+MONEYBEE_FIELDS = frozenset(
+    {
+        "moneybee_user_id",
+        "moneybee_organization_id",
+        "moneybee_email_verified",
+        "moneybee_membership_type",
+    }
+)
 
 
 class ResPartner(models.Model):
     _inherit = "res.partner"
+
+    _sql_constraints = [
+        (
+            "moneybee_user_id_uniq",
+            "unique(moneybee_user_id)",
+            "A MoneyBee user can be mapped to only one Odoo contact.",
+        ),
+    ]
 
     moneybee_user_id = fields.Char(
         string="MoneyBee User ID",
@@ -46,15 +64,45 @@ class ResPartner(models.Model):
         readonly=True,
     )
 
+    def _assert_moneybee_middleware_principal(self):
+        if not self.env.user.has_group(
+            "codestra_moneybee_crm.group_moneybee_middleware"
+        ):
+            raise AccessError(
+                "MoneyBee identity fields are writable only by the Middleware integration principal."
+            )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        if any(MONEYBEE_FIELDS.intersection(vals) for vals in vals_list):
+            self._assert_moneybee_middleware_principal()
+        return super().create(vals_list)
+
+    def write(self, vals):
+        if MONEYBEE_FIELDS.intersection(vals):
+            self._assert_moneybee_middleware_principal()
+            incoming_user_id = str(vals.get("moneybee_user_id") or "").strip()
+            if incoming_user_id:
+                for partner in self:
+                    if (
+                        partner.moneybee_user_id
+                        and partner.moneybee_user_id != incoming_user_id
+                    ):
+                        raise ValidationError(
+                            "An existing MoneyBee identity mapping cannot be rebound."
+                        )
+        return super().write(vals)
+
     @api.model
     def moneybee_upsert_contact(self, payload):
         """Idempotently apply the Middleware `crm.contact.upsert.v1` command.
 
-        This method accepts business/profile attributes only. Identity secrets,
-        verification codes and browser/service tokens are rejected even if a
-        caller attempts to include them.
+        The RPC entry point is restricted to the dedicated Middleware integration
+        group. Identity secrets, verification codes and browser/service tokens are
+        rejected even if a caller attempts to include them.
         """
 
+        self._assert_moneybee_middleware_principal()
         if not isinstance(payload, dict):
             raise ValidationError("MoneyBee contact payload must be an object.")
         forbidden = FORBIDDEN_IDENTITY_FIELDS.intersection(payload)
@@ -78,17 +126,33 @@ class ResPartner(models.Model):
             raise ValidationError("Duplicate MoneyBee identity mapping requires reconciliation.")
 
         display_name = str(payload.get("display_name") or "").strip()
-        values = {
-            "name": display_name or email,
+        update_values = {
             "email": email,
             "moneybee_user_id": user_id,
             "moneybee_organization_id": organization_id,
             "moneybee_email_verified": True,
             "moneybee_membership_type": membership_type,
         }
+        if display_name:
+            update_values["name"] = display_name
+
         if partners:
-            partners.write(values)
+            partners.write(update_values)
             return {"partner_id": partners.id, "created": False}
 
-        partner = self.create(values)
+        create_values = dict(update_values)
+        create_values["name"] = display_name or email
+        try:
+            with self.env.cr.savepoint():
+                partner = self.create(create_values)
+        except IntegrityError:
+            # A concurrent delivery may have inserted the same immutable
+            # MoneyBee identity first. The unique DB constraint is authoritative;
+            # reconcile to the winning row instead of creating a duplicate.
+            partner = self.search([("moneybee_user_id", "=", user_id)], limit=1)
+            if not partner:
+                raise
+            partner.write(update_values)
+            return {"partner_id": partner.id, "created": False}
+
         return {"partner_id": partner.id, "created": True}
