@@ -30,7 +30,7 @@
         <field name="owner_id"/>
         <filter string="My Cases" name="my_cases" domain="[('owner_id', '=', uid)]"/>
         <filter string="Open" name="open_cases" domain="[('state', 'not in', ('closed', 'cancelled'))]"/>
-        <group expand="0" string="Group By">
+        <group>
           <filter string="State" name="group_state" context="{'group_by': 'state'}"/>
           <filter string="Category" name="group_category" context="{'group_by': 'category'}"/>
           <filter string="Campaign" name="group_campaign" context="{'group_by': 'campaign_id'}"/>
