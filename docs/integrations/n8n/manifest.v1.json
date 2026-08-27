@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.0",
+  "system": "odoo-19",
+  "repository": "appolon1908-hue/Odoo",
+  "branch": "integration/n8n-automation-contract-v2-20260827",
+  "authority": "business-system-of-record",
+  "integration_boundary": "codestra-middleware-only",
+  "n8n": {
+    "role": "orchestration-only",
+    "direct_api_access": false,
+    "direct_database_access": false,
+    "credentials_allowed": false
+  },
+  "events": [
+    "crm.lead.intake_requested",
+    "crm.lead.normalized",
+    "crm.opportunity.stage_changed",
+    "crm.callback.requested",
+    "crm.callback.due",
+    "crm.appointment.created",
+    "crm.appointment.reminder_due",
+    "crm.campaign.enrollment_requested",
+    "support.case.created",
+    "privacy.preference.changed"
+  ],
+  "commands": [
+    "crm.lead.create_or_update",
+    "crm.lead.deduplicate_proposal",
+    "crm.lead.enrichment_apply",
+    "crm.activity.create",
+    "crm.callback.create_or_update",
+    "crm.appointment.create_or_update",
+    "crm.call_history.record",
+    "crm.communication_history.record",
+    "crm.support_case.assign",
+    "crm.preference.project",
+    "crm.external_result.reconcile"
+  ],
+  "workflows": [
+    "codestra.crm.lead-intake.v1",
+    "codestra.crm.lead-deduplicate.v1",
+    "codestra.crm.lead-enrichment-review.v1",
+    "codestra.crm.post-call-followup.v1",
+    "codestra.crm.callback-schedule.v1",
+    "codestra.crm.appointment-reminders.v1",
+    "codestra.crm.stale-lead-reactivation.v1",
+    "codestra.crm.campaign-enrollment.v1",
+    "codestra.crm.support-case-route.v1",
+    "codestra.crm.consent-propagation.v1"
+  ],
+  "required_capabilities": [
+    "ODOO_WRITE",
+    "CALLBACK_DISPATCH",
+    "ENABLE_EXTERNAL_DELIVERY",
+    "CRAWLER_WRITEBACK",
+    "LEAD_PUBLISH",
+    "PRIVACY_WRITE"
+  ],
+  "defaults": {
+    "workflows_active_in_git": false,
+    "external_effects_enabled": false,
+    "production_changed": false
+  }
+}
