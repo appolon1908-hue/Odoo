@@ -2,6 +2,14 @@
 <odoo noupdate="1">
   <record id="company_test_syn" model="res.company">
     <field name="name">TEST_SYN Certification (Disabled)</field>
+    <!--
+      Odoo 19 Accounting reads parent_ids[0] while creating companies.
+      An inactive root company is removed by active_test before that read,
+      leaving an empty recordset. Keep this synthetic tenant disabled while
+      attaching it to the active main-company root so installation remains
+      deterministic and no user gains access to it.
+    -->
+    <field name="parent_id" ref="base.main_company"/>
     <field name="active" eval="False"/>
   </record>
   <record id="business_unit_test_syn" model="call.center.business.unit">
