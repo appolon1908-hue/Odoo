@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "channels": {
+    "email": {"provider_gate": "klyrow", "enabled": false},
+    "sms": {"provider_gate": "telnexa", "enabled": false},
+    "chat": {"provider_gate": "future-reviewed-provider", "enabled": false}
+  },
+  "delivery_path": [
+    "odoo_transaction",
+    "transactional_outbox",
+    "middleware_authorization",
+    "provider_gate",
+    "delivery_result",
+    "durable_inbox",
+    "odoo_reconciliation"
+  ],
+  "automation": {
+    "catalog_owner": "middleware",
+    "browser_supplied_workflow_id_allowed": false,
+    "arbitrary_n8n_execution_allowed": false,
+    "odoo_database_credentials_available_to_n8n": false,
+    "n8n_system_of_record": false
+  }
+}
