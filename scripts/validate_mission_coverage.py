@@ -49,6 +49,7 @@ SCHEMA_MODULES = {
     "codestra_data_quality",
     "codestra_ai_agent_assistant",
 }
+PORTAL_MODULES = {"codestra_client_portal"}
 
 
 def load_manifest(path: Path) -> dict:
@@ -102,14 +103,27 @@ def main() -> int:
         tests = module / "tests"
         if not tests.is_dir() or not (tests / "__init__.py").is_file() or not list(tests.glob("test_*.py")):
             errors.append(f"{name}: Odoo tests are required")
+
         entry = by_name.get(name, {})
         if entry.get("source_status") != "implemented":
             errors.append(f"{name}: source_status must be implemented")
         if entry.get("runtime_status") != "pending":
             errors.append(f"{name}: runtime_status must remain pending until evidence exists")
-        expected_type = "schema" if name in SCHEMA_MODULES else entry.get("implementation_type")
-        if name in SCHEMA_MODULES and expected_type != "schema":
-            errors.append(f"{name}: coverage must classify the model-owning module as schema")
+        if not isinstance(entry.get("owner_branch"), str) or not entry["owner_branch"]:
+            errors.append(f"{name}: owner_branch is required")
+        implementations = entry.get("implementation_modules")
+        if not isinstance(implementations, list) or not implementations or not all(
+            isinstance(item, str) and item for item in implementations
+        ):
+            errors.append(f"{name}: implementation_modules must be a non-empty string list")
+
+        expected_type = (
+            "schema" if name in SCHEMA_MODULES else "portal" if name in PORTAL_MODULES else "facade"
+        )
+        if entry.get("implementation_type") != expected_type:
+            errors.append(
+                f"{name}: implementation_type must be {expected_type!r}, got {entry.get('implementation_type')!r}"
+            )
 
     for name in sorted(SCHEMA_MODULES):
         module = ADDONS / name
