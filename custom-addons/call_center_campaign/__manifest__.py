@@ -1,6 +1,6 @@
 {
     "name": "Call Center Campaign",
-    "version": "19.0.5.2.0",
+    "version": "19.0.5.2.1",
     "category": "Sales/CRM",
     "summary": "Campaigns, teams, scripts, and lifecycle stages",
     "author": "Codestra",

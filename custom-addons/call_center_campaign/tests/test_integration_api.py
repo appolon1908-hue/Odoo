@@ -18,7 +18,7 @@ class TestIntegrationApiContract(TransactionCase):
         encoded = base64.urlsafe_b64encode(b"synthetic").rstrip(b"=").decode()
         self.assertEqual(_b64url(encoded), b"synthetic")
         with self.assertRaisesRegex(ValueError, "non-canonical base64url"):
-            _b64url(encoded[:-1] + "9")
+            _b64url(encoded + "=")
 
     def test_null_optional_service_key_falls_back_to_azp(self):
         self.assertEqual(

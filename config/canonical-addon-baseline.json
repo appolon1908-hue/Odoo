@@ -36,8 +36,8 @@
   "strict_mission_overrides": {
     "call_center_campaign": {
       "base_tree": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
-      "current_tree": "d23af7b991274db1e1fafadff9fb2d27d96141f0",
-      "reason": "Scope the canonical campaign fixture count to records owned by call_center_campaign so independently installed extension templates cannot corrupt the Odoo 19 regression contract.",
+      "current_tree": "ab05f8165b83974a8c64d83980d0fe67f58819a8",
+      "reason": "Repair Odoo 19 campaign regression coverage, canonical JWT base64url fixtures, and business-unit scoped integration outbox rules while preserving the deterministic inactive campaign inventory.",
       "pull_request": 21,
       "integration_boundary_exceptions": [
         {
