@@ -1,0 +1,133 @@
+openapi: 3.1.0
+info:
+  title: Codestra Odoo CRM Facade
+  version: 1.0.0
+  description: Middleware-owned facade for allowlisted Odoo 19 business operations.
+paths:
+  /v1/crm/contacts:
+    get:
+      operationId: listContacts
+      security: [{oauth2: [crm.contact.read]}]
+      responses: {'200': {description: Tenant-scoped contacts}}
+    post:
+      operationId: createContact
+      security: [{oauth2: [crm.contact.write]}]
+      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      responses: {'202': {$ref: '#/components/responses/OperationAccepted'}}
+  /v1/crm/leads:
+    get:
+      operationId: listLeads
+      security: [{oauth2: [crm.lead.read]}]
+      responses: {'200': {description: Tenant-scoped leads}}
+    post:
+      operationId: createLead
+      security: [{oauth2: [crm.lead.write]}]
+      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      responses: {'202': {$ref: '#/components/responses/OperationAccepted'}}
+  /v1/crm/leads/{lead_id}:
+    patch:
+      operationId: updateLead
+      security: [{oauth2: [crm.lead.write]}]
+      parameters:
+        - {name: lead_id, in: path, required: true, schema: {type: string}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+        - {$ref: '#/components/parameters/IfMatch'}
+      responses: {'202': {$ref: '#/components/responses/OperationAccepted'}}
+  /v1/crm/opportunities:
+    get:
+      operationId: listOpportunities
+      security: [{oauth2: [crm.opportunity.read]}]
+      responses: {'200': {description: Tenant-scoped opportunities}}
+    post:
+      operationId: createOpportunity
+      security: [{oauth2: [crm.opportunity.write]}]
+      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      responses: {'202': {$ref: '#/components/responses/OperationAccepted'}}
+  /v1/crm/activities:
+    post:
+      operationId: createActivity
+      security: [{oauth2: [crm.activity.write]}]
+      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      responses: {'202': {$ref: '#/components/responses/OperationAccepted'}}
+  /v1/crm/campaigns/{campaign_id}/enrollments:
+    post:
+      operationId: enrollCampaignMember
+      security: [{oauth2: [crm.campaign.write]}]
+      parameters:
+        - {name: campaign_id, in: path, required: true, schema: {type: string}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses: {'202': {$ref: '#/components/responses/OperationAccepted'}}
+  /v1/crm/callbacks:
+    post:
+      operationId: scheduleCallback
+      security: [{oauth2: [crm.callback.write]}]
+      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      responses: {'202': {$ref: '#/components/responses/OperationAccepted'}}
+  /v1/crm/appointments:
+    post:
+      operationId: createAppointment
+      security: [{oauth2: [crm.appointment.write]}]
+      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      responses: {'202': {$ref: '#/components/responses/OperationAccepted'}}
+  /v1/crm/communication-preferences/{contact_id}:
+    get:
+      operationId: getCommunicationPreferences
+      security: [{oauth2: [privacy.preference.read]}]
+      parameters: [{name: contact_id, in: path, required: true, schema: {type: string}}]
+      responses: {'200': {description: Projected preferences}}
+    patch:
+      operationId: updateCommunicationPreferences
+      security: [{oauth2: [privacy.preference.write]}]
+      parameters:
+        - {name: contact_id, in: path, required: true, schema: {type: string}}
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+        - {$ref: '#/components/parameters/IfMatch'}
+      responses: {'202': {$ref: '#/components/responses/OperationAccepted'}}
+  /v1/crm/call-history:
+    post:
+      operationId: appendCallHistory
+      security: [{oauth2: [crm.call-history.write]}]
+      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      responses: {'202': {$ref: '#/components/responses/OperationAccepted'}}
+  /v1/crm/sync/odoo/{operation_id}:
+    get:
+      operationId: getOdooSyncOperation
+      security: [{oauth2: [crm.sync.read]}]
+      parameters: [{name: operation_id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {'200': {description: Reconciled operation state}}
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://auth.codestra.co/realms/codestra/protocol/openid-connect/token
+          scopes:
+            crm.contact.read: Read contacts
+            crm.contact.write: Request contact changes
+            crm.lead.read: Read leads
+            crm.lead.write: Request lead changes
+            crm.opportunity.read: Read opportunities
+            crm.opportunity.write: Request opportunity changes
+            crm.activity.write: Request activities
+            crm.campaign.write: Request campaign enrollment
+            crm.callback.write: Request callback state
+            crm.appointment.write: Request appointment state
+            crm.call-history.write: Append call history
+            crm.sync.read: Read operation state
+            privacy.preference.read: Read communication preferences
+            privacy.preference.write: Request preference changes
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, minLength: 8, maxLength: 180}
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema: {type: string, minLength: 1, maxLength: 128}
+  responses:
+    OperationAccepted:
+      description: Durable asynchronous operation accepted

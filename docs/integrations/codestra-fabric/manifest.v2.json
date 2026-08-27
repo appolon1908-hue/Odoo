@@ -1,0 +1,20 @@
+{
+  "schema_version": "2.0",
+  "system": "odoo-19",
+  "authority": ["contacts", "companies", "leads", "opportunities", "activities", "campaigns", "appointments", "call_history", "support_cases", "communication_preferences"],
+  "integration_boundary": "MIDDLEWARE_ONLY",
+  "n8n_direct_access": false,
+  "database_direct_access": false,
+  "generic_model_proxy": false,
+  "service_identity": "odoo-integration",
+  "event_delivery": "TRANSACTIONAL_OUTBOX",
+  "command_execution": "ALLOWLISTED_SERVICE_OPERATIONS",
+  "success_authority": "ODOO_READBACK",
+  "capabilities": {
+    "ODOO_WRITE": false,
+    "CALLBACK_DISPATCH": false,
+    "ENABLE_EXTERNAL_DELIVERY": false,
+    "CRAWLER_WRITEBACK": false,
+    "PRODUCTION_DIALING": false
+  }
+}
