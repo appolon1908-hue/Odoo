@@ -51,6 +51,8 @@ jobs:
           POSTGRES_DB: odoo_all_ci
           POSTGRES_USER: odoo
           POSTGRES_PASSWORD: odoo
+        ports:
+          - 5432:5432
         options: >-
           --health-cmd "pg_isready -U odoo"
           --health-interval 5s
