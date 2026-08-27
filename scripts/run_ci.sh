@@ -50,3 +50,6 @@ python3 scripts/validate_test_evidence_contracts.py
 
 printf '==> Running source-level mission contract tests\n'
 python3 -m unittest discover -s tests/security -p 'test_*.py'
+
+printf '==> Validating release-candidate policy\n'
+python3 scripts/validate_release_policy.py
