@@ -32,6 +32,7 @@ class TestSyntheticCrmMutations(TransactionCase):
         self.assertFalse(mapping.production_eligible)
         self.assertEqual(mapping.desired_state, "inactive")
         self.assertFalse(mapping.company_id.active)
+        self.assertEqual(mapping.company_id.parent_id, self.env.ref("base.main_company"))
         self.assertFalse(mapping.crm_team_id.active)
         self.assertFalse(mapping.campaign_id.active)
         statuses = self.env["codestra.disposition"].with_context(active_test=False).search([
