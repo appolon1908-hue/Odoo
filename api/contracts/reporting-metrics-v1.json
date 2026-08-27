@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "dimensions": ["date", "company", "client", "campaign", "queue", "team", "agent", "language", "disposition"],
+  "metrics": {
+    "asa_seconds": "sum(answered_at-offered_at)/answered_calls",
+    "abandonment_rate": "abandoned_offered_calls/eligible_offered_calls",
+    "aht_seconds": "(talk_seconds+hold_seconds+wrap_seconds)/handled_interactions",
+    "fcr_rate": "resolved_without_repeat_window/eligible_resolved_interactions",
+    "transfer_success_rate": "completed_transfers/attempted_transfers",
+    "callback_sla_rate": "callbacks_completed_within_sla/eligible_callbacks",
+    "occupancy_rate": "productive_contact_time/logged_available_time",
+    "adherence_rate": "verified_attendance_overlap/planned_work_time",
+    "qa_score": "weighted_earned_points/weighted_available_points",
+    "delivery_rate": "delivered_messages/accepted_messages",
+    "gross_margin": "recognized_revenue-provider_cost"
+  },
+  "rules": {
+    "record_rules_required": true,
+    "private_authenticated_metrics_only": true,
+    "unknown_or_missing_denominator_returns_null": true,
+    "reversed_usage_excluded": true,
+    "raw_secrets_excluded": true
+  }
+}
