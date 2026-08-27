@@ -1,0 +1,181 @@
+openapi: 3.1.0
+info:
+  title: Codestra Contact Center API
+  version: 0.1.0-contract
+  description: Contract-only Odoo 19 contact-center API. No live route or provider capability is enabled by this file.
+servers:
+  - url: https://api.codestra.co
+security:
+  - oidcBearer: []
+x-codestra-implementation-status: contract-only
+x-codestra-live-capabilities:
+  odoo_write: false
+  external_delivery: false
+  email: false
+  sms: false
+  callbacks: false
+  pstn: false
+paths:
+  /v1/contact-center/healthz:
+    get:
+      operationId: getHealth
+      summary: Process health only
+      security:
+        - mutualTLS: []
+      responses:
+        '501': {description: Contract only}
+  /v1/contact-center/readyz:
+    get:
+      operationId: getReadiness
+      summary: Database, queue and dependency readiness
+      security:
+        - mutualTLS: []
+      responses:
+        '501': {description: Contract only}
+  /v1/contact-center/events/vicidial:
+    post:
+      operationId: ingestVicidialEvent
+      summary: Receive a versioned VICIdial event
+      security:
+        - oidcBearer: []
+          mutualTLS: []
+      responses:
+        '501': {description: Contract only}
+  /v1/contact-center/events/provider:
+    post:
+      operationId: ingestProviderEvent
+      summary: Receive a normalized provider result event
+      security:
+        - oidcBearer: []
+          mutualTLS: []
+      responses:
+        '501': {description: Contract only}
+  /v1/contact-center/screen-pop/resolve:
+    post:
+      operationId: resolveScreenPop
+      summary: Resolve authorized customer context
+      responses:
+        '501': {description: Contract only}
+  /v1/contact-center/interactions/{interaction_uuid}:
+    get:
+      operationId: getInteraction
+      summary: Read an authorized interaction
+      responses:
+        '501': {description: Contract only}
+  /v1/contact-center/interactions/{interaction_uuid}/disposition:
+    post:
+      operationId: submitDisposition
+      summary: Submit mandatory wrap-up
+      responses:
+        '501': {description: Contract only}
+  /v1/contact-center/interactions/{interaction_uuid}/callback:
+    post:
+      operationId: scheduleCallback
+      summary: Schedule an authorized callback
+      responses:
+        '501': {description: Contract only}
+  /v1/contact-center/interactions/{interaction_uuid}/transfer:
+    post:
+      operationId: requestTransfer
+      summary: Request a controlled transfer
+      responses:
+        '501': {description: Contract only}
+  /v1/contact-center/agents/me/state:
+    get:
+      operationId: getMyAgentState
+      summary: Read the authenticated agent state
+      responses:
+        '501': {description: Contract only}
+    post:
+      operationId: requestMyAgentState
+      summary: Request a permitted agent state transition
+      responses:
+        '501': {description: Contract only}
+  /v1/contact-center/supervisor/queues:
+    get:
+      operationId: getSupervisorQueues
+      summary: Read authorized queue operations
+      responses:
+        '501': {description: Contract only}
+  /v1/contact-center/supervisor/actions:
+    post:
+      operationId: requestSupervisorAction
+      summary: Request an audited supervisor control
+      responses:
+        '501': {description: Contract only}
+  /v1/contact-center/campaigns/{campaign_id}/configuration:
+    get:
+      operationId: getPublishedCampaignConfiguration
+      summary: Read effective published campaign configuration
+      responses:
+        '501': {description: Contract only}
+  /v1/contact-center/campaigns/{campaign_id}/publish:
+    post:
+      operationId: publishCampaignConfiguration
+      summary: Publish an approved campaign version
+      responses:
+        '501': {description: Contract only}
+  /v1/contact-center/provisioning/agents:
+    post:
+      operationId: provisionAgent
+      summary: Start an idempotent agent provisioning job
+      responses:
+        '501': {description: Contract only}
+  /v1/contact-center/provisioning/jobs/{job_uuid}:
+    get:
+      operationId: getProvisioningJob
+      summary: Read an authorized provisioning job
+      responses:
+        '501': {description: Contract only}
+  /v1/contact-center/reconciliation/runs:
+    post:
+      operationId: startReconciliation
+      summary: Start a bounded reconciliation run
+      responses:
+        '501': {description: Contract only}
+  /v1/contact-center/reconciliation/runs/{run_uuid}:
+    get:
+      operationId: getReconciliationRun
+      summary: Read reconciliation results
+      responses:
+        '501': {description: Contract only}
+  /v1/contact-center/reports/operations:
+    get:
+      operationId: getOperationsReport
+      summary: Read authorized contact-center KPIs
+      responses:
+        '501': {description: Contract only}
+  /v1/contact-center/audit/events:
+    get:
+      operationId: searchAuditEvents
+      summary: Search restricted audit events
+      responses:
+        '501': {description: Contract only}
+components:
+  securitySchemes:
+    oidcBearer:
+      type: openIdConnect
+      openIdConnectUrl: https://auth.codestra.co/realms/codestra/.well-known/openid-configuration
+    mutualTLS:
+      type: mutualTLS
+  parameters:
+    RequestId:
+      name: X-Request-ID
+      in: header
+      required: true
+      schema: {type: string, format: uuid}
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: true
+      schema: {type: string, format: uuid}
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, minLength: 8, maxLength: 200}
+    EventSchemaVersion:
+      name: X-Event-Schema-Version
+      in: header
+      required: true
+      schema: {type: integer, const: 1}

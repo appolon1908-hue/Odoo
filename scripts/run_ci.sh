@@ -26,3 +26,6 @@ python3 scripts/review_modules.py --strict
 
 printf '==> Validating Codestra login, administrator, and database controls\n'
 python3 scripts/validate_codestra_readiness.py
+
+printf '==> Validating the corporate call-center workstream contract\n'
+python3 scripts/validate_call_center_workstreams.py
