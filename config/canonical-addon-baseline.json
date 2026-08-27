@@ -3,7 +3,7 @@
   "source_commit": "9674951f4b2c9c53f88412885ed5c96fcb0769cc",
   "source_pull_request": 9,
   "module_count": 32,
-  "policy": "An unchanged pinned subtree may retain its separately reviewed Odoo hook and local ORM-locking implementation. Any subtree change removes the exception, must be declared as a strict mission override, and must pass the current strict module review at its exact tree SHA.",
+  "policy": "An unchanged pinned subtree may retain its separately reviewed Odoo hook and local ORM-locking implementation. Any subtree change removes the exception, must be declared as a strict mission override, and must pass the current strict module review at its exact tree SHA. Narrow integration-boundary exceptions must be path-specific, reasoned, structurally validated, and invalidated by any subtree change.",
   "modules": {
     "call_center_compliance": "85610757c8f9bd140611b6ca99e435283b803e63",
     "call_center_core": "35a16bc1b7e107c3ba7f7087054ee86a7b26c326",
@@ -36,21 +36,67 @@
   "strict_mission_overrides": {
     "call_center_campaign": {
       "base_tree": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
-      "current_tree": "c04b7ed52977fb0996d4934d5f7a1a26928067e5",
+      "current_tree": "19b6e258b28b4e5d884a805621778cd82fdd156d",
       "reason": "Scope the canonical campaign fixture count to records owned by call_center_campaign so independently installed extension templates cannot corrupt the Odoo 19 regression contract.",
-      "pull_request": 21
+      "pull_request": 21,
+      "integration_boundary_exceptions": [
+        {
+          "path": "controllers/integration_api.py",
+          "kind": "odoo_cursor_readiness_probe",
+          "reason": "The authenticated readiness route executes only SELECT 1 through the active Odoo cursor and never opens an external database connection."
+        },
+        {
+          "path": "models/outbox.py",
+          "kind": "odoo_cursor_locking",
+          "reason": "Transactional outbox lease claims and campaign finalization use SELECT FOR UPDATE on Odoo's existing cursor to prevent duplicate delivery."
+        },
+        {
+          "path": "models/result_inbox.py",
+          "kind": "odoo_sql_view",
+          "reason": "The read-only _auto=False integration trace projection is initialized as an Odoo-managed SQL view over durable outbox and inbox tables."
+        },
+        {
+          "path": "tests/test_outbox.py",
+          "kind": "odoo_test_fixture_sql",
+          "reason": "The Odoo transaction test backdates a synthetic lease inside the test database to certify stale-lease recovery without external connectivity."
+        },
+        {
+          "path": "tests/test_outbox.py",
+          "kind": "odoo_test_driver_exception",
+          "reason": "The test imports only the PostgreSQL constraint exception class to assert uniqueness and does not create a database connection."
+        }
+      ]
     },
     "codestra_campaign_crm_os": {
       "base_tree": "352f91cb58850fb959972502f6c2e8b574ef7ec5",
-      "current_tree": "996db6fdcb9aff45a612a80863bb765c9c5a66d4",
+      "current_tree": "73f661adc77a263d68c70a8cd300aa90a11416f8",
       "reason": "Consolidate the duplicate data-quality concrete model into an extension of the canonical codestra_data_quality model, preserve campaign metadata, normalize legacy values, and add an idempotent upgrade migration.",
-      "pull_request": 21
+      "pull_request": 21,
+      "allow_post_init_hook": true
     },
     "codestra_identity_provisioning": {
       "base_tree": "245f4e9fc94f3447ecbaa22b17b4784d5b1c36cc",
-      "current_tree": "a3bbfb3afafba6088e16604c0c78d0dd3b6f790f",
-      "reason": "Update the duplicate-login regression to assert Odoo 19 ORM ValidationError behavior instead of relying on a raw PostgreSQL exception.",
-      "pull_request": 21
+      "current_tree": "29ecc9579ccf76f23b93764d9699a8e500a54bc1",
+      "reason": "Update the duplicate-login regression to assert Odoo 19 ORM ValidationError behavior, document the provisioning boundary, and retain concurrency-safe identity allocation.",
+      "pull_request": 21,
+      "allow_post_init_hook": true,
+      "integration_boundary_exceptions": [
+        {
+          "path": "models/provisioning.py",
+          "kind": "odoo_cursor_locking",
+          "reason": "SIP extension allocation serializes one pool with SELECT FOR UPDATE and selects a free candidate through the active Odoo cursor."
+        },
+        {
+          "path": "models/provisioning.py",
+          "kind": "odoo_internal_driver_exception",
+          "reason": "The model imports only IntegrityError to retry a unique-constraint collision inside an Odoo savepoint and never opens a database connection."
+        },
+        {
+          "path": "tests/test_provisioning.py",
+          "kind": "odoo_test_driver_exception",
+          "reason": "The test imports only UniqueViolation to assert Odoo uniqueness constraints and does not open an external database connection."
+        }
+      ]
     },
     "codestra_odoo_certification": {
       "base_tree": "fa57c82248ff878aaa18933fefc9eba6bbc45e61",
@@ -62,7 +108,24 @@
       "base_tree": "cf0783918b94c3e396d24ebe868c4fb04096e4a1",
       "current_tree": "234d6cdc6ff0dd1850acc56152bb33e1e5022a22",
       "reason": "Replace Sass min() mixed-unit syntax with an equivalent width and max-width contract that compiles cleanly in the pinned Odoo 19 asset pipeline.",
-      "pull_request": 21
+      "pull_request": 21,
+      "integration_boundary_exceptions": [
+        {
+          "path": "models/reconciliation.py",
+          "kind": "odoo_schema_index",
+          "reason": "Odoo model initialization creates reviewed partial unique indexes that enforce active reconciliation and sync-run invariants."
+        },
+        {
+          "path": "tests/test_lead_reconciliation.py",
+          "kind": "odoo_test_driver_exception",
+          "reason": "The test imports only UniqueViolation to assert a partial unique mapping invariant and does not open a database connection."
+        },
+        {
+          "path": "tests/test_reconciliation.py",
+          "kind": "odoo_test_driver_exception",
+          "reason": "The test imports only IntegrityError to assert call-record database constraints and does not open a database connection."
+        }
+      ]
     }
   }
 }
