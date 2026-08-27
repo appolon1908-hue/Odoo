@@ -36,7 +36,7 @@
   "strict_mission_overrides": {
     "call_center_campaign": {
       "base_tree": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
-      "current_tree": "19b6e258b28b4e5d884a805621778cd82fdd156d",
+      "current_tree": "d23af7b991274db1e1fafadff9fb2d27d96141f0",
       "reason": "Scope the canonical campaign fixture count to records owned by call_center_campaign so independently installed extension templates cannot corrupt the Odoo 19 regression contract.",
       "pull_request": 21,
       "integration_boundary_exceptions": [

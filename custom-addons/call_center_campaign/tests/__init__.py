@@ -1,4 +1,7 @@
 from . import test_campaign
 from . import test_controller_registration
 from . import test_foundation
+from . import test_integration_api
+from . import test_outbox
+from . import test_result_inbox
 from . import test_telephony_intent
