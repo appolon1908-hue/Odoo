@@ -204,6 +204,7 @@ class CodestraClientContract(models.Model):
             raise UserError(_("Create a new version only from an approved contract."))
         return self.with_context(contract_version_write=True).copy(
             {
+                "name": self.name,
                 "version": self.version + 1,
                 "predecessor_id": self.id,
                 "state": "draft",
