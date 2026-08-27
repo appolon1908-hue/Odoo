@@ -1,0 +1,47 @@
+<odoo noupdate="1">
+    <record id="domain_codestra" model="mail.alias.domain"><field name="name">codestra.co</field></record>
+    <record id="domain_beyvra" model="mail.alias.domain"><field name="name">beyvra.com</field></record>
+    <record id="domain_breero" model="mail.alias.domain"><field name="name">breero.com</field></record>
+    <record id="domain_booked4seasons" model="mail.alias.domain"><field name="name">booked4seasons.com</field></record>
+    <record id="domain_telnexa" model="mail.alias.domain"><field name="name">telnexa.co</field></record>
+    <record id="domain_kyqra" model="mail.alias.domain"><field name="name">kyqra.com</field></record>
+    <record id="domain_klyrow" model="mail.alias.domain"><field name="name">klyrow.com</field></record>
+
+    <record id="brand_codestra" model="codestra.mail.brand"><field name="name">Codestra</field><field name="code">CODESTRA</field><field name="domain">codestra.co</field><field name="company_id" ref="base.main_company"/></record>
+    <record id="brand_beyvra" model="codestra.mail.brand"><field name="name">Beyvra</field><field name="code">BEYVRA</field><field name="domain">beyvra.com</field><field name="company_id" ref="base.main_company"/></record>
+    <record id="brand_breero" model="codestra.mail.brand"><field name="name">Breero</field><field name="code">BREERO</field><field name="domain">breero.com</field><field name="company_id" ref="base.main_company"/></record>
+    <record id="brand_booked4seasons" model="codestra.mail.brand"><field name="name">Booked4Seasons</field><field name="code">BOOKED4SEASONS</field><field name="domain">booked4seasons.com</field><field name="company_id" ref="base.main_company"/></record>
+    <record id="brand_telnexa" model="codestra.mail.brand"><field name="name">Telnexa</field><field name="code">TELNEXA</field><field name="domain">telnexa.co</field><field name="company_id" ref="base.main_company"/></record>
+    <record id="brand_kyqra" model="codestra.mail.brand"><field name="name">Kyqra</field><field name="code">KYQRA</field><field name="domain">kyqra.com</field><field name="company_id" ref="base.main_company"/></record>
+    <record id="brand_klyrow" model="codestra.mail.brand"><field name="name">Klyrow</field><field name="code">KLYROW</field><field name="domain">klyrow.com</field><field name="company_id" ref="base.main_company"/></record>
+
+    <record id="team_codestra_support" model="codestra.mail.team"><field name="name">Codestra Support</field><field name="brand_id" ref="brand_codestra"/><field name="queue_type_id" ref="queue_type_support"/><field name="alias_name">support</field><field name="alias_domain_id" ref="domain_codestra"/></record>
+    <record id="team_codestra_admin" model="codestra.mail.team"><field name="name">Codestra Administration</field><field name="brand_id" ref="brand_codestra"/><field name="queue_type_id" ref="queue_type_administration"/><field name="alias_name">admin</field><field name="alias_domain_id" ref="domain_codestra"/></record>
+    <record id="team_beyvra_support" model="codestra.mail.team"><field name="name">Beyvra Support</field><field name="brand_id" ref="brand_beyvra"/><field name="queue_type_id" ref="queue_type_support"/><field name="alias_name">support</field><field name="alias_domain_id" ref="domain_beyvra"/></record>
+    <record id="team_beyvra_admin" model="codestra.mail.team"><field name="name">Beyvra Administration</field><field name="brand_id" ref="brand_beyvra"/><field name="queue_type_id" ref="queue_type_administration"/><field name="alias_name">admin</field><field name="alias_domain_id" ref="domain_beyvra"/></record>
+    <record id="team_breero_support" model="codestra.mail.team"><field name="name">Breero Support</field><field name="brand_id" ref="brand_breero"/><field name="queue_type_id" ref="queue_type_support"/><field name="alias_name">support</field><field name="alias_domain_id" ref="domain_breero"/></record>
+    <record id="team_breero_admin" model="codestra.mail.team"><field name="name">Breero Administration</field><field name="brand_id" ref="brand_breero"/><field name="queue_type_id" ref="queue_type_administration"/><field name="alias_name">admin</field><field name="alias_domain_id" ref="domain_breero"/></record>
+    <record id="team_booked4seasons_support" model="codestra.mail.team"><field name="name">Booked4Seasons Support</field><field name="brand_id" ref="brand_booked4seasons"/><field name="queue_type_id" ref="queue_type_support"/><field name="alias_name">support</field><field name="alias_domain_id" ref="domain_booked4seasons"/></record>
+    <record id="team_booked4seasons_admin" model="codestra.mail.team"><field name="name">Booked4Seasons Administration</field><field name="brand_id" ref="brand_booked4seasons"/><field name="queue_type_id" ref="queue_type_administration"/><field name="alias_name">admin</field><field name="alias_domain_id" ref="domain_booked4seasons"/></record>
+    <record id="team_telnexa_support" model="codestra.mail.team"><field name="name">Telnexa Support</field><field name="brand_id" ref="brand_telnexa"/><field name="queue_type_id" ref="queue_type_support"/><field name="alias_name">support</field><field name="alias_domain_id" ref="domain_telnexa"/></record>
+    <record id="team_telnexa_admin" model="codestra.mail.team"><field name="name">Telnexa Administration</field><field name="brand_id" ref="brand_telnexa"/><field name="queue_type_id" ref="queue_type_administration"/><field name="alias_name">admin</field><field name="alias_domain_id" ref="domain_telnexa"/></record>
+    <record id="team_kyqra_support" model="codestra.mail.team"><field name="name">Kyqra Support</field><field name="brand_id" ref="brand_kyqra"/><field name="queue_type_id" ref="queue_type_support"/><field name="alias_name">support</field><field name="alias_domain_id" ref="domain_kyqra"/></record>
+    <record id="team_kyqra_admin" model="codestra.mail.team"><field name="name">Kyqra Administration</field><field name="brand_id" ref="brand_kyqra"/><field name="queue_type_id" ref="queue_type_administration"/><field name="alias_name">admin</field><field name="alias_domain_id" ref="domain_kyqra"/></record>
+    <record id="team_klyrow_support" model="codestra.mail.team"><field name="name">Klyrow Support</field><field name="brand_id" ref="brand_klyrow"/><field name="queue_type_id" ref="queue_type_support"/><field name="alias_name">support</field><field name="alias_domain_id" ref="domain_klyrow"/></record>
+    <record id="team_klyrow_admin" model="codestra.mail.team"><field name="name">Klyrow Administration</field><field name="brand_id" ref="brand_klyrow"/><field name="queue_type_id" ref="queue_type_administration"/><field name="alias_name">admin</field><field name="alias_domain_id" ref="domain_klyrow"/></record>
+
+    <record id="sender_codestra_support" model="codestra.mail.sender.allowlist"><field name="team_id" ref="team_codestra_support"/><field name="sender">support@codestra.co</field></record>
+    <record id="sender_codestra_admin" model="codestra.mail.sender.allowlist"><field name="team_id" ref="team_codestra_admin"/><field name="sender">admin@codestra.co</field></record>
+    <record id="sender_beyvra_support" model="codestra.mail.sender.allowlist"><field name="team_id" ref="team_beyvra_support"/><field name="sender">support@beyvra.com</field></record>
+    <record id="sender_beyvra_admin" model="codestra.mail.sender.allowlist"><field name="team_id" ref="team_beyvra_admin"/><field name="sender">admin@beyvra.com</field></record>
+    <record id="sender_breero_support" model="codestra.mail.sender.allowlist"><field name="team_id" ref="team_breero_support"/><field name="sender">support@breero.com</field></record>
+    <record id="sender_breero_admin" model="codestra.mail.sender.allowlist"><field name="team_id" ref="team_breero_admin"/><field name="sender">admin@breero.com</field></record>
+    <record id="sender_booked4seasons_support" model="codestra.mail.sender.allowlist"><field name="team_id" ref="team_booked4seasons_support"/><field name="sender">support@booked4seasons.com</field></record>
+    <record id="sender_booked4seasons_admin" model="codestra.mail.sender.allowlist"><field name="team_id" ref="team_booked4seasons_admin"/><field name="sender">admin@booked4seasons.com</field></record>
+    <record id="sender_telnexa_support" model="codestra.mail.sender.allowlist"><field name="team_id" ref="team_telnexa_support"/><field name="sender">support@telnexa.co</field></record>
+    <record id="sender_telnexa_admin" model="codestra.mail.sender.allowlist"><field name="team_id" ref="team_telnexa_admin"/><field name="sender">admin@telnexa.co</field></record>
+    <record id="sender_kyqra_support" model="codestra.mail.sender.allowlist"><field name="team_id" ref="team_kyqra_support"/><field name="sender">support@kyqra.com</field></record>
+    <record id="sender_kyqra_admin" model="codestra.mail.sender.allowlist"><field name="team_id" ref="team_kyqra_admin"/><field name="sender">admin@kyqra.com</field></record>
+    <record id="sender_klyrow_support" model="codestra.mail.sender.allowlist"><field name="team_id" ref="team_klyrow_support"/><field name="sender">support@klyrow.com</field></record>
+    <record id="sender_klyrow_admin" model="codestra.mail.sender.allowlist"><field name="team_id" ref="team_klyrow_admin"/><field name="sender">admin@klyrow.com</field></record>
+</odoo>

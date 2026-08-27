@@ -1,0 +1,9 @@
+<odoo noupdate="1">
+ <record id="sequence_contact_center_case" model="ir.sequence">
+  <field name="name">Contact Center Case</field>
+  <field name="code">codestra.contact.center.case</field>
+  <field name="prefix">CASE-</field>
+  <field name="padding">8</field>
+  <field name="company_id" eval="False"/>
+ </record>
+</odoo>

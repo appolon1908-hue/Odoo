@@ -12,10 +12,10 @@ venv/
 
 # Odoo runtime data
 *.log
-sessions/
-filestore/
-data/
-backups/
+/sessions/
+/filestore/
+/data/
+/backups/
 *.dump
 *.backup
 *.sql

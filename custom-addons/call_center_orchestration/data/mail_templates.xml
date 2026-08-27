@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="mail_template_supervisor_provisioning_notice" model="mail.template">
+    <field name="name">Supervisor Provisioning Status (No Secrets)</field>
+    <field name="model_id" ref="model_call_center_provisioning_request"/>
+    <field name="subject">Provisioning status: {{ object.request_uid }}</field>
+    <field name="body_html" type="html">
+      <div>
+        <p>A provisioning request changed state.</p>
+        <p>Reference: <t t-out="object.request_uid"/></p>
+        <p>No password or credential is included. Use the approved one-time retrieval process.</p>
+      </div>
+    </field>
+  </record>
+  <record id="mail_template_agent_activation" model="mail.template">
+    <field name="name">Agent Activation (One-Time Link Notice)</field>
+    <field name="model_id" ref="model_call_center_provisioning_request"/>
+    <field name="subject">Account activation for {{ object.request_uid }}</field>
+    <field name="body_html" type="html"><div><p>Your account is ready for activation.</p><p>Open the approved secure activation portal. No password or credential is included in this message.</p><p>Reference: <t t-out="object.request_uid"/></p></div></field>
+  </record>
+  <record id="mail_template_credential_expiration" model="mail.template">
+    <field name="name">Credential Link Expiration Notice</field>
+    <field name="model_id" ref="model_call_center_provisioning_request"/>
+    <field name="subject">Secure retrieval link expiration: {{ object.request_uid }}</field>
+    <field name="body_html" type="html"><div><p>The one-time secure retrieval link is expiring or has expired.</p><p>Request a new approved link. No credential is included.</p></div></field>
+  </record>
+  <record id="mail_template_endpoint_registration" model="mail.template">
+    <field name="name">Endpoint Registration Reminder</field>
+    <field name="model_id" ref="model_call_center_provisioning_request"/>
+    <field name="subject">Endpoint registration reminder: {{ object.request_uid }}</field>
+    <field name="body_html" type="html"><div><p>Complete endpoint registration using the secure agent portal.</p><p>Reference: <t t-out="object.endpoint_reference or object.request_uid"/></p></div></field>
+  </record>
+  <record id="mail_template_callback_reminder" model="mail.template">
+    <field name="name">Callback Reminder</field>
+    <field name="model_id" ref="model_call_center_callback_task"/>
+    <field name="subject">Callback reminder: {{ object.id }}</field>
+    <field name="body_html" type="html"><div><p>A callback assigned to you is due.</p><p><a t-att-href="'/web#id=%s&amp;model=call.center.callback.task&amp;view_type=form' % object.id">Open secure Odoo callback</a></p><p>Customer details are intentionally omitted.</p></div></field>
+  </record>
+  <record id="mail_template_callback_overdue" model="mail.template">
+    <field name="name">Overdue Callback Escalation</field>
+    <field name="model_id" ref="model_call_center_callback_task"/>
+    <field name="subject">Overdue callback escalation: {{ object.id }}</field>
+    <field name="body_html" type="html"><div><p>A callback breached its SLA.</p><p><a t-att-href="'/web#id=%s&amp;model=call.center.callback.task&amp;view_type=form' % object.id">Open secure Odoo callback</a></p></div></field>
+  </record>
+  <record id="mail_template_callback_daily_summary" model="mail.template">
+    <field name="name">Daily Callback Summary</field>
+    <field name="model_id" ref="model_call_center_callback_task"/>
+    <field name="subject">Daily unresolved callback summary</field>
+    <field name="body_html" type="html"><div><p>Review unresolved callbacks in the secure supervisor dashboard.</p><p>No customer data or credentials are included.</p></div></field>
+  </record>
+  <record id="mail_template_agent_offboarding" model="mail.template">
+    <field name="name">Agent Offboarding Confirmation</field>
+    <field name="model_id" ref="model_call_center_provisioning_request"/>
+    <field name="subject">Offboarding status: {{ object.request_uid }}</field>
+    <field name="body_html" type="html"><div><p>Offboarding metadata was recorded.</p><p>Reference: <t t-out="object.request_uid"/></p><p>Review revocation status in the secure administrator portal.</p></div></field>
+  </record>
+  <record id="mail_template_lead_import_completion" model="mail.template">
+    <field name="name">Lead Import Completion Report</field>
+    <field name="model_id" ref="model_call_center_lead_import_batch"/>
+    <field name="subject">Lead import completed: {{ object.name }}</field>
+    <field name="body_html" type="html"><div><p>Import processing completed.</p><p>Accepted: <t t-out="object.accepted_count"/>; duplicates: <t t-out="object.duplicate_count"/>; blocked: <t t-out="object.blocked_count"/>.</p><p>No lead contact details are included.</p></div></field>
+  </record>
+  <record id="mail_template_lead_sync_failure" model="mail.template">
+    <field name="name">Lead Synchronization Failure Alert</field>
+    <field name="model_id" ref="crm.model_crm_lead"/>
+    <field name="subject">Lead synchronization requires review</field>
+    <field name="body_html" type="html"><div><p>A lead synchronization request failed.</p><p><a t-att-href="'/web#id=%s&amp;model=crm.lead&amp;view_type=form' % object.id">Open secure Odoo record</a></p><p>Sensitive lead data is omitted.</p></div></field>
+  </record>
+</odoo>

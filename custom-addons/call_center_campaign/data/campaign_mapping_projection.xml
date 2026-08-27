@@ -1,0 +1,2934 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+  <!-- Generated from the accepted middleware registry; all records are inactive staging projections. -->
+  <record id="campaign_cal_appointment_in" model="call.center.campaign">
+    <field name="name">CAL-APPOINTMENT-IN</field>
+    <field name="code">CAL-APPOINTMENT-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_calderon"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cal_buyers_in" model="call.center.campaign">
+    <field name="name">CAL-BUYERS-IN</field>
+    <field name="code">CAL-BUYERS-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_calderon"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cal_callback_out" model="call.center.campaign">
+    <field name="name">CAL-CALLBACK-OUT</field>
+    <field name="code">CAL-CALLBACK-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_calderon"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cal_export_in" model="call.center.campaign">
+    <field name="name">CAL-EXPORT-IN</field>
+    <field name="code">CAL-EXPORT-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_calderon"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cal_export_out" model="call.center.campaign">
+    <field name="name">CAL-EXPORT-OUT</field>
+    <field name="code">CAL-EXPORT-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_calderon"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cal_partners_out" model="call.center.campaign">
+    <field name="name">CAL-PARTNERS-OUT</field>
+    <field name="code">CAL-PARTNERS-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_calderon"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cal_reorder_out" model="call.center.campaign">
+    <field name="name">CAL-REORDER-OUT</field>
+    <field name="code">CAL-REORDER-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_calderon"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cal_support_in" model="call.center.campaign">
+    <field name="name">CAL-SUPPORT-IN</field>
+    <field name="code">CAL-SUPPORT-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_calderon"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cal_test_out" model="call.center.campaign">
+    <field name="name">CAL-TEST-OUT</field>
+    <field name="code">CAL-TEST-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_calderon"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cal_wholesale_out" model="call.center.campaign">
+    <field name="name">CAL-WHOLESALE-OUT</field>
+    <field name="code">CAL-WHOLESALE-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_calderon"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cod_ai_in" model="call.center.campaign">
+    <field name="name">COD-AI-IN</field>
+    <field name="code">COD-AI-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cod_ai_out" model="call.center.campaign">
+    <field name="name">COD-AI-OUT</field>
+    <field name="code">COD-AI-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cod_appointment_in" model="call.center.campaign">
+    <field name="name">COD-APPOINTMENT-IN</field>
+    <field name="code">COD-APPOINTMENT-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cod_automation_out" model="call.center.campaign">
+    <field name="name">COD-AUTOMATION-OUT</field>
+    <field name="code">COD-AUTOMATION-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cod_billing_in" model="call.center.campaign">
+    <field name="name">COD-BILLING-IN</field>
+    <field name="code">COD-BILLING-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cod_callback_out" model="call.center.campaign">
+    <field name="name">COD-CALLBACK-OUT</field>
+    <field name="code">COD-CALLBACK-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cod_hosting_out" model="call.center.campaign">
+    <field name="name">COD-HOSTING-OUT</field>
+    <field name="code">COD-HOSTING-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cod_mobile_in" model="call.center.campaign">
+    <field name="name">COD-MOBILE-IN</field>
+    <field name="code">COD-MOBILE-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cod_mobile_out" model="call.center.campaign">
+    <field name="name">COD-MOBILE-OUT</field>
+    <field name="code">COD-MOBILE-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cod_odoo_in" model="call.center.campaign">
+    <field name="name">COD-ODOO-IN</field>
+    <field name="code">COD-ODOO-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cod_odoo_out" model="call.center.campaign">
+    <field name="name">COD-ODOO-OUT</field>
+    <field name="code">COD-ODOO-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cod_renewal_out" model="call.center.campaign">
+    <field name="name">COD-RENEWAL-OUT</field>
+    <field name="code">COD-RENEWAL-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cod_support_in" model="call.center.campaign">
+    <field name="name">COD-SUPPORT-IN</field>
+    <field name="code">COD-SUPPORT-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cod_test_out" model="call.center.campaign">
+    <field name="name">COD-TEST-OUT</field>
+    <field name="code">COD-TEST-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cod_upsell_out" model="call.center.campaign">
+    <field name="name">COD-UPSELL-OUT</field>
+    <field name="code">COD-UPSELL-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cod_web_in" model="call.center.campaign">
+    <field name="name">COD-WEB-IN</field>
+    <field name="code">COD-WEB-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_cod_web_out" model="call.center.campaign">
+    <field name="name">COD-WEB-OUT</field>
+    <field name="code">COD-WEB-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_ftp_appointment_in" model="call.center.campaign">
+    <field name="name">FTP-APPOINTMENT-IN</field>
+    <field name="code">FTP-APPOINTMENT-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_ftp"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_ftp_callback_out" model="call.center.campaign">
+    <field name="name">FTP-CALLBACK-OUT</field>
+    <field name="code">FTP-CALLBACK-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_ftp"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_ftp_donations_in" model="call.center.campaign">
+    <field name="name">FTP-DONATIONS-IN</field>
+    <field name="code">FTP-DONATIONS-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_ftp"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_ftp_donor_out" model="call.center.campaign">
+    <field name="name">FTP-DONOR-OUT</field>
+    <field name="code">FTP-DONOR-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_ftp"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_ftp_donor_support_in" model="call.center.campaign">
+    <field name="name">FTP-DONOR-SUPPORT-IN</field>
+    <field name="code">FTP-DONOR-SUPPORT-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_ftp"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_ftp_pledge_out" model="call.center.campaign">
+    <field name="name">FTP-PLEDGE-OUT</field>
+    <field name="code">FTP-PLEDGE-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_ftp"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_ftp_retention_out" model="call.center.campaign">
+    <field name="name">FTP-RETENTION-OUT</field>
+    <field name="code">FTP-RETENTION-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_ftp"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_ftp_sponsor_in" model="call.center.campaign">
+    <field name="name">FTP-SPONSOR-IN</field>
+    <field name="code">FTP-SPONSOR-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_ftp"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_ftp_sponsor_out" model="call.center.campaign">
+    <field name="name">FTP-SPONSOR-OUT</field>
+    <field name="code">FTP-SPONSOR-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_ftp"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_ftp_test_out" model="call.center.campaign">
+    <field name="name">FTP-TEST-OUT</field>
+    <field name="code">FTP-TEST-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_ftp"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_mbl_appointment_in" model="call.center.campaign">
+    <field name="name">MBL-APPOINTMENT-IN</field>
+    <field name="code">MBL-APPOINTMENT-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_mbl_callback_out" model="call.center.campaign">
+    <field name="name">MBL-CALLBACK-OUT</field>
+    <field name="code">MBL-CALLBACK-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_mbl_documents_in" model="call.center.campaign">
+    <field name="name">MBL-DOCUMENTS-IN</field>
+    <field name="code">MBL-DOCUMENTS-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_mbl_documents_out" model="call.center.campaign">
+    <field name="name">MBL-DOCUMENTS-OUT</field>
+    <field name="code">MBL-DOCUMENTS-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_mbl_funding_out" model="call.center.campaign">
+    <field name="name">MBL-FUNDING-OUT</field>
+    <field name="code">MBL-FUNDING-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_mbl_loan_in" model="call.center.campaign">
+    <field name="name">MBL-LOAN-IN</field>
+    <field name="code">MBL-LOAN-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_mbl_new_loan_out" model="call.center.campaign">
+    <field name="name">MBL-NEW-LOAN-OUT</field>
+    <field name="code">MBL-NEW-LOAN-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_mbl_offer_out" model="call.center.campaign">
+    <field name="name">MBL-OFFER-OUT</field>
+    <field name="code">MBL-OFFER-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_mbl_renewal_out" model="call.center.campaign">
+    <field name="name">MBL-RENEWAL-OUT</field>
+    <field name="code">MBL-RENEWAL-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_mbl_status_in" model="call.center.campaign">
+    <field name="name">MBL-STATUS-IN</field>
+    <field name="code">MBL-STATUS-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_mbl_support_in" model="call.center.campaign">
+    <field name="name">MBL-SUPPORT-IN</field>
+    <field name="code">MBL-SUPPORT-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_mbl_test_out" model="call.center.campaign">
+    <field name="name">MBL-TEST-OUT</field>
+    <field name="code">MBL-TEST-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_moy_appointment_in" model="call.center.campaign">
+    <field name="name">MOY-APPOINTMENT-IN</field>
+    <field name="code">MOY-APPOINTMENT-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_moy_billing_in" model="call.center.campaign">
+    <field name="name">MOY-BILLING-IN</field>
+    <field name="code">MOY-BILLING-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_moy_callback_out" model="call.center.campaign">
+    <field name="name">MOY-CALLBACK-OUT</field>
+    <field name="code">MOY-CALLBACK-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_moy_carrier_in" model="call.center.campaign">
+    <field name="name">MOY-CARRIER-IN</field>
+    <field name="code">MOY-CARRIER-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_moy_carrier_out" model="call.center.campaign">
+    <field name="name">MOY-CARRIER-OUT</field>
+    <field name="code">MOY-CARRIER-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_moy_dispatch_in" model="call.center.campaign">
+    <field name="name">MOY-DISPATCH-IN</field>
+    <field name="code">MOY-DISPATCH-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_moy_dispatch_out" model="call.center.campaign">
+    <field name="name">MOY-DISPATCH-OUT</field>
+    <field name="code">MOY-DISPATCH-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_moy_partner_out" model="call.center.campaign">
+    <field name="name">MOY-PARTNER-OUT</field>
+    <field name="code">MOY-PARTNER-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_moy_retention_out" model="call.center.campaign">
+    <field name="name">MOY-RETENTION-OUT</field>
+    <field name="code">MOY-RETENTION-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_moy_shipper_in" model="call.center.campaign">
+    <field name="name">MOY-SHIPPER-IN</field>
+    <field name="code">MOY-SHIPPER-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_moy_shipper_out" model="call.center.campaign">
+    <field name="name">MOY-SHIPPER-OUT</field>
+    <field name="code">MOY-SHIPPER-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_moy_support_in" model="call.center.campaign">
+    <field name="name">MOY-SUPPORT-IN</field>
+    <field name="code">MOY-SUPPORT-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_moy_test_out" model="call.center.campaign">
+    <field name="name">MOY-TEST-OUT</field>
+    <field name="code">MOY-TEST-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_moy_upsell_out" model="call.center.campaign">
+    <field name="name">MOY-UPSELL-OUT</field>
+    <field name="code">MOY-UPSELL-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_rlp_appointment_in" model="call.center.campaign">
+    <field name="name">RLP-APPOINTMENT-IN</field>
+    <field name="code">RLP-APPOINTMENT-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_rlp_buyers_in" model="call.center.campaign">
+    <field name="name">RLP-BUYERS-IN</field>
+    <field name="code">RLP-BUYERS-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_rlp_buyers_out" model="call.center.campaign">
+    <field name="name">RLP-BUYERS-OUT</field>
+    <field name="code">RLP-BUYERS-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_rlp_callback_out" model="call.center.campaign">
+    <field name="name">RLP-CALLBACK-OUT</field>
+    <field name="code">RLP-CALLBACK-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_rlp_followup_out" model="call.center.campaign">
+    <field name="name">RLP-FOLLOWUP-OUT</field>
+    <field name="code">RLP-FOLLOWUP-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_rlp_investors_in" model="call.center.campaign">
+    <field name="name">RLP-INVESTORS-IN</field>
+    <field name="code">RLP-INVESTORS-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_rlp_investors_out" model="call.center.campaign">
+    <field name="name">RLP-INVESTORS-OUT</field>
+    <field name="code">RLP-INVESTORS-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_rlp_property_in" model="call.center.campaign">
+    <field name="name">RLP-PROPERTY-IN</field>
+    <field name="code">RLP-PROPERTY-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_rlp_rentals_out" model="call.center.campaign">
+    <field name="name">RLP-RENTALS-OUT</field>
+    <field name="code">RLP-RENTALS-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_rlp_sellers_in" model="call.center.campaign">
+    <field name="name">RLP-SELLERS-IN</field>
+    <field name="code">RLP-SELLERS-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_rlp_sellers_out" model="call.center.campaign">
+    <field name="name">RLP-SELLERS-OUT</field>
+    <field name="code">RLP-SELLERS-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_rlp_test_out" model="call.center.campaign">
+    <field name="name">RLP-TEST-OUT</field>
+    <field name="code">RLP-TEST-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_scp_appointment_in" model="call.center.campaign">
+    <field name="name">SCP-APPOINTMENT-IN</field>
+    <field name="code">SCP-APPOINTMENT-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_scp_billing_in" model="call.center.campaign">
+    <field name="name">SCP-BILLING-IN</field>
+    <field name="code">SCP-BILLING-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_scp_callback_out" model="call.center.campaign">
+    <field name="name">SCP-CALLBACK-OUT</field>
+    <field name="code">SCP-CALLBACK-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_scp_caregiver_in" model="call.center.campaign">
+    <field name="name">SCP-CAREGIVER-IN</field>
+    <field name="code">SCP-CAREGIVER-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_scp_caregiver_out" model="call.center.campaign">
+    <field name="name">SCP-CAREGIVER-OUT</field>
+    <field name="code">SCP-CAREGIVER-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_scp_order_in" model="call.center.campaign">
+    <field name="name">SCP-ORDER-IN</field>
+    <field name="code">SCP-ORDER-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_scp_product_in" model="call.center.campaign">
+    <field name="name">SCP-PRODUCT-IN</field>
+    <field name="code">SCP-PRODUCT-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_scp_product_out" model="call.center.campaign">
+    <field name="name">SCP-PRODUCT-OUT</field>
+    <field name="code">SCP-PRODUCT-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_scp_reorder_out" model="call.center.campaign">
+    <field name="name">SCP-REORDER-OUT</field>
+    <field name="code">SCP-REORDER-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_scp_retention_out" model="call.center.campaign">
+    <field name="name">SCP-RETENTION-OUT</field>
+    <field name="code">SCP-RETENTION-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_scp_support_in" model="call.center.campaign">
+    <field name="name">SCP-SUPPORT-IN</field>
+    <field name="code">SCP-SUPPORT-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_scp_test_out" model="call.center.campaign">
+    <field name="name">SCP-TEST-OUT</field>
+    <field name="code">SCP-TEST-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_scp_upsell_out" model="call.center.campaign">
+    <field name="name">SCP-UPSELL-OUT</field>
+    <field name="code">SCP-UPSELL-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_scp_warranty_in" model="call.center.campaign">
+    <field name="name">SCP-WARRANTY-IN</field>
+    <field name="code">SCP-WARRANTY-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_trx_appointment_in" model="call.center.campaign">
+    <field name="name">TRX-APPOINTMENT-IN</field>
+    <field name="code">TRX-APPOINTMENT-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_trx_billing_in" model="call.center.campaign">
+    <field name="name">TRX-BILLING-IN</field>
+    <field name="code">TRX-BILLING-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_trx_callback_out" model="call.center.campaign">
+    <field name="name">TRX-CALLBACK-OUT</field>
+    <field name="code">TRX-CALLBACK-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_trx_demo_in" model="call.center.campaign">
+    <field name="name">TRX-DEMO-IN</field>
+    <field name="code">TRX-DEMO-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_trx_demo_out" model="call.center.campaign">
+    <field name="name">TRX-DEMO-OUT</field>
+    <field name="code">TRX-DEMO-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_trx_onboarding_out" model="call.center.campaign">
+    <field name="name">TRX-ONBOARDING-OUT</field>
+    <field name="code">TRX-ONBOARDING-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_trx_renewal_out" model="call.center.campaign">
+    <field name="name">TRX-RENEWAL-OUT</field>
+    <field name="code">TRX-RENEWAL-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_trx_sales_in" model="call.center.campaign">
+    <field name="name">TRX-SALES-IN</field>
+    <field name="code">TRX-SALES-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_trx_sales_out" model="call.center.campaign">
+    <field name="name">TRX-SALES-OUT</field>
+    <field name="code">TRX-SALES-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_trx_support_in" model="call.center.campaign">
+    <field name="name">TRX-SUPPORT-IN</field>
+    <field name="code">TRX-SUPPORT-IN</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="direction">inbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_trx_test_out" model="call.center.campaign">
+    <field name="name">TRX-TEST-OUT</field>
+    <field name="code">TRX-TEST-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_trx_trial_out" model="call.center.campaign">
+    <field name="name">TRX-TRIAL-OUT</field>
+    <field name="code">TRX-TRIAL-OUT</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cal_appointment_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">96f7a5ed-80fb-5a03-8f7a-6a05a684a2a5</field>
+    <field name="mapping_uuid">ba99eec8-da58-5548-aabf-60cd87618248</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_calderon"/>
+    <field name="crm_team_id" ref="crm_team_cal"/>
+    <field name="campaign_id" ref="campaign_cal_appointment_in"/>
+    <field name="pipeline_id" ref="pipeline_cal"/>
+    <field name="canonical_campaign_code">CAL-APPOINTMENT-IN</field>
+    <field name="vicidial_campaign_id">CAL365FE</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:CAL:CAL-APPOINTMENT-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">078ffee59e58ec04da2827f63a9e3b877882dea99619977b423668fa3a9da7eb</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cal_buyers_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">f0f59127-7cf3-5dd5-9473-b250427d2995</field>
+    <field name="mapping_uuid">6074201f-0472-50fb-9eb3-edc4caca88fa</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_calderon"/>
+    <field name="crm_team_id" ref="crm_team_cal"/>
+    <field name="campaign_id" ref="campaign_cal_buyers_in"/>
+    <field name="pipeline_id" ref="pipeline_cal"/>
+    <field name="canonical_campaign_code">CAL-BUYERS-IN</field>
+    <field name="vicidial_campaign_id">CAL6524C</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:CAL:CAL-BUYERS-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">81c64de89438d8aa81b6671276e22302cd63b41e37266fb832c09a897de4ada5</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cal_callback_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">4b3729a8-ad6d-5788-b9f5-98482685d1f8</field>
+    <field name="mapping_uuid">cdc09e24-b857-5500-bd93-98bd54f9d629</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_calderon"/>
+    <field name="crm_team_id" ref="crm_team_cal"/>
+    <field name="campaign_id" ref="campaign_cal_callback_out"/>
+    <field name="pipeline_id" ref="pipeline_cal"/>
+    <field name="canonical_campaign_code">CAL-CALLBACK-OUT</field>
+    <field name="vicidial_campaign_id">CALEE0DB</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:CAL:CAL-CALLBACK-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">6e6b36bbb0e5b286a779d8518bda6dffb9d954aabc7c3cb17c249ee76644e4f6</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cal_export_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">03707116-52ba-5118-8a66-2cfbe0b630bc</field>
+    <field name="mapping_uuid">2c7b6849-5a0c-5050-9729-5d98fa9de644</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_calderon"/>
+    <field name="crm_team_id" ref="crm_team_cal"/>
+    <field name="campaign_id" ref="campaign_cal_export_in"/>
+    <field name="pipeline_id" ref="pipeline_cal"/>
+    <field name="canonical_campaign_code">CAL-EXPORT-IN</field>
+    <field name="vicidial_campaign_id">CAL57B87</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:CAL:CAL-EXPORT-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">7a60035e543c91cbcf47323c0c3d1d988e6385d358cb793b6102d84da0ecd6b4</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cal_export_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">c9099622-2ab1-5e16-ade4-54d3894516f6</field>
+    <field name="mapping_uuid">edb8c971-cca2-5a03-ac6c-4662606d6f74</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_calderon"/>
+    <field name="crm_team_id" ref="crm_team_cal"/>
+    <field name="campaign_id" ref="campaign_cal_export_out"/>
+    <field name="pipeline_id" ref="pipeline_cal"/>
+    <field name="canonical_campaign_code">CAL-EXPORT-OUT</field>
+    <field name="vicidial_campaign_id">CAL13BC2</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:CAL:CAL-EXPORT-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">35a06501fa019dd7a2638587cdef02cbdca51593f4b1b74bc90242b1d2e9bc84</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cal_partners_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">93fdd64c-6a73-5280-96a8-7bcfbb0333a3</field>
+    <field name="mapping_uuid">7f928f83-65e1-5233-9267-10fa901fcee0</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_calderon"/>
+    <field name="crm_team_id" ref="crm_team_cal"/>
+    <field name="campaign_id" ref="campaign_cal_partners_out"/>
+    <field name="pipeline_id" ref="pipeline_cal"/>
+    <field name="canonical_campaign_code">CAL-PARTNERS-OUT</field>
+    <field name="vicidial_campaign_id">CALB8233</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:CAL:CAL-PARTNERS-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">bb156a72eea0df7dfdeb7da1c85a9967c52a80174734237088ea65be90cbf99d</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cal_reorder_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">c7372cc0-e76d-516f-808a-c1b83b895244</field>
+    <field name="mapping_uuid">96f255c9-db04-5b0a-ad3b-025d40febc5c</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_calderon"/>
+    <field name="crm_team_id" ref="crm_team_cal"/>
+    <field name="campaign_id" ref="campaign_cal_reorder_out"/>
+    <field name="pipeline_id" ref="pipeline_cal"/>
+    <field name="canonical_campaign_code">CAL-REORDER-OUT</field>
+    <field name="vicidial_campaign_id">CAL82A62</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:CAL:CAL-REORDER-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">b77c8e0b0b11ef6897e4fc70c5683d1e771c9ce5041264dc21fe69b83c287d1b</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cal_support_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">004d5e0f-e117-5c0a-b8e2-4f5df63ee99d</field>
+    <field name="mapping_uuid">8cd6044a-df11-5d41-879a-fe6fa49264e2</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_calderon"/>
+    <field name="crm_team_id" ref="crm_team_cal"/>
+    <field name="campaign_id" ref="campaign_cal_support_in"/>
+    <field name="pipeline_id" ref="pipeline_cal"/>
+    <field name="canonical_campaign_code">CAL-SUPPORT-IN</field>
+    <field name="vicidial_campaign_id">CALB0CCB</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:CAL:CAL-SUPPORT-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">97824a5dc558f2c371594eb6fab9b6f8a3fcfb9953465b37e8f72770980143dc</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cal_test_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">57e92bf9-d891-5316-a1c5-5aedfaaf8882</field>
+    <field name="mapping_uuid">0484af33-c7f0-5787-a26d-1df575f83496</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_calderon"/>
+    <field name="crm_team_id" ref="crm_team_cal"/>
+    <field name="campaign_id" ref="campaign_cal_test_out"/>
+    <field name="pipeline_id" ref="pipeline_cal"/>
+    <field name="canonical_campaign_code">CAL-TEST-OUT</field>
+    <field name="vicidial_campaign_id">CALE1629</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:CAL:CAL-TEST-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">b535deb286537cf692eb7f169429e8691282f2a33c5b7bb1e94645eefb48c68c</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cal_wholesale_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">60b90a79-5cd1-5dfd-b6af-100064ce2b8f</field>
+    <field name="mapping_uuid">b8331d4a-59a8-56bc-b85b-3c6a971711b5</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_calderon"/>
+    <field name="crm_team_id" ref="crm_team_cal"/>
+    <field name="campaign_id" ref="campaign_cal_wholesale_out"/>
+    <field name="pipeline_id" ref="pipeline_cal"/>
+    <field name="canonical_campaign_code">CAL-WHOLESALE-OUT</field>
+    <field name="vicidial_campaign_id">CAL072AF</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:CAL:CAL-WHOLESALE-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">edeea27f0f58ef4a857a8f0aefe7e5fcf0d86d48ee20cd12f2011c82c6b247de</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cod_ai_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">88b9eee8-6e31-5a0d-b441-c7beb5b22ca3</field>
+    <field name="mapping_uuid">33bf9663-972b-514e-98f3-08a9eaea781a</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="crm_team_id" ref="crm_team_cod"/>
+    <field name="campaign_id" ref="campaign_cod_ai_in"/>
+    <field name="pipeline_id" ref="pipeline_cod"/>
+    <field name="canonical_campaign_code">COD-AI-IN</field>
+    <field name="vicidial_campaign_id">CODCC660</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:COD:COD-AI-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">702f686d67659ad0ec635466f4dd6d6c4fd79e6041d4e80a02eddbae0e32594c</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cod_ai_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">83586da7-eebb-5c77-aec5-fcdd5c56f102</field>
+    <field name="mapping_uuid">463753f0-790a-5836-aa28-45b8ef33b95f</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="crm_team_id" ref="crm_team_cod"/>
+    <field name="campaign_id" ref="campaign_cod_ai_out"/>
+    <field name="pipeline_id" ref="pipeline_cod"/>
+    <field name="canonical_campaign_code">COD-AI-OUT</field>
+    <field name="vicidial_campaign_id">COD0C633</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:COD:COD-AI-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">413bb8a9a66651f84a9ee8fed6aa61bb421631a0fbbbf568f329c8bd9db2006a</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cod_appointment_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">8378f41a-03d7-50d0-89f0-cc5d10fd6683</field>
+    <field name="mapping_uuid">2aec03cf-cd1b-5057-8048-141143351518</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="crm_team_id" ref="crm_team_cod"/>
+    <field name="campaign_id" ref="campaign_cod_appointment_in"/>
+    <field name="pipeline_id" ref="pipeline_cod"/>
+    <field name="canonical_campaign_code">COD-APPOINTMENT-IN</field>
+    <field name="vicidial_campaign_id">COD9FCAC</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:COD:COD-APPOINTMENT-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">8a484e1d1db2655bfa2a17a5239a036d1ebcaad2a5dd990e07f19df7cc5f9c7d</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cod_automation_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">0203baee-5cfc-563a-b47e-a70b9cf773a6</field>
+    <field name="mapping_uuid">f59c5a44-28f6-5a54-b572-3b0397d47832</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="crm_team_id" ref="crm_team_cod"/>
+    <field name="campaign_id" ref="campaign_cod_automation_out"/>
+    <field name="pipeline_id" ref="pipeline_cod"/>
+    <field name="canonical_campaign_code">COD-AUTOMATION-OUT</field>
+    <field name="vicidial_campaign_id">COD14371</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:COD:COD-AUTOMATION-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">61aa76af5cce52f6fa96444d92024abdd9412043e4805ff65edf5df4f6f9c83b</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cod_billing_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">87d50d3a-4ef3-5500-959f-f889694a631d</field>
+    <field name="mapping_uuid">90fda6aa-7711-5109-88df-176a2b064be5</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="crm_team_id" ref="crm_team_cod"/>
+    <field name="campaign_id" ref="campaign_cod_billing_in"/>
+    <field name="pipeline_id" ref="pipeline_cod"/>
+    <field name="canonical_campaign_code">COD-BILLING-IN</field>
+    <field name="vicidial_campaign_id">COD3438B</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:COD:COD-BILLING-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">d77c82d285dd995f97a72064916912a6f5a5babdcb255f2a01b2aa9042a98906</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cod_callback_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">7f6b368e-86cf-577d-a293-0bbced35f8b7</field>
+    <field name="mapping_uuid">fc37df85-fa6e-588c-a1ec-c173ffbf5085</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="crm_team_id" ref="crm_team_cod"/>
+    <field name="campaign_id" ref="campaign_cod_callback_out"/>
+    <field name="pipeline_id" ref="pipeline_cod"/>
+    <field name="canonical_campaign_code">COD-CALLBACK-OUT</field>
+    <field name="vicidial_campaign_id">CODDA9C9</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:COD:COD-CALLBACK-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">7e5e52400de4b945ee927d3feb879ac5c73dac767afa582387037253232fa8e5</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cod_hosting_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">ff4ee170-a221-5d7d-8c19-2c401ec200fb</field>
+    <field name="mapping_uuid">1f92d3cc-6f6e-5df5-9fb1-b445eeba4c89</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="crm_team_id" ref="crm_team_cod"/>
+    <field name="campaign_id" ref="campaign_cod_hosting_out"/>
+    <field name="pipeline_id" ref="pipeline_cod"/>
+    <field name="canonical_campaign_code">COD-HOSTING-OUT</field>
+    <field name="vicidial_campaign_id">COD4A384</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:COD:COD-HOSTING-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">11adfaff2bfd2de308ea6823d7facc2e853f9443c62df284efac2d96ee441a47</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cod_mobile_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">66fc6893-839c-5016-be32-caddde677d45</field>
+    <field name="mapping_uuid">99e8dae6-e485-5c59-90d0-1f2fa911e87d</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="crm_team_id" ref="crm_team_cod"/>
+    <field name="campaign_id" ref="campaign_cod_mobile_in"/>
+    <field name="pipeline_id" ref="pipeline_cod"/>
+    <field name="canonical_campaign_code">COD-MOBILE-IN</field>
+    <field name="vicidial_campaign_id">CODDDA20</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:COD:COD-MOBILE-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">8e43fbce347b064b475ea66df8b9708a33fcb4120793bf6731f5d5120fa3e22d</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cod_mobile_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">b65b0f5a-629c-571f-b2d2-77015b5bb3d1</field>
+    <field name="mapping_uuid">2308c883-7b60-5db8-b011-5c1796056404</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="crm_team_id" ref="crm_team_cod"/>
+    <field name="campaign_id" ref="campaign_cod_mobile_out"/>
+    <field name="pipeline_id" ref="pipeline_cod"/>
+    <field name="canonical_campaign_code">COD-MOBILE-OUT</field>
+    <field name="vicidial_campaign_id">CODC7A37</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:COD:COD-MOBILE-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">6fd3daa2267f25963920ff49700cff2638cf2a879c82f712e0e775eefa2f05d3</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cod_odoo_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">d6125626-49cc-5da6-8afa-0817d79a4ebf</field>
+    <field name="mapping_uuid">3f91b5d5-af1e-56dd-9731-4edb0001e43f</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="crm_team_id" ref="crm_team_cod"/>
+    <field name="campaign_id" ref="campaign_cod_odoo_in"/>
+    <field name="pipeline_id" ref="pipeline_cod"/>
+    <field name="canonical_campaign_code">COD-ODOO-IN</field>
+    <field name="vicidial_campaign_id">COD4420B</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:COD:COD-ODOO-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">b5899489d3f0b5e9feb8bc53c19cf78939b0e9b921df01ccff7f0cf222b9e6f6</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cod_odoo_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">6bcd1999-6413-56d8-abe1-5b86d3a13a54</field>
+    <field name="mapping_uuid">c0fd256f-33ae-5623-b7f8-2ddee49e76c3</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="crm_team_id" ref="crm_team_cod"/>
+    <field name="campaign_id" ref="campaign_cod_odoo_out"/>
+    <field name="pipeline_id" ref="pipeline_cod"/>
+    <field name="canonical_campaign_code">COD-ODOO-OUT</field>
+    <field name="vicidial_campaign_id">COD094F9</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:COD:COD-ODOO-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">9db5ef040fb4d90ea731af103be37d1424b29e6674469d36597f243c39773012</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cod_renewal_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">f2f70e52-d44d-501d-8d05-89c3bdf06318</field>
+    <field name="mapping_uuid">3f86671b-0bde-5caf-9f02-c990ad772214</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="crm_team_id" ref="crm_team_cod"/>
+    <field name="campaign_id" ref="campaign_cod_renewal_out"/>
+    <field name="pipeline_id" ref="pipeline_cod"/>
+    <field name="canonical_campaign_code">COD-RENEWAL-OUT</field>
+    <field name="vicidial_campaign_id">CODE9637</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:COD:COD-RENEWAL-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">c88f356c4f1c2c1932edead68ada1cd888b3c730692fe842c1581c20d31be8d6</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cod_support_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">ea222252-782d-5489-9674-1c510d1e123a</field>
+    <field name="mapping_uuid">23609686-472c-5f5a-913d-a2dddda95d71</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="crm_team_id" ref="crm_team_cod"/>
+    <field name="campaign_id" ref="campaign_cod_support_in"/>
+    <field name="pipeline_id" ref="pipeline_cod"/>
+    <field name="canonical_campaign_code">COD-SUPPORT-IN</field>
+    <field name="vicidial_campaign_id">COD858E7</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:COD:COD-SUPPORT-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">e4ec3db2290235c8dc63d8239223c02e4a2bfe594d4a3091258b5f1f383c1102</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cod_test_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">34a6c945-5645-56db-b919-1eab8efe343b</field>
+    <field name="mapping_uuid">15bd9829-a093-536b-a75a-d3a0f9e1714e</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="crm_team_id" ref="crm_team_cod"/>
+    <field name="campaign_id" ref="campaign_cod_test_out"/>
+    <field name="pipeline_id" ref="pipeline_cod"/>
+    <field name="canonical_campaign_code">COD-TEST-OUT</field>
+    <field name="vicidial_campaign_id">CODABB8E</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:COD:COD-TEST-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">2fe88a280379127ac1732e9194a9319b3c3e879daecb5ab8763e16e2f8985fc2</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cod_upsell_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">993e6c1e-c306-54a2-bcef-ded378e1dae7</field>
+    <field name="mapping_uuid">6c7ce24a-060e-57ac-af7a-ab43ee2ad246</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="crm_team_id" ref="crm_team_cod"/>
+    <field name="campaign_id" ref="campaign_cod_upsell_out"/>
+    <field name="pipeline_id" ref="pipeline_cod"/>
+    <field name="canonical_campaign_code">COD-UPSELL-OUT</field>
+    <field name="vicidial_campaign_id">COD06E7E</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:COD:COD-UPSELL-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">3148181d264c0ab64fc6546114a27e9d33b0ab3352f01a1aea939a408601832c</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cod_web_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">24e917f2-b965-5a76-ab16-3fa33740888c</field>
+    <field name="mapping_uuid">43de4eb4-b1ad-55ad-a9fe-d4bbb1be2a42</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="crm_team_id" ref="crm_team_cod"/>
+    <field name="campaign_id" ref="campaign_cod_web_in"/>
+    <field name="pipeline_id" ref="pipeline_cod"/>
+    <field name="canonical_campaign_code">COD-WEB-IN</field>
+    <field name="vicidial_campaign_id">COD55CE6</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:COD:COD-WEB-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">29b23ddb479e7fdf5ebe503a3293c5bdeb40300ff022845134ea08df37de2a8f</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_cod_web_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">fbb542b4-eea0-5a95-83e1-3a4a4c6c1055</field>
+    <field name="mapping_uuid">3a470c8d-38f8-5912-ac19-afb16bd6c57a</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_digital"/>
+    <field name="crm_team_id" ref="crm_team_cod"/>
+    <field name="campaign_id" ref="campaign_cod_web_out"/>
+    <field name="pipeline_id" ref="pipeline_cod"/>
+    <field name="canonical_campaign_code">COD-WEB-OUT</field>
+    <field name="vicidial_campaign_id">COD20821</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:COD:COD-WEB-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">e9d92c6a1edc0ac1fcbb2b12573bba53bedf84a193267fbc933cadfe3202bed3</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_ftp_appointment_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">d2a830e6-e71d-580f-a1b8-2fed4ffd654c</field>
+    <field name="mapping_uuid">68115d3e-4d06-52e6-9f31-3ff2ca3ad96d</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_ftp"/>
+    <field name="crm_team_id" ref="crm_team_ftp"/>
+    <field name="campaign_id" ref="campaign_ftp_appointment_in"/>
+    <field name="pipeline_id" ref="pipeline_ftp"/>
+    <field name="canonical_campaign_code">FTP-APPOINTMENT-IN</field>
+    <field name="vicidial_campaign_id">FTP90B29</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:FTP:FTP-APPOINTMENT-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">e6d921bc63f0bbfc66c66cbdd95278b3154a94f409e749236071c77c2105717e</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_ftp_callback_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">1f3ef186-1741-5407-a5c1-89c5c621c406</field>
+    <field name="mapping_uuid">7aa2dedc-0387-5494-89d0-3ec7cbe9bbf5</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_ftp"/>
+    <field name="crm_team_id" ref="crm_team_ftp"/>
+    <field name="campaign_id" ref="campaign_ftp_callback_out"/>
+    <field name="pipeline_id" ref="pipeline_ftp"/>
+    <field name="canonical_campaign_code">FTP-CALLBACK-OUT</field>
+    <field name="vicidial_campaign_id">FTPBB016</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:FTP:FTP-CALLBACK-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">498931f4f338eca95350a14cce810ccfe13ebf77528e3d7a8ea5c17b154b4ffc</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_ftp_donations_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">148ffd4d-d504-5e8c-b323-ecc629981b33</field>
+    <field name="mapping_uuid">1fd01114-81a4-5a3e-91be-772dec355f1b</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_ftp"/>
+    <field name="crm_team_id" ref="crm_team_ftp"/>
+    <field name="campaign_id" ref="campaign_ftp_donations_in"/>
+    <field name="pipeline_id" ref="pipeline_ftp"/>
+    <field name="canonical_campaign_code">FTP-DONATIONS-IN</field>
+    <field name="vicidial_campaign_id">FTP42C7E</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:FTP:FTP-DONATIONS-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">53b737a31871b5d33765804fe6ec8d0b87e03686a6a117e4e7955b587d19aa12</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_ftp_donor_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">b9c42eed-438e-57dd-af66-c66470b1699b</field>
+    <field name="mapping_uuid">d25d2c0a-2315-5027-b31b-6fff0d8127d3</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_ftp"/>
+    <field name="crm_team_id" ref="crm_team_ftp"/>
+    <field name="campaign_id" ref="campaign_ftp_donor_out"/>
+    <field name="pipeline_id" ref="pipeline_ftp"/>
+    <field name="canonical_campaign_code">FTP-DONOR-OUT</field>
+    <field name="vicidial_campaign_id">FTP675F8</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:FTP:FTP-DONOR-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">078c82520565f70666c8f511a8a32b9a66cb4d09383df07c8b87cd09c46a8476</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_ftp_donor_support_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">e189a5ae-66ce-59e4-a09e-d8d0720b63a6</field>
+    <field name="mapping_uuid">68be2795-633e-586a-94dc-b9b17369e120</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_ftp"/>
+    <field name="crm_team_id" ref="crm_team_ftp"/>
+    <field name="campaign_id" ref="campaign_ftp_donor_support_in"/>
+    <field name="pipeline_id" ref="pipeline_ftp"/>
+    <field name="canonical_campaign_code">FTP-DONOR-SUPPORT-IN</field>
+    <field name="vicidial_campaign_id">FTPB37CE</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:FTP:FTP-DONOR-SUPPORT-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">e238a7296855ce20ef5c015f0d5c69716745809dd6c6e222869d002e100d0243</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_ftp_pledge_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">3ab25af0-686a-586f-b472-c6cb3cf93e36</field>
+    <field name="mapping_uuid">57a722f2-eacf-5e43-992f-9c4dbf1edee5</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_ftp"/>
+    <field name="crm_team_id" ref="crm_team_ftp"/>
+    <field name="campaign_id" ref="campaign_ftp_pledge_out"/>
+    <field name="pipeline_id" ref="pipeline_ftp"/>
+    <field name="canonical_campaign_code">FTP-PLEDGE-OUT</field>
+    <field name="vicidial_campaign_id">FTP16292</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:FTP:FTP-PLEDGE-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">21062c8acc61ea5ef22d12a121350242f1c86763273db779541a7ff8ef4a5e21</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_ftp_retention_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">e97790af-ee8b-5428-a033-1736cbabc43b</field>
+    <field name="mapping_uuid">9cb789f7-454f-58d7-b624-515ab24de55f</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_ftp"/>
+    <field name="crm_team_id" ref="crm_team_ftp"/>
+    <field name="campaign_id" ref="campaign_ftp_retention_out"/>
+    <field name="pipeline_id" ref="pipeline_ftp"/>
+    <field name="canonical_campaign_code">FTP-RETENTION-OUT</field>
+    <field name="vicidial_campaign_id">FTP21878</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:FTP:FTP-RETENTION-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">886f4a4aa5d1eca9d1007b27bfdb22213671bf23baf8143a1e36ef8e689f624e</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_ftp_sponsor_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">d4e059af-6174-5995-a953-0d69bde0c5a0</field>
+    <field name="mapping_uuid">ec7031d7-e186-5b8e-b298-ef2d8357a98a</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_ftp"/>
+    <field name="crm_team_id" ref="crm_team_ftp"/>
+    <field name="campaign_id" ref="campaign_ftp_sponsor_in"/>
+    <field name="pipeline_id" ref="pipeline_ftp"/>
+    <field name="canonical_campaign_code">FTP-SPONSOR-IN</field>
+    <field name="vicidial_campaign_id">FTPA2892</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:FTP:FTP-SPONSOR-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">7fea566b9b4a01b89acea4448ae6c2fb9460a73726a625ca06b7d997bd0e2175</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_ftp_sponsor_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">626357c2-113f-5dc6-9b5e-377b0de66e80</field>
+    <field name="mapping_uuid">d9906945-659f-5498-b358-dd0702ad399c</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_ftp"/>
+    <field name="crm_team_id" ref="crm_team_ftp"/>
+    <field name="campaign_id" ref="campaign_ftp_sponsor_out"/>
+    <field name="pipeline_id" ref="pipeline_ftp"/>
+    <field name="canonical_campaign_code">FTP-SPONSOR-OUT</field>
+    <field name="vicidial_campaign_id">FTPE5EC6</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:FTP:FTP-SPONSOR-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">ea5e8ee7255291b86d6f808e11101874b100051e09c3cef36a651e705271ace4</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_ftp_test_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">377b44a4-5957-5867-9f9c-271bbbf41ed8</field>
+    <field name="mapping_uuid">238a0996-e395-5b80-8e2c-c84067d7f75e</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_ftp"/>
+    <field name="crm_team_id" ref="crm_team_ftp"/>
+    <field name="campaign_id" ref="campaign_ftp_test_out"/>
+    <field name="pipeline_id" ref="pipeline_ftp"/>
+    <field name="canonical_campaign_code">FTP-TEST-OUT</field>
+    <field name="vicidial_campaign_id">FTPA2BD0</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:FTP:FTP-TEST-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">a6b4b58e88f511922a5c91bfd35534d39667d007af11b360412936b35354f4dc</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_mbl_appointment_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">1050ae59-66b7-5d06-95dd-4c3e26915e3a</field>
+    <field name="mapping_uuid">ff54e236-d59b-51d7-8c68-08eb914e07cd</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="crm_team_id" ref="crm_team_mbl"/>
+    <field name="campaign_id" ref="campaign_mbl_appointment_in"/>
+    <field name="pipeline_id" ref="pipeline_mbl"/>
+    <field name="canonical_campaign_code">MBL-APPOINTMENT-IN</field>
+    <field name="vicidial_campaign_id">MBLDEE47</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MBL:MBL-APPOINTMENT-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">483231d0084af523c360f7964c996ced959838330b2d44adca19854357997a09</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_mbl_callback_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">2b164727-b4de-5de6-bbc4-b83ea70a50af</field>
+    <field name="mapping_uuid">cd2a397e-9f8f-596a-aa73-d459ba94cbf4</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="crm_team_id" ref="crm_team_mbl"/>
+    <field name="campaign_id" ref="campaign_mbl_callback_out"/>
+    <field name="pipeline_id" ref="pipeline_mbl"/>
+    <field name="canonical_campaign_code">MBL-CALLBACK-OUT</field>
+    <field name="vicidial_campaign_id">MBLF1D53</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MBL:MBL-CALLBACK-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">dd4aba6b8dbeaa07621dd1f1dceaf01ef1a9f1929d52fab168b5ce42120cb27e</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_mbl_documents_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">68f0442a-fc8d-5adb-9385-2d91f542e4ab</field>
+    <field name="mapping_uuid">39500fa7-66a1-5d8f-a581-5eb5fa2538b9</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="crm_team_id" ref="crm_team_mbl"/>
+    <field name="campaign_id" ref="campaign_mbl_documents_in"/>
+    <field name="pipeline_id" ref="pipeline_mbl"/>
+    <field name="canonical_campaign_code">MBL-DOCUMENTS-IN</field>
+    <field name="vicidial_campaign_id">MBL66AE9</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MBL:MBL-DOCUMENTS-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">cbee0171cfecb341093680abf867ed0f9a2f1fa8091b360b18e9238acf592882</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_mbl_documents_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">4c4e1424-1abc-5fc3-855b-b52d7ec9ceb7</field>
+    <field name="mapping_uuid">6b43d424-1e55-50d1-bf3f-bc1b7a392b43</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="crm_team_id" ref="crm_team_mbl"/>
+    <field name="campaign_id" ref="campaign_mbl_documents_out"/>
+    <field name="pipeline_id" ref="pipeline_mbl"/>
+    <field name="canonical_campaign_code">MBL-DOCUMENTS-OUT</field>
+    <field name="vicidial_campaign_id">MBL237C4</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MBL:MBL-DOCUMENTS-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">eb00bf8fe7d4dd7aacef5c1eef06f3fe7a04307e128264cafdc0213e87299085</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_mbl_funding_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">d4c87a70-b23c-51c4-b4a7-54eef2bce3e1</field>
+    <field name="mapping_uuid">95a17aaf-2e46-5db6-b572-cb18ab21168a</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="crm_team_id" ref="crm_team_mbl"/>
+    <field name="campaign_id" ref="campaign_mbl_funding_out"/>
+    <field name="pipeline_id" ref="pipeline_mbl"/>
+    <field name="canonical_campaign_code">MBL-FUNDING-OUT</field>
+    <field name="vicidial_campaign_id">MBL0EC19</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MBL:MBL-FUNDING-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">0868705e7440a6b73a268e9518ba32dbf15ea468d8de7137cad9254a525e9cd6</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_mbl_loan_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">3f29faaa-7d54-5c6c-b40d-ffcd133aa85c</field>
+    <field name="mapping_uuid">6c607179-83e0-5073-8196-4ebac59a042d</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="crm_team_id" ref="crm_team_mbl"/>
+    <field name="campaign_id" ref="campaign_mbl_loan_in"/>
+    <field name="pipeline_id" ref="pipeline_mbl"/>
+    <field name="canonical_campaign_code">MBL-LOAN-IN</field>
+    <field name="vicidial_campaign_id">MBL199B0</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MBL:MBL-LOAN-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">3a8260ad063ebd5f71d96b02dbfeee7726eef0910d5220bd3e00ea936ed7e0af</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_mbl_new_loan_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">8d085a20-7b10-59b0-b07e-c8d1ff480a71</field>
+    <field name="mapping_uuid">eba00897-b972-53df-83fb-ff01c4081cb3</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="crm_team_id" ref="crm_team_mbl"/>
+    <field name="campaign_id" ref="campaign_mbl_new_loan_out"/>
+    <field name="pipeline_id" ref="pipeline_mbl"/>
+    <field name="canonical_campaign_code">MBL-NEW-LOAN-OUT</field>
+    <field name="vicidial_campaign_id">MBLC325D</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MBL:MBL-NEW-LOAN-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">a9e137c49d4dab7390b0f9b46edca5494cd7d7dde2b2427040eecf2c3c0fd1b0</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_mbl_offer_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">da52419f-907f-5c94-83df-4e4a7d10d2c1</field>
+    <field name="mapping_uuid">ccf92bbe-c37b-5e6f-96c6-706131bf0de7</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="crm_team_id" ref="crm_team_mbl"/>
+    <field name="campaign_id" ref="campaign_mbl_offer_out"/>
+    <field name="pipeline_id" ref="pipeline_mbl"/>
+    <field name="canonical_campaign_code">MBL-OFFER-OUT</field>
+    <field name="vicidial_campaign_id">MBL21C91</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MBL:MBL-OFFER-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">d5b4c5892ef9a8dea1f9e5462238bdaa2fac5dd684f51da900ede17de3f68e3b</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_mbl_renewal_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">cfa34288-c467-5033-af94-ae009f3c1e31</field>
+    <field name="mapping_uuid">c5059bc7-2951-5dd2-96d1-31fce93414af</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="crm_team_id" ref="crm_team_mbl"/>
+    <field name="campaign_id" ref="campaign_mbl_renewal_out"/>
+    <field name="pipeline_id" ref="pipeline_mbl"/>
+    <field name="canonical_campaign_code">MBL-RENEWAL-OUT</field>
+    <field name="vicidial_campaign_id">MBL7E39A</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MBL:MBL-RENEWAL-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">ef69352c69d50c153a71d916f64138cfdbc84429ff74f2c837e0f26c2e103bc8</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_mbl_status_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">cad42f52-f0df-5eff-b9dc-4a91ead29ca3</field>
+    <field name="mapping_uuid">acb6f4e2-1512-5f11-813b-c3dee90062d6</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="crm_team_id" ref="crm_team_mbl"/>
+    <field name="campaign_id" ref="campaign_mbl_status_in"/>
+    <field name="pipeline_id" ref="pipeline_mbl"/>
+    <field name="canonical_campaign_code">MBL-STATUS-IN</field>
+    <field name="vicidial_campaign_id">MBLCD5AD</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MBL:MBL-STATUS-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">052b1e467bfdda92863d7e088923aa441665de7ba2f5b59f2e1b0193742ebd29</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_mbl_support_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">8c4e3ac4-c65c-550e-9989-11bfe3557144</field>
+    <field name="mapping_uuid">e853f0f4-5708-50b0-9a95-f650112cef89</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="crm_team_id" ref="crm_team_mbl"/>
+    <field name="campaign_id" ref="campaign_mbl_support_in"/>
+    <field name="pipeline_id" ref="pipeline_mbl"/>
+    <field name="canonical_campaign_code">MBL-SUPPORT-IN</field>
+    <field name="vicidial_campaign_id">MBL852EB</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MBL:MBL-SUPPORT-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">181469fedecc320852a180812a76b7de0fc20c655ac20b3d9baaead81b50fbb3</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_mbl_test_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">68f76a5e-42b8-582f-beb1-3f090fd2f3cb</field>
+    <field name="mapping_uuid">e36cfd9b-a93e-542c-b8a7-de32ff8e5205</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_moneybee"/>
+    <field name="crm_team_id" ref="crm_team_mbl"/>
+    <field name="campaign_id" ref="campaign_mbl_test_out"/>
+    <field name="pipeline_id" ref="pipeline_mbl"/>
+    <field name="canonical_campaign_code">MBL-TEST-OUT</field>
+    <field name="vicidial_campaign_id">MBLC8349</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MBL:MBL-TEST-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">501c7181951b805ff2996423bde6a40948b06149635411bf6925045dbe892704</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_moy_appointment_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">939b4ab5-544d-598d-8b8d-45a47e057bef</field>
+    <field name="mapping_uuid">08dba02b-e9ba-5afb-9e5e-ae56aeb06311</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="crm_team_id" ref="crm_team_moy"/>
+    <field name="campaign_id" ref="campaign_moy_appointment_in"/>
+    <field name="pipeline_id" ref="pipeline_moy"/>
+    <field name="canonical_campaign_code">MOY-APPOINTMENT-IN</field>
+    <field name="vicidial_campaign_id">MOYD2193</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MOY:MOY-APPOINTMENT-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">1eb22c4bb4742a77f2ed6e6b6727378f9a078c612df72e3c2e96cb936f1526ba</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_moy_billing_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">a5663bc4-b034-5e3d-a1ed-b9c6d43f60f6</field>
+    <field name="mapping_uuid">c10f91b8-4f1e-542e-82a4-92eafa4b430c</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="crm_team_id" ref="crm_team_moy"/>
+    <field name="campaign_id" ref="campaign_moy_billing_in"/>
+    <field name="pipeline_id" ref="pipeline_moy"/>
+    <field name="canonical_campaign_code">MOY-BILLING-IN</field>
+    <field name="vicidial_campaign_id">MOYC2401</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MOY:MOY-BILLING-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">8c44a6985ed24344804bbaf3f336aaa7ed640b5cf93cd425808688eb41eb7b0e</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_moy_callback_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">09c6a734-8b9c-5c7c-bc7a-5eba3adfe3de</field>
+    <field name="mapping_uuid">7fb1a8dd-164c-5f00-b249-c85d50256580</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="crm_team_id" ref="crm_team_moy"/>
+    <field name="campaign_id" ref="campaign_moy_callback_out"/>
+    <field name="pipeline_id" ref="pipeline_moy"/>
+    <field name="canonical_campaign_code">MOY-CALLBACK-OUT</field>
+    <field name="vicidial_campaign_id">MOYEAF02</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MOY:MOY-CALLBACK-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">7cb169f7e26f1cc3c2c71f55c03cbd852ff586e34adc5c49a849145f52422dbf</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_moy_carrier_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">5908f17d-cfc4-5c69-b185-29315671f8db</field>
+    <field name="mapping_uuid">6c14573a-a21a-5ab5-a41b-3b64eb2e899c</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="crm_team_id" ref="crm_team_moy"/>
+    <field name="campaign_id" ref="campaign_moy_carrier_in"/>
+    <field name="pipeline_id" ref="pipeline_moy"/>
+    <field name="canonical_campaign_code">MOY-CARRIER-IN</field>
+    <field name="vicidial_campaign_id">MOYB6057</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MOY:MOY-CARRIER-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">1588105c7f8c34add74ae0495c0c37a36fb96a1c4a9fa17d2dbd601c43af17ee</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_moy_carrier_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">17955b3b-b8ee-561c-bdc7-5e11bfa5277e</field>
+    <field name="mapping_uuid">c1051c4e-751b-551f-af60-937bfae28697</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="crm_team_id" ref="crm_team_moy"/>
+    <field name="campaign_id" ref="campaign_moy_carrier_out"/>
+    <field name="pipeline_id" ref="pipeline_moy"/>
+    <field name="canonical_campaign_code">MOY-CARRIER-OUT</field>
+    <field name="vicidial_campaign_id">MOYA0534</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MOY:MOY-CARRIER-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">c9b34faea8c47d0116833efdb0fd996bc7177117f1d9ee28df49d23caee60b12</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_moy_dispatch_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">595b2870-b199-58e2-b24d-14bd6ba3b582</field>
+    <field name="mapping_uuid">df8011d3-04dd-5dae-ace0-c319330f95be</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="crm_team_id" ref="crm_team_moy"/>
+    <field name="campaign_id" ref="campaign_moy_dispatch_in"/>
+    <field name="pipeline_id" ref="pipeline_moy"/>
+    <field name="canonical_campaign_code">MOY-DISPATCH-IN</field>
+    <field name="vicidial_campaign_id">MOYC2211</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MOY:MOY-DISPATCH-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">a62ce1d0dd2b77011597e12cf8bb051329d6ac382e6a2a18b45038d825afa638</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_moy_dispatch_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">a4e9e6bd-3832-5341-b659-c7f18df0b549</field>
+    <field name="mapping_uuid">b94a4df5-c850-5a2b-b558-c32fdb23bd75</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="crm_team_id" ref="crm_team_moy"/>
+    <field name="campaign_id" ref="campaign_moy_dispatch_out"/>
+    <field name="pipeline_id" ref="pipeline_moy"/>
+    <field name="canonical_campaign_code">MOY-DISPATCH-OUT</field>
+    <field name="vicidial_campaign_id">MOY20DBF</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MOY:MOY-DISPATCH-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">dbb75b8a8cf91f802cfe0dfe1d04808f8c5818046cf2da99ad85d652d59ec8ef</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_moy_partner_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">6b95d54f-cbac-5d83-816e-375e25961f88</field>
+    <field name="mapping_uuid">691345c0-ca63-57dc-9a5b-6d12d0152288</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="crm_team_id" ref="crm_team_moy"/>
+    <field name="campaign_id" ref="campaign_moy_partner_out"/>
+    <field name="pipeline_id" ref="pipeline_moy"/>
+    <field name="canonical_campaign_code">MOY-PARTNER-OUT</field>
+    <field name="vicidial_campaign_id">MOY34C2F</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MOY:MOY-PARTNER-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">3f30233246ff3ac77546b219c8cda37cc4264054ffd7e556280efb2141238644</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_moy_retention_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">30d1bc9d-8168-59e3-b6f9-1ff6603c561f</field>
+    <field name="mapping_uuid">8ab7d742-fd60-51e7-ab0b-698444b00bfe</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="crm_team_id" ref="crm_team_moy"/>
+    <field name="campaign_id" ref="campaign_moy_retention_out"/>
+    <field name="pipeline_id" ref="pipeline_moy"/>
+    <field name="canonical_campaign_code">MOY-RETENTION-OUT</field>
+    <field name="vicidial_campaign_id">MOYA6C3C</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MOY:MOY-RETENTION-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">1772bfb3fe21b05961317104761b6ff92fd6a6164edacfc675b5c43905d5631d</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_moy_shipper_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">8c59c530-388f-512b-b592-0845bf9e8b24</field>
+    <field name="mapping_uuid">803e7625-466a-50e3-95ea-b0237cda6aaa</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="crm_team_id" ref="crm_team_moy"/>
+    <field name="campaign_id" ref="campaign_moy_shipper_in"/>
+    <field name="pipeline_id" ref="pipeline_moy"/>
+    <field name="canonical_campaign_code">MOY-SHIPPER-IN</field>
+    <field name="vicidial_campaign_id">MOYAE697</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MOY:MOY-SHIPPER-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">aae0df8c0a481d4ea298fffe80c4ec8c192db2c1421c8a10b1de6e0f4928abb2</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_moy_shipper_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">c9e0bac8-88c7-56f9-91f8-2246044924c0</field>
+    <field name="mapping_uuid">8d1725bf-ad5f-56ec-9987-b7e3352270e1</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="crm_team_id" ref="crm_team_moy"/>
+    <field name="campaign_id" ref="campaign_moy_shipper_out"/>
+    <field name="pipeline_id" ref="pipeline_moy"/>
+    <field name="canonical_campaign_code">MOY-SHIPPER-OUT</field>
+    <field name="vicidial_campaign_id">MOY6BF4E</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MOY:MOY-SHIPPER-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">1256c9a427d755c5ae5b4ec8a19fb43669f6e0251dfce4271e29090942abf65e</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_moy_support_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">868ef198-1a41-5d65-90b0-c26686ae9eca</field>
+    <field name="mapping_uuid">06f1e5bb-b570-5e0f-8a84-6b48f8dfd5e0</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="crm_team_id" ref="crm_team_moy"/>
+    <field name="campaign_id" ref="campaign_moy_support_in"/>
+    <field name="pipeline_id" ref="pipeline_moy"/>
+    <field name="canonical_campaign_code">MOY-SUPPORT-IN</field>
+    <field name="vicidial_campaign_id">MOY230BB</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MOY:MOY-SUPPORT-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">0c1796a83912f0abe221f3c4ff0ecda301e6f3e3a6d2c937ed9ee53788514c11</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_moy_test_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">1928845c-fc68-55dd-9749-dc7fef578117</field>
+    <field name="mapping_uuid">4a9b544b-2581-5575-91be-e9ab65deed95</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="crm_team_id" ref="crm_team_moy"/>
+    <field name="campaign_id" ref="campaign_moy_test_out"/>
+    <field name="pipeline_id" ref="pipeline_moy"/>
+    <field name="canonical_campaign_code">MOY-TEST-OUT</field>
+    <field name="vicidial_campaign_id">MOYDCB3B</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MOY:MOY-TEST-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">60c23cdd483e88f3d67f01c8ccda1ad50e70fc7cae619c4f01932dc0b6abe8cb</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_moy_upsell_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">cd55b6b4-01d9-5851-9f01-f689ed7f293f</field>
+    <field name="mapping_uuid">edf789da-a36d-53c0-8634-947ca08f5931</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_transport"/>
+    <field name="crm_team_id" ref="crm_team_moy"/>
+    <field name="campaign_id" ref="campaign_moy_upsell_out"/>
+    <field name="pipeline_id" ref="pipeline_moy"/>
+    <field name="canonical_campaign_code">MOY-UPSELL-OUT</field>
+    <field name="vicidial_campaign_id">MOY81E26</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:MOY:MOY-UPSELL-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">2d8a3ef6b6a5147193e156631e297c87b3f92c44dd9b2e93a3dacc5f48caf50f</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_rlp_appointment_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">a820b745-34e9-554d-8fd6-6960eabdfba8</field>
+    <field name="mapping_uuid">68123ac4-cbf7-52b3-a7fa-8549f213216a</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="crm_team_id" ref="crm_team_rlp"/>
+    <field name="campaign_id" ref="campaign_rlp_appointment_in"/>
+    <field name="pipeline_id" ref="pipeline_rlp"/>
+    <field name="canonical_campaign_code">RLP-APPOINTMENT-IN</field>
+    <field name="vicidial_campaign_id">RLP595DC</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:RLP:RLP-APPOINTMENT-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">55d175f14c9fd92e02fcdc165c7ce8cbda00466d15670d817758c936b0edb7cb</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_rlp_buyers_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">445e441f-4b7c-5e19-bbe4-913c74b58e87</field>
+    <field name="mapping_uuid">87298f90-8042-59b9-af98-5e929e00738f</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="crm_team_id" ref="crm_team_rlp"/>
+    <field name="campaign_id" ref="campaign_rlp_buyers_in"/>
+    <field name="pipeline_id" ref="pipeline_rlp"/>
+    <field name="canonical_campaign_code">RLP-BUYERS-IN</field>
+    <field name="vicidial_campaign_id">RLP95065</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:RLP:RLP-BUYERS-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">d0c218fc0b6582277504c16506f8ea90055f14b540c247f91a92caf1e122dc40</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_rlp_buyers_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">ade0402b-71e7-5551-ab27-05c02ee78af4</field>
+    <field name="mapping_uuid">5a37a2c0-2328-5ddb-876c-be35837ff5ec</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="crm_team_id" ref="crm_team_rlp"/>
+    <field name="campaign_id" ref="campaign_rlp_buyers_out"/>
+    <field name="pipeline_id" ref="pipeline_rlp"/>
+    <field name="canonical_campaign_code">RLP-BUYERS-OUT</field>
+    <field name="vicidial_campaign_id">RLP3A798</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:RLP:RLP-BUYERS-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">0424096e3e36273e41386c6943e0e57d35a53193cfdfe017509722dac68e0f6b</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_rlp_callback_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">42b75a42-8304-5fa5-b1a8-c1dcc7458e47</field>
+    <field name="mapping_uuid">b8e6c957-1da2-511c-8f89-6ad5ec405763</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="crm_team_id" ref="crm_team_rlp"/>
+    <field name="campaign_id" ref="campaign_rlp_callback_out"/>
+    <field name="pipeline_id" ref="pipeline_rlp"/>
+    <field name="canonical_campaign_code">RLP-CALLBACK-OUT</field>
+    <field name="vicidial_campaign_id">RLP17EC5</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:RLP:RLP-CALLBACK-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">5909109e0b25e44eaa37463a124314f09113505326c3b0941da7a5bde9f1ce14</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_rlp_followup_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">f004c52b-8592-5b8b-92c1-99d40d6aca28</field>
+    <field name="mapping_uuid">8b728643-60a8-562b-814f-fed43bb7fedf</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="crm_team_id" ref="crm_team_rlp"/>
+    <field name="campaign_id" ref="campaign_rlp_followup_out"/>
+    <field name="pipeline_id" ref="pipeline_rlp"/>
+    <field name="canonical_campaign_code">RLP-FOLLOWUP-OUT</field>
+    <field name="vicidial_campaign_id">RLPC54AD</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:RLP:RLP-FOLLOWUP-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">3868c484d03ee49944a4955404dbc7ac121ae810b1cfa43d773052e38196427b</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_rlp_investors_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">db608a1b-6d89-5e53-99a3-4c193db1f9e4</field>
+    <field name="mapping_uuid">c9ff96c8-0ca8-54e8-852b-3d6114f5d8df</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="crm_team_id" ref="crm_team_rlp"/>
+    <field name="campaign_id" ref="campaign_rlp_investors_in"/>
+    <field name="pipeline_id" ref="pipeline_rlp"/>
+    <field name="canonical_campaign_code">RLP-INVESTORS-IN</field>
+    <field name="vicidial_campaign_id">RLP9685F</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:RLP:RLP-INVESTORS-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">04c61f3f11b6b254a0a75dd460efb0925db2b4f71eb289f62996ac06b7fe77d6</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_rlp_investors_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">098dd20b-330f-574f-aa18-df77d96f4447</field>
+    <field name="mapping_uuid">fe956baf-6036-52eb-9b08-4b74d7a7e4f0</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="crm_team_id" ref="crm_team_rlp"/>
+    <field name="campaign_id" ref="campaign_rlp_investors_out"/>
+    <field name="pipeline_id" ref="pipeline_rlp"/>
+    <field name="canonical_campaign_code">RLP-INVESTORS-OUT</field>
+    <field name="vicidial_campaign_id">RLP6A4D6</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:RLP:RLP-INVESTORS-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">95ebd00ccfa96286793b23f740d543ee50d9ea0d008eb2819d2b497e2d5923ed</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_rlp_property_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">03896bb2-f011-594a-8b01-07b99349a47f</field>
+    <field name="mapping_uuid">44b5c555-a895-5bf1-b81a-771c63659470</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="crm_team_id" ref="crm_team_rlp"/>
+    <field name="campaign_id" ref="campaign_rlp_property_in"/>
+    <field name="pipeline_id" ref="pipeline_rlp"/>
+    <field name="canonical_campaign_code">RLP-PROPERTY-IN</field>
+    <field name="vicidial_campaign_id">RLP02484</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:RLP:RLP-PROPERTY-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">98a01f6c3f98bb21355ce4b28e47b7cc65ae3bf5fb3e5d17ec4d189dc5903be1</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_rlp_rentals_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">c3c87362-6a13-587a-9eb2-de75fa15bafb</field>
+    <field name="mapping_uuid">a91f526c-20a1-5171-8dc3-308cd1e9e048</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="crm_team_id" ref="crm_team_rlp"/>
+    <field name="campaign_id" ref="campaign_rlp_rentals_out"/>
+    <field name="pipeline_id" ref="pipeline_rlp"/>
+    <field name="canonical_campaign_code">RLP-RENTALS-OUT</field>
+    <field name="vicidial_campaign_id">RLP257D2</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:RLP:RLP-RENTALS-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">f80091a63916a2ce5372370f4860403ee7e19f62734f4214e52a573f3d73407b</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_rlp_sellers_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">3b7e7f25-64a7-59d1-983a-dfb6e5bb53ab</field>
+    <field name="mapping_uuid">5bb05e23-8b07-5d34-ad84-05a3f58a8386</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="crm_team_id" ref="crm_team_rlp"/>
+    <field name="campaign_id" ref="campaign_rlp_sellers_in"/>
+    <field name="pipeline_id" ref="pipeline_rlp"/>
+    <field name="canonical_campaign_code">RLP-SELLERS-IN</field>
+    <field name="vicidial_campaign_id">RLP7C377</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:RLP:RLP-SELLERS-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">f6d169b7210657c8189d41d8308623877d1829d3480d4ef85807d9dfd32871d8</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_rlp_sellers_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">6747c5c5-b336-50a9-9dab-918709fcb28e</field>
+    <field name="mapping_uuid">d3465f3c-dbe9-5778-890c-925928a61a94</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="crm_team_id" ref="crm_team_rlp"/>
+    <field name="campaign_id" ref="campaign_rlp_sellers_out"/>
+    <field name="pipeline_id" ref="pipeline_rlp"/>
+    <field name="canonical_campaign_code">RLP-SELLERS-OUT</field>
+    <field name="vicidial_campaign_id">RLPA4FFE</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:RLP:RLP-SELLERS-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">d127943ba790ca81640e2362c46e9fb2c921b762e030bdb8d4d0717eb383ea88</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_rlp_test_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">a0296bd8-1f5f-5e83-b7a1-18491f2f4470</field>
+    <field name="mapping_uuid">1ea78946-5d36-527a-9595-0fa8a8444658</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_rlp"/>
+    <field name="crm_team_id" ref="crm_team_rlp"/>
+    <field name="campaign_id" ref="campaign_rlp_test_out"/>
+    <field name="pipeline_id" ref="pipeline_rlp"/>
+    <field name="canonical_campaign_code">RLP-TEST-OUT</field>
+    <field name="vicidial_campaign_id">RLP0E661</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:RLP:RLP-TEST-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">c875aaa4f9c79cd0fb239ab16e1d586d172c2c34eae3031c470514bda580aa63</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_scp_appointment_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">28181898-3bd1-574b-96ae-da239ec4d38a</field>
+    <field name="mapping_uuid">3d06013d-8698-52e6-9a7a-41c966ce9475</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="crm_team_id" ref="crm_team_scp"/>
+    <field name="campaign_id" ref="campaign_scp_appointment_in"/>
+    <field name="pipeline_id" ref="pipeline_scp"/>
+    <field name="canonical_campaign_code">SCP-APPOINTMENT-IN</field>
+    <field name="vicidial_campaign_id">SCP3EF0F</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:SCP:SCP-APPOINTMENT-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">849abcb8eb61f0365c9dd8c5ef4857263939815474c7993e543e5a73d5c3ca21</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_scp_billing_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">e886d85a-1a34-59c9-8dde-a7c33b869e2f</field>
+    <field name="mapping_uuid">af9c82a8-88a6-5e4c-a7a8-f582a1b321e5</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="crm_team_id" ref="crm_team_scp"/>
+    <field name="campaign_id" ref="campaign_scp_billing_in"/>
+    <field name="pipeline_id" ref="pipeline_scp"/>
+    <field name="canonical_campaign_code">SCP-BILLING-IN</field>
+    <field name="vicidial_campaign_id">SCP1B452</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:SCP:SCP-BILLING-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">e25f049e346defd0ff972b06d05a411b2f00cfbfd867a776a234817e754fe5ff</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_scp_callback_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">c80a09f8-2331-5785-a382-2685adbc0c86</field>
+    <field name="mapping_uuid">fabbc573-c53b-59db-9cc9-f8dbe93e9f0d</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="crm_team_id" ref="crm_team_scp"/>
+    <field name="campaign_id" ref="campaign_scp_callback_out"/>
+    <field name="pipeline_id" ref="pipeline_scp"/>
+    <field name="canonical_campaign_code">SCP-CALLBACK-OUT</field>
+    <field name="vicidial_campaign_id">SCPF43DE</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:SCP:SCP-CALLBACK-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">22011d7a735d7956db5b3ecaa20099d49130304ddcf352cdcdadd042822b7ab5</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_scp_caregiver_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">3368fbaa-1425-5b92-8a88-7131c74af429</field>
+    <field name="mapping_uuid">e2ae3fcd-1d87-54c0-993c-936528e41be3</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="crm_team_id" ref="crm_team_scp"/>
+    <field name="campaign_id" ref="campaign_scp_caregiver_in"/>
+    <field name="pipeline_id" ref="pipeline_scp"/>
+    <field name="canonical_campaign_code">SCP-CAREGIVER-IN</field>
+    <field name="vicidial_campaign_id">SCP7CB4B</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:SCP:SCP-CAREGIVER-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">dfb3de72e8f2438c8f34e5719405fb6768f31e092b7c25c1fb0c8a566ece85f5</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_scp_caregiver_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">153d53d7-2e47-5f87-97d8-3e893e70ff0c</field>
+    <field name="mapping_uuid">24c44a28-8033-5f49-8c21-3094b8ad43a8</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="crm_team_id" ref="crm_team_scp"/>
+    <field name="campaign_id" ref="campaign_scp_caregiver_out"/>
+    <field name="pipeline_id" ref="pipeline_scp"/>
+    <field name="canonical_campaign_code">SCP-CAREGIVER-OUT</field>
+    <field name="vicidial_campaign_id">SCP83DB4</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:SCP:SCP-CAREGIVER-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">a3cd6be9d56f492970b4a467d07ca345db280dc5d457ad57a56e12e116a64839</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_scp_order_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">2369d975-2b5b-5868-b388-b09f958a13c6</field>
+    <field name="mapping_uuid">3a42ec9c-fcec-5d56-9120-4a255b0b5191</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="crm_team_id" ref="crm_team_scp"/>
+    <field name="campaign_id" ref="campaign_scp_order_in"/>
+    <field name="pipeline_id" ref="pipeline_scp"/>
+    <field name="canonical_campaign_code">SCP-ORDER-IN</field>
+    <field name="vicidial_campaign_id">SCP96527</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:SCP:SCP-ORDER-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">1da6e3da82e818e2d2abfb7b93f23986921ba2d54b7a7d6c92221926f1f711c3</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_scp_product_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">5f734ed8-9059-53f4-90b6-2cfa812a057f</field>
+    <field name="mapping_uuid">b7f137e7-7f5d-5cb4-98a8-ab5f9fe26ed1</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="crm_team_id" ref="crm_team_scp"/>
+    <field name="campaign_id" ref="campaign_scp_product_in"/>
+    <field name="pipeline_id" ref="pipeline_scp"/>
+    <field name="canonical_campaign_code">SCP-PRODUCT-IN</field>
+    <field name="vicidial_campaign_id">SCPB3934</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:SCP:SCP-PRODUCT-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">8c67341f9542e5b8cf1e0e3d745255c198fd3bcf7db46659dbbdc02f6d6a84f1</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_scp_product_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">5b8bd567-8bd2-59cf-86a7-24563365a701</field>
+    <field name="mapping_uuid">df50acd3-79a4-5abc-aa31-0a839797b5e4</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="crm_team_id" ref="crm_team_scp"/>
+    <field name="campaign_id" ref="campaign_scp_product_out"/>
+    <field name="pipeline_id" ref="pipeline_scp"/>
+    <field name="canonical_campaign_code">SCP-PRODUCT-OUT</field>
+    <field name="vicidial_campaign_id">SCP56D85</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:SCP:SCP-PRODUCT-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">e4191740bce8b03f614fc1db1a946ca5798ae76b0eb7ca1caf33ca0c1734da4b</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_scp_reorder_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">399d1464-a5c4-5644-87c9-7181beb338d1</field>
+    <field name="mapping_uuid">c7bf280d-5627-512e-828d-bc49217161eb</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="crm_team_id" ref="crm_team_scp"/>
+    <field name="campaign_id" ref="campaign_scp_reorder_out"/>
+    <field name="pipeline_id" ref="pipeline_scp"/>
+    <field name="canonical_campaign_code">SCP-REORDER-OUT</field>
+    <field name="vicidial_campaign_id">SCP29A2F</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:SCP:SCP-REORDER-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">fb4a780ac5abc2c2976d6871117c69f3001c62181ddef5dd8e2c9af789bd3754</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_scp_retention_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">3273c0e1-f019-596c-ba28-6bffcaa6ac98</field>
+    <field name="mapping_uuid">851f9d7c-22f6-526b-bc87-4f11111c1295</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="crm_team_id" ref="crm_team_scp"/>
+    <field name="campaign_id" ref="campaign_scp_retention_out"/>
+    <field name="pipeline_id" ref="pipeline_scp"/>
+    <field name="canonical_campaign_code">SCP-RETENTION-OUT</field>
+    <field name="vicidial_campaign_id">SCPED2C5</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:SCP:SCP-RETENTION-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">b7574af085810f800e72ed5f9e4b87305b6b098e5acee0dd02b01d5233f993eb</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_scp_support_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">cfe8c38b-b42d-5d27-9526-42cbfca5b8d5</field>
+    <field name="mapping_uuid">401925be-948b-55ee-bb7a-799070491230</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="crm_team_id" ref="crm_team_scp"/>
+    <field name="campaign_id" ref="campaign_scp_support_in"/>
+    <field name="pipeline_id" ref="pipeline_scp"/>
+    <field name="canonical_campaign_code">SCP-SUPPORT-IN</field>
+    <field name="vicidial_campaign_id">SCPEF244</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:SCP:SCP-SUPPORT-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">b8023e8793a3fa14425360ee115b71b1389ff3ad86514ccfd9c85cf018d8ce52</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_scp_test_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">e5170b18-46d6-5405-ab27-59d6226e94ad</field>
+    <field name="mapping_uuid">35298c1a-8ea5-5f1b-a384-a892928479f8</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="crm_team_id" ref="crm_team_scp"/>
+    <field name="campaign_id" ref="campaign_scp_test_out"/>
+    <field name="pipeline_id" ref="pipeline_scp"/>
+    <field name="canonical_campaign_code">SCP-TEST-OUT</field>
+    <field name="vicidial_campaign_id">SCP93B8E</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:SCP:SCP-TEST-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">57761fe34019c103a8268ed79a69198ca900c3a5655a96201309093be5342a97</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_scp_upsell_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">c662a4f7-e169-5f14-a7a2-7afa8cffa2ae</field>
+    <field name="mapping_uuid">39aae083-4cbc-5e98-98f4-3e2e90215b8f</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="crm_team_id" ref="crm_team_scp"/>
+    <field name="campaign_id" ref="campaign_scp_upsell_out"/>
+    <field name="pipeline_id" ref="pipeline_scp"/>
+    <field name="canonical_campaign_code">SCP-UPSELL-OUT</field>
+    <field name="vicidial_campaign_id">SCP54669</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:SCP:SCP-UPSELL-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">8c7b369114c48f1e3c8646b9c506b040d201047770265def22e8c91b94a23de9</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_scp_warranty_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">7f1615cb-f8a7-5835-a159-b497d6e900a4</field>
+    <field name="mapping_uuid">07c5c329-35f6-56f2-a0aa-4756694e8f21</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_senior"/>
+    <field name="crm_team_id" ref="crm_team_scp"/>
+    <field name="campaign_id" ref="campaign_scp_warranty_in"/>
+    <field name="pipeline_id" ref="pipeline_scp"/>
+    <field name="canonical_campaign_code">SCP-WARRANTY-IN</field>
+    <field name="vicidial_campaign_id">SCP75B38</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:SCP:SCP-WARRANTY-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">68d65e6af1c10e1819f6caa9e61a1325541e43e50bb021d7ea687fe11def3fa5</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_trx_appointment_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">d19d9ac1-e117-51fc-b20b-0d3a3ed9d146</field>
+    <field name="mapping_uuid">bb03c326-0c75-5514-92e7-b5377e6a9e02</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="crm_team_id" ref="crm_team_trx"/>
+    <field name="campaign_id" ref="campaign_trx_appointment_in"/>
+    <field name="pipeline_id" ref="pipeline_trx"/>
+    <field name="canonical_campaign_code">TRX-APPOINTMENT-IN</field>
+    <field name="vicidial_campaign_id">TRX28A7D</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:TRX:TRX-APPOINTMENT-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">fba0ce418a10fbe3a817dc887b80a8486ce6a31ae406de64a9668b1ea0309c89</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_trx_billing_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">0d51f768-276f-5945-8032-004ebd157a6a</field>
+    <field name="mapping_uuid">4aa829ce-998c-58d1-917e-c11186d3f9c3</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="crm_team_id" ref="crm_team_trx"/>
+    <field name="campaign_id" ref="campaign_trx_billing_in"/>
+    <field name="pipeline_id" ref="pipeline_trx"/>
+    <field name="canonical_campaign_code">TRX-BILLING-IN</field>
+    <field name="vicidial_campaign_id">TRX07458</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:TRX:TRX-BILLING-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">99a76a171aee222fd2cc154bc54bf4c95a5b5cf7e1da125c993110b8e6026a75</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_trx_callback_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">547dad15-0d43-540f-b61f-535bdce6ed80</field>
+    <field name="mapping_uuid">7a228351-09bf-5b48-a119-28fff7346698</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="crm_team_id" ref="crm_team_trx"/>
+    <field name="campaign_id" ref="campaign_trx_callback_out"/>
+    <field name="pipeline_id" ref="pipeline_trx"/>
+    <field name="canonical_campaign_code">TRX-CALLBACK-OUT</field>
+    <field name="vicidial_campaign_id">TRXF4EB2</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:TRX:TRX-CALLBACK-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">08251d9084853c47db430c187b90f222b26e5d4fad74cd83535e0ac29eaea673</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_trx_demo_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">357e24e3-1f83-5b96-ae61-00ce1e292d23</field>
+    <field name="mapping_uuid">9b38f28f-d265-55ac-b587-b345ac1faaeb</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="crm_team_id" ref="crm_team_trx"/>
+    <field name="campaign_id" ref="campaign_trx_demo_in"/>
+    <field name="pipeline_id" ref="pipeline_trx"/>
+    <field name="canonical_campaign_code">TRX-DEMO-IN</field>
+    <field name="vicidial_campaign_id">TRX824BD</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:TRX:TRX-DEMO-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">f9d4cda338da927947b316d8cb80f61139d516b6248a42e596e0b7c715673299</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_trx_demo_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">d498e049-da3e-5984-a4cc-c6c88b639bb4</field>
+    <field name="mapping_uuid">bc2fc324-50bf-5443-9afb-ff6147acb3ea</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="crm_team_id" ref="crm_team_trx"/>
+    <field name="campaign_id" ref="campaign_trx_demo_out"/>
+    <field name="pipeline_id" ref="pipeline_trx"/>
+    <field name="canonical_campaign_code">TRX-DEMO-OUT</field>
+    <field name="vicidial_campaign_id">TRX819C7</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:TRX:TRX-DEMO-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">45fdfc602312bd627140b677c367ebde2a7fc316f31687bc198b5123bae0ac78</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_trx_onboarding_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">4abcb34f-e7eb-5a20-a90c-f16f29e45236</field>
+    <field name="mapping_uuid">4f693940-935f-5eed-a0a8-a2cd45255db1</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="crm_team_id" ref="crm_team_trx"/>
+    <field name="campaign_id" ref="campaign_trx_onboarding_out"/>
+    <field name="pipeline_id" ref="pipeline_trx"/>
+    <field name="canonical_campaign_code">TRX-ONBOARDING-OUT</field>
+    <field name="vicidial_campaign_id">TRX38511</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:TRX:TRX-ONBOARDING-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">d849c08c6a81b3a0001e4c444206f16451ff94820cb4d3c54888447df544e75c</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_trx_renewal_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">373b994b-7ddb-5ac3-a057-9669d8393802</field>
+    <field name="mapping_uuid">39e92f7f-71ca-57ce-ae8d-9943d9822e06</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="crm_team_id" ref="crm_team_trx"/>
+    <field name="campaign_id" ref="campaign_trx_renewal_out"/>
+    <field name="pipeline_id" ref="pipeline_trx"/>
+    <field name="canonical_campaign_code">TRX-RENEWAL-OUT</field>
+    <field name="vicidial_campaign_id">TRX118EA</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:TRX:TRX-RENEWAL-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">326f4c72dccffa88eece465058c5e972436d4aa7e6a6949ae3c352889b22b94c</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_trx_sales_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">dd954b68-8ef0-5dfb-8247-9fcf4e7015e8</field>
+    <field name="mapping_uuid">2b818186-71f2-5f9f-b567-7d1b9ecb21ac</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="crm_team_id" ref="crm_team_trx"/>
+    <field name="campaign_id" ref="campaign_trx_sales_in"/>
+    <field name="pipeline_id" ref="pipeline_trx"/>
+    <field name="canonical_campaign_code">TRX-SALES-IN</field>
+    <field name="vicidial_campaign_id">TRX1C4A4</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:TRX:TRX-SALES-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">2de215e741927ddbf0360eb2346e5cd52d2f635d7c4ec401eb582c2126e07358</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_trx_sales_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">d63803ad-a44e-52f1-acb2-fcd6810f6306</field>
+    <field name="mapping_uuid">69fff2c4-0ae8-5678-996c-008d7490b68a</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="crm_team_id" ref="crm_team_trx"/>
+    <field name="campaign_id" ref="campaign_trx_sales_out"/>
+    <field name="pipeline_id" ref="pipeline_trx"/>
+    <field name="canonical_campaign_code">TRX-SALES-OUT</field>
+    <field name="vicidial_campaign_id">TRX22065</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:TRX:TRX-SALES-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">fce3d17fdb44bdfd2370ac1573736b9225699220a65a4499bce0fcf2c16fc801</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_trx_support_in" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">f14b8a58-2b64-5b9c-abe0-6d7e2c7c900c</field>
+    <field name="mapping_uuid">d168f694-d456-54a9-b33e-b425aff38e28</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="crm_team_id" ref="crm_team_trx"/>
+    <field name="campaign_id" ref="campaign_trx_support_in"/>
+    <field name="pipeline_id" ref="pipeline_trx"/>
+    <field name="canonical_campaign_code">TRX-SUPPORT-IN</field>
+    <field name="vicidial_campaign_id">TRX064E7</field>
+    <field name="direction">IN</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:TRX:TRX-SUPPORT-IN</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">e15246d932e73267abcebb6aa51aa4bfa1dddc35c38de60e198bea0466530532</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_trx_test_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">a32097ac-cc52-5519-bb23-4132d9e246a3</field>
+    <field name="mapping_uuid">d3639b32-f44b-5ff4-839d-88c7aec1d9cf</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="crm_team_id" ref="crm_team_trx"/>
+    <field name="campaign_id" ref="campaign_trx_test_out"/>
+    <field name="pipeline_id" ref="pipeline_trx"/>
+    <field name="canonical_campaign_code">TRX-TEST-OUT</field>
+    <field name="vicidial_campaign_id">TRX04B71</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:TRX:TRX-TEST-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">3ecf009248a584057bc8f3e58607d686d99af129db9e795b1f853c645190858e</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_trx_trial_out" model="call.center.campaign.mapping">
+    <field name="business_record_uuid">61874360-e783-54bb-9b68-10abb6182c74</field>
+    <field name="mapping_uuid">69d4817f-ee4f-5fad-bb81-5c128550d8b8</field>
+    <field name="business_unit_id" ref="call_center_core.business_unit_tradex"/>
+    <field name="crm_team_id" ref="crm_team_trx"/>
+    <field name="campaign_id" ref="campaign_trx_trial_out"/>
+    <field name="pipeline_id" ref="pipeline_trx"/>
+    <field name="canonical_campaign_code">TRX-TRIAL-OUT</field>
+    <field name="vicidial_campaign_id">TRXD2798</field>
+    <field name="direction">OUT</field>
+    <field name="environment">staging</field>
+    <field name="n8n_scope">staging:TRX:TRX-TRIAL-OUT</field>
+    <field name="schema_version" eval="1"/>
+    <field name="mapping_version" eval="1"/>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">d64ebce411c3e82362af2b49e8004c66df391bba2386b97bb7889bffff497ded</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+  <function model="call.center.campaign.mapping" name="_ensure_projection_integration_uuids"/>
+</odoo>
