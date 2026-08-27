@@ -4,7 +4,10 @@
     "summary": "Idempotent MoneyBee account/contact mapping for Middleware-driven CRM sync",
     "license": "LGPL-3",
     "depends": ["base", "contacts", "crm"],
-    "data": ["views/res_partner_views.xml"],
+    "data": [
+        "security/moneybee_security.xml",
+        "views/res_partner_views.xml",
+    ],
     "installable": True,
     "application": False,
 }
