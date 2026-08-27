@@ -1,0 +1,28 @@
+{
+    "name": "Codestra Identity Provisioning",
+    "version": "19.0.1.1.2",
+    "category": "Administration",
+    "license": "LGPL-3",
+    "author": "Codestra",
+    "depends": [
+        "base",
+        "mail",
+        "contacts",
+        "hr",
+        "auth_signup",
+        "web",
+        "codestra_base",
+        "call_center_core",
+        "call_center_campaign",
+    ],
+    "data": [
+        "security/provisioning_security.xml",
+        "security/ir.model.access.csv",
+        "data/sequence.xml",
+        "data/safety_flags.xml",
+        "views/provisioning_views.xml",
+    ],
+    "post_init_hook": "post_init_hook",
+    "application": True,
+    "installable": True,
+}

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_duplicate_list" model="ir.ui.view"><field name="name">call.center.duplicate.candidate.list</field><field name="model">call.center.duplicate.candidate</field><field name="arch" type="xml"><list><field name="lead_id"/><field name="candidate_lead_id"/><field name="business_unit_id"/><field name="match_reasons"/><field name="confidence"/><field name="resolution"/></list></field></record>
+  <record id="action_duplicates" model="ir.actions.act_window"><field name="name">Duplicate Candidates</field><field name="res_model">call.center.duplicate.candidate</field><field name="view_mode">list,form</field></record>
+</odoo>

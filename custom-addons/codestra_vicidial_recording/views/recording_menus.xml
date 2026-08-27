@@ -1,0 +1,18 @@
+<odoo>
+  <menuitem id="menu_recordings" name="Recordings"
+            parent="codestra_vicidial_crm.menu_codestra_root"
+            action="action_vicidial_recordings"
+            groups="group_recording_administrator,group_recording_supervisor,group_recording_qa_reviewer"/>
+  <menuitem id="menu_supervisor_recordings" name="Assigned Recordings"
+            parent="menu_recordings" action="action_supervisor_recordings"
+            groups="group_recording_supervisor"/>
+  <menuitem id="menu_qa_recordings" name="QA Assigned Recordings"
+            parent="menu_recordings" action="action_qa_recordings"
+            groups="group_recording_qa_reviewer"/>
+  <menuitem id="menu_recording_playback_audit" name="Playback Audit"
+            parent="menu_recordings" action="action_recording_playback_audits"
+            groups="group_recording_administrator"/>
+  <menuitem id="menu_recording_retention_audit" name="Retention Audit"
+            parent="menu_recordings" action="action_recording_retention_audits"
+            groups="group_recording_administrator"/>
+</odoo>

@@ -1,0 +1,14 @@
+<odoo>
+  <record id="rule_reporting_agent_score_unit" model="ir.rule">
+    <field name="name">Agent scores: assigned business units</field>
+    <field name="model_id" ref="model_codestra_reporting_agent_score"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+    <field name="groups" eval="[(4, ref('codestra.group_agent'))]"/>
+  </record>
+  <record id="rule_reporting_campaign_score_unit" model="ir.rule">
+    <field name="name">Campaign scores: assigned business units</field>
+    <field name="model_id" ref="model_codestra_reporting_campaign_score"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+    <field name="groups" eval="[(4, ref('codestra.group_campaign_manager'))]"/>
+  </record>
+</odoo>

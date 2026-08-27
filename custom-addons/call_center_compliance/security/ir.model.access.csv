@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_rule_user,compliance rule user,model_call_center_compliance_rule,call_center_core.group_call_center_user,1,0,0,0
+access_rule_compliance,compliance rule officer,model_call_center_compliance_rule,call_center_core.group_call_center_compliance,1,1,1,0
+access_consent_user,consent user,model_call_center_consent,call_center_core.group_call_center_user,1,0,1,0
+access_consent_compliance,consent officer,model_call_center_consent,call_center_core.group_call_center_compliance,1,1,1,0
+access_suppression_user,suppression user,model_call_center_suppression,call_center_core.group_call_center_user,1,0,0,0
+access_suppression_compliance,suppression officer,model_call_center_suppression,call_center_core.group_call_center_compliance,1,1,1,0

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="action_lead_import_lines" model="ir.actions.act_window"><field name="name">Import Lines</field><field name="res_model">codestra.lead.import.line</field><field name="view_mode">list</field><field name="domain">[('batch_id','=',active_id)]</field></record>
+  <record id="action_lead_import_lines_denied" model="ir.actions.act_window"><field name="name">Denied Lines</field><field name="res_model">codestra.lead.import.line</field><field name="view_mode">list</field><field name="domain">[('batch_id','=',active_id),('status','=','denied')]</field></record>
+  <record id="action_lead_import_lines_duplicate" model="ir.actions.act_window"><field name="name">Duplicate Lines</field><field name="res_model">codestra.lead.import.line</field><field name="view_mode">list</field><field name="domain">[('batch_id','=',active_id),('status','=','duplicate')]</field></record>
+  <record id="view_lead_import_batch_list" model="ir.ui.view">
+    <field name="name">codestra.lead.import.batch.list</field><field name="model">codestra.lead.import.batch</field>
+    <field name="arch" type="xml"><list decoration-success="state == 'completed'" decoration-warning="state == 'needs_review'" decoration-info="state == 'awaiting_approval'" decoration-danger="state in ('rejected','failed') or reconciliation_difference &gt; 0" decoration-muted="state == 'cancelled'">
+      <field name="name"/><field name="campaign_id"/><field name="business_unit_id"/><field name="upload_user_id"/><field name="upload_method"/><field name="original_filename"/><field name="uploaded_at"/>
+      <field name="total_rows"/><field name="new_lead_count"/><field name="accepted_count"/><field name="denied_count"/><field name="duplicate_count"/><field name="repeated_count"/><field name="invalid_count"/><field name="quarantined_count"/><field name="imported_count"/>
+      <field name="state"/><field name="progress_percent" widget="progressbar"/><field name="sent_to_vicidial_count"/><field name="confirmed_in_vicidial_count"/><field name="rejected_by_vicidial_count"/><field name="reconciliation_difference"/>
+    </list></field>
+  </record>
+  <record id="view_lead_import_batch_form" model="ir.ui.view">
+    <field name="name">codestra.lead.import.batch.form</field><field name="model">codestra.lead.import.batch</field>
+    <field name="arch" type="xml"><form string="Import Leads">
+      <header>
+        <button name="action_upload" type="object" string="Upload" class="btn-primary" invisible="state != 'draft'" groups="codestra_lead_ingestion.group_lead_importer"/>
+        <button name="action_validate" type="object" string="Validate" class="btn-primary" invisible="state != 'uploaded'" groups="codestra_lead_ingestion.group_lead_importer"/>
+        <button name="action_request_approval" type="object" string="Request Approval" invisible="state not in ('validating','needs_review')" groups="codestra_lead_ingestion.group_lead_reviewer"/>
+        <button name="action_approve" type="object" string="Approve" class="btn-primary" invisible="state != 'awaiting_approval'" groups="codestra_lead_ingestion.group_compliance_manager"/>
+        <button name="action_reject" type="object" string="Reject" invisible="state != 'awaiting_approval'" groups="codestra_lead_ingestion.group_compliance_manager"/>
+        <button name="action_import" type="object" string="Import" class="btn-primary" invisible="state != 'approved'" groups="codestra_lead_ingestion.group_lead_import_admin"/>
+        <button name="action_publish_to_middleware" type="object" string="Publish" invisible="state != 'importing'" groups="codestra_lead_ingestion.group_lead_import_admin"/>
+        <button name="action_start_reconciliation" type="object" string="Reconcile" invisible="state != 'delivering'" groups="codestra_lead_ingestion.group_middleware_service"/>
+        <button name="action_complete" type="object" string="Complete" invisible="state != 'reconciling' or reconciliation_difference != 0" groups="codestra_lead_ingestion.group_lead_import_admin"/>
+        <button name="action_retry" type="object" string="Retry" invisible="state != 'failed'" groups="codestra_lead_ingestion.group_lead_import_admin"/>
+        <button name="action_cancel" type="object" string="Cancel" invisible="state in ('completed','cancelled')" groups="codestra_lead_ingestion.group_lead_importer"/>
+        <button name="action_download_error_report" type="object" string="Error Report" invisible="invalid_count + quarantined_count + denied_count == 0"/>
+        <field name="state" widget="statusbar" statusbar_visible="draft,uploaded,validating,needs_review,awaiting_approval,approved,importing,delivering,reconciling,completed,rejected,cancelled,failed"/>
+      </header>
+      <sheet>
+        <div class="oe_button_box" name="button_box">
+          <button type="action" name="%(action_lead_import_lines)d" class="oe_stat_button" icon="fa-list"><field name="total_rows" widget="statinfo" string="Lines"/></button>
+          <button type="action" name="%(action_lead_import_lines_denied)d" class="oe_stat_button" icon="fa-ban"><field name="denied_count" widget="statinfo" string="Denied"/></button>
+          <button type="action" name="%(action_lead_import_lines_duplicate)d" class="oe_stat_button" icon="fa-copy"><field name="duplicate_count" widget="statinfo" string="Duplicates"/></button>
+        </div>
+        <widget name="web_ribbon" title="Delivery Disabled" bg_color="text-bg-warning" invisible="state not in ('importing','delivering','reconciling')"/>
+        <group><group><field name="name"/><field name="campaign_id"/><field name="business_unit_id"/><field name="source_id"/><field name="mapping_id"/></group>
+        <group><field name="upload_user_id"/><field name="upload_method"/><field name="uploaded_at"/><field name="company_id" groups="base.group_multi_company"/><field name="correlation_id"/></group></group>
+        <group string="Upload"><field name="original_filename"/><field name="file_mimetype"/><field name="file_data" filename="original_filename"/><field name="file_size"/><field name="file_sha256"/><field name="duplicate_override_reason" groups="codestra_lead_ingestion.group_lead_import_admin"/></group>
+        <group string="Authoritative Totals" col="8"><field name="total_rows"/><field name="new_lead_count"/><field name="accepted_count"/><field name="denied_count"/><field name="duplicate_count"/><field name="repeated_count"/><field name="invalid_count"/><field name="quarantined_count"/><field name="needs_review_count"/><field name="imported_count"/><field name="delivery_pending_count"/><field name="sent_to_vicidial_count"/><field name="confirmed_in_vicidial_count"/><field name="rejected_by_vicidial_count"/><field name="reconciled_count"/><field name="reconciliation_difference"/></group>
+        <notebook><page string="Lines"><field name="line_ids" readonly="1"><list><field name="row_number"/><field name="first_name"/><field name="last_name"/><field name="normalized_phone"/><field name="email"/><field name="status"/><field name="denial_code"/><field name="delivery_status"/><field name="reconciliation_status"/></list></field></page>
+        <page string="Approval"><group><field name="approved_by_id"/><field name="approved_at"/><field name="rejected_by_id"/><field name="rejected_at"/><field name="rejection_reason"/></group></page><page string="Notes"><field name="notes"/></page></notebook>
+      </sheet><chatter/>
+    </form></field>
+  </record>
+  <record id="view_lead_import_batch_search" model="ir.ui.view">
+    <field name="name">codestra.lead.import.batch.search</field><field name="model">codestra.lead.import.batch</field>
+    <field name="arch" type="xml"><search><field name="name"/><field name="campaign_id"/><field name="business_unit_id"/><field name="upload_user_id"/><field name="upload_method"/><field name="state"/><field name="company_id"/>
+      <filter name="failed" string="Failed" domain="[('state','=','failed')]"/><filter name="reconciliation_gap" string="Reconciliation Gaps" domain="[('reconciliation_difference','!=',0)]"/>
+      <group><filter name="group_campaign" string="Campaign" context="{'group_by':'campaign_id'}"/><filter name="group_business_unit" string="Business Unit" context="{'group_by':'business_unit_id'}"/><filter name="group_uploader" string="Uploader" context="{'group_by':'upload_user_id'}"/><filter name="group_state" string="State" context="{'group_by':'state'}"/><filter name="group_date" string="Date" context="{'group_by':'uploaded_at:month'}"/></group>
+    </search></field>
+  </record>
+  <record id="view_lead_import_batch_kanban" model="ir.ui.view"><field name="name">codestra.lead.import.batch.kanban</field><field name="model">codestra.lead.import.batch</field><field name="arch" type="xml"><kanban default_group_by="state"><templates><t t-name="card"><field name="name" class="fw-bold"/><div><field name="campaign_id"/></div><div>Rows: <field name="total_rows"/> · Accepted: <field name="accepted_count"/> · Denied: <field name="denied_count"/></div><field name="progress_percent" widget="progressbar"/></t></templates></kanban></field></record>
+  <record id="view_lead_import_batch_pivot" model="ir.ui.view"><field name="name">codestra.lead.import.batch.pivot</field><field name="model">codestra.lead.import.batch</field><field name="arch" type="xml"><pivot><field name="campaign_id" type="row"/><field name="state" type="col"/><field name="total_rows" type="measure"/><field name="accepted_count" type="measure"/><field name="denied_count" type="measure"/></pivot></field></record>
+  <record id="view_lead_import_batch_graph" model="ir.ui.view"><field name="name">codestra.lead.import.batch.graph</field><field name="model">codestra.lead.import.batch</field><field name="arch" type="xml"><graph><field name="uploaded_at" interval="month"/><field name="total_rows" type="measure"/><field name="denied_count" type="measure"/></graph></field></record>
+  <record id="view_lead_import_line_list" model="ir.ui.view"><field name="name">codestra.lead.import.line.list</field><field name="model">codestra.lead.import.line</field><field name="arch" type="xml"><list create="false" delete="false"><field name="batch_id"/><field name="row_number"/><field name="first_name"/><field name="last_name"/><field name="normalized_phone"/><field name="email"/><field name="status"/><field name="denial_code"/><field name="validation_message"/><field name="delivery_status"/><field name="reconciliation_status"/></list></field></record>
+  <record id="action_lead_import_batches" model="ir.actions.act_window"><field name="name">Import Leads</field><field name="res_model">codestra.lead.import.batch</field><field name="view_mode">list,kanban,form,pivot,graph</field><field name="search_view_id" ref="view_lead_import_batch_search"/></record>
+</odoo>

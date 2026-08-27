@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_ai_task_manager,ai.task.manager,model_codestra_ai_task_type,codestra.group_business_unit_operations_manager,1,1,1,0
+access_ai_provider_admin,ai.provider.admin,model_codestra_ai_provider,codestra.group_global_system_admin,1,1,1,0
+access_ai_audit_manager,ai.audit.manager,model_codestra_ai_audit,codestra.group_business_unit_operations_manager,1,0,1,0
+access_ai_prompt_manager,ai.prompt.manager,model_codestra_ai_prompt_template,codestra.group_campaign_manager,1,1,1,0

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_users_form_call_center" model="ir.ui.view">
+    <field name="name">res.users.form.call.center</field>
+    <field name="model">res.users</field>
+    <field name="inherit_id" ref="base.view_users_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//notebook" position="inside">
+        <page string="Call Center" groups="call_center_core.group_call_center_manager">
+          <group><field name="call_center_business_unit_ids" widget="many2many_tags"/><field name="call_center_default_business_unit_id"/><field name="call_center_department_ids" widget="many2many_tags"/></group>
+        </page>
+      </xpath>
+    </field>
+  </record>
+</odoo>

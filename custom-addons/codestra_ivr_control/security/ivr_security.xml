@@ -1,0 +1,14 @@
+<odoo>
+  <record id="rule_ivr_session_unit" model="ir.rule">
+    <field name="name">IVR sessions: assigned business units</field>
+    <field name="model_id" ref="model_codestra_ivr_session"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+    <field name="groups" eval="[(4, ref('codestra.group_agent'))]"/>
+  </record>
+  <record id="rule_ivr_callback_unit" model="ir.rule">
+    <field name="name">IVR callbacks: assigned business units</field>
+    <field name="model_id" ref="model_codestra_ivr_callback_request"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+    <field name="groups" eval="[(4, ref('codestra.group_agent'))]"/>
+  </record>
+</odoo>

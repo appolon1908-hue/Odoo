@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="action_activation_dashboard" model="ir.actions.client">
+    <field name="name">Activation Dashboard</field>
+    <field name="tag">codestra_interaction_workflow.activation_dashboard</field>
+  </record>
+  <menuitem id="menu_activation_dashboard" name="Integration Dashboard" parent="call_center_core.menu_call_center_root" action="action_activation_dashboard" groups="call_center_core.group_call_center_user" sequence="80"/>
+  <menuitem id="menu_retry_requests" name="Retry Requests" parent="menu_activation_dashboard" action="action_integration_retry_requests" groups="call_center_core.group_call_center_manager" sequence="10"/>
+  <menuitem id="menu_activation_requests" name="Activation Requests" parent="menu_activation_dashboard" action="action_integration_activation_requests" groups="call_center_core.group_call_center_manager" sequence="20"/>
+</odoo>

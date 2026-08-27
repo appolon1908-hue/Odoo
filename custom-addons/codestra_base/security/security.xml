@@ -1,0 +1,9 @@
+<odoo>
+  <record id="group_codestra_agent" model="res.groups"><field name="name">Codestra Agent</field></record>
+  <record id="group_codestra_closer" model="res.groups"><field name="name">Codestra Closer</field><field name="implied_ids" eval="[(4, ref('group_codestra_agent'))]"/></record>
+  <record id="group_codestra_supervisor" model="res.groups"><field name="name">Codestra Supervisor</field><field name="implied_ids" eval="[(4, ref('group_codestra_agent'))]"/></record>
+  <record id="group_codestra_manager" model="res.groups"><field name="name">Codestra Manager</field><field name="implied_ids" eval="[(4, ref('group_codestra_supervisor')), (4, ref('group_codestra_closer'))]"/></record>
+  <record id="group_codestra_integration_admin" model="res.groups"><field name="name">Codestra Integration Administrator</field></record>
+  <record id="group_codestra_qa_reviewer" model="res.groups"><field name="name">Codestra QA Reviewer</field></record>
+  <record id="group_codestra_compliance_officer" model="res.groups"><field name="name">Codestra Compliance Officer</field></record>
+</odoo>

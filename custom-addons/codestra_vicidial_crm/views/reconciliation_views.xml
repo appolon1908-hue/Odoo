@@ -1,0 +1,30 @@
+<odoo>
+  <record id="view_vicidial_reconciliation_issue_list" model="ir.ui.view">
+    <field name="name">vicidial.reconciliation.issue.list</field>
+    <field name="model">vicidial.reconciliation.issue</field>
+    <field name="arch" type="xml">
+      <list decoration-danger="issue_type == 'identity_conflict'" decoration-warning="status == 'open'">
+        <field name="name"/><field name="issue_type"/><field name="status"/><field name="odoo_model"/>
+        <field name="odoo_record_id"/><field name="external_id"/><field name="campaign_or_list_id"/>
+        <field name="phone_match"/><field name="email_match"/><field name="confidence"/><field name="recommended_action"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_vicidial_reconciliation_issue_form" model="ir.ui.view">
+    <field name="name">vicidial.reconciliation.issue.form</field>
+    <field name="model">vicidial.reconciliation.issue</field>
+    <field name="arch" type="xml">
+      <form><sheet><group><field name="name"/><field name="issue_type"/><field name="status"/><field name="connector_id"/></group>
+        <group string="Candidate identity"><field name="odoo_model"/><field name="odoo_record_id"/><field name="external_id"/><field name="campaign_or_list_id"/></group>
+        <group string="Evidence"><field name="phone_match"/><field name="email_match"/><field name="confidence"/><field name="recommended_action"/><field name="evidence_json"/></group>
+        <group string="Resolution"><field name="canonical_odoo_record_id"/><field name="canonical_external_id"/><field name="resolution_note"/><field name="resolved_at"/><field name="resolved_by"/></group>
+      </sheet><chatter/></form>
+    </field>
+  </record>
+  <record id="view_vicidial_sync_run_list" model="ir.ui.view">
+    <field name="name">vicidial.sync.run.list</field><field name="model">vicidial.sync.run</field>
+    <field name="arch" type="xml"><list><field name="name"/><field name="started_at"/><field name="completed_at"/><field name="status"/><field name="processed_count"/><field name="created_count"/><field name="updated_count"/><field name="deactivated_count"/><field name="duplicate_count"/><field name="conflict_count"/><field name="failed_count"/><field name="cursor_lag_seconds"/></list></field>
+  </record>
+  <record id="action_vicidial_reconciliation_issue" model="ir.actions.act_window"><field name="name">Duplicate and Identity Review</field><field name="res_model">vicidial.reconciliation.issue</field><field name="view_mode">list,form</field></record>
+  <record id="action_vicidial_sync_run" model="ir.actions.act_window"><field name="name">Sync Monitor</field><field name="res_model">vicidial.sync.run</field><field name="view_mode">list,form</field></record>
+</odoo>

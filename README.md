@@ -1,8 +1,18 @@
 # Codestra Odoo 19 Custom Addons
 
-This repository is the source of truth for Codestra's self-hosted Odoo 19 custom modules.
+This private repository is the source of truth for Codestra's self-hosted Odoo 19 custom modules.
 
-> The repository is currently public. Keep it limited to the non-secret bootstrap until its visibility is changed to private. Do not import Codestra business modules or server configuration while it is public.
+The canonical addon source lives under `custom-addons/`. Each technical module
+name appears exactly once so Odoo cannot silently load a duplicate from a
+different addon path.
+
+The VICIdial CRM addon includes the authenticated screen-pop, callback
+scheduler, call controls, and governed CRM click-to-call action. Click-to-call
+contacts Codestra Middleware only; Odoo never receives a VICIdial credential.
+Live dialing remains subject to Middleware policy and capability gates.
+
+See [`docs/SYSTEM-HEALTH-AND-INTEGRATIONS.md`](docs/SYSTEM-HEALTH-AND-INTEGRATIONS.md)
+for the reviewed module and API inventory.
 
 ## Operating model
 

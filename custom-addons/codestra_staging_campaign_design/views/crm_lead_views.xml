@@ -1,0 +1,6 @@
+<odoo>
+  <record id="crm_lead_campaign_design_form" model="ir.ui.view">
+    <field name="name">crm.lead.campaign.design.form</field><field name="model">crm.lead</field><field name="inherit_id" ref="crm.crm_lead_view_form"/>
+    <field name="arch" type="xml"><xpath expr="//notebook" position="inside"><page string="Campaign Design"><group><field name="campaign_design_id"/><field name="source_idempotency_key"/><field name="contact_permission"/><field name="consent_evidence_reference"/><field name="service_country_code"/><field name="service_timezone"/><field name="service_area"/><field name="reconciliation_state"/></group><group string="Campaign Details"><field name="origin_address"/><field name="destination_address"/><field name="shipment_type"/><field name="loan_product"/><field name="requested_amount"/><field name="jurisdiction_code"/><field name="digital_service_type"/><field name="project_scope"/><field name="senior_product_service"/><field name="repayment_program"/><field name="repayment_servicer"/><field name="service_category"/><field name="service_address"/><field name="availability_window"/><field name="provider_match_reference"/><field name="lead_fee_state"/></group></page></xpath></field>
+  </record>
+</odoo>

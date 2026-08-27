@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="rule_compliance_unit" model="ir.rule"><field name="name">Compliance rules by business unit</field><field name="model_id" ref="model_call_center_compliance_rule"/><field name="groups" eval="[(4, ref('call_center_core.group_call_center_user'))]"/><field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field></record>
+  <record id="rule_consent_unit" model="ir.rule"><field name="name">Consent by business unit</field><field name="model_id" ref="model_call_center_consent"/><field name="groups" eval="[(4, ref('call_center_core.group_call_center_user'))]"/><field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field></record>
+  <record id="rule_suppression_unit" model="ir.rule"><field name="name">Suppression by business unit</field><field name="model_id" ref="model_call_center_suppression"/><field name="groups" eval="[(4, ref('call_center_core.group_call_center_user'))]"/><field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field></record>
+</odoo>

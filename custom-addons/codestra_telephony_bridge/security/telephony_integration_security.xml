@@ -1,0 +1,43 @@
+<odoo>
+  <record id="rule_telephony_state_business_unit" model="ir.rule">
+    <field name="name">Telephony state business-unit scope</field>
+    <field name="model_id" ref="model_codestra_telephony_desired_state"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+    <field name="groups" eval="[(4, ref('call_center_core.group_call_center_user'))]"/>
+  </record>
+
+  <record id="rule_telephony_mapping_business_unit" model="ir.rule">
+    <field name="name">Telephony mapping business-unit scope</field>
+    <field name="model_id" ref="model_codestra_telephony_target_mapping"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+    <field name="groups" eval="[(4, ref('call_center_core.group_call_center_user'))]"/>
+  </record>
+
+  <record id="rule_telephony_transfer_business_unit" model="ir.rule">
+    <field name="name">Telephony transfer business-unit scope</field>
+    <field name="model_id" ref="model_codestra_telephony_transfer_request"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+    <field name="groups" eval="[(4, ref('call_center_core.group_call_center_user'))]"/>
+  </record>
+
+  <record id="rule_telephony_transition_business_unit" model="ir.rule">
+    <field name="name">Telephony transition business-unit scope</field>
+    <field name="model_id" ref="model_codestra_telephony_transfer_transition"/>
+    <field name="domain_force">[('transfer_request_id.business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+    <field name="groups" eval="[(4, ref('call_center_core.group_call_center_user'))]"/>
+  </record>
+
+  <record id="rule_reconciliation_run_business_unit" model="ir.rule">
+    <field name="name">Reconciliation run business-unit scope</field>
+    <field name="model_id" ref="model_codestra_integration_reconciliation_run"/>
+    <field name="domain_force">['|', ('business_unit_id', '=', False), ('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+    <field name="groups" eval="[(4, ref('call_center_core.group_call_center_user'))]"/>
+  </record>
+
+  <record id="rule_reconciliation_drift_business_unit" model="ir.rule">
+    <field name="name">Reconciliation drift business-unit scope</field>
+    <field name="model_id" ref="model_codestra_integration_reconciliation_drift"/>
+    <field name="domain_force">['|', ('reconciliation_run_id.business_unit_id', '=', False), ('reconciliation_run_id.business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+    <field name="groups" eval="[(4, ref('call_center_core.group_call_center_user'))]"/>
+  </record>
+</odoo>

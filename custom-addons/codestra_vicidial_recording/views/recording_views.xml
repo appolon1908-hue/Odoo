@@ -1,0 +1,141 @@
+<odoo>
+  <record id="view_vicidial_recording_list" model="ir.ui.view">
+    <field name="name">codestra.vicidial.recording.reference.list</field>
+    <field name="model">codestra.vicidial.recording</field>
+    <field name="arch" type="xml">
+      <list create="false" delete="false">
+        <field name="recording_uid"/>
+        <field name="campaign_key"/>
+        <field name="call_id"/>
+        <field name="campaign_id"/>
+        <field name="agent_id"/>
+        <field name="duration_seconds"/>
+        <field name="format"/>
+        <field name="verified_at"/>
+        <field name="verification_status"/>
+        <field name="storage_status"/>
+        <field name="retention_class"/>
+        <field name="retention_until"/>
+        <field name="legal_hold" groups="codestra_vicidial_recording.group_recording_administrator"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_vicidial_recording_form" model="ir.ui.view">
+    <field name="name">codestra.vicidial.recording.reference.form</field>
+    <field name="model">codestra.vicidial.recording</field>
+    <field name="arch" type="xml">
+      <form create="false" delete="false">
+        <header>
+          <button name="action_play_recording" type="object" string="Play"
+                  class="btn-primary"
+                  groups="codestra_vicidial_recording.group_recording_administrator,codestra_vicidial_recording.group_recording_supervisor,codestra_vicidial_recording.group_recording_qa_reviewer"/>
+          <field name="storage_status" widget="statusbar"/>
+        </header>
+        <sheet>
+          <group>
+            <group>
+              <field name="recording_uid" readonly="1"/>
+              <field name="call_id" readonly="1"/>
+              <field name="campaign_id" readonly="1"/>
+              <field name="agent_id" readonly="1"/>
+              <field name="started_at" readonly="1"/>
+              <field name="duration_seconds" readonly="1"/>
+              <field name="format" readonly="1"/>
+              <field name="codec" readonly="1"/>
+            </group>
+            <group>
+              <field name="verified_at" readonly="1"/>
+              <field name="verification_status" readonly="1"/>
+              <field name="retention_class"/>
+              <field name="retention_until" readonly="1"/>
+              <field name="legal_hold" groups="codestra_vicidial_recording.group_recording_administrator"/>
+              <field name="file_size_bytes" readonly="1"/>
+              <field name="upload_attempts" readonly="1"/>
+              <field name="last_error" readonly="1"/>
+            </group>
+          </group>
+          <group string="Review">
+            <field name="supervisor_notes" groups="codestra_vicidial_recording.group_recording_supervisor"/>
+            <field name="qa_classification" groups="codestra_vicidial_recording.group_recording_qa_reviewer"/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+  <record id="view_vicidial_recording_search" model="ir.ui.view">
+    <field name="name">codestra.vicidial.recording.reference.search</field>
+    <field name="model">codestra.vicidial.recording</field>
+    <field name="arch" type="xml">
+      <search>
+        <field name="recording_uid"/>
+        <field name="campaign_id"/>
+        <field name="agent_id"/>
+        <filter name="retention_pending" string="Retention pending" domain="[('storage_status','=','retention_pending')]"/>
+        <filter name="quarantined" string="Quarantined" domain="[('storage_status','=','quarantined')]"/>
+        <filter name="legal_hold" string="Legal hold" domain="[('legal_hold','=',True)]"
+                groups="codestra_vicidial_recording.group_recording_administrator"/>
+        <filter name="upload_failure" string="Upload failures" domain="[('storage_status','=','failed'),('verified_at','=',False)]"/>
+        <filter name="odoo_link_failure" string="Odoo-link failures" domain="[('storage_status','=','verified')]"/>
+        <group>
+          <filter name="campaign" string="Campaign" context="{'group_by':'campaign_id'}"/>
+          <filter name="retention_class" string="Retention class" context="{'group_by':'retention_class'}"/>
+        </group>
+      </search>
+    </field>
+  </record>
+  <record id="action_vicidial_recordings" model="ir.actions.act_window">
+    <field name="name">Recordings</field>
+    <field name="res_model">codestra.vicidial.recording</field>
+    <field name="view_mode">list,form</field>
+    <field name="search_view_id" ref="view_vicidial_recording_search"/>
+  </record>
+  <record id="action_supervisor_recordings" model="ir.actions.act_window">
+    <field name="name">Assigned Recordings</field>
+    <field name="res_model">codestra.vicidial.recording</field>
+    <field name="view_mode">list,form</field>
+  </record>
+  <record id="action_qa_recordings" model="ir.actions.act_window">
+    <field name="name">QA Assigned Recordings</field>
+    <field name="res_model">codestra.vicidial.recording</field>
+    <field name="view_mode">list,form</field>
+  </record>
+  <record id="view_recording_playback_audit_list" model="ir.ui.view">
+    <field name="name">codestra.vicidial.recording.playback.audit.list</field>
+    <field name="model">codestra.vicidial.recording.playback.audit</field>
+    <field name="arch" type="xml">
+      <list create="false" edit="false" delete="false">
+        <field name="request_time"/><field name="recording_uid"/>
+        <field name="user_id"/><field name="user_role"/>
+        <field name="campaign_scope_result"/><field name="group_scope_result"/>
+        <field name="qa_scope_result"/><field name="result"/>
+        <field name="denial_reason"/><field name="client_ip_sanitized"/>
+        <field name="middleware_request_id"/>
+      </list>
+    </field>
+  </record>
+  <record id="action_recording_playback_audits" model="ir.actions.act_window">
+    <field name="name">Playback Audit</field>
+    <field name="res_model">codestra.vicidial.recording.playback.audit</field>
+    <field name="view_mode">list</field>
+  </record>
+  <record id="view_recording_retention_audit_list" model="ir.ui.view">
+    <field name="name">codestra.vicidial.recording.retention.audit.list</field>
+    <field name="model">codestra.vicidial.recording.retention.audit</field>
+    <field name="arch" type="xml">
+      <list create="false" edit="false" delete="false">
+        <field name="event_time"/><field name="recording_uid"/>
+        <field name="previous_retention_class"/><field name="new_retention_class"/>
+        <field name="previous_retention_until"/><field name="new_retention_until"/>
+        <field name="legal_hold_before"/><field name="legal_hold_after"/>
+        <field name="actor_id"/><field name="reason"/>
+        <field name="middleware_acknowledgement_status"/>
+        <field name="middleware_acknowledgement_time"/>
+      </list>
+    </field>
+  </record>
+  <record id="action_recording_retention_audits" model="ir.actions.act_window">
+    <field name="name">Retention Audit</field>
+    <field name="res_model">codestra.vicidial.recording.retention.audit</field>
+    <field name="view_mode">list</field>
+  </record>
+</odoo>

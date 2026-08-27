@@ -1,0 +1,6 @@
+<odoo>
+  <record id="group_codestra_middleware_bridge" model="res.groups">
+    <field name="name">Codestra Middleware Bridge</field>
+    <field name="comment">Non-interactive least-privilege identity for the signed middleware API.</field>
+  </record>
+</odoo>

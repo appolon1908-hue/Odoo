@@ -39,3 +39,45 @@ jobs:
 
       - name: Validate Odoo manifests
         run: python scripts/validate_manifests.py
+
+  odoo-runtime:
+    name: Install addons and test click-to-call on Odoo 19
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: odoo_all_ci
+          POSTGRES_USER: odoo
+          POSTGRES_PASSWORD: odoo
+        options: >-
+          --health-cmd "pg_isready -U odoo"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install all custom addons
+        run: |
+          modules="$(find custom-addons -mindepth 2 -maxdepth 2 -name __manifest__.py -printf '%h\n' | xargs -n1 basename | sort | paste -sd, -)"
+          docker run --rm --network host \
+            -e HOST=127.0.0.1 -e USER=odoo -e PASSWORD=odoo \
+            -v "$PWD/custom-addons:/mnt/extra-addons:ro" \
+            odoo:19.0 odoo -d odoo_all_ci -i "$modules" \
+            --stop-after-init --no-http --log-level=warn
+
+      - name: Test click-to-call and policy guards
+        run: |
+          docker run --rm --network host \
+            -e HOST=127.0.0.1 -e USER=odoo -e PASSWORD=odoo \
+            -v "$PWD/custom-addons:/mnt/extra-addons:ro" \
+            odoo:19.0 odoo -d odoo_all_ci -u codestra_vicidial_crm \
+            --test-enable \
+            --test-tags=/codestra_vicidial_crm:TestClickToCall \
+            --stop-after-init --no-http --log-level=warn

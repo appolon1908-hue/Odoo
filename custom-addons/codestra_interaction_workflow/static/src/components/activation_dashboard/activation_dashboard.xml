@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+  <t t-name="codestra_interaction_workflow.ActivationDashboard">
+    <div class="o_codestra_activation_dashboard p-4">
+      <h1>Integration Dashboard</h1>
+      <t t-if="state.loading"><p>Loading…</p></t>
+      <t t-elif="state.error"><div class="alert alert-danger"><t t-esc="state.error"/></div></t>
+      <t t-elif="state.snapshot">
+        <div class="row g-3">
+          <t t-foreach="Object.entries(state.snapshot.cards)" t-as="card" t-key="card[0]">
+            <div class="col-12 col-md-4 col-xl-3"><div class="card shadow-sm"><div class="card-body"><div class="text-muted"><t t-esc="card[0]"/></div><div class="h3"><t t-esc="card[1]"/></div></div></div></div>
+          </t>
+        </div>
+      </t>
+    </div>
+  </t>
+</templates>

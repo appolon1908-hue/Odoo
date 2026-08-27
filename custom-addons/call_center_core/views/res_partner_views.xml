@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_partner_form_call_center" model="ir.ui.view">
+    <field name="name">res.partner.form.call.center</field>
+    <field name="model">res.partner</field>
+    <field name="inherit_id" ref="base.view_partner_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//field[@name='category_id']" position="after">
+        <field name="business_unit_id" groups="call_center_core.group_call_center_user"/>
+        <field name="preferred_contact_method" groups="call_center_core.group_call_center_user"/>
+        <field name="sensitive_data" groups="call_center_core.group_call_center_compliance"/>
+      </xpath>
+    </field>
+  </record>
+</odoo>

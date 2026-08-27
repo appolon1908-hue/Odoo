@@ -1,0 +1,12 @@
+{
+  "source_repository": "Codestra-SRL/codestra-middleware",
+  "source_pr": 65,
+  "source_head": "04fa56f4c8bb8caea3e5281816a2986bcb47ba05",
+  "hmac_contract": "HMAC-V2",
+  "hmac_scope": "lead-automation.odoo-apply.write",
+  "contract_version": "1.1",
+  "schema_manifest_sha256": "389557074a34b19beed230f720956726d03478acbdabc65bf1436479e83e72e9",
+  "coordinated_extension_repository": "Codestra-SRL/codestra-middleware",
+  "coordinated_extension_pr": 68,
+  "coordinated_extension_scope": "signed company identity and multi-company enforcement"
+}

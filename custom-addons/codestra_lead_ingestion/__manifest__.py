@@ -1,0 +1,27 @@
+{
+    "name": "Codestra Lead Ingestion",
+    "version": "19.0.1.0.0",
+    "summary": "Governed CRM lead ingestion and middleware delivery control",
+    "category": "Sales/CRM",
+    "author": "Codestra",
+    "license": "LGPL-3",
+    "depends": [
+        "base", "mail", "contacts", "crm",
+        "call_center_campaign", "call_center_compliance",
+        "call_center_lead_validation", "codestra_integration_hub",
+    ],
+    "external_dependencies": {"python": ["openpyxl", "phonenumbers"]},
+    "data": [
+        "security/groups.xml",
+        "security/ir.model.access.csv",
+        "security/record_rules.xml",
+        "data/sequence.xml",
+        "data/cron.xml",
+        "views/settings_views.xml",
+        "views/mapping_views.xml",
+        "views/import_views.xml",
+        "views/menus.xml",
+    ],
+    "installable": True,
+    "application": True,
+}

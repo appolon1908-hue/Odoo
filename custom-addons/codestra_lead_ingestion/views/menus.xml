@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <menuitem id="menu_lead_ingestion_root" name="Import Leads" sequence="35" groups="codestra_lead_ingestion.group_lead_importer"/>
+  <menuitem id="menu_lead_import_batches" name="Batches" parent="menu_lead_ingestion_root" action="action_lead_import_batches" sequence="10"/>
+  <menuitem id="menu_lead_import_lines" name="All Lines" parent="menu_lead_ingestion_root" action="action_lead_import_lines" sequence="20"/>
+  <menuitem id="menu_lead_ingestion_config" name="Configuration" parent="menu_lead_ingestion_root" sequence="90" groups="codestra_lead_ingestion.group_lead_import_admin"/>
+  <menuitem id="menu_lead_column_mappings" name="Column Mappings" parent="menu_lead_ingestion_config" action="action_lead_column_mappings" sequence="10"/>
+</odoo>
