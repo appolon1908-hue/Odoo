@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo><menuitem id="menu_duplicates" name="Duplicate Review" parent="call_center_core.menu_call_center_root" action="action_duplicates" sequence="30" groups="call_center_core.group_call_center_manager"/></odoo>

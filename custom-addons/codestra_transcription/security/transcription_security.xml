@@ -1,0 +1,14 @@
+<odoo>
+  <record id="rule_transcript_unit" model="ir.rule">
+    <field name="name">Transcripts: assigned business units</field>
+    <field name="model_id" ref="model_codestra_call_transcript"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+    <field name="groups" eval="[(4, ref('codestra.group_agent'))]"/>
+  </record>
+  <record id="rule_segment_unit" model="ir.rule">
+    <field name="name">Transcript segments: assigned business units</field>
+    <field name="model_id" ref="model_codestra_call_transcript_segment"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+    <field name="groups" eval="[(4, ref('codestra.group_agent'))]"/>
+  </record>
+</odoo>

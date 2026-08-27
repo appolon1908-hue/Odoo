@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+  <record id="ir_cron_purge_lead_automation_nonces" model="ir.cron">
+    <field name="name">Lead Automation: Purge Expired Replay Guards</field>
+    <field name="model_id" ref="model_codestra_lead_automation_nonce"/>
+    <field name="state">code</field>
+    <field name="code">model._cron_purge_expired()</field>
+    <field name="interval_number">1</field><field name="interval_type">hours</field>
+    <field name="active">True</field>
+  </record>
+</odoo>

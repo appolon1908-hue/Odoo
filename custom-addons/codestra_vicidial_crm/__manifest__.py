@@ -1,0 +1,31 @@
+{
+    "name": "Codestra VICIdial CRM",
+    "version": "19.0.3.1.0",
+    "summary": "Read-only VICIdial integration staging for CRM",
+    "author": "Codestra",
+    "license": "LGPL-3",
+    "category": "CRM",
+    "application": True,
+    "installable": True,
+    "depends": ["codestra_base", "call_center_core", "base", "contacts", "crm", "mail", "calendar", "phone_validation", "web"],
+    "data": [
+        "security/security.xml",
+        "security/security_extra.xml",
+        "security/ir.model.access.csv",
+        "security/record_rules.xml",
+        "data/dispositions.xml",
+        "data/cron.xml",
+        "views/views.xml",
+        "views/reconciliation_views.xml",
+        "views/crm_lead_click_to_call.xml",
+        "views/menus.xml",
+    ],
+    "assets": {
+        "web.assets_backend": [
+            "codestra_vicidial_crm/static/src/js/call_popup.js",
+            "codestra_vicidial_crm/static/src/xml/call_popup.xml",
+            "codestra_vicidial_crm/static/src/scss/call_popup.scss",
+        ],
+    },
+    "external_dependencies": {"python": []},
+}

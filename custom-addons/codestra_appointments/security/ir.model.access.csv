@@ -1,0 +1,17 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+appt_type,appointment.type,model_codestra_appointment_type,codestra.group_campaign_manager,1,1,1,0
+appt_policy,appointment.policy,model_codestra_appointment_reminder_policy,codestra.group_campaign_manager,1,1,1,0
+appt_main,appointment.main,model_codestra_call_appointment,codestra.group_agent,1,1,1,0
+appt_event,appointment.event,model_codestra_appointment_reminder_event,codestra.group_agent,1,1,1,0
+appt_checklist,appointment.checklist,model_codestra_appointment_preparation_checklist,codestra.group_agent,1,1,1,0
+appt_item,appointment.item,model_codestra_appointment_preparation_item,codestra.group_agent,1,1,1,0
+appt_ack,appointment.ack,model_codestra_appointment_acknowledgment,codestra.group_agent,1,1,1,0
+appt_escalation,appointment.escalation,model_codestra_appointment_escalation,codestra.group_supervisor,1,1,1,0
+appt_telephony,appointment.telephony,model_codestra_appointment_telephony_action,codestra.group_supervisor,1,0,1,0
+appt_audit,appointment.audit,model_codestra_appointment_audit,codestra.group_supervisor,1,0,1,0
+appt_metric,appointment.metric,model_codestra_appointment_metric_snapshot,codestra.group_supervisor,1,0,1,0
+callback_agent,callback.agent,model_codestra_callback,codestra.group_agent,1,1,1,0
+callback_supervisor,callback.supervisor,model_codestra_callback,codestra.group_supervisor,1,1,1,0
+callback_history_agent,callback.history.agent,model_codestra_callback_history,codestra.group_agent,1,0,0,0
+callback_history_supervisor,callback.history.supervisor,model_codestra_callback_history,codestra.group_supervisor,1,0,1,0
+access_codestra_callback_sync_system,codestra.callback.sync system,model_codestra_callback_sync_job,base.group_system,1,1,1,0

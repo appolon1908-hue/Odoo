@@ -1,0 +1,26 @@
+{
+    "name": "Codestra Staging Campaign Design",
+    "version": "19.0.1.0.0",
+    "license": "LGPL-3",
+    "depends": [
+        "call_center_campaign",
+        "call_center_lead_validation",
+        "codestra_appointments",
+        "codestra_identity_provisioning",
+    ],
+    "data": [
+        "security/ir.model.access.csv",
+        "security/record_rules.xml",
+        "data/stages.xml",
+        "data/campaigns.xml",
+        "data/extension_pools.xml",
+        "data/dispositions.xml",
+        "data/appointment_types.xml",
+        "views/crm_lead_views.xml",
+        "views/dashboard_views.xml",
+    ],
+    "installable": True,
+    "application": False,
+    "post_init_hook": "post_init_hook",
+    "uninstall_hook": "uninstall_hook",
+}

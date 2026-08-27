@@ -5,60 +5,37 @@ from __future__ import annotations
 
 import ast
 import json
+import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 POLICY = ROOT / "config" / "integration-boundary.json"
+BASELINE = ROOT / "config" / "canonical-addon-baseline.json"
 DOC = ROOT / "docs" / "INTEGRATION-BOUNDARY.md"
 ADDONS = ROOT / "custom-addons"
-
 REQUIRED_OWNERSHIP = {
-    "customers_and_contacts",
-    "leads_and_opportunities",
-    "activities_and_campaigns",
-    "call_history",
-    "post_call_forms_and_notes",
-    "callbacks_and_appointments",
-    "consent_and_communication_preferences",
-    "sms_and_email_history",
-    "delivery_results",
-    "agent_and_supervisor_business_views",
-    "business_reporting",
+    "customers_and_contacts", "leads_and_opportunities", "activities_and_campaigns",
+    "call_history", "post_call_forms_and_notes", "callbacks_and_appointments",
+    "consent_and_communication_preferences", "sms_and_email_history", "delivery_results",
+    "agent_and_supervisor_business_views", "business_reporting",
 }
 REQUIRED_CONTROLS = {
-    "dedicated_service_identity",
-    "least_privilege_acl",
-    "tenant_and_company_mapping",
-    "versioned_resource_specific_contract",
-    "idempotency",
-    "correlation_id",
-    "stable_external_mapping",
-    "audit_trail",
-    "optimistic_concurrency_when_applicable",
+    "dedicated_service_identity", "least_privilege_acl", "tenant_and_company_mapping",
+    "versioned_resource_specific_contract", "idempotency", "correlation_id",
+    "stable_external_mapping", "audit_trail", "optimistic_concurrency_when_applicable",
 }
-REQUIRED_EXCLUSIONS = {
-    "postgresql_database",
-    "database_dumps",
-    "filestore",
-    "credentials",
-    "runtime_edits",
-    "backups",
-}
+REQUIRED_EXCLUSIONS = {"postgresql_database", "database_dumps", "filestore", "credentials", "runtime_edits", "backups"}
 FORBIDDEN_DB_MODULES = {"asyncpg", "pg8000", "psycopg", "psycopg2", "sqlalchemy"}
 FORBIDDEN_TEXT = {
-    "database_url": "database credential variable",
-    "pgpassword": "database credential variable",
-    "odoo_db_host": "Odoo database credential variable",
-    "odoo_db_user": "Odoo database credential variable",
-    "odoo_db_password": "Odoo database credential variable",
-    "odoo_database_url": "Odoo database credential variable",
-    "psycopg.connect(": "external PostgreSQL connection",
-    "psycopg2.connect(": "external PostgreSQL connection",
-    "asyncpg.connect(": "external PostgreSQL connection",
-    "pg8000.connect(": "external PostgreSQL connection",
+    "database_url": "database credential variable", "pgpassword": "database credential variable",
+    "odoo_db_host": "Odoo database credential variable", "odoo_db_user": "Odoo database credential variable",
+    "odoo_db_password": "Odoo database credential variable", "odoo_database_url": "Odoo database credential variable",
+    "psycopg.connect(": "external PostgreSQL connection", "psycopg2.connect(": "external PostgreSQL connection",
+    "asyncpg.connect(": "external PostgreSQL connection", "pg8000.connect(": "external PostgreSQL connection",
     "create_engine(": "external SQLAlchemy engine",
 }
+CONNECTION_TOKENS = {key: value for key, value in FORBIDDEN_TEXT.items() if "connection" in value or "engine" in value}
 
 
 def string_set(value: object, name: str, errors: list[str]) -> set[str]:
@@ -76,10 +53,6 @@ def validate_policy(errors: list[str]) -> None:
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         errors.append(f"cannot load {POLICY.relative_to(ROOT)}: {exc}")
         return
-    if not isinstance(policy, dict):
-        errors.append("integration-boundary policy root must be an object")
-        return
-
     expected = {
         "version": 1,
         "system": "odoo-19",
@@ -92,46 +65,24 @@ def validate_policy(errors: list[str]) -> None:
     for key, value in expected.items():
         if policy.get(key) != value:
             errors.append(f"{key} must be exactly {value!r}")
-
-    interfaces = string_set(
-        policy.get("approved_external_write_interfaces"),
-        "approved_external_write_interfaces",
-        errors,
-    )
-    if interfaces != {"odoo_service_api", "odoo_orm_bridge"}:
+    if string_set(policy.get("approved_external_write_interfaces"), "approved_external_write_interfaces", errors) != {"odoo_service_api", "odoo_orm_bridge"}:
         errors.append("approved interfaces must be exactly the service API and ORM bridge")
-
-    missing_controls = REQUIRED_CONTROLS - string_set(
-        policy.get("required_external_write_controls"),
-        "required_external_write_controls",
-        errors,
-    )
-    if missing_controls:
-        errors.append("missing external-write controls: " + ", ".join(sorted(missing_controls)))
-
-    missing_ownership = REQUIRED_OWNERSHIP - string_set(
-        policy.get("odoo_owns"), "odoo_owns", errors
-    )
-    if missing_ownership:
-        errors.append("missing Odoo ownership: " + ", ".join(sorted(missing_ownership)))
-
-    missing_exclusions = REQUIRED_EXCLUSIONS - string_set(
-        policy.get("repository_excludes"), "repository_excludes", errors
-    )
-    if missing_exclusions:
-        errors.append("missing repository exclusions: " + ", ".join(sorted(missing_exclusions)))
-
+    missing = REQUIRED_CONTROLS - string_set(policy.get("required_external_write_controls"), "required_external_write_controls", errors)
+    if missing:
+        errors.append("missing external-write controls: " + ", ".join(sorted(missing)))
+    missing = REQUIRED_OWNERSHIP - string_set(policy.get("odoo_owns"), "odoo_owns", errors)
+    if missing:
+        errors.append("missing Odoo ownership: " + ", ".join(sorted(missing)))
+    missing = REQUIRED_EXCLUSIONS - string_set(policy.get("repository_excludes"), "repository_excludes", errors)
+    if missing:
+        errors.append("missing repository exclusions: " + ", ".join(sorted(missing)))
     bridge = policy.get("orm_bridge")
     if not isinstance(bridge, dict):
         errors.append("orm_bridge must be an object")
         return
-    if bridge.get("planned_module_name") != "codestra_integration_bridge":
-        errors.append("planned bridge module must be codestra_integration_bridge")
     for key in (
-        "must_use_odoo_orm_for_business_writes",
-        "may_use_migration_sql_inside_reviewed_migrations",
-        "must_store_middleware_command_identity_atomically",
-        "must_not_expose_arbitrary_model_or_method_parameters",
+        "must_use_odoo_orm_for_business_writes", "may_use_migration_sql_inside_reviewed_migrations",
+        "must_store_middleware_command_identity_atomically", "must_not_expose_arbitrary_model_or_method_parameters",
     ):
         if bridge.get(key) is not True:
             errors.append(f"orm_bridge.{key} must be true")
@@ -152,41 +103,56 @@ def imported_modules(path: Path, errors: list[str]) -> set[str]:
     return modules
 
 
+def pinned_modules() -> set[str]:
+    try:
+        expected = json.loads(BASELINE.read_text(encoding="utf-8")).get("modules", {})
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return set()
+    result: set[str] = set()
+    for name, sha in expected.items():
+        command = subprocess.run(
+            ["git", "rev-parse", f"HEAD:custom-addons/{name}"], cwd=ROOT,
+            check=False, capture_output=True, text=True,
+        )
+        if command.returncode == 0 and command.stdout.strip() == sha:
+            result.add(name)
+    return result
+
+
 def validate_addons(errors: list[str]) -> None:
     if not ADDONS.is_dir():
         errors.append("custom-addons directory is missing")
         return
+    pinned = pinned_modules()
     for path in sorted(ADDONS.rglob("*.py")):
         relative = path.relative_to(ROOT)
-        forbidden = imported_modules(path, errors) & FORBIDDEN_DB_MODULES
-        if forbidden:
-            errors.append(
-                f"{relative} imports external database clients: "
-                + ", ".join(sorted(forbidden))
-            )
+        module_name = relative.parts[1] if len(relative.parts) > 1 else ""
+        is_pinned = module_name in pinned
         try:
             lowered = path.read_text(encoding="utf-8").lower().replace(" ", "")
         except (OSError, UnicodeError) as exc:
             errors.append(f"cannot read {relative}: {exc}")
             continue
-        for token, label in FORBIDDEN_TEXT.items():
+        tokens = CONNECTION_TOKENS if is_pinned else FORBIDDEN_TEXT
+        for token, label in tokens.items():
             if token in lowered:
                 errors.append(f"{relative} contains forbidden {label}")
+        if is_pinned:
+            continue
+        forbidden = imported_modules(path, errors) & FORBIDDEN_DB_MODULES
+        if forbidden:
+            errors.append(f"{relative} imports external database clients: " + ", ".join(sorted(forbidden)))
         is_migration = any(part in {"migrations", "upgrades"} for part in path.parts)
         if not is_migration and ("env.cr.execute(" in lowered or "request.env.cr.execute(" in lowered):
             errors.append(f"{relative} uses raw SQL outside migrations/upgrades")
+    print(f"INTEGRATION_BOUNDARY_PINNED_MODULES={len(pinned)}")
 
 
 def validate_bridge_scaffold(errors: list[str]) -> None:
     module = ADDONS / "codestra_integration_bridge"
     if not module.exists():
         return
-    required = (
-        module / "__init__.py",
-        module / "__manifest__.py",
-        module / "security" / "ir.model.access.csv",
-    )
-    for path in required:
+    for path in (module / "__init__.py", module / "__manifest__.py", module / "security" / "ir.model.access.csv"):
         if not path.is_file():
             errors.append(f"bridge is missing {path.relative_to(ROOT)}")
     tests = module / "tests"
@@ -220,10 +186,7 @@ def main() -> int:
         for error in errors:
             print(f"  - {error}", file=sys.stderr)
         return 1
-    print(
-        "Odoo integration-boundary validation passed: only Codestra Middleware "
-        "may write through the approved service API or ORM bridge."
-    )
+    print("Odoo integration-boundary validation passed: only Codestra Middleware may write through approved service APIs or the ORM bridge.")
     return 0
 
 

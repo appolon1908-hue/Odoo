@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="rule_business_unit_authorized" model="ir.rule">
+    <field name="name">Authorized business units only</field>
+    <field name="model_id" ref="model_call_center_business_unit"/>
+    <field name="groups" eval="[(4, ref('group_call_center_user')), (4, ref('group_call_center_agent')), (4, ref('group_call_center_senior_agent')), (4, ref('group_call_center_closer')), (4, ref('group_call_center_supervisor')), (4, ref('group_call_center_qa')), (4, ref('group_call_center_compliance')), (4, ref('group_call_center_manager'))]"/>
+    <field name="domain_force">[('id', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
+  <record id="rule_department_authorized" model="ir.rule">
+    <field name="name">Departments in authorized business units</field>
+    <field name="model_id" ref="model_call_center_department"/>
+    <field name="groups" eval="[(4, ref('group_call_center_user')), (4, ref('group_call_center_agent')), (4, ref('group_call_center_senior_agent')), (4, ref('group_call_center_closer')), (4, ref('group_call_center_supervisor')), (4, ref('group_call_center_qa')), (4, ref('group_call_center_compliance')), (4, ref('group_call_center_manager'))]"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
+  <record id="rule_lead_business_unit" model="ir.rule">
+    <field name="name">Leads in authorized business units</field>
+    <field name="model_id" ref="crm.model_crm_lead"/>
+    <field name="global" eval="True"/>
+    <field name="groups" eval="[(5, 0, 0)]"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('call_center_core.group_call_center_admin') else [('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
+  <record id="rule_partner_business_unit" model="ir.rule">
+    <field name="name">Contacts in authorized units or shared</field>
+    <field name="model_id" ref="base.model_res_partner"/>
+    <field name="groups" eval="[(4, ref('group_call_center_user')), (4, ref('group_call_center_agent')), (4, ref('group_call_center_senior_agent')), (4, ref('group_call_center_closer')), (4, ref('group_call_center_supervisor')), (4, ref('group_call_center_qa')), (4, ref('group_call_center_compliance')), (4, ref('group_call_center_manager'))]"/>
+    <field name="domain_force">['|', ('business_unit_id', '=', False), ('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
+  <record id="rule_audit_business_unit" model="ir.rule">
+    <field name="name">Audit in authorized business units</field>
+    <field name="model_id" ref="model_call_center_audit_event"/>
+    <field name="groups" eval="[(4, ref('group_call_center_user')), (4, ref('group_call_center_agent')), (4, ref('group_call_center_senior_agent')), (4, ref('group_call_center_closer')), (4, ref('group_call_center_supervisor')), (4, ref('group_call_center_qa')), (4, ref('group_call_center_compliance')), (4, ref('group_call_center_manager'))]"/>
+    <field name="domain_force">['|', ('business_unit_id', '=', False), ('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
+  <record id="rule_branch_authorized" model="ir.rule">
+    <field name="name">Branches in authorized business units</field>
+    <field name="model_id" ref="model_call_center_branch"/>
+    <field name="groups" eval="[(4, ref('group_call_center_user'))]"/>
+    <field name="domain_force">[('business_unit_ids', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
+  <record id="rule_agent_skill_authorized" model="ir.rule">
+    <field name="name">Agent skills in authorized business units</field>
+    <field name="model_id" ref="model_call_center_agent_skill"/>
+    <field name="groups" eval="[(4, ref('group_call_center_user'))]"/>
+    <field name="domain_force">['|', ('audit_business_unit_id', '=', False), ('audit_business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
+  <record id="rule_calling_policy_company" model="ir.rule">
+    <field name="name">Calling policies in allowed companies</field>
+    <field name="model_id" ref="model_call_center_calling_hours_policy"/>
+    <field name="groups" eval="[(4, ref('group_call_center_user'))]"/>
+    <field name="domain_force">[('company_id', 'in', user.company_ids.ids)]</field>
+  </record>
+</odoo>

@@ -1,0 +1,28 @@
+<odoo noupdate="1">
+    <record id="queue_type_support" model="codestra.mail.queue.type"><field name="name">Support</field><field name="code">SUPPORT</field><field name="sequence">10</field></record>
+    <record id="queue_type_administration" model="codestra.mail.queue.type"><field name="name">Administration</field><field name="code">ADMINISTRATION</field><field name="sequence">20</field></record>
+    <record id="queue_type_billing" model="codestra.mail.queue.type"><field name="name">Billing / Accounting</field><field name="code">BILLING</field><field name="sequence">30</field></record>
+
+    <record id="stage_support_new" model="codestra.mail.stage"><field name="name">New</field><field name="code">NEW</field><field name="queue_type_id" ref="queue_type_support"/><field name="sequence">10</field></record>
+    <record id="stage_support_assigned" model="codestra.mail.stage"><field name="name">Assigned</field><field name="code">ASSIGNED</field><field name="queue_type_id" ref="queue_type_support"/><field name="sequence">20</field></record>
+    <record id="stage_support_progress" model="codestra.mail.stage"><field name="name">In Progress</field><field name="code">IN_PROGRESS</field><field name="queue_type_id" ref="queue_type_support"/><field name="sequence">30</field></record>
+    <record id="stage_support_wait_customer" model="codestra.mail.stage"><field name="name">Waiting Customer</field><field name="code">WAITING_CUSTOMER</field><field name="queue_type_id" ref="queue_type_support"/><field name="sequence">40</field></record>
+    <record id="stage_support_wait_internal" model="codestra.mail.stage"><field name="name">Waiting Internal</field><field name="code">WAITING_INTERNAL</field><field name="queue_type_id" ref="queue_type_support"/><field name="sequence">50</field></record>
+    <record id="stage_support_resolved" model="codestra.mail.stage"><field name="name">Resolved</field><field name="code">RESOLVED</field><field name="queue_type_id" ref="queue_type_support"/><field name="sequence">60</field><field name="is_closed" eval="True"/></record>
+    <record id="stage_support_closed" model="codestra.mail.stage"><field name="name">Closed</field><field name="code">CLOSED</field><field name="queue_type_id" ref="queue_type_support"/><field name="sequence">70</field><field name="is_closed" eval="True"/></record>
+
+    <record id="stage_admin_new" model="codestra.mail.stage"><field name="name">New</field><field name="code">NEW</field><field name="queue_type_id" ref="queue_type_administration"/><field name="sequence">10</field></record>
+    <record id="stage_admin_review" model="codestra.mail.stage"><field name="name">Under Review</field><field name="code">UNDER_REVIEW</field><field name="queue_type_id" ref="queue_type_administration"/><field name="sequence">20</field></record>
+    <record id="stage_admin_action" model="codestra.mail.stage"><field name="name">Action Required</field><field name="code">ACTION_REQUIRED</field><field name="queue_type_id" ref="queue_type_administration"/><field name="sequence">30</field></record>
+    <record id="stage_admin_wait" model="codestra.mail.stage"><field name="name">Waiting External</field><field name="code">WAITING_EXTERNAL</field><field name="queue_type_id" ref="queue_type_administration"/><field name="sequence">40</field></record>
+    <record id="stage_admin_resolved" model="codestra.mail.stage"><field name="name">Resolved</field><field name="code">RESOLVED</field><field name="queue_type_id" ref="queue_type_administration"/><field name="sequence">50</field><field name="is_closed" eval="True"/></record>
+    <record id="stage_admin_closed" model="codestra.mail.stage"><field name="name">Closed</field><field name="code">CLOSED</field><field name="queue_type_id" ref="queue_type_administration"/><field name="sequence">60</field><field name="is_closed" eval="True"/></record>
+
+    <record id="sla_support" model="codestra.mail.sla.policy"><field name="name">Support first response</field><field name="queue_type_id" ref="queue_type_support"/><field name="first_response_hours">2</field><field name="unassigned_alert_minutes">30</field></record>
+    <record id="sla_admin" model="codestra.mail.sla.policy"><field name="name">Administration acknowledgment</field><field name="queue_type_id" ref="queue_type_administration"/><field name="first_response_hours">4</field><field name="unassigned_alert_minutes">30</field></record>
+    <record id="stage_billing_new" model="codestra.mail.stage"><field name="name">New</field><field name="code">NEW</field><field name="queue_type_id" ref="queue_type_billing"/><field name="sequence">10</field></record>
+    <record id="stage_billing_review" model="codestra.mail.stage"><field name="name">Under Review</field><field name="code">UNDER_REVIEW</field><field name="queue_type_id" ref="queue_type_billing"/><field name="sequence">20</field></record>
+    <record id="stage_billing_action" model="codestra.mail.stage"><field name="name">Action Required</field><field name="code">ACTION_REQUIRED</field><field name="queue_type_id" ref="queue_type_billing"/><field name="sequence">30</field></record>
+    <record id="stage_billing_resolved" model="codestra.mail.stage"><field name="name">Resolved</field><field name="code">RESOLVED</field><field name="queue_type_id" ref="queue_type_billing"/><field name="sequence">40</field><field name="is_closed" eval="True"/></record>
+    <record id="sla_billing" model="codestra.mail.sla.policy"><field name="name">Billing acknowledgment</field><field name="queue_type_id" ref="queue_type_billing"/><field name="first_response_hours">4</field><field name="unassigned_alert_minutes">30</field></record>
+</odoo>

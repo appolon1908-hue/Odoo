@@ -1,0 +1,12 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+transcript_agent,transcript.agent,model_codestra_call_transcript,codestra.group_agent,1,0,0,0
+segment_agent,segment.agent,model_codestra_call_transcript_segment,codestra.group_agent,1,0,0,0
+resolution_agent,resolution.agent,model_codestra_call_resolution,codestra.group_agent,1,1,1,0
+topic_agent,topic.agent,model_codestra_call_topic,codestra.group_agent,1,0,0,0
+action_agent,action.agent,model_codestra_call_action_item,codestra.group_agent,1,1,1,0
+job_admin,job.admin,model_codestra_call_transcription_job,codestra.group_global_system_admin,1,0,1,0
+model_admin,model.admin,model_codestra_call_transcription_model,codestra.group_global_system_admin,1,1,1,0
+evaluation_qa,evaluation.qa,model_codestra_call_transcription_evaluation,codestra.group_global_qa_manager,1,1,1,0
+redaction_compliance,redaction.compliance,model_codestra_call_redaction_event,codestra.group_global_compliance_manager,1,0,1,0
+recording_access_qa,recording.access.qa,model_codestra_call_recording_access,codestra.group_global_qa_manager,1,0,1,0
+speech_metric_supervisor,speech.metric.supervisor,model_codestra_call_speech_metric,codestra.group_supervisor,1,0,1,0

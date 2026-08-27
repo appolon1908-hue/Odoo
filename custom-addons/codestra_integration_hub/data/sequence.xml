@@ -1,0 +1,10 @@
+<odoo noupdate="1">
+  <record id="sequence_integration_event" model="ir.sequence">
+    <field name="name">Integration Event</field><field name="code">codestra.integration.event</field>
+    <field name="prefix">EVT-</field><field name="padding">8</field>
+  </record>
+  <record id="sequence_dead_letter" model="ir.sequence">
+    <field name="name">Integration Dead Letter</field><field name="code">codestra.integration.dead.letter</field>
+    <field name="prefix">DLQ-</field><field name="padding">8</field>
+  </record>
+</odoo>

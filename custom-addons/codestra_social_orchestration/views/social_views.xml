@@ -1,0 +1,10 @@
+<odoo>
+    <record id="view_social_campaign_list" model="ir.ui.view"><field name="name">codestra.social.campaign.list</field><field name="model">codestra.social.campaign</field><field name="arch" type="xml"><list><field name="name"/><field name="company_id"/><field name="active"/></list></field></record>
+    <record id="view_social_post_list" model="ir.ui.view"><field name="name">codestra.social.post.list</field><field name="model">codestra.social.post</field><field name="arch" type="xml"><list><field name="name"/><field name="campaign_id"/><field name="state"/><field name="scheduled_at"/><field name="company_id"/></list></field></record>
+    <record id="view_social_post_form" model="ir.ui.view"><field name="name">codestra.social.post.form</field><field name="model">codestra.social.post</field><field name="arch" type="xml"><form><sheet><group><field name="name"/><field name="campaign_id"/><field name="state"/><field name="scheduled_at"/></group><field name="content"/><group><field name="channel_ids" widget="many2many_tags"/><field name="media_ids" widget="many2many_tags"/></group><group><field name="middleware_command_id"/><field name="postiz_post_id"/><field name="trace_id"/><field name="correlation_id"/></group></sheet><chatter/></form></field></record>
+    <record id="action_social_campaign" model="ir.actions.act_window"><field name="name">Social Campaigns</field><field name="res_model">codestra.social.campaign</field><field name="view_mode">list,form</field></record>
+    <record id="action_social_post" model="ir.actions.act_window"><field name="name">Social Posts</field><field name="res_model">codestra.social.post</field><field name="view_mode">list,form</field></record>
+    <menuitem id="menu_social_root" name="Social Orchestration" sequence="80" groups="codestra_social_orchestration.group_social_content_creator,codestra_social_orchestration.group_social_analyst"/>
+    <menuitem id="menu_social_campaign" name="Campaigns" parent="menu_social_root" action="action_social_campaign"/>
+    <menuitem id="menu_social_post" name="Posts" parent="menu_social_root" action="action_social_post"/>
+</odoo>

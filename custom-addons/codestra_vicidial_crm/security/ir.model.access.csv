@@ -1,0 +1,42 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_agent_user,agent user,model_codestra_vicidial_agent,group_agent,1,1,0,0
+access_agent_admin,agent admin,model_codestra_vicidial_agent,group_integration_admin,1,1,1,0
+access_campaign_user,campaign user,model_codestra_vicidial_campaign,group_agent,1,0,0,0
+access_campaign_manager,campaign manager,model_codestra_vicidial_campaign,group_manager,1,1,1,0
+access_phone_user,phone user,model_codestra_vicidial_phone,group_agent,1,0,0,0
+access_call_user,call user,model_codestra_vicidial_call,group_agent,1,0,0,0
+access_event_admin,event admin,model_codestra_integration_event,group_integration_admin,1,1,1,0
+access_dead_admin,dead admin,model_codestra_integration_dead_letter,group_integration_admin,1,1,1,0
+access_mapping_manager,mapping manager,model_codestra_integration_mapping,group_manager,1,1,1,0
+access_audit_user,audit user,model_codestra_integration_audit,group_manager,1,0,0,0
+access_disposition_user,disposition user,model_codestra_vicidial_disposition,group_agent,1,0,0,0
+access_disposition_manager,disposition manager,model_codestra_vicidial_disposition,group_manager,1,1,1,0
+access_transfer_user,transfer user,model_codestra_vicidial_transfer,group_agent,1,0,0,0
+access_recording_user,recording user,model_codestra_vicidial_recording,group_supervisor,1,0,0,0
+access_queue_user,queue user,model_codestra_vicidial_queue_snapshot,group_supervisor,1,0,0,0
+access_event_call,event call,model_codestra_vicidial_call_event,group_integration_admin,1,1,1,0
+access_call_event_agent,call event agent read,model_codestra_vicidial_call_event,group_agent,1,0,0,0
+access_test_syn_sync_event,test syn sync event,model_codestra_vicidial_sync_event,group_integration_admin,1,1,1,0
+access_callback_agent,callback agent,model_codestra_callback,group_agent,1,1,1,0
+access_call_admin,call administrator,model_codestra_vicidial_call,group_call_admin,1,1,1,0
+access_phone_endpoint_manager,phone endpoint manager,model_vicidial_phone_endpoint,group_manager,1,1,1,0
+access_email_endpoint_manager,email endpoint manager,model_vicidial_email_endpoint,group_manager,1,1,1,0
+access_identity_map_manager,identity map manager,model_vicidial_identity_map,group_manager,1,1,1,0
+access_sync_run_manager,sync run manager,model_vicidial_sync_run,group_manager,1,0,0,0
+access_reconciliation_issue_manager,reconciliation issue manager,model_vicidial_reconciliation_issue,group_manager,1,1,1,0
+access_call_control_command_agent,call control command agent,model_codestra_call_control_command,group_agent,1,0,1,0
+access_call_control_command_admin,call control command admin,model_codestra_call_control_command,group_integration_admin,1,1,1,0
+access_call_note_agent,call note agent,model_codestra_call_note,group_agent,1,1,1,0
+access_call_note_supervisor,call note supervisor,model_codestra_call_note,group_supervisor,1,1,1,0
+access_call_note_revision_agent,call note revision agent,model_codestra_call_note_revision,group_agent,1,0,0,0
+access_sub_disposition_agent,sub disposition agent,model_codestra_call_sub_disposition,group_agent,1,0,0,0
+access_sub_disposition_manager,sub disposition manager,model_codestra_call_sub_disposition,group_manager,1,1,1,0
+access_note_template_agent,note template agent,model_codestra_call_note_template,group_agent,1,0,0,0
+access_note_template_manager,note template manager,model_codestra_call_note_template,group_manager,1,1,1,0
+access_qa_review_qa,qa review reviewer,model_codestra_call_qa_review,group_qa,1,1,1,0
+access_qa_review_supervisor,qa review supervisor read,model_codestra_call_qa_review,group_supervisor,1,0,0,0
+access_qa_review_manager,qa review manager,model_codestra_call_qa_review,group_manager,1,1,1,0
+access_coaching_supervisor,coaching supervisor,model_codestra_call_coaching,group_supervisor,1,1,1,0
+access_coaching_agent,coaching assigned agent,model_codestra_call_coaching,group_agent,1,1,0,0
+access_coaching_qa,coaching qa,model_codestra_call_coaching,group_qa,1,1,1,0
+access_coaching_manager,coaching manager,model_codestra_call_coaching,group_manager,1,1,1,0

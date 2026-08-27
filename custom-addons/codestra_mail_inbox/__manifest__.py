@@ -1,0 +1,20 @@
+{
+    "name": "Codestra Shared Mail Inbox",
+    "summary": "Brand-isolated support and administration mail queues",
+    "version": "19.0.1.2.0",
+    "category": "Productivity/Discuss",
+    "license": "LGPL-3",
+    "author": "Codestra",
+    "depends": ["base", "mail"],
+    "data": [
+        "security/security.xml",
+        "security/ir.model.access.csv",
+        "data/service_identity_data.xml",
+        "data/inbox_data.xml",
+        "data/brand_team_data.xml",
+        "views/inbox_views.xml",
+    ],
+    "post_init_hook": "post_init_hook",
+    "application": True,
+    "installable": True,
+}

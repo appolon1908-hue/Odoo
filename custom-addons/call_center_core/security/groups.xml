@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="module_category_call_center" model="ir.module.category">
+    <field name="name">Call Center</field>
+    <field name="sequence">35</field>
+  </record>
+  <record id="privilege_call_center" model="res.groups.privilege">
+    <field name="name">Call Center</field>
+    <field name="sequence">35</field>
+    <field name="category_id" ref="module_category_call_center"/>
+  </record>
+  <record id="group_call_center_user" model="res.groups">
+    <field name="name">Call Center User</field>
+    <field name="privilege_id" ref="privilege_call_center"/>
+    <field name="sequence">10</field>
+    <field name="implied_ids" eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]"/>
+  </record>
+  <record id="group_call_center_agent" model="res.groups">
+    <field name="name">Agent</field>
+    <field name="implied_ids" eval="[(4, ref('group_call_center_user'))]"/>
+    <field name="privilege_id" ref="privilege_call_center"/>
+    <field name="sequence">20</field>
+  </record>
+  <record id="group_call_center_senior_agent" model="res.groups">
+    <field name="name">Senior Agent</field>
+    <field name="implied_ids" eval="[(4, ref('group_call_center_agent'))]"/>
+    <field name="privilege_id" ref="privilege_call_center"/>
+    <field name="sequence">30</field>
+  </record>
+  <record id="group_call_center_closer" model="res.groups">
+    <field name="name">Closer</field>
+    <field name="implied_ids" eval="[(4, ref('group_call_center_user'))]"/>
+    <field name="privilege_id" ref="privilege_call_center"/>
+    <field name="sequence">40</field>
+  </record>
+  <record id="group_call_center_supervisor" model="res.groups">
+    <field name="name">Supervisor / Team Leader</field>
+    <field name="implied_ids" eval="[(4, ref('group_call_center_senior_agent'))]"/>
+    <field name="privilege_id" ref="privilege_call_center"/>
+    <field name="sequence">50</field>
+  </record>
+  <record id="group_call_center_team_leader" model="res.groups">
+    <field name="name">Team Leader</field>
+    <field name="implied_ids" eval="[(4, ref('group_call_center_senior_agent'))]"/>
+    <field name="privilege_id" ref="privilege_call_center"/>
+  </record>
+  <record id="group_call_center_customer_success" model="res.groups">
+    <field name="name">Customer Success Representative</field>
+    <field name="implied_ids" eval="[(4, ref('group_call_center_user'))]"/>
+    <field name="privilege_id" ref="privilege_call_center"/>
+  </record>
+  <record id="group_call_center_retention" model="res.groups">
+    <field name="name">Retention Specialist</field>
+    <field name="implied_ids" eval="[(4, ref('group_call_center_user'))]"/>
+    <field name="privilege_id" ref="privilege_call_center"/>
+  </record>
+  <record id="group_call_center_support" model="res.groups">
+    <field name="name">Support Representative</field>
+    <field name="implied_ids" eval="[(4, ref('group_call_center_user'))]"/>
+    <field name="privilege_id" ref="privilege_call_center"/>
+  </record>
+  <record id="group_call_center_trainer" model="res.groups">
+    <field name="name">Trainer</field>
+    <field name="implied_ids" eval="[(4, ref('group_call_center_user'))]"/>
+    <field name="privilege_id" ref="privilege_call_center"/>
+  </record>
+  <record id="group_call_center_wfm" model="res.groups">
+    <field name="name">Workforce Manager</field>
+    <field name="implied_ids" eval="[(4, ref('group_call_center_user'))]"/>
+    <field name="privilege_id" ref="privilege_call_center"/>
+  </record>
+  <record id="group_call_center_finance" model="res.groups">
+    <field name="name">Finance User</field>
+    <field name="implied_ids" eval="[(4, ref('group_call_center_user'))]"/>
+    <field name="privilege_id" ref="privilege_call_center"/>
+  </record>
+  <record id="group_call_center_qa" model="res.groups">
+    <field name="name">QA Reviewer</field>
+    <field name="implied_ids" eval="[(4, ref('group_call_center_user'))]"/>
+    <field name="privilege_id" ref="privilege_call_center"/>
+    <field name="sequence">60</field>
+  </record>
+  <record id="group_call_center_compliance" model="res.groups">
+    <field name="name">Compliance Officer</field>
+    <field name="implied_ids" eval="[(4, ref('group_call_center_user'))]"/>
+    <field name="privilege_id" ref="privilege_call_center"/>
+    <field name="sequence">70</field>
+  </record>
+  <record id="group_call_center_manager" model="res.groups">
+    <field name="name">Campaign / Business Unit Manager</field>
+    <field name="implied_ids" eval="[(4, ref('group_call_center_supervisor'))]"/>
+    <field name="privilege_id" ref="privilege_call_center"/>
+    <field name="sequence">80</field>
+  </record>
+  <record id="group_call_center_admin" model="res.groups">
+    <field name="name">Call Center Administrator</field>
+    <field name="implied_ids" eval="[(4, ref('group_call_center_manager')), (4, ref('group_call_center_compliance')), (4, ref('group_call_center_qa'))]"/>
+    <field name="privilege_id" ref="privilege_call_center"/>
+    <field name="sequence">90</field>
+    <field name="user_ids" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>
+  </record>
+</odoo>

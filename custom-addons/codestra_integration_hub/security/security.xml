@@ -1,0 +1,3 @@
+<odoo>
+  <!-- The Hub reuses the least-privilege groups owned by codestra_base. -->
+</odoo>

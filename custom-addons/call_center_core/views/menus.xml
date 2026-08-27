@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <menuitem id="menu_call_center_root" name="Call Center" sequence="35" groups="call_center_core.group_call_center_user"/>
+  <menuitem id="menu_call_center_configuration" name="Configuration" parent="menu_call_center_root" sequence="90" groups="call_center_core.group_call_center_manager"/>
+  <menuitem id="menu_business_units" name="Business Units" parent="menu_call_center_configuration" action="action_business_units" groups="call_center_core.group_call_center_manager"/>
+  <menuitem id="menu_branches" name="Branches" parent="menu_call_center_configuration" action="action_branches" sequence="20" groups="call_center_core.group_call_center_manager"/>
+  <menuitem id="menu_operating_calendars" name="Operating Calendars" parent="menu_call_center_configuration" action="action_operating_calendars" sequence="50" groups="call_center_core.group_call_center_manager"/>
+  <menuitem id="menu_calling_policies" name="Calling-Hours Policies" parent="menu_call_center_configuration" action="action_calling_policies" sequence="60" groups="call_center_core.group_call_center_manager"/>
+  <menuitem id="menu_phone_formats" name="Countries and Phone Formats" parent="menu_call_center_configuration" action="action_phone_formats" sequence="70" groups="call_center_core.group_call_center_manager"/>
+  <menuitem id="menu_skills" name="Skills" parent="menu_call_center_configuration" action="action_skills" sequence="90" groups="call_center_core.group_call_center_manager"/>
+  <menuitem id="menu_canonical_statuses" name="Canonical Statuses" parent="menu_call_center_configuration" action="action_canonical_statuses" sequence="100" groups="call_center_core.group_call_center_manager"/>
+  <menuitem id="menu_audit_events" name="Audit Events" parent="menu_call_center_root" action="action_audit_events" sequence="95" groups="call_center_core.group_call_center_compliance"/>
+</odoo>

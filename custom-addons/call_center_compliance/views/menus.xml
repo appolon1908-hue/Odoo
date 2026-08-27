@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <menuitem id="menu_compliance" name="Compliance" parent="call_center_core.menu_call_center_root" sequence="80" groups="call_center_core.group_call_center_compliance"/>
+  <menuitem id="menu_compliance_rules" name="Rules" parent="menu_compliance" action="action_compliance_rules"/>
+  <menuitem id="menu_suppressions" name="Suppression List" parent="menu_compliance" action="action_suppressions"/>
+</odoo>

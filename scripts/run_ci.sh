@@ -15,6 +15,9 @@ done < <(find scripts -type f -name '*.sh' -print0 | sort -z)
 printf '==> Compiling Python files\n'
 python3 -m compileall -q custom-addons scripts
 
+printf '==> Verifying the immutable canonical addon baseline\n'
+python3 scripts/validate_legacy_addon_baseline.py
+
 printf '==> Validating Odoo manifests\n'
 python3 scripts/validate_manifests.py
 

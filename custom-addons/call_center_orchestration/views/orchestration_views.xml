@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_provisioning_request_list" model="ir.ui.view">
+    <field name="name">call.center.provisioning.request.list</field>
+    <field name="model">call.center.provisioning.request</field>
+    <field name="arch" type="xml">
+      <list><field name="request_uid"/><field name="business_unit_id"/><field name="operation"/><field name="user_id"/><field name="state"/><field name="expires_at"/></list>
+    </field>
+  </record>
+  <record id="view_callback_task_list" model="ir.ui.view">
+    <field name="name">call.center.callback.task.list</field>
+    <field name="model">call.center.callback.task</field>
+    <field name="arch" type="xml">
+      <list><field name="lead_id"/><field name="business_unit_id"/><field name="agent_id"/><field name="supervisor_id"/><field name="due_at"/><field name="state"/></list>
+    </field>
+  </record>
+</odoo>

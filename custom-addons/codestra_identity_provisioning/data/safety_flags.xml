@@ -1,0 +1,35 @@
+<odoo noupdate="1">
+  <record id="flag_send_events" model="ir.config_parameter">
+    <field name="key">codestra.provisioning.send_events</field><field name="value">false</field>
+  </record>
+  <record id="flag_production_callbacks" model="ir.config_parameter">
+    <field name="key">codestra.provisioning.production_callbacks_enabled</field><field name="value">false</field>
+  </record>
+  <record id="flag_vicidial_writes" model="ir.config_parameter">
+    <field name="key">codestra.provisioning.vicidial_writes_enabled</field><field name="value">false</field>
+  </record>
+  <record id="flag_external_dial" model="ir.config_parameter">
+    <field name="key">codestra.provisioning.external_dial_enabled</field><field name="value">false</field>
+  </record>
+  <record id="flag_transfers" model="ir.config_parameter">
+    <field name="key">codestra.provisioning.transfers_enabled</field><field name="value">false</field>
+  </record>
+  <record id="flag_n8n_production" model="ir.config_parameter">
+    <field name="key">codestra.provisioning.n8n_production_workflows_enabled</field><field name="value">false</field>
+  </record>
+  <record id="flag_webrtc_production" model="ir.config_parameter">
+    <field name="key">codestra.provisioning.webrtc_production_routes_enabled</field><field name="value">false</field>
+  </record>
+  <record id="flag_allow_live_email" model="ir.config_parameter">
+    <field name="key">codestra.provisioning.allow_live_email</field><field name="value">false</field>
+  </record>
+  <record id="flag_allow_live_sms" model="ir.config_parameter">
+    <field name="key">codestra.provisioning.allow_live_sms</field><field name="value">false</field>
+  </record>
+  <record id="flag_allow_live_calls" model="ir.config_parameter">
+    <field name="key">codestra.provisioning.allow_live_calls</field><field name="value">false</field>
+  </record>
+  <record id="flag_allow_campaign_activation" model="ir.config_parameter">
+    <field name="key">codestra.provisioning.allow_campaign_activation</field><field name="value">false</field>
+  </record>
+</odoo>

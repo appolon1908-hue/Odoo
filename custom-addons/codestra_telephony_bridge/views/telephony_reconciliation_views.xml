@@ -1,0 +1,346 @@
+<odoo>
+  <record id="view_telephony_desired_state_list" model="ir.ui.view">
+    <field name="name">codestra.telephony.desired.state.list</field>
+    <field name="model">codestra.telephony.desired.state</field>
+    <field name="arch" type="xml">
+      <list create="false" delete="false">
+        <field name="state_public_id"/>
+        <field name="record_environment"/>
+        <field name="employee_id"/>
+        <field name="campaign_id"/>
+        <field name="extension"/>
+        <field name="desired_enabled"/>
+        <field name="observed_asterisk_endpoint_enabled"/>
+        <field name="observed_registration_status"/>
+        <field name="desired_state_version"/>
+        <field name="observed_state_version"/>
+        <field name="reconciliation_status"/>
+        <field name="last_readback_at"/>
+        <field name="last_result_id"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_telephony_desired_state_form" model="ir.ui.view">
+    <field name="name">codestra.telephony.desired.state.form</field>
+    <field name="model">codestra.telephony.desired.state</field>
+    <field name="arch" type="xml">
+      <form create="false" delete="false">
+        <sheet>
+          <group>
+            <group>
+              <field name="state_public_id" readonly="1"/>
+              <field name="record_environment" readonly="1"/>
+              <field name="employee_id" readonly="1"/>
+              <field name="business_unit_id" readonly="1"/>
+              <field name="campaign_id" readonly="1"/>
+              <field name="identity_link_id" readonly="1"/>
+              <field name="extension_assignment_id" readonly="1"/>
+            </group>
+            <group>
+              <field name="phone_public_id" readonly="1"/>
+              <field name="endpoint_public_id" readonly="1"/>
+              <field name="extension" readonly="1"/>
+              <field name="desired_state_version" readonly="1"/>
+              <field name="actual_state_version" readonly="1"/>
+              <field name="observed_state" readonly="1"/>
+              <field name="reconciliation_status" readonly="1"/>
+            </group>
+          </group>
+          <group string="Desired permissions">
+            <field name="desired_enabled" readonly="1"/>
+            <field name="desired_campaign_membership" readonly="1"/>
+            <field name="desired_transfer_permission" readonly="1"/>
+            <field name="desired_callback_permission" readonly="1"/>
+            <field name="desired_external_call_permission" readonly="1"/>
+          </group>
+          <group string="Readback">
+            <field name="last_adapter_operation_id" readonly="1"/>
+            <field name="last_result_id" readonly="1"/>
+            <field name="last_readback_at" readonly="1"/>
+            <field name="last_reconciled_at" readonly="1"/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_telephony_desired_state" model="ir.actions.act_window">
+    <field name="name">Telephony Desired State</field>
+    <field name="res_model">codestra.telephony.desired.state</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <record id="view_telephony_desired_state_search" model="ir.ui.view">
+    <field name="name">codestra.telephony.desired.state.search</field>
+    <field name="model">codestra.telephony.desired.state</field>
+    <field name="arch" type="xml">
+      <search>
+        <field name="employee_id"/>
+        <field name="campaign_id"/>
+        <field name="extension"/>
+        <filter name="in_sync" string="In Sync"
+                domain="[('reconciliation_status', 'in', ['IN_SYNC', 'RECONCILED'])]"/>
+        <filter name="drift" string="Drift Detected"
+                domain="[('reconciliation_status', 'in', ['DRIFTED', 'DRIFT_DETECTED'])]"/>
+        <filter name="readback_missing" string="Readback Missing"
+                domain="[('observed_at', '=', False)]"/>
+        <filter name="mapping_missing" string="Mapping Missing"
+                domain="[('extension_assignment_id', '=', False)]"/>
+        <filter name="manual_review" string="Manual Review"
+                domain="[('reconciliation_status', '=', 'MANUAL_REVIEW_REQUIRED')]"/>
+      </search>
+    </field>
+  </record>
+
+  <record id="view_telephony_target_mapping_list" model="ir.ui.view">
+    <field name="name">codestra.telephony.target.mapping.list</field>
+    <field name="model">codestra.telephony.target.mapping</field>
+    <field name="arch" type="xml">
+      <list create="false" edit="false" delete="false">
+        <field name="mapping_public_id"/>
+        <field name="environment"/>
+        <field name="agent_public_id"/>
+        <field name="campaign_public_id"/>
+        <field name="target_system"/>
+        <field name="target_resource_type"/>
+        <field name="target_public_id"/>
+        <field name="extension"/>
+        <field name="desired_state_version"/>
+        <field name="observed_state_version"/>
+        <field name="mapping_status"/>
+        <field name="last_readback_at"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="action_telephony_target_mapping" model="ir.actions.act_window">
+    <field name="name">Target Mappings</field>
+    <field name="res_model">codestra.telephony.target.mapping</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <record id="view_reconciliation_drift_list" model="ir.ui.view">
+    <field name="name">codestra.integration.reconciliation.drift.list</field>
+    <field name="model">codestra.integration.reconciliation.drift</field>
+    <field name="arch" type="xml">
+      <list create="false" edit="false" delete="false">
+        <field name="drift_public_id"/>
+        <field name="employee_id"/>
+        <field name="campaign_id"/>
+        <field name="target_system"/>
+        <field name="drift_type"/>
+        <field name="severity"/>
+        <field name="expected_state_version"/>
+        <field name="observed_state_version"/>
+        <field name="repair_eligibility"/>
+        <field name="repair_status"/>
+        <field name="detected_at"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_reconciliation_drift_form" model="ir.ui.view">
+    <field name="name">codestra.integration.reconciliation.drift.form</field>
+    <field name="model">codestra.integration.reconciliation.drift</field>
+    <field name="arch" type="xml">
+      <form create="false" edit="false" delete="false">
+        <sheet>
+          <group>
+            <group>
+              <field name="drift_public_id"/>
+              <field name="reconciliation_run_id"/>
+              <field name="projection_id"/>
+              <field name="mapping_id"/>
+              <field name="employee_id"/>
+              <field name="campaign_id"/>
+              <field name="command_public_id"/>
+              <field name="resolution_result_id"/>
+              <field name="trace_id"/>
+            </group>
+            <group>
+              <field name="source_system"/>
+              <field name="target_system"/>
+              <field name="target_resource_type"/>
+              <field name="target_public_id"/>
+              <field name="drift_type"/>
+              <field name="severity"/>
+              <field name="repair_eligibility"/>
+              <field name="repair_status"/>
+            </group>
+          </group>
+          <group string="Desired and observed evidence">
+            <field name="expected_state_version"/>
+            <field name="observed_state_version"/>
+            <field name="expected_state_hash"/>
+            <field name="observed_state_hash"/>
+            <field name="expected_state_redacted" widget="json"/>
+            <field name="observed_state_redacted" widget="json"/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_integration_reconciliation_drift" model="ir.actions.act_window">
+    <field name="name">Reconciliation Drifts</field>
+    <field name="res_model">codestra.integration.reconciliation.drift</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <record id="view_telephony_transfer_request_list" model="ir.ui.view">
+    <field name="name">codestra.telephony.transfer.request.list</field>
+    <field name="model">codestra.telephony.transfer.request</field>
+    <field name="arch" type="xml">
+      <list create="false" delete="false">
+        <field name="transfer_public_id"/>
+        <field name="record_environment"/>
+        <field name="call_public_id"/>
+        <field name="lead_id"/>
+        <field name="campaign_id"/>
+        <field name="source_agent_id"/>
+        <field name="destination_agent_id"/>
+        <field name="transfer_type"/>
+        <field name="state"/>
+        <field name="attempt_count"/>
+        <field name="requested_at"/>
+        <field name="completed_at"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="action_telephony_transfer_request" model="ir.actions.act_window">
+    <field name="name">Transfer Requests</field>
+    <field name="res_model">codestra.telephony.transfer.request</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <record id="view_integration_result_telephony_list" model="ir.ui.view">
+    <field name="name">codestra.integration.result.inbox.telephony.list</field>
+    <field name="model">codestra.integration.result.inbox</field>
+    <field name="arch" type="xml">
+      <list create="false" edit="false" delete="false">
+        <field name="result_public_id"/>
+        <field name="operation_public_id"/>
+        <field name="target_system"/>
+        <field name="target_resource_type"/>
+        <field name="target_public_id"/>
+        <field name="requested_state_version"/>
+        <field name="observed_state_version"/>
+        <field name="application_status"/>
+        <field name="readback_status"/>
+        <field name="readback_at"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="action_integration_result_telephony" model="ir.actions.act_window">
+    <field name="name">Telephony Results</field>
+    <field name="res_model">codestra.integration.result.inbox</field>
+    <field name="view_mode">list,form</field>
+    <field name="domain">[('result_domain', '=', 'TELEPHONY')]</field>
+  </record>
+
+  <record id="view_reconciliation_run_list" model="ir.ui.view">
+    <field name="name">codestra.integration.reconciliation.run.list</field>
+    <field name="model">codestra.integration.reconciliation.run</field>
+    <field name="arch" type="xml">
+      <list create="false" delete="false">
+        <field name="run_public_id"/>
+        <field name="environment"/>
+        <field name="target_system"/>
+        <field name="scope_type"/>
+        <field name="status"/>
+        <field name="records_scanned"/>
+        <field name="drift_count"/>
+        <field name="manual_review_count"/>
+        <field name="started_at"/>
+        <field name="completed_at"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_reconciliation_run_form" model="ir.ui.view">
+    <field name="name">codestra.integration.reconciliation.run.form</field>
+    <field name="model">codestra.integration.reconciliation.run</field>
+    <field name="arch" type="xml">
+      <form create="false" edit="false" delete="false">
+        <sheet>
+          <group>
+            <group>
+              <field name="run_public_id"/>
+              <field name="environment"/>
+              <field name="scope_type"/>
+              <field name="target_system"/>
+              <field name="status"/>
+              <field name="started_at"/>
+              <field name="completed_at"/>
+            </group>
+            <group>
+              <field name="records_scanned"/>
+              <field name="records_in_sync"/>
+              <field name="drift_count"/>
+              <field name="repairable_count"/>
+              <field name="manual_review_count"/>
+              <field name="failed_count"/>
+            </group>
+          </group>
+          <field name="drift_ids" readonly="1">
+            <list>
+              <field name="drift_public_id"/>
+              <field name="aggregate_model"/>
+              <field name="aggregate_public_id"/>
+              <field name="target_system"/>
+              <field name="drift_type"/>
+              <field name="severity"/>
+              <field name="repair_eligibility"/>
+              <field name="repair_status"/>
+            </list>
+          </field>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_integration_reconciliation_run" model="ir.actions.act_window">
+    <field name="name">Integration Reconciliation</field>
+    <field name="res_model">codestra.integration.reconciliation.run</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <menuitem id="menu_telephony_bridge_root"
+            name="Telephony"
+            parent="call_center_core.menu_call_center_configuration"
+            groups="call_center_core.group_call_center_manager"
+            sequence="90"/>
+  <menuitem id="menu_telephony_desired_state"
+            name="Desired vs Observed State"
+            parent="menu_telephony_bridge_root"
+            action="action_telephony_desired_state"
+            sequence="10"/>
+  <menuitem id="menu_integration_reconciliation_run"
+            name="Reconciliation Runs"
+            parent="menu_telephony_bridge_root"
+            action="action_integration_reconciliation_run"
+            sequence="20"/>
+  <menuitem id="menu_telephony_target_mapping"
+            name="Target Mappings"
+            parent="menu_telephony_bridge_root"
+            action="action_telephony_target_mapping"
+            sequence="15"/>
+  <menuitem id="menu_integration_reconciliation_drift"
+            name="Reconciliation Drifts"
+            parent="menu_telephony_bridge_root"
+            action="action_integration_reconciliation_drift"
+            sequence="25"/>
+  <menuitem id="menu_integration_result_telephony"
+            name="Telephony Results"
+            parent="menu_telephony_bridge_root"
+            action="action_integration_result_telephony"
+            sequence="30"/>
+  <menuitem id="menu_telephony_transfer_request"
+            name="Transfer Requests"
+            parent="menu_telephony_bridge_root"
+            action="action_telephony_transfer_request"
+            sequence="40"/>
+</odoo>

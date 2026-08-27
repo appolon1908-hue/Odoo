@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="0">
+  <record id="flag_production_traffic" model="call.center.feature.flag"><field name="code">ENABLE_PRODUCTION_TRAFFIC</field><field name="description">Production traffic</field><field name="enabled" eval="False"/></record>
+  <record id="flag_vicidial_writes" model="call.center.feature.flag"><field name="code">ENABLE_VICIDIAL_WRITES</field><field name="description">VICIdial writes through middleware</field><field name="enabled" eval="False"/></record>
+  <record id="flag_lead_publication" model="call.center.feature.flag"><field name="code">ENABLE_LEAD_PUBLICATION</field><field name="description">Lead publication</field><field name="enabled" eval="False"/></record>
+  <record id="flag_agent_sync" model="call.center.feature.flag"><field name="code">ENABLE_AGENT_SYNC</field><field name="description">Agent synchronization</field><field name="enabled" eval="False"/></record>
+  <record id="flag_campaign_sync" model="call.center.feature.flag"><field name="code">ENABLE_CAMPAIGN_SYNC</field><field name="description">Campaign synchronization</field><field name="enabled" eval="False"/></record>
+  <record id="flag_ivr" model="call.center.feature.flag"><field name="code">ENABLE_IVR</field><field name="description">IVR control plane</field><field name="enabled" eval="False"/></record>
+  <record id="flag_ivr_callbacks" model="call.center.feature.flag"><field name="code">ENABLE_IVR_CALLBACKS</field><field name="description">IVR callbacks</field><field name="enabled" eval="False"/></record>
+  <record id="flag_appointment_pause" model="call.center.feature.flag"><field name="code">ENABLE_APPOINTMENT_AUTO_PAUSE</field><field name="description">Appointment APPT_PREP pause</field><field name="enabled" eval="False"/></record>
+  <record id="flag_live_call_control" model="call.center.feature.flag"><field name="code">ENABLE_LIVE_CALL_CONTROL</field><field name="description">Live call control</field><field name="enabled" eval="False"/></record>
+  <record id="flag_websocket_pop" model="call.center.feature.flag"><field name="code">ENABLE_WEBSOCKET_SCREEN_POP</field><field name="description">WebSocket screen pop</field><field name="enabled" eval="False"/></record>
+  <record id="flag_live_transcription" model="call.center.feature.flag"><field name="code">ENABLE_LIVE_TRANSCRIPTION</field><field name="description">Live transcription</field><field name="enabled" eval="False"/></record>
+  <record id="flag_ai_assistant" model="call.center.feature.flag"><field name="code">ENABLE_AI_ASSISTANT</field><field name="description">Realtime AI assistant</field><field name="enabled" eval="False"/></record>
+  <record id="flag_post_call_ai" model="call.center.feature.flag"><field name="code">ENABLE_POST_CALL_AI</field><field name="description">Post-call AI processing</field><field name="enabled" eval="False"/></record>
+  <record id="flag_n8n_production" model="call.center.feature.flag"><field name="code">ENABLE_N8N_PRODUCTION</field><field name="description">Production n8n workflows</field><field name="enabled" eval="False"/></record>
+  <record id="flag_provisioning" model="call.center.feature.flag"><field name="code">ENABLE_PROVISIONING</field><field name="description">Identity and endpoint provisioning</field><field name="enabled" eval="False"/></record>
+  <record id="flag_report_exports" model="call.center.feature.flag"><field name="code">ENABLE_REPORT_EXPORTS</field><field name="description">Reporting exports</field><field name="enabled" eval="False"/></record>
+</odoo>

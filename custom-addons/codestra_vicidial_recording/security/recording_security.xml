@@ -1,0 +1,13 @@
+<odoo>
+  <record id="group_recording_qa_reviewer" model="res.groups">
+    <field name="name">Recording QA Reviewer</field>
+  </record>
+  <record id="group_recording_supervisor" model="res.groups">
+    <field name="name">Recording Supervisor</field>
+    <field name="implied_ids" eval="[(4, ref('codestra_vicidial_crm.group_supervisor'))]"/>
+  </record>
+  <record id="group_recording_administrator" model="res.groups">
+    <field name="name">Recording Administrator</field>
+    <field name="implied_ids" eval="[(4, ref('group_recording_supervisor')), (4, ref('group_recording_qa_reviewer'))]"/>
+  </record>
+</odoo>

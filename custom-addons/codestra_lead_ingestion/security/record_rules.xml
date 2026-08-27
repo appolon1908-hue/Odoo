@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="rule_batch_company_unit" model="ir.rule">
+    <field name="name">Lead batches: allowed company and business unit</field>
+    <field name="model_id" ref="model_codestra_lead_import_batch"/>
+    <field name="groups" eval="[(4, ref('group_lead_importer'))]"/>
+    <field name="domain_force">[('company_id', 'in', company_ids), ('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
+  <record id="rule_line_company_unit" model="ir.rule">
+    <field name="name">Lead lines: allowed company and business unit</field>
+    <field name="model_id" ref="model_codestra_lead_import_line"/>
+    <field name="groups" eval="[(4, ref('group_lead_importer'))]"/>
+    <field name="domain_force">[('company_id', 'in', company_ids), ('batch_id.business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
+  <record id="rule_mapping_company" model="ir.rule">
+    <field name="name">Mappings: allowed companies</field><field name="model_id" ref="model_codestra_lead_column_mapping"/>
+    <field name="groups" eval="[(4, ref('group_lead_importer'))]"/><field name="domain_force">[('company_id', 'in', company_ids)]</field>
+  </record>
+  <record id="rule_outbox_company" model="ir.rule">
+    <field name="name">Lead import outbox: allowed companies</field><field name="model_id" ref="model_codestra_lead_import_outbox"/>
+    <field name="groups" eval="[(4, ref('group_lead_import_admin')), (4, ref('group_middleware_service'))]"/><field name="domain_force">[('company_id', 'in', company_ids)]</field>
+  </record>
+  <record id="rule_audit_company" model="ir.rule">
+    <field name="name">Audit: allowed companies</field><field name="model_id" ref="model_codestra_lead_import_audit"/>
+    <field name="groups" eval="[(4, ref('group_lead_importer')), (4, ref('group_middleware_service'))]"/><field name="domain_force">[('company_id', 'in', company_ids)]</field>
+  </record>
+</odoo>

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+  <record id="business_unit_transport" model="call.center.business.unit">
+    <field name="name">Transportation and Logistics</field>
+    <field name="code">MOY</field>
+    <field name="brand">Moy Logistics</field>
+    <field name="director_role">Logistics Director</field>
+    <field name="timezone">America/Santo_Domingo</field>
+  </record>
+  <record id="business_unit_digital" model="call.center.business.unit">
+    <field name="name">Web, Mobile, and AI Development</field>
+    <field name="code">COD</field>
+    <field name="brand">Codestra</field>
+    <field name="director_role">Technology Sales Director</field>
+    <field name="timezone">America/Santo_Domingo</field>
+  </record>
+  <record id="business_unit_senior" model="call.center.business.unit">
+    <field name="name">Senior Citizen Products</field>
+    <field name="code">SCP</field>
+    <field name="brand">Senior Citizen Products</field>
+    <field name="director_role">Senior Products Director</field>
+    <field name="timezone">America/Santo_Domingo</field>
+  </record>
+  <record id="business_unit_moneybee" model="call.center.business.unit"><field name="name">Business Loans</field><field name="code">MBL</field><field name="brand">MoneyBee Business Loans</field><field name="director_role">Lending Director</field><field name="timezone">America/Santo_Domingo</field></record>
+  <record id="business_unit_rlp" model="call.center.business.unit"><field name="name">Real Estate</field><field name="code">RLP</field><field name="brand">RLP International Real Estate</field><field name="director_role">Real Estate Director</field><field name="timezone">America/Santo_Domingo</field></record>
+  <record id="business_unit_ftp" model="call.center.business.unit"><field name="name">Fundraising</field><field name="code">FTP</field><field name="brand">For the People</field><field name="director_role">Fundraising Director</field><field name="timezone">America/Santo_Domingo</field></record>
+  <record id="business_unit_tradex" model="call.center.business.unit"><field name="name">Trading AI</field><field name="code">TRX</field><field name="brand">TradeX</field><field name="director_role">Trading Technology Director</field><field name="timezone">America/Santo_Domingo</field></record>
+  <record id="business_unit_calderon" model="call.center.business.unit"><field name="name">Farming and Agriculture</field><field name="code">CAL</field><field name="brand">Calderon Farm</field><field name="director_role">Farm Commercial Director</field><field name="timezone">America/Santo_Domingo</field></record>
+  <record id="business_unit_shared" model="call.center.business.unit">
+    <field name="name">Shared Services</field>
+    <field name="code">SHR</field>
+  </record>
+  <record id="business_unit_test" model="call.center.business.unit">
+    <field name="name">Isolated Test</field>
+    <field name="code">TST</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="department_sdr" model="call.center.department"><field name="name">SDR and Lead Qualification</field><field name="code">SDR</field><field name="business_unit_id" ref="business_unit_shared"/></record>
+  <record id="department_closers" model="call.center.department"><field name="name">Sales Closers</field><field name="code">CLOSER</field><field name="business_unit_id" ref="business_unit_shared"/></record>
+  <record id="department_qa" model="call.center.department"><field name="name">Quality Assurance</field><field name="code">QA</field><field name="business_unit_id" ref="business_unit_shared"/></record>
+  <record id="department_success" model="call.center.department"><field name="name">Customer Success</field><field name="code">CS</field><field name="business_unit_id" ref="business_unit_shared"/></record>
+  <record id="department_retention" model="call.center.department"><field name="name">Retention</field><field name="code">RET</field><field name="business_unit_id" ref="business_unit_shared"/></record>
+  <record id="department_upsell" model="call.center.department"><field name="name">Upsell and Cross-sell</field><field name="code">UPSELL</field><field name="business_unit_id" ref="business_unit_shared"/></record>
+  <record id="department_support" model="call.center.department"><field name="name">Customer Support</field><field name="code">SUPPORT</field><field name="business_unit_id" ref="business_unit_shared"/></record>
+  <record id="department_training" model="call.center.department"><field name="name">Training</field><field name="code">TRAIN</field><field name="business_unit_id" ref="business_unit_shared"/></record>
+  <record id="department_wfm" model="call.center.department"><field name="name">Workforce Management</field><field name="code">WFM</field><field name="business_unit_id" ref="business_unit_shared"/></record>
+  <record id="department_supervisors" model="call.center.department"><field name="name">Supervisors</field><field name="code">SUP</field><field name="business_unit_id" ref="business_unit_shared"/></record>
+  <record id="department_operations" model="call.center.department"><field name="name">Operations Management</field><field name="code">OPS</field><field name="business_unit_id" ref="business_unit_shared"/></record>
+  <record id="department_finance" model="call.center.department"><field name="name">Finance</field><field name="code">FIN</field><field name="business_unit_id" ref="business_unit_shared"/></record>
+  <record id="department_compliance" model="call.center.department"><field name="name">Compliance</field><field name="code">COMP</field><field name="business_unit_id" ref="business_unit_shared"/></record>
+  <record id="department_admin" model="call.center.department"><field name="name">System Administration</field><field name="code">ADMIN</field><field name="business_unit_id" ref="business_unit_shared"/></record>
+</odoo>

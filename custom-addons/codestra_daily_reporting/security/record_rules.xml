@@ -1,0 +1,20 @@
+<odoo>
+  <record id="rule_daily_report_unit" model="ir.rule">
+    <field name="name">Daily reports: assigned business units</field>
+    <field name="model_id" ref="model_codestra_daily_report"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+    <field name="groups" eval="[(4, ref('codestra.group_campaign_manager'))]"/>
+  </record>
+  <record id="rule_daily_section_unit" model="ir.rule">
+    <field name="name">Daily sections: assigned business units</field>
+    <field name="model_id" ref="model_codestra_daily_report_section"/>
+    <field name="domain_force">[('report_id.business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+    <field name="groups" eval="[(4, ref('codestra.group_campaign_manager'))]"/>
+  </record>
+  <record id="rule_daily_metric_unit" model="ir.rule">
+    <field name="name">Daily metrics: assigned business units</field>
+    <field name="model_id" ref="model_codestra_daily_report_metric"/>
+    <field name="domain_force">[('section_id.report_id.business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+    <field name="groups" eval="[(4, ref('codestra.group_campaign_manager'))]"/>
+  </record>
+</odoo>
