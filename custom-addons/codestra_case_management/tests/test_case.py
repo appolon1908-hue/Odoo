@@ -1,3 +1,5 @@
+from lxml import etree
+
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
@@ -36,3 +38,17 @@ class TestCodestraCase(TransactionCase):
         case.escalation_reason = "Executive review required."
         case.action_escalate()
         self.assertEqual(case.state, "escalated")
+
+    def test_search_view_uses_odoo_19_group_schema(self):
+        view = self.env.ref(
+            "codestra_case_management.view_codestra_case_search"
+        )
+        arch = etree.fromstring(view.get_combined_arch().encode())
+        groups = arch.xpath("/search/group")
+
+        self.assertEqual(len(groups), 1)
+        self.assertFalse(groups[0].attrib)
+        self.assertEqual(
+            set(groups[0].xpath("filter/@name")),
+            {"group_state", "group_category", "group_campaign", "group_owner"},
+        )
