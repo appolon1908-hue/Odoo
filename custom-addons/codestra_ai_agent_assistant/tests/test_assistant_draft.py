@@ -31,7 +31,7 @@ class TestCodestraAiAssistantDraft(TransactionCase):
                 "name": "AI Reviewer",
                 "login": "ai-reviewer-fixture@example.test",
                 "email": "ai-reviewer-fixture@example.test",
-                "groups_id": [Command.set([reviewer_group.id])],
+                "group_ids": [Command.set([reviewer_group.id])],
             }
         )
         draft.with_user(reviewer).action_approve()

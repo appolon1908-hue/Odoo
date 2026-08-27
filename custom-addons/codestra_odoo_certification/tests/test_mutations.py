@@ -35,12 +35,16 @@ class TestSyntheticCrmMutations(TransactionCase):
         self.assertEqual(mapping.company_id.parent_id, self.env.ref("base.main_company"))
         self.assertFalse(mapping.crm_team_id.active)
         self.assertFalse(mapping.campaign_id.active)
-        statuses = self.env["codestra.disposition"].with_context(active_test=False).search([
-            ("campaign_id", "=", mapping.campaign_id.id)
-        ]).mapped("vicidial_status_code")
-        self.assertEqual(set(statuses), {
+        dispositions = self.env["codestra.disposition"].with_context(
+            active_test=False
+        ).search([("campaign_id", "=", mapping.campaign_id.id)])
+        self.assertEqual(set(dispositions.mapped("code")), {
             "SALE", "CALLBK", "BUSY", "NA", "NI", "DNC", "WRONG",
             "DISCONNECTED", "ANSWERED", "TRANSFER", "APPOINTMENT",
+        })
+        self.assertEqual(set(dispositions.mapped("vicidial_status_code")), {
+            "SALE", "CALLBK", "B", "NA", "NI", "DNC", "WN", "DC",
+            "ANS", "XFER", "APPT",
         })
 
     def test_create_duplicate_conflict_update_and_stale(self):
@@ -60,6 +64,18 @@ class TestSyntheticCrmMutations(TransactionCase):
         stale = self.mutations.apply_test_syn(self.payload("evt-stale", "BUSY", 1))
         self.assertEqual(stale["result"], "stale")
         self.assertEqual(lead.x_vicidial_status, "TRANSFER")
+
+    def test_physical_status_alias_maps_to_canonical_status(self):
+        result = self.mutations.apply_test_syn(
+            self.payload("evt-physical-answer", "ANS")
+        )
+        lead = self.env["crm.lead"].browse(result["lead_id"])
+        receipt = self.env["codestra.crm.mutation"].search([
+            ("event_id", "=", "evt-physical-answer")
+        ])
+        self.assertEqual(lead.x_vicidial_status, "ANSWERED")
+        self.assertEqual(lead.x_last_call_disposition, "ANSWERED")
+        self.assertEqual(receipt.status_code, "ANSWERED")
 
     def test_callback_reschedule_dnc_and_all_stage_results(self):
         result = self.mutations.apply_test_syn(

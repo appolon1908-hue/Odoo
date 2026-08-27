@@ -63,9 +63,19 @@ class TestCampaign(TransactionCase):
 
     def test_all_business_campaigns_are_inactive_drafts(self):
         prefixes = {"MOY", "COD", "SCP", "MBL", "RLP", "FTP", "TRX", "CAL"}
-        campaigns = self.env["call.center.campaign"].with_context(
-            active_test=False
-        ).search([]).filtered(lambda item: item.code.split("-", 1)[0] in prefixes)
+        campaign_xml_ids = self.env["ir.model.data"].search(
+            [
+                ("module", "=", "call_center_campaign"),
+                ("model", "=", "call.center.campaign"),
+            ]
+        )
+        campaigns = (
+            self.env["call.center.campaign"]
+            .with_context(active_test=False)
+            .browse(campaign_xml_ids.mapped("res_id"))
+            .exists()
+            .filtered(lambda item: item.code.split("-", 1)[0] in prefixes)
+        )
         self.assertEqual(len(campaigns), 103)
         self.assertFalse(any(campaigns.mapped("active")))
         self.assertEqual(set(campaigns.mapped("state")), {"draft"})

@@ -5,7 +5,6 @@
   "module_count": 32,
   "policy": "An unchanged pinned subtree may retain its separately reviewed Odoo hook and local ORM-locking implementation. Any subtree change removes the exception, must be declared as a strict mission override, and must pass the current strict module review at its exact tree SHA.",
   "modules": {
-    "call_center_campaign": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
     "call_center_compliance": "85610757c8f9bd140611b6ca99e435283b803e63",
     "call_center_core": "35a16bc1b7e107c3ba7f7087054ee86a7b26c326",
     "call_center_lead_validation": "a401fa2f26c86b585c1826aa6c434d4876d03c09",
@@ -19,9 +18,7 @@
     "codestra_analytics_reporting": "d46d50da27725bab9b5b8bae85e55e902cd3e068",
     "codestra_appointments": "5812f7df199b0d5525ee7dd6a9fdc9d314947f6f",
     "codestra_base": "8bf385e37463092ad45d86fd0f474a41d2f87828",
-    "codestra_campaign_crm_os": "352f91cb58850fb959972502f6c2e8b574ef7ec5",
     "codestra_daily_reporting": "d28b3589c50fbc566218eef123ca4f13a2c1646d",
-    "codestra_identity_provisioning": "245f4e9fc94f3447ecbaa22b17b4784d5b1c36cc",
     "codestra_integration_hub": "f4db314a557fdf2a9e0aac81ed5543d1994f7f70",
     "codestra_interaction_workflow": "27891ce138cc6053173308f1c806e277d3c5fde9",
     "codestra_ivr_control": "3b27a0bfe3501da52f205cacf756cd8741fdf9f5",
@@ -34,14 +31,37 @@
     "codestra_telephony_bridge": "b6b377e715ff4754e20d1e7a3dc8fcc9d75d18c0",
     "codestra_transcription": "634c568ca1af3e527b1cd8172010cafa2dc5b6da",
     "codestra_vicidial_connector": "44ca7d4ff9f2afd6241faaeac28843ac4976188c",
-    "codestra_vicidial_crm": "cf0783918b94c3e396d24ebe868c4fb04096e4a1",
     "codestra_vicidial_recording": "3ef18226525231684891fc59d00d2b365b3350ed"
   },
   "strict_mission_overrides": {
+    "call_center_campaign": {
+      "base_tree": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
+      "current_tree": "c04b7ed52977fb0996d4934d5f7a1a26928067e5",
+      "reason": "Scope the canonical campaign fixture count to records owned by call_center_campaign so independently installed extension templates cannot corrupt the Odoo 19 regression contract.",
+      "pull_request": 21
+    },
+    "codestra_campaign_crm_os": {
+      "base_tree": "352f91cb58850fb959972502f6c2e8b574ef7ec5",
+      "current_tree": "996db6fdcb9aff45a612a80863bb765c9c5a66d4",
+      "reason": "Consolidate the duplicate data-quality concrete model into an extension of the canonical codestra_data_quality model, preserve campaign metadata, normalize legacy values, and add an idempotent upgrade migration.",
+      "pull_request": 21
+    },
+    "codestra_identity_provisioning": {
+      "base_tree": "245f4e9fc94f3447ecbaa22b17b4784d5b1c36cc",
+      "current_tree": "a3bbfb3afafba6088e16604c0c78d0dd3b6f790f",
+      "reason": "Update the duplicate-login regression to assert Odoo 19 ORM ValidationError behavior instead of relying on a raw PostgreSQL exception.",
+      "pull_request": 21
+    },
     "codestra_odoo_certification": {
       "base_tree": "fa57c82248ff878aaa18933fefc9eba6bbc45e61",
-      "current_tree": "8c1171f31cf42a5170747a72ff0b7de4ed5c0176",
-      "reason": "Repair Odoo 19 inactive synthetic-company hierarchy compatibility while preserving a disabled, non-production certification tenant.",
+      "current_tree": "852c5524878651a525a542777e25d22ef69e41d3",
+      "reason": "Preserve the disabled synthetic-company hierarchy and make TEST_SYN disposition certification deterministic across canonical business codes and physical VICIdial status aliases.",
+      "pull_request": 21
+    },
+    "codestra_vicidial_crm": {
+      "base_tree": "cf0783918b94c3e396d24ebe868c4fb04096e4a1",
+      "current_tree": "234d6cdc6ff0dd1850acc56152bb33e1e5022a22",
+      "reason": "Replace Sass min() mixed-unit syntax with an equivalent width and max-width contract that compiles cleanly in the pinned Odoo 19 asset pipeline.",
       "pull_request": 21
     }
   }

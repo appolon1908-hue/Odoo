@@ -24,7 +24,9 @@ capabilities remain disabled.
 The test suite covers deterministic creation and update, exact replay,
 conflicting replay rejection, event ordering, bounded retry state, callback
 rescheduling, permanent DNC suppression, disposition mapping, and the disabled
-synthetic company hierarchy.
+synthetic company hierarchy. Each disposition has one canonical business code
+and one physical VICIdial status code; either input is accepted, while Odoo
+stores and reports the canonical business outcome.
 
 Production activation remains outside this add-on and requires the reviewed
 Middleware boundary, independent approval, staging certification, backup and

@@ -93,13 +93,21 @@ class CodestraCrmMutation(models.Model):
         mapping = self.env.ref("codestra_odoo_certification.mapping_test_syn")
         if mapping.active or mapping.production_eligible or mapping.desired_state != "inactive":
             raise ValidationError("TEST_SYN mapping must remain disabled.")
-        disposition = self.env["codestra.disposition"].search([
+        status = str(payload["status"]).strip().upper()
+        disposition_candidates = self.env["codestra.disposition"].search([
             ("campaign_id", "=", mapping.campaign_id.id),
-            ("vicidial_status_code", "=", payload["status"]),
             ("active", "=", True),
-        ], limit=1)
-        if not disposition:
+            "|",
+            ("code", "=", status),
+            ("vicidial_status_code", "=", status),
+        ], limit=2)
+        if not disposition_candidates:
             raise ValidationError("No deterministic TEST_SYN disposition mapping.")
+        if len(disposition_candidates) != 1:
+            raise ValidationError("Ambiguous TEST_SYN disposition mapping.")
+        disposition = disposition_candidates
+        canonical_status = disposition.code
+        physical_status = disposition.vicidial_status_code
         if disposition.note_policy == "required" and not str(payload["note"]).strip():
             raise ValidationError("A safe note is required for this disposition.")
 
@@ -127,10 +135,10 @@ class CodestraCrmMutation(models.Model):
             result = "stale"
         else:
             values = {
-                "x_vicidial_status": disposition.vicidial_status_code,
-                "x_last_call_disposition": disposition.vicidial_status_code,
+                "x_vicidial_status": canonical_status,
+                "x_last_call_disposition": canonical_status,
                 "latest_disposition_id": self.env["codestra.vicidial.disposition"].search(
-                    [("code", "=", disposition.vicidial_status_code)], limit=1
+                    [("code", "=", physical_status)], limit=1
                 ).id or False,
                 "x_vicidial_last_event_at": occurred_at,
                 "x_vicidial_last_event_id": payload["event_id"],
@@ -163,10 +171,13 @@ class CodestraCrmMutation(models.Model):
                         "mail.mail_activity_data_todo", date_deadline=deadline,
                         summary=summary, note="Synthetic certification activity",
                     )
-            lead.message_post(body="VICIdial %s: %s" % (disposition.vicidial_status_code, str(payload["note"])[:160]))
+            lead.message_post(
+                body="VICIdial %s (%s): %s"
+                % (physical_status, canonical_status, str(payload["note"])[:160])
+            )
         receipt = self.create({
             "event_id": payload["event_id"], "idempotency_key": payload["idempotency_key"],
             "payload_hash": payload_hash, "occurred_at": occurred_at,
-            "status_code": disposition.vicidial_status_code, "lead_id": lead.id, "result": result,
+            "status_code": canonical_status, "lead_id": lead.id, "result": result,
         })
         return {"result": receipt.result, "lead_id": lead.id}

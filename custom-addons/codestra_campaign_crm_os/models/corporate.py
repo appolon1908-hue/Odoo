@@ -19,6 +19,32 @@ AGENT_STATES = [(value, value.replace("_", " ").title()) for value in (
     "LUNCH", "TRAINING", "MEETING", "COACHING", "BACK_OFFICE",
     "TECHNICAL_ISSUE",
 )]
+LEGACY_DATA_QUALITY_ISSUE_TYPES = {
+    "DUPLICATE": "duplicate",
+    "INVALID_PHONE": "invalid_phone",
+    "INVALID_EMAIL": "invalid_email",
+    "MISSING_REQUIRED_DATA": "missing_required_data",
+    "STALE_LEAD": "stale_lead",
+    "UNWORKED_LEAD": "unworked_lead",
+    "ORPHAN_ASSIGNMENT": "orphan_assignment",
+}
+LEGACY_DATA_QUALITY_STATES = {
+    "OPEN": "open",
+    "REVIEWED": "in_review",
+    "RESOLVED": "resolved",
+    "WAIVED": "ignored",
+}
+
+
+def _downgrade_extended_data_quality_type(records):
+    fallbacks = {
+        "missing_required_data": "incomplete",
+        "stale_lead": "incomplete",
+        "unworked_lead": "incomplete",
+        "orphan_assignment": "cross_reference",
+    }
+    for record in records:
+        record.issue_type = fallbacks.get(record.issue_type, "incomplete")
 
 
 class ContactCenterCase(models.Model):
@@ -320,20 +346,152 @@ class CampaignKnowledgeArticle(models.Model):
 
 
 class DataQualityIssue(models.Model):
-    _name = "codestra.data.quality.issue"
-    _description = "CRM Data Quality Issue"
-    _order = "detected_at desc"
+    _inherit = "codestra.data.quality.issue"
 
-    issue_uuid = fields.Char(default=lambda self: str(uuid.uuid4()), required=True, readonly=True, copy=False, index=True)
-    issue_type = fields.Selection([(x, x.replace("_", " ").title()) for x in ("DUPLICATE", "INVALID_PHONE", "INVALID_EMAIL", "MISSING_REQUIRED_DATA", "STALE_LEAD", "UNWORKED_LEAD", "ORPHAN_ASSIGNMENT")], required=True, index=True)
+    issue_uuid = fields.Char(
+        default=lambda self: str(uuid.uuid4()), required=True, readonly=True,
+        copy=False, index=True,
+    )
+    issue_type = fields.Selection(
+        selection_add=[
+            ("missing_required_data", "Missing Required Data"),
+            ("stale_lead", "Stale Lead"),
+            ("unworked_lead", "Unworked Lead"),
+            ("orphan_assignment", "Orphan Assignment"),
+        ],
+        ondelete={
+            "missing_required_data": _downgrade_extended_data_quality_type,
+            "stale_lead": _downgrade_extended_data_quality_type,
+            "unworked_lead": _downgrade_extended_data_quality_type,
+            "orphan_assignment": _downgrade_extended_data_quality_type,
+        },
+    )
     campaign_id = fields.Many2one("call.center.campaign", ondelete="restrict", index=True)
     lead_id = fields.Many2one("crm.lead", ondelete="cascade", index=True)
-    state = fields.Selection([(x, x.title()) for x in ("OPEN", "REVIEWED", "RESOLVED", "WAIVED")], default="OPEN", required=True, index=True)
     safe_detail = fields.Json(default=dict)
-    detected_at = fields.Datetime(default=fields.Datetime.now, required=True, readonly=True, index=True)
+    detected_at = fields.Datetime(
+        default=fields.Datetime.now, required=True, readonly=True, index=True
+    )
     resolved_at = fields.Datetime(readonly=True)
-    correlation_id = fields.Char(default=lambda self: str(uuid.uuid4()), required=True, index=True)
-    _uuid_unique = models.Constraint("unique(issue_uuid)", "Data quality issue UUID must be unique.")
+    correlation_id = fields.Char(
+        default=lambda self: str(uuid.uuid4()), required=True, index=True
+    )
+    _uuid_unique = models.Constraint(
+        "unique(issue_uuid)", "Data quality issue UUID must be unique."
+    )
+
+    @api.model
+    def _normalize_campaign_crm_os_values(self, values, derive_target=True):
+        normalized = dict(values)
+        issue_type = normalized.get("issue_type")
+        if issue_type:
+            normalized["issue_type"] = LEGACY_DATA_QUALITY_ISSUE_TYPES.get(
+                str(issue_type).upper(), issue_type
+            )
+        state = normalized.get("state")
+        if state:
+            normalized["state"] = LEGACY_DATA_QUALITY_STATES.get(
+                str(state).upper(), state
+            )
+        if not derive_target:
+            return normalized
+
+        lead = False
+        campaign = False
+        if normalized.get("lead_id"):
+            lead = self.env["crm.lead"].browse(normalized["lead_id"]).exists()
+            if lead and not normalized.get("campaign_id") and lead.call_center_campaign_id:
+                normalized["campaign_id"] = lead.call_center_campaign_id.id
+        if normalized.get("campaign_id"):
+            campaign = self.env["call.center.campaign"].browse(
+                normalized["campaign_id"]
+            ).exists()
+        has_model = bool(normalized.get("res_model"))
+        has_identifier = bool(normalized.get("res_id"))
+        if has_model != has_identifier:
+            raise ValidationError(
+                "Data-quality target model and identifier must be provided together."
+            )
+        if not has_model:
+            if lead:
+                normalized.update({"res_model": "crm.lead", "res_id": lead.id})
+            elif campaign:
+                company = campaign.business_unit_id.company_id or self.env.company
+                normalized.update({
+                    "res_model": "res.partner",
+                    "res_id": company.partner_id.id,
+                })
+            else:
+                raise ValidationError(
+                    "Data-quality issues require a lead, campaign, or explicit target."
+                )
+        if not normalized.get("company_id"):
+            company = (
+                lead.company_id if lead and lead.company_id
+                else campaign.business_unit_id.company_id if campaign
+                else self.env.company
+            )
+            normalized["company_id"] = company.id
+        return normalized
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create([
+            self._normalize_campaign_crm_os_values(values)
+            for values in vals_list
+        ])
+        records._validate_campaign_scope()
+        return records
+
+    def write(self, values):
+        result = super().write(
+            self._normalize_campaign_crm_os_values(values, derive_target=False)
+        )
+        self._validate_campaign_scope()
+        return result
+
+    @api.constrains("campaign_id", "lead_id", "company_id")
+    def _validate_campaign_scope(self):
+        for record in self:
+            if (
+                record.lead_id
+                and record.campaign_id
+                and record.lead_id.call_center_campaign_id
+                and record.lead_id.call_center_campaign_id != record.campaign_id
+            ):
+                raise ValidationError(
+                    "Data-quality lead and campaign must share the authoritative campaign."
+                )
+            if (
+                record.campaign_id
+                and record.campaign_id.business_unit_id.company_id != record.company_id
+            ):
+                raise ValidationError(
+                    "Data-quality campaign and issue must belong to the same company."
+                )
+            if record.lead_id and record.lead_id.company_id and record.lead_id.company_id != record.company_id:
+                raise ValidationError(
+                    "Data-quality lead and issue must belong to the same company."
+                )
+
+    def action_resolve(self):
+        result = super().action_resolve()
+        self.filtered(lambda record: not record.resolved_at).write({
+            "resolved_at": fields.Datetime.now()
+        })
+        return result
+
+    def action_ignore(self):
+        result = super().action_ignore()
+        self.filtered(lambda record: not record.resolved_at).write({
+            "resolved_at": fields.Datetime.now()
+        })
+        return result
+
+    def action_reopen(self):
+        result = super().action_reopen()
+        self.write({"resolved_at": False})
+        return result
 
 
 class ContactPolicyService(models.AbstractModel):

@@ -559,7 +559,7 @@ class TestIdentityProvisioning(TransactionCase):
             "login": "synthetic.unique.login",
         }
         self.env["res.users"].create(values)
-        with self.assertRaises(UniqueViolation):
+        with self.assertRaises(ValidationError):
             self.env["res.users"].create(values)
 
     def test_identity_menu_action_and_administrator_access(self):

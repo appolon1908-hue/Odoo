@@ -1,6 +1,6 @@
 {
     "name": "Codestra Odoo VICIdial Certification",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.1.0",
     "summary": "Default-off deterministic VICIdial CRM mutation certification lane",
     "author": "Codestra",
     "license": "LGPL-3",

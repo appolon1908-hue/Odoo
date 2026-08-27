@@ -19,7 +19,7 @@ class TestCodestraClientPortalRules(TransactionCase):
                 "email": "codestra-portal-fixture@example.test",
                 "partner_id": contact.id,
                 "share": True,
-                "groups_id": [Command.set([portal_group.id])],
+                "group_ids": [Command.set([portal_group.id])],
             }
         )
         cls.own_contract = cls.env["codestra.client.contract"].create(
