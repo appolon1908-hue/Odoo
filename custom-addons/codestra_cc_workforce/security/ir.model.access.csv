@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_codestra_cc_shift_user,codestra.cc.shift user,model_codestra_cc_shift,call_center_core.group_call_center_user,1,0,0,0
+access_codestra_cc_shift_wfm,codestra.cc.shift workforce manager,model_codestra_cc_shift,call_center_core.group_call_center_wfm,1,1,1,1
+access_codestra_cc_shift_manager,codestra.cc.shift manager,model_codestra_cc_shift,call_center_core.group_call_center_manager,1,1,1,1
