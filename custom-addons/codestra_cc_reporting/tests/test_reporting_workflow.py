@@ -10,12 +10,15 @@ class TestCampaignReportingWorkflow(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.env["cc.business.unit"]._adopt_legacy_records()
-        cls.campaign_a = cls.env["cc.campaign"].search(
+        cls.Campaign = cls.env["cc.campaign"].with_context(active_test=False)
+        cls.campaign_a = cls.Campaign.search(
             [("code", "=", "COD-WEB-OUT")], limit=1
         )
-        cls.campaign_b = cls.env["cc.campaign"].search(
+        cls.campaign_b = cls.Campaign.search(
             [("id", "!=", cls.campaign_a.id)], limit=1
         )
+        if not cls.campaign_a or not cls.campaign_b:
+            raise AssertionError("Synthetic reporting campaigns were not adopted")
         cls.author = cls._create_user(
             "Reporting Policy Author",
             "cc-report-author@example.invalid",
