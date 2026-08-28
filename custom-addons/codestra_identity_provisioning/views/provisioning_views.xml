@@ -1,0 +1,138 @@
+<odoo>
+  <record id="view_provisioning_request_list" model="ir.ui.view">
+    <field name="name">codestra.provisioning.request.list</field>
+    <field name="model">codestra.provisioning.request</field>
+    <field name="arch" type="xml">
+      <list>
+        <field name="request_number"/>
+        <field name="request_type"/>
+        <field name="employee_id"/>
+        <field name="business_unit_id"/>
+        <field name="role_template_id"/>
+        <field name="state"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_provisioning_request_form" model="ir.ui.view">
+    <field name="name">codestra.provisioning.request.form</field>
+    <field name="model">codestra.provisioning.request</field>
+    <field name="arch" type="xml">
+      <form>
+        <header>
+          <button name="action_submit" type="object" string="Submit"/>
+          <button name="action_approve" type="object" string="Approve"
+                  groups="codestra_identity_provisioning.group_provisioning_approver"/>
+          <button name="action_reserve_identifiers" type="object" string="Reserve &amp; Prepare"
+                  groups="codestra_identity_provisioning.group_provisioning_approver"/>
+          <button name="action_retry_failed_steps" type="object" string="Retry Failed Steps"
+                  groups="codestra_identity_provisioning.group_provisioning_approver"/>
+          <button name="action_suspend" type="object" string="Suspend"
+                  groups="codestra_identity_provisioning.group_provisioning_approver"/>
+          <button name="action_reactivate" type="object" string="Reactivate"
+                  groups="codestra_identity_provisioning.group_provisioning_approver"/>
+          <button name="action_terminate" type="object" string="Terminate"
+                  groups="codestra_identity_provisioning.group_provisioning_approver"/>
+          <button name="action_reconcile" type="object" string="Reconcile"
+                  groups="codestra_identity_provisioning.group_provisioning_approver"/>
+          <button name="action_activate" type="object" string="Activate"
+                  groups="codestra_identity_provisioning.group_provisioning_approver"/>
+          <field name="state" widget="statusbar"/>
+        </header>
+        <sheet>
+          <group>
+            <field name="request_number"/>
+            <field name="request_type"/>
+            <field name="employee_id"/>
+          </group>
+          <notebook>
+            <page string="Identity">
+              <group>
+                <field name="preferred_language"/>
+                <field name="personal_email"/>
+                <field name="recovery_phone"/>
+                <field name="country_id"/>
+                <field name="timezone"/>
+                <field name="start_date"/>
+                <field name="employment_status"/>
+                <field name="work_location"/>
+              </group>
+            </page>
+            <page string="Organization">
+              <group>
+                <field name="company_id"/>
+                <field name="business_unit_id"/>
+                <field name="branch_id"/>
+                <field name="department_id"/>
+                <field name="operational_team_id"/>
+                <field name="supervisor_id"/>
+                <field name="work_schedule_id"/>
+                <field name="calling_hours_policy_id"/>
+              </group>
+            </page>
+            <page string="Access">
+              <group>
+                <field name="role_template_id"/>
+                <field name="role_template_version"/>
+                <field name="campaign_ids" widget="many2many_tags"/>
+                <field name="inbound_group_ids" widget="many2many_tags"/>
+                <field name="needs_recording_access"/>
+                <field name="needs_monitoring_access"/>
+              </group>
+            </page>
+            <page string="Provisioning">
+              <group>
+                <field name="needs_company_email"/>
+                <field name="needs_sip_endpoint"/>
+                <field name="needs_voicemail"/>
+                <field name="needs_agent_desktop"/>
+                <field name="needs_keycloak"/>
+                <field name="needs_vicidial"/>
+                <field name="mandatory_steps_complete"/>
+              </group>
+              <field name="step_ids"/>
+            </page>
+            <page string="Approvals">
+              <group>
+                <field name="approval_owner_id"/>
+                <field name="operational_approved"/>
+                <field name="compliance_approved"/>
+                <field name="security_approved"/>
+                <field name="it_approved"/>
+              </group>
+            </page>
+            <page string="Verification">
+              <group>
+                <field name="drift_state"/>
+                <field name="last_reconciled_at"/>
+                <field name="last_error_code"/>
+                <field name="last_error_sanitized"/>
+              </group>
+            </page>
+            <page string="Audit History">
+              <field name="audit_ids" readonly="1">
+                <list create="0" edit="0" delete="0">
+                  <field name="timestamp"/>
+                  <field name="event_type"/>
+                  <field name="actor_id"/>
+                  <field name="result"/>
+                  <field name="evidence_hash"/>
+                </list>
+              </field>
+            </page>
+          </notebook>
+        </sheet>
+        <chatter/>
+      </form>
+    </field>
+  </record>
+  <record id="action_provisioning_requests" model="ir.actions.act_window">
+    <field name="name">Provisioning Requests</field>
+    <field name="res_model">codestra.provisioning.request</field>
+    <field name="view_mode">list,form</field>
+  </record>
+  <menuitem id="menu_identity_provisioning_root" name="Identity Provisioning"
+            groups="codestra_identity_provisioning.group_provisioning_user"/>
+  <menuitem id="menu_provisioning_requests" name="Provisioning Requests"
+            parent="menu_identity_provisioning_root"
+            action="action_provisioning_requests"/>
+</odoo>

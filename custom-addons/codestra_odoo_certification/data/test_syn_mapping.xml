@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+  <record id="company_test_syn" model="res.company">
+    <field name="name">TEST_SYN Certification (Disabled)</field>
+    <!--
+      Odoo 19 Accounting reads parent_ids[0] while creating companies.
+      An inactive root company is removed by active_test before that read,
+      leaving an empty recordset. Keep this synthetic tenant disabled while
+      attaching it to the active main-company root so installation remains
+      deterministic and no user gains access to it.
+    -->
+    <field name="parent_id" ref="base.main_company"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="business_unit_test_syn" model="call.center.business.unit">
+    <field name="name">TEST_SYN Certification</field>
+    <field name="code">TEST_SYN_BU</field>
+    <field name="company_id" ref="company_test_syn"/>
+    <field name="brand">Codestra Synthetic</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="team_test_syn" model="crm.team">
+    <field name="name">TEST_SYN CRM Team (Disabled)</field>
+    <field name="company_id" ref="company_test_syn"/>
+    <field name="business_unit_id" ref="business_unit_test_syn"/>
+    <field name="active" eval="False"/>
+    <field name="is_primary_business_unit_team" eval="False"/>
+    <field name="vicidial_user_group">TEST_SYN</field>
+    <field name="default_outbound_campaign">TEST_SYN</field>
+  </record>
+  <record id="pipeline_test_syn" model="call.center.pipeline">
+    <field name="name">TEST_SYN Pipeline (Disabled)</field>
+    <field name="code">TEST_SYN_PIPELINE</field>
+    <field name="business_unit_id" ref="business_unit_test_syn"/>
+    <field name="stage_flow">validating&gt;ready_ai&gt;callback&gt;closer&gt;fulfillment&gt;do_not_contact</field>
+    <field name="stage_ids" eval="[(6, 0, [ref('call_center_campaign.stage_validating'), ref('call_center_campaign.stage_ready_ai'), ref('call_center_campaign.stage_ai_qualified'), ref('call_center_campaign.stage_human_required'), ref('call_center_campaign.stage_callback'), ref('call_center_campaign.stage_closer'), ref('call_center_campaign.stage_fulfillment'), ref('call_center_campaign.stage_do_not_contact')])]"/>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="campaign_test_syn" model="call.center.campaign">
+    <field name="name">TEST_SYN Certification (Disabled)</field>
+    <field name="code">TEST_SYN</field>
+    <field name="business_unit_id" ref="business_unit_test_syn"/>
+    <field name="direction">outbound</field>
+    <field name="state">draft</field>
+    <field name="dialer_mode">preview</field>
+    <field name="routing_strategy">manual</field>
+    <field name="dnc_enforced" eval="True"/>
+    <field name="max_call_attempts">0</field>
+    <field name="max_retries">0</field>
+    <field name="active" eval="False"/>
+  </record>
+  <record id="mapping_test_syn" model="call.center.campaign.mapping">
+    <field name="mapping_uuid">c4c01ea2-31b0-54f4-a74b-566f3c6bb482</field>
+    <field name="business_record_uuid">0fbf451e-4b64-56e0-91f9-e626ea1cf89f</field>
+    <field name="business_unit_id" ref="business_unit_test_syn"/>
+    <field name="crm_team_id" ref="team_test_syn"/>
+    <field name="campaign_id" ref="campaign_test_syn"/>
+    <field name="pipeline_id" ref="pipeline_test_syn"/>
+    <field name="company_id" ref="company_test_syn"/>
+    <field name="canonical_campaign_code">TEST_SYN</field>
+    <field name="vicidial_campaign_id">TEST_SYN</field>
+    <field name="direction">OUT</field>
+    <field name="environment">development</field>
+    <field name="n8n_scope">disabled:test_syn</field>
+    <field name="desired_state">inactive</field>
+    <field name="desired_state_hash">2fc94acfe65db1f493d4bca2b25dcb0aa18e4d07c86b09dfe234a7c13f944e22</field>
+    <field name="observed_state">not_observed</field>
+    <field name="drift_status">not_observed</field>
+    <field name="production_eligible" eval="False"/>
+    <field name="active" eval="False"/>
+  </record>
+</odoo>

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="rule_reporting_policy_scoped" model="ir.rule">
+    <field name="name">Reporting policy assigned campaigns</field>
+    <field name="model_id" ref="model_cc_reporting_policy"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_configuration_manager')), (4, ref('codestra_cc_security.group_cc_campaign_supervisor')), (4, ref('codestra_cc_security.group_cc_workforce_analyst'))]"/>
+    <field name="domain_force">[('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_reporting_policy_evidence" model="ir.rule">
+    <field name="name">Reporting policy global evidence</field>
+    <field name="model_id" ref="model_cc_reporting_policy"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_global_administrator')), (4, ref('codestra_cc_security.group_cc_auditor'))]"/>
+    <field name="domain_force">[(1, '=', 1)]</field>
+  </record>
+
+  <record id="rule_kpi_definition_scoped" model="ir.rule">
+    <field name="name">KPI definitions assigned campaigns</field>
+    <field name="model_id" ref="model_cc_kpi_definition"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_configuration_manager')), (4, ref('codestra_cc_security.group_cc_campaign_supervisor')), (4, ref('codestra_cc_security.group_cc_workforce_analyst'))]"/>
+    <field name="domain_force">[('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_kpi_definition_evidence" model="ir.rule">
+    <field name="name">KPI definitions global evidence</field>
+    <field name="model_id" ref="model_cc_kpi_definition"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_global_administrator')), (4, ref('codestra_cc_security.group_cc_auditor'))]"/>
+    <field name="domain_force">[(1, '=', 1)]</field>
+  </record>
+
+  <record id="rule_kpi_snapshot_agent" model="ir.rule">
+    <field name="name">Agents see only their KPI snapshots</field>
+    <field name="model_id" ref="model_cc_kpi_snapshot"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_agent'))]"/>
+    <field name="domain_force">[('agent_membership_id.user_id', '=', user.id)]</field>
+  </record>
+  <record id="rule_kpi_snapshot_operations" model="ir.rule">
+    <field name="name">Campaign KPI operations</field>
+    <field name="model_id" ref="model_cc_kpi_snapshot"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_supervisor')), (4, ref('codestra_cc_security.group_cc_workforce_analyst'))]"/>
+    <field name="domain_force">[('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_kpi_snapshot_evidence" model="ir.rule">
+    <field name="name">KPI snapshot global evidence</field>
+    <field name="model_id" ref="model_cc_kpi_snapshot"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_global_administrator')), (4, ref('codestra_cc_security.group_cc_auditor'))]"/>
+    <field name="domain_force">[(1, '=', 1)]</field>
+  </record>
+
+  <record id="rule_reporting_export_evidence" model="ir.rule">
+    <field name="name">Controlled export global evidence</field>
+    <field name="model_id" ref="model_cc_reporting_export_event"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_global_administrator')), (4, ref('codestra_cc_security.group_cc_auditor'))]"/>
+    <field name="domain_force">[(1, '=', 1)]</field>
+  </record>
+</odoo>

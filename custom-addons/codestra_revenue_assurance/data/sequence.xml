@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+  <record id="sequence_codestra_billing_usage" model="ir.sequence">
+    <field name="name">Codestra Billing Usage</field>
+    <field name="code">codestra.billing.usage</field>
+    <field name="prefix">USG-%(year)s-</field>
+    <field name="padding">8</field>
+    <field name="company_id" eval="False"/>
+  </record>
+</odoo>

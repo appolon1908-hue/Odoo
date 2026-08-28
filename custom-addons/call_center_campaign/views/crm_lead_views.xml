@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_crm_lead_form_campaign" model="ir.ui.view">
+    <field name="name">crm.lead.form.call.center.campaign</field>
+    <field name="model">crm.lead</field>
+    <field name="inherit_id" ref="crm.crm_lead_view_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//field[@name='business_unit_id']" position="after">
+        <field name="is_codestra_call_center_lead"/>
+        <field name="call_center_campaign_id"
+               domain="[('business_unit_id', '=', business_unit_id)]"
+               required="is_codestra_call_center_lead"/>
+        <field name="campaign_remediation_status" readonly="1"/>
+        <field name="lifecycle_reason"/>
+        <field name="lifecycle_next_action"/>
+      </xpath>
+    </field>
+  </record>
+</odoo>

@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_cc_customer_profile_form_helpdesk" model="ir.ui.view">
+    <field name="name">cc.customer.profile.form.helpdesk</field>
+    <field name="model">cc.customer.profile</field>
+    <field name="inherit_id" ref="codestra_cc_crm.view_cc_customer_profile_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//div[@name='button_box']" position="inside">
+        <button name="action_open_tickets" type="object" class="oe_stat_button" icon="fa-life-ring"><span>Tickets</span></button>
+      </xpath>
+      <xpath expr="//notebook" position="inside">
+        <page string="Tickets"><field name="helpdesk_ticket_ids" readonly="1"/></page>
+      </xpath>
+    </field>
+  </record>
+  <record id="view_cc_helpdesk_ticket_list" model="ir.ui.view">
+    <field name="name">cc.helpdesk.ticket.list</field>
+    <field name="model">cc.helpdesk.ticket</field>
+    <field name="arch" type="xml">
+      <list delete="false">
+        <field name="ticket_number"/>
+        <field name="subject"/>
+        <field name="queue_id"/>
+        <field name="assigned_user_id"/>
+        <field name="priority"/>
+        <field name="state"/>
+        <field name="sla_state" decoration-danger="sla_state in ('response_breached', 'resolution_breached')"/>
+        <field name="resolution_due_at"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_cc_helpdesk_ticket_form" model="ir.ui.view">
+    <field name="name">cc.helpdesk.ticket.form</field>
+    <field name="model">cc.helpdesk.ticket</field>
+    <field name="arch" type="xml">
+      <form delete="false">
+        <header>
+          <button name="action_start" string="Start" type="object" invisible="state != 'new'"/>
+          <button name="action_record_first_response" string="Record First Response" type="object" invisible="first_response_at"/>
+          <button name="action_wait_customer" string="Wait for Customer" type="object" invisible="state != 'open'"/>
+          <button name="action_wait_internal" string="Wait Internally" type="object" invisible="state != 'open'"/>
+          <button name="action_escalate" string="Escalate" type="object" invisible="state in ('resolved', 'closed')"/>
+          <button name="action_resolve" string="Resolve" type="object" invisible="state not in ('open', 'pending_customer', 'pending_internal', 'escalated', 'reopened')"/>
+          <button name="action_close" string="Close" type="object" invisible="state != 'resolved'"/>
+          <button name="action_reopen" string="Reopen" type="object" invisible="state not in ('resolved', 'closed')"/>
+          <field name="state" widget="statusbar"/>
+        </header>
+        <sheet>
+          <div class="oe_title"><h1><field name="ticket_number" readonly="1"/> — <field name="subject"/></h1></div>
+          <group>
+            <group>
+              <field name="campaign_id" readonly="1" options="{'no_open': True}"/>
+              <field name="queue_id" readonly="id" options="{'no_open': True, 'no_create': True}"/>
+              <field name="customer_profile_id" readonly="id" options="{'no_open': True, 'no_create': True}"/>
+              <field name="assigned_user_id" readonly="id" options="{'no_create': True}"/>
+              <field name="category"/>
+            </group>
+            <group>
+              <field name="priority" readonly="id"/>
+              <field name="severity"/>
+              <field name="sla_state" readonly="1"/>
+              <field name="first_response_due_at" readonly="1"/>
+              <field name="resolution_due_at" readonly="1"/>
+            </group>
+          </group>
+          <group><field name="description"/></group>
+          <group string="Escalation and Resolution">
+            <field name="escalation_reason"/>
+            <field name="resolution"/>
+            <field name="resolution_code"/>
+            <field name="first_contact_resolution"/>
+            <field name="csat_score" readonly="1"/>
+          </group>
+        </sheet>
+        <chatter/>
+      </form>
+    </field>
+  </record>
+  <record id="view_cc_helpdesk_ticket_search" model="ir.ui.view">
+    <field name="name">cc.helpdesk.ticket.search</field>
+    <field name="model">cc.helpdesk.ticket</field>
+    <field name="arch" type="xml">
+      <search>
+        <field name="ticket_number"/>
+        <field name="subject"/>
+        <field name="assigned_user_id"/>
+        <filter name="my_tickets" string="My Tickets" domain="[('assigned_user_id', '=', uid)]"/>
+        <filter name="sla_breach" string="SLA Breached" domain="[('sla_state', 'in', ('response_breached', 'resolution_breached'))]"/>
+        <group>
+          <filter name="group_state" string="State" context="{'group_by': 'state'}"/>
+          <filter name="group_queue" string="Queue" context="{'group_by': 'queue_id'}"/>
+        </group>
+      </search>
+    </field>
+  </record>
+  <record id="action_cc_helpdesk_tickets" model="ir.actions.act_window">
+    <field name="name">Campaign Helpdesk</field>
+    <field name="res_model">cc.helpdesk.ticket</field>
+    <field name="view_mode">list,form</field>
+  </record>
+  <record id="view_cc_helpdesk_queue_list" model="ir.ui.view">
+    <field name="name">cc.helpdesk.queue.list</field>
+    <field name="model">cc.helpdesk.queue</field>
+    <field name="arch" type="xml"><list><field name="name"/><field name="queue_key"/><field name="campaign_id"/><field name="active"/></list></field>
+  </record>
+  <record id="view_cc_helpdesk_queue_form" model="ir.ui.view">
+    <field name="name">cc.helpdesk.queue.form</field>
+    <field name="model">cc.helpdesk.queue</field>
+    <field name="arch" type="xml">
+      <form delete="false">
+        <sheet>
+          <group>
+            <field name="name"/>
+            <field name="queue_key" readonly="id"/>
+            <field name="campaign_id" readonly="id" options="{'no_open': True}"/>
+            <field name="environment" readonly="1"/>
+            <field name="active"/>
+          </group>
+          <notebook>
+            <page string="SLA Policies"><field name="sla_policy_ids" readonly="1"/></page>
+            <page string="Tickets"><field name="ticket_ids" readonly="1"/></page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+  <record id="view_cc_helpdesk_sla_list" model="ir.ui.view">
+    <field name="name">cc.helpdesk.sla.policy.list</field>
+    <field name="model">cc.helpdesk.sla.policy</field>
+    <field name="arch" type="xml"><list><field name="name"/><field name="queue_id"/><field name="priority"/><field name="version"/><field name="first_response_minutes"/><field name="resolution_minutes"/><field name="state"/></list></field>
+  </record>
+  <record id="view_cc_helpdesk_sla_form" model="ir.ui.view">
+    <field name="name">cc.helpdesk.sla.policy.form</field>
+    <field name="model">cc.helpdesk.sla.policy</field>
+    <field name="arch" type="xml">
+      <form delete="false">
+        <header>
+          <button name="action_submit" string="Submit" type="object" invisible="state != 'draft'" groups="codestra_cc_security.group_cc_campaign_configuration_manager,codestra_cc_security.group_cc_global_administrator"/>
+          <button name="action_approve" string="Approve" type="object" invisible="state != 'pending_approval'" groups="codestra_cc_security.group_cc_global_administrator"/>
+          <button name="action_retire" string="Retire" type="object" invisible="state != 'approved'" groups="codestra_cc_security.group_cc_global_administrator"/>
+          <field name="state" widget="statusbar"/>
+        </header>
+        <sheet>
+          <group>
+            <group>
+              <field name="name" readonly="state != 'draft'"/>
+              <field name="campaign_id" readonly="id" options="{'no_open': True}"/>
+              <field name="queue_id" readonly="id" options="{'no_open': True, 'no_create': True}"/>
+              <field name="priority" readonly="id"/>
+              <field name="version" readonly="id"/>
+            </group>
+            <group>
+              <field name="first_response_minutes" readonly="state != 'draft'"/>
+              <field name="resolution_minutes" readonly="state != 'draft'"/>
+              <field name="requested_by_id" readonly="1"/>
+              <field name="source_ticket" readonly="id"/>
+              <field name="approved_by_id" readonly="1"/>
+              <field name="approved_at" readonly="1"/>
+            </group>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+  <record id="action_cc_helpdesk_queues" model="ir.actions.act_window">
+    <field name="name">Helpdesk Queues</field>
+    <field name="res_model">cc.helpdesk.queue</field>
+    <field name="view_mode">list,form</field>
+  </record>
+  <record id="action_cc_helpdesk_slas" model="ir.actions.act_window">
+    <field name="name">Helpdesk SLAs</field>
+    <field name="res_model">cc.helpdesk.sla.policy</field>
+    <field name="view_mode">list,form</field>
+  </record>
+  <menuitem id="menu_cc_helpdesk_tickets" name="Helpdesk" parent="codestra_cc_crm.menu_cc_workspace_root" action="action_cc_helpdesk_tickets" sequence="20" groups="codestra_cc_security.group_cc_scoped_user"/>
+  <menuitem id="menu_cc_helpdesk_configuration" name="Helpdesk Configuration" parent="codestra_cc_crm.menu_cc_workspace_root" sequence="90" groups="codestra_cc_security.group_cc_campaign_configuration_manager,codestra_cc_security.group_cc_global_administrator"/>
+  <menuitem id="menu_cc_helpdesk_queues" name="Queues" parent="menu_cc_helpdesk_configuration" action="action_cc_helpdesk_queues" sequence="10"/>
+  <menuitem id="menu_cc_helpdesk_slas" name="SLAs" parent="menu_cc_helpdesk_configuration" action="action_cc_helpdesk_slas" sequence="20"/>
+</odoo>

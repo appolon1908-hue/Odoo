@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+  <record id="appointment_list" model="ir.ui.view">
+    <field name="name">codestra.call.appointment.list</field>
+    <field name="model">codestra.call.appointment</field>
+    <field name="arch" type="xml">
+      <list decoration-danger="state in ('agent_missed','failed')" decoration-warning="state in ('due','supervisor_review')">
+        <field name="scheduled_start"/>
+        <field name="scheduled_end"/>
+        <field name="title"/>
+        <field name="customer_id"/>
+        <field name="campaign_id"/>
+        <field name="agent_id"/>
+        <field name="priority" widget="badge"/>
+        <field name="state" widget="badge"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="appointment_calendar" model="ir.ui.view">
+    <field name="name">codestra.call.appointment.calendar</field>
+    <field name="model">codestra.call.appointment</field>
+    <field name="arch" type="xml">
+      <calendar string="Call Appointments" date_start="scheduled_start" date_stop="scheduled_end" color="campaign_id" mode="week" quick_create="false">
+        <field name="title"/>
+        <field name="customer_id"/>
+        <field name="campaign_id"/>
+        <field name="agent_id"/>
+        <field name="state"/>
+      </calendar>
+    </field>
+  </record>
+
+  <record id="appointment_form" model="ir.ui.view">
+    <field name="name">codestra.call.appointment.form</field>
+    <field name="model">codestra.call.appointment</field>
+    <field name="arch" type="xml">
+      <form>
+        <header><field name="state" widget="statusbar"/></header>
+        <sheet>
+          <group>
+            <group>
+              <field name="reference"/>
+              <field name="title"/>
+              <field name="type_id"/>
+              <field name="customer_id"/>
+              <field name="lead_id"/>
+              <field name="call_reason"/>
+            </group>
+            <group>
+              <field name="scheduled_start"/>
+              <field name="scheduled_end"/>
+              <field name="customer_timezone"/>
+              <field name="agent_timezone"/>
+              <field name="campaign_timezone"/>
+              <field name="priority"/>
+            </group>
+          </group>
+          <group string="Assignment">
+            <field name="business_unit_id"/>
+            <field name="campaign_id"/>
+            <field name="department_id"/>
+            <field name="team_id"/>
+            <field name="agent_id"/>
+            <field name="supervisor_id"/>
+          </group>
+          <group string="Reminder and audit">
+            <field name="reminder_policy_id"/>
+            <field name="correlation_id"/>
+            <field name="source_system" readonly="1"/>
+          </group>
+          <field name="preparation_notes" placeholder="Preparation notes..."/>
+        </sheet>
+        <chatter/>
+      </form>
+    </field>
+  </record>
+
+  <record id="appointment_search" model="ir.ui.view">
+    <field name="name">codestra.call.appointment.search</field>
+    <field name="model">codestra.call.appointment</field>
+    <field name="arch" type="xml">
+      <search>
+        <field name="title"/>
+        <field name="customer_id"/>
+        <field name="campaign_id"/>
+        <field name="agent_id"/>
+        <filter string="Open" name="open" domain="[('state','not in',('completed','cancelled','failed'))]"/>
+        <filter string="Due" name="due" domain="[('state','in',('due','agent_missed','supervisor_review'))]"/>
+        <group>
+          <filter string="Campaign" name="group_campaign" context="{'group_by':'campaign_id'}"/>
+          <filter string="Agent" name="group_agent" context="{'group_by':'agent_id'}"/>
+          <filter string="State" name="group_state" context="{'group_by':'state'}"/>
+        </group>
+      </search>
+    </field>
+  </record>
+
+  <record id="appointment_action" model="ir.actions.act_window">
+    <field name="name">Appointment Calendar</field>
+    <field name="res_model">codestra.call.appointment</field>
+    <field name="view_mode">calendar,list,form</field>
+    <field name="search_view_id" ref="appointment_search"/>
+    <field name="context">{'search_default_open': 1}</field>
+  </record>
+
+  <record id="reminder_event_list" model="ir.ui.view">
+    <field name="name">codestra.appointment.reminder.event.list</field>
+    <field name="model">codestra.appointment.reminder.event</field>
+    <field name="arch" type="xml">
+      <list decoration-danger="state == 'failed'" decoration-muted="state == 'disabled'">
+        <field name="scheduled_at"/>
+        <field name="appointment_id"/>
+        <field name="event_type"/>
+        <field name="recipient_id"/>
+        <field name="channel"/>
+        <field name="state" widget="badge"/>
+        <field name="executed_at"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="reminder_event_form" model="ir.ui.view">
+    <field name="name">codestra.appointment.reminder.event.form</field>
+    <field name="model">codestra.appointment.reminder.event</field>
+    <field name="arch" type="xml">
+      <form>
+        <sheet>
+          <group>
+            <field name="appointment_id"/>
+            <field name="event_type"/>
+            <field name="scheduled_at"/>
+            <field name="recipient_id"/>
+            <field name="channel"/>
+            <field name="state"/>
+            <field name="executed_at" readonly="1"/>
+            <field name="idempotency_key"/>
+            <field name="correlation_id"/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="reminder_event_action" model="ir.actions.act_window">
+    <field name="name">Appointment Reminders</field>
+    <field name="res_model">codestra.appointment.reminder.event</field>
+    <field name="view_mode">list,form</field>
+    <field name="domain">[('state','in',('disabled','scheduled','failed'))]</field>
+  </record>
+
+  <menuitem id="appointment_menu" name="Appointments" action="appointment_action" sequence="38" groups="codestra.group_agent,codestra.group_supervisor"/>
+  <menuitem id="reminder_event_menu" name="Reminders" action="reminder_event_action" sequence="39" groups="codestra.group_agent,codestra.group_supervisor"/>
+</odoo>

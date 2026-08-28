@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <!-- Idempotent, checksum-pinned adoption only. Every desired mapping remains
+       disabled and migration-blocked because the supplied catalog is partial. -->
+  <function model="cc.telephony.mapping" name="_load_controlled_catalog"/>
+</odoo>

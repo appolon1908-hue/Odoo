@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "required_scenarios": [
+    {"id":"fresh-install","expected":"all selected modules install with zero test errors"},
+    {"id":"deployed-version-upgrade","expected":"existing external IDs and business links preserved"},
+    {"id":"interrupted-upgrade-restart","expected":"restartable and idempotent completion"},
+    {"id":"pre-upgrade-backup-restore","expected":"record counts and relationships reconciled"},
+    {"id":"duplicate-preflight","expected":"ambiguous duplicates enter manager review queue"},
+    {"id":"screen-pop-query-plan","expected":"indexed normalized lookup with retained plan evidence"}
+  ],
+  "destructive_shortcuts_allowed": false,
+  "record_deletion_to_pass_migration_allowed": false
+}

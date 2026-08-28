@@ -1,0 +1,26 @@
+<odoo>
+  <record id="group_agent" model="res.groups">
+    <field name="name">Codestra Call Center Agent</field>
+    <field name="implied_ids" eval="[(4, ref('codestra_base.group_codestra_agent'))]"/>
+  </record>
+  <record id="group_closer" model="res.groups">
+    <field name="name">Codestra Closer</field>
+    <field name="implied_ids" eval="[(4, ref('group_agent')), (4, ref('codestra_base.group_codestra_closer'))]"/>
+  </record>
+  <record id="group_supervisor" model="res.groups">
+    <field name="name">Codestra Supervisor</field>
+    <field name="implied_ids" eval="[(4, ref('group_agent')), (4, ref('codestra_base.group_codestra_supervisor'))]"/>
+  </record>
+  <record id="group_qa" model="res.groups">
+    <field name="name">Codestra Call Quality Reviewer</field>
+    <field name="implied_ids" eval="[(4, ref('group_agent'))]"/>
+  </record>
+  <record id="group_manager" model="res.groups">
+    <field name="name">Codestra Manager</field>
+    <field name="implied_ids" eval="[(4, ref('group_supervisor')), (4, ref('group_closer')), (4, ref('group_qa')), (4, ref('codestra_base.group_codestra_manager'))]"/>
+  </record>
+  <record id="group_integration_admin" model="res.groups">
+    <field name="name">Codestra Integration Administrator</field>
+    <field name="implied_ids" eval="[(4, ref('codestra_base.group_codestra_integration_admin'))]"/>
+  </record>
+</odoo>

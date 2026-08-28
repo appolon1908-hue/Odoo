@@ -1,0 +1,19 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_batch_importer,lead.import.batch importer,model_codestra_lead_import_batch,group_lead_importer,1,1,1,0
+access_batch_reviewer,lead.import.batch reviewer,model_codestra_lead_import_batch,group_lead_reviewer,1,1,1,0
+access_batch_compliance,lead.import.batch compliance,model_codestra_lead_import_batch,group_compliance_manager,1,1,1,0
+access_batch_admin,lead.import.batch admin,model_codestra_lead_import_batch,group_lead_import_admin,1,1,1,0
+access_batch_middleware,lead.import.batch middleware,model_codestra_lead_import_batch,group_middleware_service,1,0,0,0
+access_line_importer,lead.import.line importer,model_codestra_lead_import_line,group_lead_importer,1,1,1,0
+access_line_reviewer,lead.import.line reviewer,model_codestra_lead_import_line,group_lead_reviewer,1,1,1,0
+access_line_compliance,lead.import.line compliance,model_codestra_lead_import_line,group_compliance_manager,1,1,1,0
+access_line_admin,lead.import.line admin,model_codestra_lead_import_line,group_lead_import_admin,1,1,1,0
+access_line_middleware,lead.import.line middleware,model_codestra_lead_import_line,group_middleware_service,1,1,0,0
+access_mapping_importer,lead.column.mapping importer,model_codestra_lead_column_mapping,group_lead_importer,1,0,0,0
+access_mapping_admin,lead.column.mapping admin,model_codestra_lead_column_mapping,group_lead_import_admin,1,1,1,0
+access_mapping_line_importer,lead.column.mapping.line importer,model_codestra_lead_column_mapping_line,group_lead_importer,1,0,0,0
+access_mapping_line_admin,lead.column.mapping.line admin,model_codestra_lead_column_mapping_line,group_lead_import_admin,1,1,1,1
+access_outbox_admin,lead import outbox admin,model_codestra_lead_import_outbox,group_lead_import_admin,1,0,0,0
+access_outbox_middleware,lead import outbox middleware,model_codestra_lead_import_outbox,group_middleware_service,1,1,0,0
+access_audit_user,lead.import.audit user,model_codestra_lead_import_audit,group_lead_importer,1,0,0,0
+access_audit_middleware,lead.import.audit middleware,model_codestra_lead_import_audit,group_middleware_service,1,0,1,0

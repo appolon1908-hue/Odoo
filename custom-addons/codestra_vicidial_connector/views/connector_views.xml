@@ -1,0 +1,9 @@
+<odoo>
+  <record id="view_connector_profile_list" model="ir.ui.view"><field name="name">codestra.vicidial.connector.profile.list</field><field name="model">codestra.vicidial.connector.profile</field><field name="arch" type="xml"><list><field name="name"/><field name="adapter_type"/><field name="test_only"/><field name="active"/></list></field></record>
+  <record id="view_connector_batch_list" model="ir.ui.view"><field name="name">codestra.vicidial.connector.import.batch.list</field><field name="model">codestra.vicidial.connector.import.batch</field><field name="arch" type="xml"><list><field name="name"/><field name="profile_id"/><field name="correlation_id"/><field name="state"/><field name="record_count"/></list></field></record>
+  <record id="action_connector_profiles" model="ir.actions.act_window"><field name="name">Connector Profiles</field><field name="res_model">codestra.vicidial.connector.profile</field><field name="view_mode">list,form</field></record>
+  <record id="action_connector_batches" model="ir.actions.act_window"><field name="name">Import Previews</field><field name="res_model">codestra.vicidial.connector.import.batch</field><field name="view_mode">list,form</field></record>
+  <menuitem id="menu_vicidial_connector_root" name="VICIdial Connector" parent="codestra_integration_hub.menu_integration_root" groups="codestra_base.group_codestra_integration_admin" sequence="80"/>
+  <menuitem id="menu_connector_profiles" name="Profiles" parent="menu_vicidial_connector_root" action="action_connector_profiles" sequence="10"/>
+  <menuitem id="menu_connector_batches" name="Import Previews" parent="menu_vicidial_connector_root" action="action_connector_batches" sequence="20"/>
+</odoo>

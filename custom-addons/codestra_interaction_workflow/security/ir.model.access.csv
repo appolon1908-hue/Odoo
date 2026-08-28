@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_integration_dashboard,dashboard,model_codestra_integration_dashboard,call_center_core.group_call_center_user,1,0,0,0
+access_integration_retry_request_user,retry request user,model_codestra_integration_retry_request,call_center_core.group_call_center_user,1,0,1,0
+access_integration_activation_request_user,activation request user,model_codestra_integration_activation_request,call_center_core.group_call_center_user,1,0,1,0

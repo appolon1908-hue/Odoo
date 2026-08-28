@@ -1,0 +1,26 @@
+{
+    "name": "Codestra AI Agent Assistant",
+    "summary": "Human-reviewed summaries, knowledge suggestions, and response drafts without executable authority",
+    "version": "19.0.1.0.0",
+    "author": "Codestra",
+    "license": "LGPL-3",
+    "depends": [
+        "codestra_cc_core",
+        "codestra_cc_customer_360",
+        "codestra_cc_compliance",
+        "codestra_cc_audit",
+        "codestra_ai_core",
+        "codestra_ai_realtime_assistant",
+        "codestra_ai_qualification",
+        "codestra_ai_review",
+        "mail",
+    ],
+    "data": [
+        "security/groups.xml",
+        "security/ir.model.access.csv",
+        "security/record_rules.xml",
+        "views/assistant_views.xml",
+    ],
+    "installable": True,
+    "application": True,
+}

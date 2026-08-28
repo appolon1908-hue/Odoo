@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="rule_cc_business_unit_global_scope" model="ir.rule">
+    <field name="name">Contact Center: global business-unit scope</field>
+    <field name="model_id" ref="codestra_cc_core.model_cc_business_unit"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('id', 'in', user.cc_allowed_business_unit_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_campaign_global_scope" model="ir.rule">
+    <field name="name">Contact Center: global campaign scope</field>
+    <field name="model_id" ref="codestra_cc_core.model_cc_campaign"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_campaign_channel_global_scope" model="ir.rule">
+    <field name="name">Contact Center: global channel campaign scope</field>
+    <field name="model_id" ref="codestra_cc_core.model_cc_campaign_channel"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_campaign_policy_global_scope" model="ir.rule">
+    <field name="name">Contact Center: global policy campaign scope</field>
+    <field name="model_id" ref="codestra_cc_core.model_cc_campaign_policy"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_membership_global_scope" model="ir.rule">
+    <field name="name">Contact Center: membership scope and self visibility</field>
+    <field name="model_id" ref="model_cc_campaign_membership"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else ['&amp;', ('campaign_id', 'in', user.cc_allowed_campaign_ids.ids), '|', ('user_id', '=', user.id), ('campaign_id', 'in', user.cc_supervised_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_break_glass_global_scope" model="ir.rule">
+    <field name="name">Contact Center: break-glass evidence scope</field>
+    <field name="model_id" ref="model_cc_break_glass_grant"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_security.group_cc_compliance_officer') or user.has_group('codestra_cc_security.group_cc_auditor') else [('user_id', '=', user.id)]</field>
+  </record>
+</odoo>

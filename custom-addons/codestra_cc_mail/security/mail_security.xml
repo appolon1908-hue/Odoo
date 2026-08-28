@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="group_cc_mail_ingestion_service" model="res.groups">
+    <field name="name">Contact Center Mail Ingestion Service</field>
+    <field name="privilege_id" ref="codestra_cc_security.privilege_codestra_contact_center"/>
+    <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+  </record>
+
+  <record id="codestra_cc_security.rule_cc_business_unit_global_scope" model="ir.rule">
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_mail.group_cc_mail_ingestion_service') or user.cc_has_active_break_glass else [('id', 'in', user.cc_allowed_business_unit_ids.ids)]</field>
+  </record>
+  <record id="codestra_cc_security.rule_cc_campaign_global_scope" model="ir.rule">
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_mail.group_cc_mail_ingestion_service') or user.cc_has_active_break_glass else [('id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+
+  <record id="rule_cc_mail_route_global_scope" model="ir.rule">
+    <field name="name">Contact Center: mail route scope</field>
+    <field name="model_id" ref="model_cc_mail_route"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_mail.group_cc_mail_ingestion_service') else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_mail_sender_global_scope" model="ir.rule">
+    <field name="name">Contact Center: sender identity scope</field>
+    <field name="model_id" ref="model_cc_mail_sender_identity"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_mail.group_cc_mail_ingestion_service') else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_mail_distribution_group_global_scope" model="ir.rule">
+    <field name="name">Contact Center: distribution group scope</field>
+    <field name="model_id" ref="model_cc_mail_distribution_group"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_mail.group_cc_mail_ingestion_service') else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_mail_distribution_membership_global_scope" model="ir.rule">
+    <field name="name">Contact Center: distribution membership scope</field>
+    <field name="model_id" ref="model_cc_mail_distribution_membership"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_mail.group_cc_mail_ingestion_service') else ([('campaign_id', 'in', user.cc_supervised_campaign_ids.ids)] if user.has_group('codestra_cc_security.group_cc_campaign_supervisor') or user.has_group('codestra_cc_security.group_cc_auditor') else ['&amp;', ('campaign_id', 'in', user.cc_allowed_campaign_ids.ids), ('user_id', '=', user.id)])</field>
+  </record>
+  <record id="rule_cc_mail_thread_global_scope" model="ir.rule">
+    <field name="name">Contact Center: campaign mail thread scope</field>
+    <field name="model_id" ref="model_cc_mail_thread"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_mail.group_cc_mail_ingestion_service') else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_mail_event_global_scope" model="ir.rule">
+    <field name="name">Contact Center: campaign mail event scope</field>
+    <field name="model_id" ref="model_cc_mail_inbound_event"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_mail.group_cc_mail_ingestion_service') else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_mail_quarantine_global_scope" model="ir.rule">
+    <field name="name">Contact Center: mail quarantine scope</field>
+    <field name="model_id" ref="model_cc_mail_quarantine"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_mail.group_cc_mail_ingestion_service') else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+
+  <record id="rule_cc_mail_message_global_scope" model="ir.rule">
+    <field name="name">Contact Center: chatter message campaign scope</field>
+    <field name="model_id" ref="mail.model_mail_message"/>
+    <field name="global" eval="True"/>
+    <field name="perm_create" eval="False"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_mail.group_cc_mail_ingestion_service') else ['|', ('cc_campaign_id', '=', False), ('cc_campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_mail_follower_global_scope" model="ir.rule">
+    <field name="name">Contact Center: chatter follower campaign scope</field>
+    <field name="model_id" ref="mail.model_mail_followers"/>
+    <field name="global" eval="True"/>
+    <field name="perm_create" eval="False"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_mail.group_cc_mail_ingestion_service') else ['|', ('cc_campaign_id', '=', False), ('cc_campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_mail_activity_global_scope" model="ir.rule">
+    <field name="name">Contact Center: activity campaign scope</field>
+    <field name="model_id" ref="mail.model_mail_activity"/>
+    <field name="global" eval="True"/>
+    <field name="perm_create" eval="False"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_mail.group_cc_mail_ingestion_service') else ['|', ('cc_campaign_id', '=', False), ('cc_campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_mail_attachment_global_scope" model="ir.rule">
+    <field name="name">Contact Center: attachment campaign and scan scope</field>
+    <field name="model_id" ref="base.model_ir_attachment"/>
+    <field name="global" eval="True"/>
+    <field name="perm_create" eval="False"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_mail.group_cc_mail_ingestion_service') else ['|', ('cc_campaign_id', '=', False), '&amp;', ('cc_campaign_id', 'in', user.cc_allowed_campaign_ids.ids), ('cc_scan_state', '=', 'clean')]</field>
+  </record>
+</odoo>

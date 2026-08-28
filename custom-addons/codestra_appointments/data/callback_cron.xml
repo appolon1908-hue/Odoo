@@ -1,0 +1,20 @@
+<odoo noupdate="1">
+  <record id="ir_cron_codestra_callback_sync" model="ir.cron">
+    <field name="name">Codestra callback middleware sync</field>
+    <field name="model_id" ref="model_codestra_callback_sync_job"/>
+    <field name="state">code</field>
+    <field name="code">model._cron_process()</field>
+    <field name="interval_number">1</field>
+    <field name="interval_type">minutes</field>
+    <field name="active">True</field>
+  </record>
+  <record id="ir_cron_codestra_callback_reconcile" model="ir.cron">
+    <field name="name">Codestra callback middleware reconciliation</field>
+    <field name="model_id" ref="model_codestra_callback_sync_job"/>
+    <field name="state">code</field>
+    <field name="code">model._cron_reconcile()</field>
+    <field name="interval_number">5</field>
+    <field name="interval_type">minutes</field>
+    <field name="active">True</field>
+  </record>
+</odoo>

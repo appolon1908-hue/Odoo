@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_integration_trace_list" model="ir.ui.view">
+    <field name="name">codestra.integration.trace.list</field>
+    <field name="model">codestra.integration.trace</field>
+    <field name="arch" type="xml">
+      <list create="0" edit="0" delete="0">
+        <field name="correlation_id"/>
+        <field name="event_id"/>
+        <field name="delivery_id"/>
+        <field name="workflow_id"/>
+        <field name="execution_id"/>
+        <field name="business_unit_id"/>
+        <field name="campaign_id"/>
+        <field name="current_status"/>
+        <field name="reconciliation_status"/>
+        <field name="result_received_at"/>
+        <field name="end_to_end_latency_seconds"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_integration_trace_search" model="ir.ui.view">
+    <field name="name">codestra.integration.trace.search</field>
+    <field name="model">codestra.integration.trace</field>
+    <field name="arch" type="xml">
+      <search>
+        <field name="correlation_id"/>
+        <field name="event_id"/>
+        <field name="delivery_id"/>
+        <field name="registration_id"/>
+        <field name="acknowledgement_id"/>
+        <field name="workflow_id"/>
+        <field name="execution_id"/>
+        <filter name="failed" string="Failed" domain="[('current_status','=','FAILED')]"/>
+        <filter name="pending" string="Pending" domain="[('current_status','=','RECEIVED')]"/>
+        <filter name="acknowledged" string="Acknowledged" domain="[('current_status','=','PROCESSED')]"/>
+        <filter name="drifted" string="Drifted" domain="[('reconciliation_status','=','DRIFTED')]"/>
+      </search>
+    </field>
+  </record>
+  <record id="view_integration_trace_form" model="ir.ui.view">
+    <field name="name">codestra.integration.trace.form</field>
+    <field name="model">codestra.integration.trace</field>
+    <field name="arch" type="xml">
+      <form create="0" edit="0" delete="0">
+        <sheet>
+          <group>
+            <group>
+              <field name="correlation_id"/>
+              <field name="event_id"/>
+              <field name="delivery_id"/>
+              <field name="registration_id"/>
+              <field name="acknowledgement_id"/>
+            </group>
+            <group>
+              <field name="workflow_id"/>
+              <field name="workflow_version"/>
+              <field name="execution_id"/>
+              <field name="current_status"/>
+              <field name="reconciliation_status"/>
+            </group>
+          </group>
+          <group>
+            <field name="originating_outbox_id"/>
+            <field name="result_inbox_id"/>
+            <field name="safe_error_summary"/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+  <record id="action_integration_traces" model="ir.actions.act_window">
+    <field name="name">Integration Trace</field>
+    <field name="res_model">codestra.integration.trace</field>
+    <field name="view_mode">list,form</field>
+  </record>
+  <menuitem id="menu_integration_trace"
+            name="Integration Trace"
+            parent="call_center_core.menu_call_center_root"
+            action="action_integration_traces"
+            sequence="90"
+            groups="call_center_core.group_call_center_manager"/>
+  <record id="view_campaign_form_integration_trace" model="ir.ui.view">
+    <field name="name">call.center.campaign.form.integration.trace</field>
+    <field name="model">call.center.campaign</field>
+    <field name="inherit_id" ref="call_center_campaign.view_campaign_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//sheet" position="inside">
+        <div class="oe_button_box" name="button_box">
+          <button name="action_view_integration_traces" type="object"
+                  class="oe_stat_button" icon="fa-exchange">
+            <field name="integration_trace_count" widget="statinfo" string="Integration Traces"/>
+          </button>
+        </div>
+      </xpath>
+    </field>
+  </record>
+  <record id="view_crm_lead_form_integration_trace" model="ir.ui.view">
+    <field name="name">crm.lead.form.integration.trace</field>
+    <field name="model">crm.lead</field>
+    <field name="inherit_id" ref="crm.crm_lead_view_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//div[@name='button_box']" position="inside">
+        <button name="action_view_integration_traces" type="object"
+                class="oe_stat_button" icon="fa-exchange">
+          <field name="integration_trace_count" widget="statinfo" string="Integration Traces"/>
+        </button>
+      </xpath>
+    </field>
+  </record>
+  <record id="view_users_form_integration_trace" model="ir.ui.view">
+    <field name="name">res.users.form.integration.trace</field>
+    <field name="model">res.users</field>
+    <field name="inherit_id" ref="base.view_users_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//div[@name='button_box']" position="inside">
+        <button name="action_view_integration_traces" type="object"
+                class="oe_stat_button" icon="fa-exchange">
+          <field name="integration_trace_count" widget="statinfo" string="Integration Traces"/>
+        </button>
+      </xpath>
+    </field>
+  </record>
+  <record id="view_integration_outbox_form" model="ir.ui.view">
+    <field name="name">codestra.runtime.integration.outbox.form</field>
+    <field name="model">codestra.runtime.integration.outbox</field>
+    <field name="arch" type="xml">
+      <form create="0" edit="0" delete="0">
+        <sheet>
+          <group>
+            <field name="event_uuid"/>
+            <field name="event_type"/>
+            <field name="correlation_id"/>
+            <field name="integration_status"/>
+          </group>
+          <notebook>
+            <page string="Results">
+              <field name="result_inbox_ids" readonly="1"/>
+            </page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+</odoo>

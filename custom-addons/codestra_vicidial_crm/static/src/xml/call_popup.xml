@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+  <t t-name="codestra_vicidial_crm.CallPopup">
+    <section t-if="ui.call" class="o_codestra_call_popup" role="dialog" aria-modal="false" aria-live="assertive" t-att-aria-label="terminal ? 'Completed call' : 'Active telephone call'">
+      <header>
+        <strong t-esc="terminal ? (ui.call.state === 'missed' ? 'MISSED CALL' : 'CALL COMPLETED') : (['ringing','offered'].includes(ui.call.state) ? 'INCOMING CALL' : 'ACTIVE CALL')"/>
+        <span class="badge" t-esc="ui.call.state"/>
+      </header>
+      <div class="o_codestra_identity">
+        <h3 t-esc="ui.call.customer?.name || ui.call.lead?.name || 'Unknown Caller'"/>
+        <p t-esc="ui.call.caller_number"/>
+        <small><t t-esc="ui.call.campaign"/> · Extension <t t-esc="ui.call.extension"/></small>
+      </div>
+      <dl>
+        <t t-if="ui.call.lead"><dt>Lead</dt><dd t-esc="ui.call.lead.name"/></t>
+        <t t-if="ui.call.appointment"><dt>Appointment</dt><dd><t t-esc="ui.call.appointment.name"/> · <t t-esc="ui.call.appointment.start"/></dd></t>
+        <dt>Recording</dt><dd t-esc="ui.call.recording_status"/>
+      </dl>
+      <p t-if="ui.error" class="alert alert-danger" role="alert" t-esc="ui.error"/>
+      <div class="o_codestra_controls" t-if="!terminal &amp;&amp; ui.call.call_control_enabled">
+        <button t-if="['ringing','offered'].includes(ui.call.state)" class="btn btn-primary" t-on-click="() => this.control('answer')" t-att-disabled="ui.busy">Answer</button>
+        <button t-if="['ringing','offered'].includes(ui.call.state)" class="btn btn-outline-danger" t-on-click="() => this.control('decline')" t-att-disabled="ui.busy">Decline</button>
+        <button t-if="ui.call.state === 'connected'" class="btn btn-secondary" t-on-click="() => this.control('hold')" t-att-disabled="ui.busy">Hold</button>
+        <button t-if="ui.call.state === 'held'" class="btn btn-secondary" t-on-click="() => this.control('resume')" t-att-disabled="ui.busy">Resume</button>
+        <button t-if="['answering','connected','held','transferring'].includes(ui.call.state)" class="btn btn-danger" t-on-click="() => this.control('hangup')" t-att-disabled="ui.busy">Hang Up</button>
+      </div>
+      <p t-if="!ui.call.call_control_enabled" class="alert alert-info">Live call control is disabled. CRM metadata remains available.</p>
+      <div t-if="!ui.call.customer &amp;&amp; !ui.call.lead &amp;&amp; ui.matches.length === 0" class="alert alert-warning">Unknown caller. Create a lead only through the approved CRM workflow.</div>
+      <div t-if="ui.matches.length &gt; 1" class="o_codestra_matches">
+        <strong>Multiple CRM matches</strong>
+        <button t-foreach="ui.matches" t-as="match" t-key="match.model + ':' + match.id" class="btn btn-link" t-on-click="() => this.openRecord(match.model, match.id)"><t t-esc="match.name"/></button>
+      </div>
+      <label class="form-label" for="codestra-call-notes">Notes</label>
+      <textarea id="codestra-call-notes" class="form-control" t-model="ui.notes" maxlength="10000"/>
+      <button class="btn btn-outline-primary" t-on-click="saveNotes" t-att-disabled="ui.busy">Save Notes</button>
+      <div t-if="ui.call.lead" class="o_codestra_callback">
+        <label class="form-label" for="codestra-callback-at">Callback time</label>
+        <input id="codestra-callback-at" type="datetime-local" class="form-control" t-model="ui.callbackAt"/>
+        <input aria-label="Callback timezone" class="form-control" t-model="ui.callbackTimezone"/>
+        <input aria-label="Callback reason" class="form-control" maxlength="255" t-model="ui.callbackReason"/>
+        <button class="btn btn-outline-primary" t-on-click="saveCallback" t-att-disabled="!ui.callbackAt || !ui.callbackReason">Save Callback</button>
+      </div>
+      <div t-if="terminal" class="o_codestra_disposition">
+        <label class="form-label" for="codestra-disposition">Disposition</label>
+        <select id="codestra-disposition" class="form-select" t-model="ui.disposition">
+          <option value="">Select an outcome</option><option value="NA">No Answer</option>
+          <option value="CALLBK">Callback</option><option value="SALE">Sale</option>
+          <option value="DNC">Do Not Call</option><option value="WRONG_NUMBER">Wrong Number</option>
+        </select>
+        <button class="btn btn-primary" t-on-click="saveDisposition" t-att-disabled="!ui.disposition || ui.busy">Save Disposition</button>
+      </div>
+      <details t-if="ui.history.length"><summary>Previous calls</summary><ul><li t-foreach="ui.history" t-as="item" t-key="item.call_id"><t t-esc="item.date"/> · <t t-esc="item.direction"/> · <t t-esc="item.disposition || 'No disposition'"/></li></ul></details>
+      <footer>
+        <button t-if="ui.call.customer" class="btn btn-link" t-on-click="() => this.openRecord('res.partner', ui.call.customer.id)">Open Customer</button>
+        <button t-if="ui.call.lead" class="btn btn-link" t-on-click="() => this.openRecord('crm.lead', ui.call.lead.id)">Open Lead</button>
+      </footer>
+    </section>
+  </t>
+</templates>

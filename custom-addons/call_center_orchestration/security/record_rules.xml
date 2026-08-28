@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="rule_provisioning_unit" model="ir.rule">
+    <field name="name">Provisioning requests by business unit</field>
+    <field name="model_id" ref="model_call_center_provisioning_request"/>
+    <field name="groups" eval="[(4, ref('call_center_core.group_call_center_manager'))]"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
+  <record id="rule_credential_unit" model="ir.rule">
+    <field name="name">Credential metadata by business unit</field>
+    <field name="model_id" ref="model_call_center_credential_reference"/>
+    <field name="groups" eval="[(4, ref('call_center_core.group_call_center_manager'))]"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
+  <record id="rule_callback_unit" model="ir.rule">
+    <field name="name">Callbacks by business unit</field>
+    <field name="model_id" ref="model_call_center_callback_task"/>
+    <field name="groups" eval="[(4, ref('call_center_core.group_call_center_user'))]"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
+  <record id="rule_import_unit" model="ir.rule">
+    <field name="name">Lead imports by business unit</field>
+    <field name="model_id" ref="model_call_center_lead_import_batch"/>
+    <field name="groups" eval="[(4, ref('call_center_core.group_call_center_manager'))]"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
+  <record id="rule_callback_notification_unit" model="ir.rule">
+    <field name="name">Callback notifications by business unit</field>
+    <field name="model_id" ref="model_call_center_callback_notification"/>
+    <field name="groups" eval="[(4, ref('call_center_core.group_call_center_user'))]"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
+  <record id="rule_import_row_unit" model="ir.rule">
+    <field name="name">Import rows by business unit</field>
+    <field name="model_id" ref="model_call_center_lead_import_row"/>
+    <field name="groups" eval="[(4, ref('call_center_core.group_call_center_manager'))]"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
+  <record id="rule_validation_result_unit" model="ir.rule">
+    <field name="name">Validation results by business unit</field>
+    <field name="model_id" ref="model_call_center_lead_validation_result"/>
+    <field name="groups" eval="[(4, ref('call_center_core.group_call_center_manager'))]"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
+  <record id="rule_lead_mapping_unit" model="ir.rule">
+    <field name="name">Lead mappings by business unit</field>
+    <field name="model_id" ref="model_call_center_lead_mapping"/>
+    <field name="groups" eval="[(4, ref('call_center_core.group_call_center_manager'))]"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
+</odoo>

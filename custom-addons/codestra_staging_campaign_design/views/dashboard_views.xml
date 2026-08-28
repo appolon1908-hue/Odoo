@@ -1,0 +1,4 @@
+<odoo>
+  <record id="action_campaign_design_dashboard" model="ir.actions.act_window"><field name="name">Staging Campaign Designs</field><field name="res_model">codestra.campaign.design.profile</field><field name="view_mode">list,form,pivot,graph</field></record>
+  <menuitem id="menu_campaign_design_dashboard" name="Staging Campaign Designs" parent="call_center_core.menu_call_center_configuration" action="action_campaign_design_dashboard" sequence="90" groups="call_center_core.group_call_center_manager"/>
+</odoo>

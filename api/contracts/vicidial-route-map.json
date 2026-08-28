@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "public_base": "/v1/contact-center",
+  "ingress_owner": "kong",
+  "identity_issuer": "https://auth.codestra.co/realms/codestra",
+  "routes": [
+    {"public":"GET /healthz","internal":"GET /codestra/api/v1/health","status":"implemented-read-only"},
+    {"public":"GET /readyz","internal":"service readiness adapter","status":"adapter-required"},
+    {"public":"POST /events/vicidial","internal":"POST /codestra/api/v1/call-events","status":"implemented-signed-idempotent"},
+    {"public":"POST /screen-pop/resolve","internal":"POST /codestra/call-control/v1/match","status":"implemented-authenticated-jsonrpc"},
+    {"public":"GET /interactions/{uuid}","internal":"POST /codestra/call-control/v1/calls/{call_id}/workspace","status":"implemented-authenticated-jsonrpc"},
+    {"public":"POST /interactions/{uuid}/disposition","internal":"POST /codestra/call-control/v1/calls/{call_id}/disposition","status":"implemented-authenticated-jsonrpc"},
+    {"public":"POST /interactions/{uuid}/transfer","internal":"POST /codestra/call-control/v1/calls/{call_id}/transfer","status":"implemented-gated-jsonrpc"}
+  ],
+  "prohibitions": {
+    "browser_supplied_record_id_is_authorization": false,
+    "direct_vicidial_database_write": false,
+    "live_dialing_default": false,
+    "arbitrary_transfer_target": false
+  }
+}

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <!-- Global -->
+  <record id="group_platform_superuser" model="res.groups"><field name="name">Platform Superuser</field><field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_admin'))]"/></record>
+  <record id="group_global_system_admin" model="res.groups"><field name="name">Global System Administrator</field><field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_admin'))]"/></record>
+  <record id="group_global_executive" model="res.groups"><field name="name">Global Executive</field><field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_manager'))]"/></record>
+  <record id="group_global_callcenter_director" model="res.groups"><field name="name">Global Call Center Director</field><field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_manager'))]"/></record>
+  <record id="group_global_transfer_manager" model="res.groups"><field name="name">Global Transfer Manager</field><field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_manager'))]"/></record>
+  <record id="group_global_support_manager" model="res.groups"><field name="name">Global Support Manager</field><field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_manager'))]"/></record>
+  <record id="group_global_retention_manager" model="res.groups"><field name="name">Global Retention Manager</field><field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_manager'))]"/></record>
+  <record id="group_global_qa_manager" model="res.groups"><field name="name">Global QA Manager</field><field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_qa'))]"/></record>
+  <record id="group_global_compliance_manager" model="res.groups"><field name="name">Global Compliance Manager</field><field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_compliance'))]"/></record>
+
+  <!-- Business unit management -->
+  <record id="group_business_unit_director" model="res.groups"><field name="name">Business Unit Director</field><field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_manager'))]"/></record>
+  <record id="group_business_unit_operations_manager" model="res.groups"><field name="name">Business Unit Operations Manager</field><field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_manager'))]"/></record>
+  <record id="group_business_unit_sales_manager" model="res.groups"><field name="name">Business Unit Sales Manager</field><field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_manager'))]"/></record>
+  <record id="group_campaign_manager" model="res.groups"><field name="name">Campaign Manager</field><field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_manager'))]"/></record>
+  <record id="group_department_manager" model="res.groups"><field name="name">Department Manager</field><field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_supervisor'))]"/></record>
+
+  <!-- Supervisors and agents -->
+  <record id="group_team_leader" model="res.groups"><field name="name">Team Leader</field><field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_senior_agent'))]"/></record>
+  <record id="group_supervisor" model="res.groups"><field name="name">Supervisor</field><field name="implied_ids" eval="[(4, ref('group_team_leader'))]"/></record>
+  <record id="group_senior_supervisor" model="res.groups"><field name="name">Senior Supervisor</field><field name="implied_ids" eval="[(4, ref('group_supervisor'))]"/></record>
+  <record id="group_trainee_agent" model="res.groups"><field name="name">Trainee Agent</field><field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_user'))]"/></record>
+  <record id="group_junior_agent" model="res.groups"><field name="name">Junior Agent</field><field name="implied_ids" eval="[(4, ref('group_trainee_agent'))]"/></record>
+  <record id="group_agent" model="res.groups"><field name="name">Agent</field><field name="implied_ids" eval="[(4, ref('group_junior_agent')), (4, ref('call_center_core.group_call_center_agent'))]"/></record>
+  <record id="group_senior_agent" model="res.groups"><field name="name">Senior Agent</field><field name="implied_ids" eval="[(4, ref('group_agent'))]"/></record>
+
+  <!-- Transfer -->
+  <record id="group_transfer_coordinator" model="res.groups"><field name="name">Transfer Coordinator</field><field name="implied_ids" eval="[(4, ref('group_agent'))]"/></record>
+  <record id="group_senior_transfer_coordinator" model="res.groups"><field name="name">Senior Transfer Coordinator</field><field name="implied_ids" eval="[(4, ref('group_transfer_coordinator'))]"/></record>
+  <record id="group_transfer_supervisor" model="res.groups"><field name="name">Transfer Supervisor</field><field name="implied_ids" eval="[(4, ref('group_senior_transfer_coordinator')), (4, ref('group_supervisor'))]"/></record>
+  <record id="group_transfer_manager" model="res.groups"><field name="name">Transfer Manager</field><field name="implied_ids" eval="[(4, ref('group_transfer_supervisor'))]"/></record>
+
+  <!-- Closers -->
+  <record id="group_closer" model="res.groups"><field name="name">Closer</field><field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_closer'))]"/></record>
+  <record id="group_technical_closer" model="res.groups"><field name="name">Technical Closer</field><field name="implied_ids" eval="[(4, ref('group_closer'))]"/></record>
+  <record id="group_senior_closer" model="res.groups"><field name="name">Senior Closer</field><field name="implied_ids" eval="[(4, ref('group_closer'))]"/></record>
+  <record id="group_closer_supervisor" model="res.groups"><field name="name">Closer Supervisor</field><field name="implied_ids" eval="[(4, ref('group_senior_closer')), (4, ref('group_supervisor'))]"/></record>
+  <record id="group_closing_manager" model="res.groups"><field name="name">Closing Manager</field><field name="implied_ids" eval="[(4, ref('group_closer_supervisor'))]"/></record>
+
+  <!-- Support -->
+  <record id="group_customer_service" model="res.groups"><field name="name">Customer Service</field><field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_support'))]"/></record>
+  <record id="group_billing_support" model="res.groups"><field name="name">Billing Support</field><field name="implied_ids" eval="[(4, ref('group_customer_service'))]"/></record>
+  <record id="group_technical_support" model="res.groups"><field name="name">Technical Support</field><field name="implied_ids" eval="[(4, ref('group_customer_service'))]"/></record>
+  <record id="group_escalation_specialist" model="res.groups"><field name="name">Escalation Specialist</field><field name="implied_ids" eval="[(4, ref('group_technical_support'))]"/></record>
+  <record id="group_support_supervisor" model="res.groups"><field name="name">Support Supervisor</field><field name="implied_ids" eval="[(4, ref('group_escalation_specialist')), (4, ref('group_supervisor'))]"/></record>
+  <record id="group_support_manager" model="res.groups"><field name="name">Support Manager</field><field name="implied_ids" eval="[(4, ref('group_support_supervisor'))]"/></record>
+
+  <!-- Retention -->
+  <record id="group_retention_agent" model="res.groups"><field name="name">Retention Agent</field><field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_retention'))]"/></record>
+  <record id="group_renewal_agent" model="res.groups"><field name="name">Renewal Agent</field><field name="implied_ids" eval="[(4, ref('group_retention_agent'))]"/></record>
+  <record id="group_winback_agent" model="res.groups"><field name="name">Win-Back Agent</field><field name="implied_ids" eval="[(4, ref('group_retention_agent'))]"/></record>
+  <record id="group_senior_retention" model="res.groups"><field name="name">Senior Retention Agent</field><field name="implied_ids" eval="[(4, ref('group_retention_agent'))]"/></record>
+  <record id="group_retention_supervisor" model="res.groups"><field name="name">Retention Supervisor</field><field name="implied_ids" eval="[(4, ref('group_senior_retention')), (4, ref('group_supervisor'))]"/></record>
+  <record id="group_retention_manager" model="res.groups"><field name="name">Retention Manager</field><field name="implied_ids" eval="[(4, ref('group_retention_supervisor'))]"/></record>
+
+  <!-- Upsell -->
+  <record id="group_cross_sell_agent" model="res.groups"><field name="name">Cross-Sell Agent</field><field name="implied_ids" eval="[(4, ref('group_agent'))]"/></record>
+  <record id="group_upsell_agent" model="res.groups"><field name="name">Upsell Agent</field><field name="implied_ids" eval="[(4, ref('group_agent'))]"/></record>
+  <record id="group_upsell_supervisor" model="res.groups"><field name="name">Upsell Supervisor</field><field name="implied_ids" eval="[(4, ref('group_upsell_agent')), (4, ref('group_cross_sell_agent')), (4, ref('group_supervisor'))]"/></record>
+  <record id="group_upsell_manager" model="res.groups"><field name="name">Upsell Manager</field><field name="implied_ids" eval="[(4, ref('group_upsell_supervisor'))]"/></record>
+
+  <!-- Fulfillment -->
+  <record id="group_fulfillment_agent" model="res.groups"><field name="name">Fulfillment Agent</field><field name="implied_ids" eval="[(4, ref('group_agent'))]"/></record>
+  <record id="group_documentation_specialist" model="res.groups"><field name="name">Documentation Specialist</field><field name="implied_ids" eval="[(4, ref('group_fulfillment_agent'))]"/></record>
+  <record id="group_vendor_coordinator" model="res.groups"><field name="name">Vendor Coordinator</field><field name="implied_ids" eval="[(4, ref('group_fulfillment_agent'))]"/></record>
+  <record id="group_fulfillment_supervisor" model="res.groups"><field name="name">Fulfillment Supervisor</field><field name="implied_ids" eval="[(4, ref('group_documentation_specialist')), (4, ref('group_vendor_coordinator')), (4, ref('group_supervisor'))]"/></record>
+  <record id="group_fulfillment_manager" model="res.groups"><field name="name">Fulfillment Manager</field><field name="implied_ids" eval="[(4, ref('group_fulfillment_supervisor'))]"/></record>
+</odoo>

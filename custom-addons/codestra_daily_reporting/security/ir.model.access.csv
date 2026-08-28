@@ -1,0 +1,9 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+report_manager,daily.report,model_codestra_daily_report,codestra.group_campaign_manager,1,1,1,0
+report_section,daily.section,model_codestra_daily_report_section,codestra.group_campaign_manager,1,1,1,0
+report_metric,daily.metric,model_codestra_daily_report_metric,codestra.group_campaign_manager,1,1,1,0
+report_recipient,daily.recipient,model_codestra_daily_report_recipient,codestra.group_campaign_manager,1,1,1,0
+report_delivery,daily.delivery,model_codestra_daily_report_delivery,codestra.group_campaign_manager,1,0,1,0
+report_action,daily.action,model_codestra_daily_report_action,codestra.group_campaign_manager,1,1,1,0
+report_snapshot,daily.snapshot,model_codestra_daily_report_snapshot,codestra.group_campaign_manager,1,0,1,0
+report_quality,daily.quality,model_codestra_daily_report_data_quality,codestra.group_campaign_manager,1,1,1,0

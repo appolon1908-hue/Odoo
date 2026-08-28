@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_codestra_rate_plan_user,codestra.rate.plan user,model_codestra_rate_plan,call_center_core.group_call_center_user,1,0,0,0
+access_codestra_rate_plan_finance,codestra.rate.plan finance,model_codestra_rate_plan,call_center_core.group_call_center_finance,1,1,1,1
+access_codestra_rate_plan_admin,codestra.rate.plan admin,model_codestra_rate_plan,call_center_core.group_call_center_admin,1,1,1,1
+access_codestra_billing_usage_user,codestra.billing.usage user,model_codestra_billing_usage,call_center_core.group_call_center_user,1,0,0,0
+access_codestra_billing_usage_finance,codestra.billing.usage finance,model_codestra_billing_usage,call_center_core.group_call_center_finance,1,1,1,1
+access_codestra_billing_usage_admin,codestra.billing.usage admin,model_codestra_billing_usage,call_center_core.group_call_center_admin,1,1,1,1

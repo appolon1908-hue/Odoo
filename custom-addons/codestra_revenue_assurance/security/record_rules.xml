@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="rule_codestra_rate_plan_company" model="ir.rule">
+    <field name="name">Rate plans by allowed company</field>
+    <field name="model_id" ref="model_codestra_rate_plan"/>
+    <field name="groups" eval="[(4, ref('call_center_core.group_call_center_user'))]"/>
+    <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+  </record>
+  <record id="rule_codestra_billing_usage_company" model="ir.rule">
+    <field name="name">Billing usage by allowed company</field>
+    <field name="model_id" ref="model_codestra_billing_usage"/>
+    <field name="groups" eval="[(4, ref('call_center_core.group_call_center_user'))]"/>
+    <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+  </record>
+</odoo>

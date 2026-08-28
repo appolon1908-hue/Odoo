@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Codestra shared inbox inbound event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id", "idempotency_key", "correlation_id", "timestamp",
+    "message_id", "recipient", "sender", "subject", "raw_size"
+  ],
+  "properties": {
+    "event_id": {"type": "string", "minLength": 16, "maxLength": 128},
+    "idempotency_key": {"type": "string", "minLength": 16, "maxLength": 128},
+    "correlation_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "message_id": {"type": "string", "minLength": 3, "maxLength": 998},
+    "in_reply_to": {"type": ["string", "null"], "maxLength": 998},
+    "references": {"type": "array", "maxItems": 100, "items": {"type": "string", "maxLength": 998}},
+    "recipient": {"type": "string", "enum": [
+      "support@codestra.co", "admin@codestra.co", "support@beyvra.com", "admin@beyvra.com",
+      "support@breero.com", "admin@breero.com", "support@booked4seasons.com", "admin@booked4seasons.com",
+      "support@telnexa.co", "admin@telnexa.co", "support@kyqra.com", "admin@kyqra.com",
+      "support@klyrow.com", "admin@klyrow.com"
+    ]},
+    "sender": {"type": "string", "format": "email", "maxLength": 320},
+    "subject": {"type": "string", "maxLength": 998},
+    "body_text": {"type": "string", "maxLength": 10485760},
+    "body_html": {"type": "string", "maxLength": 10485760},
+    "raw_size": {"type": "integer", "minimum": 0, "maximum": 20971520},
+    "attachments": {
+      "type": "array", "maxItems": 50,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["filename", "mimetype", "content_base64"],
+        "properties": {
+          "filename": {"type": "string", "minLength": 1, "maxLength": 255},
+          "mimetype": {"type": "string", "minLength": 3, "maxLength": 127},
+          "content_base64": {"type": "string", "contentEncoding": "base64"}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,122 @@
+schema_version: "1.0"
+service_key: odoo
+api_version: v1
+base_url_key: odoo.internal
+production_activation: false
+
+endpoints:
+  - key: odoo.outbox.claim
+    method: POST
+    path: /api/v1/integration/outbox/claims
+    scope: odoo.integration.outbox.claim
+    mutation: true
+  - key: odoo.outbox.read
+    method: GET
+    path: /api/v1/integration/outbox/{outbox_id}
+    scope: odoo.integration.outbox.read
+    mutation: false
+  - key: odoo.outbox.renew
+    method: POST
+    path: /api/v1/integration/outbox/{outbox_id}/lease/renew
+    scope: odoo.integration.outbox.renew
+    mutation: true
+  - key: odoo.outbox.acknowledge
+    method: POST
+    path: /api/v1/integration/outbox/{outbox_id}/acknowledgements
+    scope: odoo.integration.outbox.acknowledge
+    mutation: true
+  - key: odoo.outbox.fail
+    method: POST
+    path: /api/v1/integration/outbox/{outbox_id}/failures
+    scope: odoo.integration.outbox.fail
+    mutation: true
+  - key: odoo.outbox.release
+    method: POST
+    path: /api/v1/integration/outbox/{outbox_id}/release
+    scope: odoo.integration.outbox.release
+    mutation: true
+  - key: odoo.results.create
+    method: POST
+    path: /api/v1/integration/results
+    scope: odoo.integration.results.write
+    mutation: true
+  - key: odoo.results.read
+    method: GET
+    path: /api/v1/integration/results/{result_public_id}
+    scope: odoo.integration.results.read
+    mutation: false
+  - key: odoo.results.by_delivery
+    method: GET
+    path: /api/v1/integration/results?delivery_id={delivery_id}
+    scope: odoo.integration.results.read
+    mutation: false
+  - key: odoo.results.reconcile
+    method: POST
+    path: /api/v1/integration/results/{result_public_id}/reconcile
+    scope: odoo.integration.results.reconcile
+    mutation: true
+  - key: odoo.desired_state.read
+    method: GET
+    path: /api/v1/integration/desired-state/{aggregate_type}/{public_id}
+    scope: odoo.integration.desired_state.read
+    mutation: false
+  - key: odoo.agents.read
+    method: GET
+    path: /api/v1/integration/agents/{agent_public_id}
+    scope: odoo.integration.desired_state.read
+    mutation: false
+  - key: odoo.leads.read
+    method: GET
+    path: /api/v1/integration/leads/{lead_public_id}
+    scope: odoo.integration.desired_state.read
+    mutation: false
+  - key: odoo.campaigns.read
+    method: GET
+    path: /api/v1/integration/campaigns/{campaign_public_id}
+    scope: odoo.integration.desired_state.read
+    mutation: false
+  - key: odoo.traces.read
+    method: GET
+    path: /api/v1/integration/traces/{correlation_id}
+    scope: odoo.integration.traces.read
+    mutation: false
+  - key: odoo.traces.by_record
+    method: GET
+    path: /api/v1/integration/traces?model={model}&res_id={id}
+    scope: odoo.integration.traces.read
+    mutation: false
+  - key: odoo.audit.read
+    method: GET
+    path: /api/v1/integration/audit/{audit_id}
+    scope: odoo.integration.audit.read
+    mutation: false
+  - key: odoo.capabilities.read
+    method: GET
+    path: /api/v1/integration/capabilities
+    scope: service.attest
+    mutation: false
+
+operations:
+  - key: odoo.health.live
+    method: GET
+    path: /health/live
+    authentication: private_network
+  - key: odoo.health.ready
+    method: GET
+    path: /health/ready
+    scope: monitor.read
+  - key: odoo.service.attest
+    method: GET
+    path: /.well-known/codestra-service
+    scope: service.attest
+  - key: odoo.metrics.read
+    method: GET
+    path: /metrics
+    scope: metrics.read
+
+webhook_boundary:
+  provider_webhooks_accepted: false
+  normalized_result_ingress: odoo.results.create
+  retired_routes:
+    - path: /codestra/integration/v1/results
+      response_status: 410

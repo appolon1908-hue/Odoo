@@ -1,0 +1,26 @@
+{
+    "name": "Codestra Contact Center Compliance",
+    "summary": "Campaign consent, DNC, calling hours, payment safety, and retention",
+    "version": "19.0.2.0.0",
+    "author": "Codestra",
+    "license": "LGPL-3",
+    "depends": [
+        "codestra_cc_security",
+        "codestra_cc_crm",
+        "codestra_cc_calls",
+        "codestra_cc_recordings",
+        "codestra_cc_wfm",
+        "codestra_vicidial_crm",
+        "call_center_compliance",
+        "codestra_cc_audit",
+    ],
+    "data": [
+        "security/groups.xml",
+        "security/ir.model.access.csv",
+        "security/compliance_security.xml",
+        "data/feature_flags.xml",
+        "views/compliance_views.xml",
+    ],
+    "installable": True,
+    "application": False,
+}

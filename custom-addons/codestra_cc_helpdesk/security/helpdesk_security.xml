@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="rule_cc_helpdesk_queue_global_scope" model="ir.rule">
+    <field name="name">Contact Center: helpdesk queue campaign scope</field>
+    <field name="model_id" ref="model_cc_helpdesk_queue"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_helpdesk_sla_global_scope" model="ir.rule">
+    <field name="name">Contact Center: helpdesk SLA campaign scope</field>
+    <field name="model_id" ref="model_cc_helpdesk_sla_policy"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_helpdesk_sla_operational_approved" model="ir.rule">
+    <field name="name">Contact Center: operational users see approved SLA only</field>
+    <field name="model_id" ref="model_cc_helpdesk_sla_policy"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_agent'))]"/>
+    <field name="domain_force">[('state', '=', 'approved')]</field>
+  </record>
+  <record id="rule_cc_helpdesk_ticket_global_scope" model="ir.rule">
+    <field name="name">Contact Center: helpdesk ticket campaign scope</field>
+    <field name="model_id" ref="model_cc_helpdesk_ticket"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_helpdesk_ticket_agent_assignment" model="ir.rule">
+    <field name="name">Contact Center: agents see assigned or queued tickets</field>
+    <field name="model_id" ref="model_cc_helpdesk_ticket"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_agent'))]"/>
+    <field name="domain_force">['|', ('assigned_user_id', '=', user.id), ('assigned_user_id', '=', False)]</field>
+  </record>
+  <record id="rule_cc_helpdesk_ticket_supervisor_campaign" model="ir.rule">
+    <field name="name">Contact Center: supervisors see campaign tickets</field>
+    <field name="model_id" ref="model_cc_helpdesk_ticket"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_supervisor'))]"/>
+    <field name="domain_force">[('campaign_id', 'in', user.cc_supervised_campaign_ids.ids)]</field>
+  </record>
+</odoo>

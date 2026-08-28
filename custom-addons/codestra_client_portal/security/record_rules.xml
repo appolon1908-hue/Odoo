@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="rule_codestra_client_contract_portal" model="ir.rule">
+    <field name="name">Portal contracts for commercial partner</field>
+    <field name="model_id" ref="codestra_client_operations.model_codestra_client_contract"/>
+    <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+    <field name="domain_force">[('client_id', '=', user.partner_id.commercial_partner_id.id)]</field>
+  </record>
+  <record id="rule_codestra_client_sla_portal" model="ir.rule">
+    <field name="name">Portal SLAs for commercial partner</field>
+    <field name="model_id" ref="codestra_client_operations.model_codestra_client_sla"/>
+    <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+    <field name="domain_force">[('contract_id.client_id', '=', user.partner_id.commercial_partner_id.id)]</field>
+  </record>
+  <record id="rule_codestra_billing_usage_portal" model="ir.rule">
+    <field name="name">Portal usage for commercial partner</field>
+    <field name="model_id" ref="codestra_revenue_assurance.model_codestra_billing_usage"/>
+    <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+    <field name="domain_force">[('contract_id.client_id', '=', user.partner_id.commercial_partner_id.id), ('state', 'in', ('approved', 'invoiced'))]</field>
+  </record>
+</odoo>

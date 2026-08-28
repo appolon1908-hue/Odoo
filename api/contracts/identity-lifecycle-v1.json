@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "canonical_issuer": "https://auth.codestra.co/realms/codestra",
+  "provisioning_owner": "codestra_identity_provisioning",
+  "systems": ["keycloak", "odoo", "vicidial", "sip", "mailbox", "agent_desktop"],
+  "workflow_rules": {
+    "approval_required": true,
+    "idempotency_required": true,
+    "per_system_results_required": true,
+    "compensation_required": true,
+    "reconciliation_required": true,
+    "interactive_access_disabled_first_on_offboarding": true,
+    "secret_values_persisted_in_odoo": false
+  },
+  "installation_side_effects": false
+}

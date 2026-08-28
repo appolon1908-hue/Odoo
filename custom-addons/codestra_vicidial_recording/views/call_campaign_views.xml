@@ -1,0 +1,51 @@
+<odoo>
+  <record id="view_vicidial_call_recording_form" model="ir.ui.view">
+    <field name="name">codestra.vicidial.call.recording.form</field>
+    <field name="model">codestra.vicidial.call</field>
+    <field name="arch" type="xml">
+      <form>
+        <sheet>
+          <div class="oe_button_box" name="button_box">
+            <button name="action_recording_references" type="object" class="oe_stat_button" icon="fa-play-circle">
+              <field name="recording_reference_count" widget="statinfo" string="Recordings"/>
+            </button>
+          </div>
+          <group>
+            <field name="name"/>
+            <field name="uniqueid"/>
+            <field name="campaign_id"/>
+            <field name="agent_id"/>
+            <field name="crm_lead_id"/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+  <record id="view_vicidial_campaign_recordings_form" model="ir.ui.view">
+    <field name="name">codestra.vicidial.campaign.recordings.form</field>
+    <field name="model">codestra.vicidial.campaign</field>
+    <field name="arch" type="xml">
+      <form>
+        <sheet>
+          <group><field name="name"/><field name="campaign_id"/></group>
+          <notebook>
+            <page string="Recordings">
+              <field name="recording_reference_ids" readonly="1">
+                <list create="false" delete="false">
+                  <field name="recording_uid"/>
+                  <field name="agent_id"/>
+                  <field name="duration_seconds"/>
+                  <field name="format"/>
+                  <field name="verified_at"/>
+                  <field name="retention_class"/>
+                  <field name="retention_until"/>
+                  <field name="storage_status"/>
+                </list>
+              </field>
+            </page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+</odoo>

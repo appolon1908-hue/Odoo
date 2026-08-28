@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_cc_customer_profile_list" model="ir.ui.view">
+    <field name="name">cc.customer.profile.list</field>
+    <field name="model">cc.customer.profile</field>
+    <field name="arch" type="xml">
+      <list create="false" delete="false">
+        <field name="name"/>
+        <field name="campaign_id"/>
+        <field name="assigned_user_id"/>
+        <field name="verification_state"/>
+        <field name="state"/>
+        <field name="write_date"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_cc_customer_profile_form" model="ir.ui.view">
+    <field name="name">cc.customer.profile.form</field>
+    <field name="model">cc.customer.profile</field>
+    <field name="arch" type="xml">
+      <form create="false" delete="false">
+        <header><field name="state" widget="statusbar"/></header>
+        <sheet>
+          <div class="oe_button_box" name="button_box">
+            <button name="action_open_leads" type="object" class="oe_stat_button" icon="fa-filter"><span>Campaign Leads</span></button>
+          </div>
+          <group>
+            <group>
+              <field name="name" readonly="1"/>
+              <field name="campaign_id" readonly="1" options="{'no_open': True}"/>
+              <field name="email_masked" readonly="1"/>
+              <field name="phone_masked" readonly="1"/>
+            </group>
+            <group>
+              <field name="assigned_user_id"/>
+              <field name="verification_state"/>
+              <field name="environment" readonly="1"/>
+              <field name="campaign_scope_version" readonly="1"/>
+            </group>
+          </group>
+          <group string="Verification"><field name="verification_checklist"/></group>
+          <notebook>
+            <page string="CRM"><field name="lead_ids" readonly="1"/></page>
+          </notebook>
+        </sheet>
+        <chatter/>
+      </form>
+    </field>
+  </record>
+  <record id="view_cc_customer_profile_search" model="ir.ui.view">
+    <field name="name">cc.customer.profile.search</field>
+    <field name="model">cc.customer.profile</field>
+    <field name="arch" type="xml">
+      <search>
+        <field name="name"/>
+        <field name="assigned_user_id"/>
+        <filter name="my_profiles" string="My Profiles" domain="[('assigned_user_id', '=', uid)]"/>
+        <group><filter name="group_state" string="State" context="{'group_by': 'state'}"/></group>
+      </search>
+    </field>
+  </record>
+  <record id="action_cc_customer_profiles" model="ir.actions.act_window">
+    <field name="name">Campaign Customers</field>
+    <field name="res_model">cc.customer.profile</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <record id="view_crm_lead_form_cc_workspace" model="ir.ui.view">
+    <field name="name">crm.lead.form.cc.workspace</field>
+    <field name="model">crm.lead</field>
+    <field name="inherit_id" ref="crm.crm_lead_view_form"/>
+    <field name="arch" type="xml">
+      <field name="name" position="after">
+        <field name="cc_contact_center_record" invisible="1"/>
+        <field name="campaign_id" groups="codestra_cc_security.group_cc_scoped_user" readonly="1" options="{'no_open': True}"/>
+        <field name="cc_customer_profile_id" groups="codestra_cc_security.group_cc_scoped_user" readonly="1" options="{'no_open': True}"/>
+        <field name="cc_source_list_key" groups="codestra_cc_security.group_cc_scoped_user" required="cc_customer_profile_id"/>
+        <field name="cc_consent_state" groups="codestra_cc_security.group_cc_scoped_user"/>
+      </field>
+    </field>
+  </record>
+
+  <menuitem id="menu_cc_workspace_root" name="Campaign Workspace" sequence="36" groups="codestra_cc_security.group_cc_scoped_user"/>
+  <menuitem id="menu_cc_customer_profiles" name="Customers" parent="menu_cc_workspace_root" action="action_cc_customer_profiles" sequence="10" groups="codestra_cc_security.group_cc_scoped_user"/>
+</odoo>

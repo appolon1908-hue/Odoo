@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+  <t t-name="codestra_appointments.AppointmentPopouts">
+    <div t-if="state.isDisplayed" class="o_codestra_popout_tools d-flex align-items-center" t-on-keydown="onKeydown">
+      <button class="o_navbar_item btn btn-link" title="Appointment calendar" aria-label="Open appointment calendar pop-out" t-att-aria-expanded="state.active === 'calendar'" t-on-click="() => this.toggle('calendar')">
+        <i class="fa fa-calendar" aria-hidden="true"/>
+      </button>
+      <button class="o_navbar_item btn btn-link" title="Reminder center" aria-label="Open reminder pop-out" t-att-aria-expanded="state.active === 'reminders'" t-on-click="() => this.toggle('reminders')">
+        <i class="fa fa-bell" aria-hidden="true"/>
+      </button>
+      <button class="o_navbar_item btn btn-link" title="Callback scheduler" aria-label="Open callback scheduler pop-out" t-att-aria-expanded="state.active === 'scheduler'" t-on-click="() => this.toggle('scheduler')">
+        <i class="fa fa-clock-o" aria-hidden="true"/>
+      </button>
+    </div>
+
+    <section t-if="state.isDisplayed &amp;&amp; state.active" class="o_codestra_schedule_popout" role="dialog" aria-modal="false" t-att-aria-label="title" t-on-keydown="onKeydown">
+      <header class="o_codestra_schedule_header">
+        <div>
+          <small>Codestra operations</small>
+          <h2 t-esc="title"/>
+        </div>
+        <div class="d-flex gap-1">
+          <button class="btn btn-sm btn-light" aria-label="Refresh scheduling data" title="Refresh" t-on-click="refresh"><i class="fa fa-refresh" aria-hidden="true"/></button>
+          <button class="btn btn-sm btn-light" aria-label="Close scheduling pop-out" title="Close" t-on-click="close"><i class="fa fa-times" aria-hidden="true"/></button>
+        </div>
+      </header>
+
+      <div t-if="state.loading" class="o_codestra_schedule_loading" role="status"><i class="fa fa-spinner fa-spin" aria-hidden="true"/> Loading...</div>
+      <p t-if="state.error" class="alert alert-danger m-3" role="alert" t-esc="state.error"/>
+
+      <div t-if="!state.loading &amp;&amp; !state.error" class="o_codestra_schedule_body">
+        <t t-if="state.active === 'calendar'">
+          <p t-if="!state.appointments.length" class="o_codestra_empty">No appointments in the next seven days.</p>
+          <button t-foreach="state.appointments" t-as="item" t-key="item.id" class="o_codestra_schedule_item" t-on-click="() => this.openRecord('codestra.call.appointment', item.id)">
+            <span class="o_codestra_item_time" t-esc="this.formatDateTime(item.scheduled_start)"/>
+            <strong t-esc="item.title"/>
+            <span><t t-esc="this.relationLabel(item.customer_id) || 'No customer'"/> · <t t-esc="this.relationLabel(item.campaign_id) || 'No campaign'"/></span>
+            <span class="badge text-bg-light" t-esc="item.state"/>
+          </button>
+        </t>
+
+        <t t-elif="state.active === 'reminders'">
+          <p t-if="!state.reminders.length" class="o_codestra_empty">No reminders due in the next 24 hours.</p>
+          <button t-foreach="state.reminders" t-as="item" t-key="item.id" class="o_codestra_schedule_item" t-on-click="() => this.openRecord('codestra.appointment.reminder.event', item.id)">
+            <span class="o_codestra_item_time" t-esc="this.formatDateTime(item.scheduled_at)"/>
+            <strong t-esc="item.event_type"/>
+            <span><t t-esc="this.relationLabel(item.appointment_id)"/> · <t t-esc="item.channel"/></span>
+            <span class="badge" t-att-class="item.state === 'failed' ? 'text-bg-danger' : (item.state === 'disabled' ? 'text-bg-secondary' : 'text-bg-warning')" t-esc="item.state"/>
+          </button>
+        </t>
+
+        <t t-else="">
+          <p t-if="!state.callbacks.length" class="o_codestra_empty">No open callbacks are scheduled.</p>
+          <button t-foreach="state.callbacks" t-as="item" t-key="item.id" class="o_codestra_schedule_item" t-on-click="() => this.openRecord('codestra.callback', item.id)">
+            <span class="o_codestra_item_time" t-esc="this.formatDateTime(item.scheduled_at)"/>
+            <strong t-esc="item.reason"/>
+            <span><t t-esc="this.relationLabel(item.contact_id) || 'No contact'"/> · <t t-esc="this.relationLabel(item.campaign_id) || 'No campaign'"/></span>
+            <span class="badge text-bg-info" t-esc="item.state"/>
+          </button>
+        </t>
+      </div>
+
+      <footer class="o_codestra_schedule_footer">
+        <button t-if="state.active === 'calendar'" class="btn btn-primary" t-on-click="createAppointment"><i class="fa fa-plus me-1" aria-hidden="true"/>New appointment</button>
+        <button t-if="state.active === 'calendar'" class="btn btn-outline-primary" t-on-click="() => this.openAction('codestra_appointments.appointment_action')">Full calendar</button>
+        <button t-if="state.active === 'reminders'" class="btn btn-outline-primary" t-on-click="() => this.openAction('codestra_appointments.reminder_event_action')">All reminders</button>
+        <button t-if="state.active === 'scheduler'" class="btn btn-primary" t-on-click="createCallback"><i class="fa fa-plus me-1" aria-hidden="true"/>New callback</button>
+        <button t-if="state.active === 'scheduler'" class="btn btn-outline-primary" t-on-click="() => this.openAction('codestra_appointments.callback_action')">Full scheduler</button>
+      </footer>
+    </section>
+  </t>
+</templates>

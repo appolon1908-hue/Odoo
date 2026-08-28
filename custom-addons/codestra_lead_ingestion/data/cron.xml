@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+  <record id="cron_process_pending_batches" model="ir.cron">
+    <field name="name">Lead Ingestion: Process Pending Batches</field><field name="model_id" ref="model_codestra_lead_import_batch"/>
+    <field name="state">code</field><field name="code">model._cron_process_pending()</field><field name="interval_number">5</field><field name="interval_type">minutes</field><field name="active" eval="False"/>
+  </record>
+  <record id="cron_publish_outbox" model="ir.cron">
+    <field name="name">Lead Ingestion: Publish Outbox</field><field name="model_id" ref="model_codestra_lead_import_outbox"/>
+    <field name="state">code</field><field name="code">model._cron_publish()</field><field name="interval_number">1</field><field name="interval_type">minutes</field><field name="active" eval="False"/>
+  </record>
+  <record id="cron_import_chunks" model="ir.cron">
+    <field name="name">Lead Ingestion: Process Import Chunks</field><field name="model_id" ref="model_codestra_lead_import_batch"/>
+    <field name="state">code</field><field name="code">model._cron_import_chunks()</field><field name="interval_number">5</field><field name="interval_type">minutes</field><field name="active" eval="False"/>
+  </record>
+  <record id="cron_reconcile_batches" model="ir.cron">
+    <field name="name">Lead Ingestion: Reconciliation Polling</field><field name="model_id" ref="model_codestra_lead_import_batch"/>
+    <field name="state">code</field><field name="code">model._cron_reconcile()</field><field name="interval_number">10</field><field name="interval_type">minutes</field><field name="active" eval="False"/>
+  </record>
+  <record id="cron_retry_outbox" model="ir.cron">
+    <field name="name">Lead Ingestion: Retry and Dead Letter</field><field name="model_id" ref="model_codestra_lead_import_outbox"/>
+    <field name="state">code</field><field name="code">model._cron_retry_and_dead_letter()</field><field name="interval_number">5</field><field name="interval_type">minutes</field><field name="active" eval="False"/>
+  </record>
+  <record id="cron_retention_cleanup" model="ir.cron">
+    <field name="name">Lead Ingestion: Retention Cleanup</field><field name="model_id" ref="model_codestra_lead_import_batch"/>
+    <field name="state">code</field><field name="code">model._cron_retention_cleanup()</field><field name="interval_number">1</field><field name="interval_type">days</field><field name="active" eval="False"/>
+  </record>
+  <record id="cron_orphaned_attachments" model="ir.cron">
+    <field name="name">Lead Ingestion: Orphaned Attachment Report</field><field name="model_id" ref="model_codestra_lead_import_outbox"/>
+    <field name="state">code</field><field name="code">model._cron_orphaned_attachments()</field><field name="interval_number">1</field><field name="interval_type">days</field><field name="active" eval="False"/>
+  </record>
+  <record id="cron_stale_batch_alerts" model="ir.cron">
+    <field name="name">Lead Ingestion: Stale Batch Alerts</field><field name="model_id" ref="model_codestra_lead_import_batch"/>
+    <field name="state">code</field><field name="code">model._cron_stale_batch_alerts()</field><field name="interval_number">30</field><field name="interval_type">minutes</field><field name="active" eval="False"/>
+  </record>
+  <record id="cron_metrics" model="ir.cron">
+    <field name="name">Lead Ingestion: Metrics Aggregation</field><field name="model_id" ref="model_codestra_lead_import_batch"/>
+    <field name="state">code</field><field name="code">model._cron_metrics()</field><field name="interval_number">15</field><field name="interval_type">minutes</field><field name="active" eval="False"/>
+  </record>
+</odoo>

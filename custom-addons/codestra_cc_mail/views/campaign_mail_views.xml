@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_cc_mail_route_list" model="ir.ui.view">
+    <field name="name">cc.mail.route.list</field>
+    <field name="model">cc.mail.route</field>
+    <field name="arch" type="xml">
+      <list create="true" delete="false">
+        <field name="campaign_id"/><field name="campaign_code"/><field name="route_class"/><field name="address"/>
+        <field name="direction"/><field name="state"/><field name="external_send_enabled"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_cc_mail_route_form" model="ir.ui.view">
+    <field name="name">cc.mail.route.form</field>
+    <field name="model">cc.mail.route</field>
+    <field name="arch" type="xml">
+      <form create="true" delete="false">
+        <header>
+          <button name="action_submit" type="object" string="Submit" invisible="state != 'draft'"/>
+          <button name="action_approve_for_staging" type="object" string="Approve for Staging" groups="codestra_cc_security.group_cc_global_administrator" invisible="state != 'pending_approval'"/>
+          <field name="state" widget="statusbar" statusbar_visible="draft,pending_approval,testing,provisioned_disabled,blocked,retired"/>
+        </header>
+        <sheet>
+          <group><group>
+            <field name="name"/><field name="campaign_id"/><field name="campaign_code" readonly="1"/><field name="route_class"/>
+            <field name="direction"/><field name="local_part"/><field name="domain"/><field name="address" readonly="1"/>
+          </group><group>
+            <field name="source_ticket"/><field name="requested_by_id" readonly="1"/>
+            <field name="approved_by_id" readonly="1"/><field name="approved_at" readonly="1"/>
+            <field name="odoo_alias_id" readonly="1"/><field name="legacy_team_id" readonly="1"/>
+            <field name="inbound_mutation_enabled" readonly="1"/><field name="external_send_enabled" readonly="1"/>
+          </group></group>
+          <notebook>
+            <page string="Sender Identity"><field name="sender_identity_id" readonly="1"/></page>
+            <page string="Distribution Group"><field name="distribution_group_id" readonly="1"/></page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+  <record id="action_cc_mail_route" model="ir.actions.act_window">
+    <field name="name">Campaign Mail Routes</field><field name="res_model">cc.mail.route</field><field name="view_mode">list,form</field>
+  </record>
+
+  <record id="view_cc_mail_thread_list" model="ir.ui.view">
+    <field name="name">cc.mail.thread.list</field><field name="model">cc.mail.thread</field>
+    <field name="arch" type="xml"><list create="false" delete="false"><field name="subject"/><field name="campaign_id"/><field name="route_id"/><field name="recipient"/><field name="state"/><field name="write_date"/></list></field>
+  </record>
+  <record id="view_cc_mail_thread_form" model="ir.ui.view">
+    <field name="name">cc.mail.thread.form</field><field name="model">cc.mail.thread</field>
+    <field name="arch" type="xml"><form create="false" delete="false"><sheet><group><field name="subject"/><field name="campaign_id" readonly="1"/><field name="route_id" readonly="1"/><field name="recipient" readonly="1"/><field name="state"/></group><chatter/></sheet></form></field>
+  </record>
+  <record id="action_cc_mail_thread" model="ir.actions.act_window">
+    <field name="name">Campaign Mail</field><field name="res_model">cc.mail.thread</field><field name="view_mode">list,form</field>
+  </record>
+
+  <record id="view_cc_mail_quarantine_list" model="ir.ui.view">
+    <field name="name">cc.mail.quarantine.list</field><field name="model">cc.mail.quarantine</field>
+    <field name="arch" type="xml"><list create="false" delete="false"><field name="create_date"/><field name="campaign_id"/><field name="route_id"/><field name="reason"/><field name="payload_hash"/></list></field>
+  </record>
+  <record id="action_cc_mail_quarantine" model="ir.actions.act_window">
+    <field name="name">Mail Quarantine</field><field name="res_model">cc.mail.quarantine</field><field name="view_mode">list</field>
+  </record>
+
+  <menuitem id="menu_cc_campaign_mail" name="Campaign Mail" parent="call_center_core.menu_call_center_root" action="action_cc_mail_thread" sequence="32" groups="codestra_cc_security.group_cc_scoped_user,codestra_cc_security.group_cc_global_administrator"/>
+  <menuitem id="menu_cc_mail_route" name="Campaign Mail Routes" parent="call_center_core.menu_call_center_configuration" action="action_cc_mail_route" sequence="39" groups="codestra_cc_security.group_cc_campaign_configuration_manager,codestra_cc_security.group_cc_global_administrator,codestra_cc_security.group_cc_auditor"/>
+  <menuitem id="menu_cc_mail_quarantine" name="Mail Quarantine" parent="call_center_core.menu_call_center_configuration" action="action_cc_mail_quarantine" sequence="40" groups="codestra_cc_security.group_cc_global_administrator,codestra_cc_security.group_cc_auditor"/>
+</odoo>

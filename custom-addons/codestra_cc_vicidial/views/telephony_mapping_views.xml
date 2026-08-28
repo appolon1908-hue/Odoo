@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_cc_telephony_mapping_list" model="ir.ui.view">
+    <field name="name">cc.telephony.mapping.list</field>
+    <field name="model">cc.telephony.mapping</field>
+    <field name="arch" type="xml">
+      <list create="false" edit="false" delete="false" default_order="canonical_campaign_code">
+        <field name="canonical_campaign_code"/>
+        <field name="vicidial_campaign_id"/>
+        <field name="business_unit_code"/>
+        <field name="direction"/>
+        <field name="technical_callback_compatibility"/>
+        <field name="agent_login_allowed"/>
+        <field name="catalog_status"/>
+        <field name="legacy_classification"/>
+        <field name="migration_state"/>
+        <field name="reconciliation_status"/>
+        <field name="last_readback_at" optional="hide"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_cc_telephony_mapping_form" model="ir.ui.view">
+    <field name="name">cc.telephony.mapping.form</field>
+    <field name="model">cc.telephony.mapping</field>
+    <field name="arch" type="xml">
+      <form create="false" edit="false" delete="false">
+        <sheet>
+          <div class="oe_title"><h1><field name="canonical_campaign_code" readonly="1"/></h1></div>
+          <group>
+            <group>
+              <field name="mapping_uuid"/>
+              <field name="campaign_id" options="{'no_open': True}"/>
+              <field name="channel_id" options="{'no_open': True}"/>
+              <field name="business_unit_code"/>
+              <field name="environment"/>
+              <field name="direction"/>
+            </group>
+            <group>
+              <field name="vicidial_campaign_id"/>
+              <field name="legacy_vicidial_campaign_id"/>
+              <field name="technical_callback_compatibility"/>
+              <field name="agent_login_allowed"/>
+              <field name="legacy_classification"/>
+              <field name="migration_state"/>
+            </group>
+          </group>
+          <group string="Incomplete controlled catalog">
+            <group>
+              <field name="vicidial_user_group_id"/>
+              <field name="vicidial_inbound_group_id"/>
+              <field name="default_list_id"/>
+            </group>
+            <group>
+              <field name="vicidial_script_id"/>
+              <field name="disposition_set_key"/>
+              <field name="email_alias_key"/>
+            </group>
+          </group>
+          <group string="Fail-closed desired state">
+            <group>
+              <field name="desired_external_state"/>
+              <field name="desired_enabled"/>
+              <field name="provisioning_enabled"/>
+              <field name="agent_sync_enabled"/>
+              <field name="live_call_control_enabled"/>
+            </group>
+            <group>
+              <field name="mapping_version"/>
+              <field name="desired_state_hash"/>
+              <field name="catalog_sha256"/>
+              <field name="catalog_row_sha256"/>
+            </group>
+          </group>
+          <group string="Last authoritative read-back">
+            <field name="reconciliation_status"/>
+            <field name="last_readback_id" options="{'no_open': True}"/>
+            <field name="last_readback_at"/>
+            <field name="last_observed_vicidial_campaign_id"/>
+            <field name="last_observed_enabled"/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+  <record id="view_cc_telephony_mapping_search" model="ir.ui.view">
+    <field name="name">cc.telephony.mapping.search</field>
+    <field name="model">cc.telephony.mapping</field>
+    <field name="arch" type="xml">
+      <search>
+        <field name="canonical_campaign_code"/>
+        <field name="vicidial_campaign_id"/>
+        <field name="mapping_uuid"/>
+        <filter name="callback_compatibility" string="Callback Compatibility" domain="[('technical_callback_compatibility', '=', True)]"/>
+        <filter name="not_observed" string="Not Observed" domain="[('reconciliation_status', '=', 'not_observed')]"/>
+        <group><filter name="group_business_unit" string="Business Unit" context="{'group_by': 'business_unit_id'}"/></group>
+      </search>
+    </field>
+  </record>
+  <record id="action_cc_telephony_mappings" model="ir.actions.act_window">
+    <field name="name">VICIdial Campaign Mappings</field>
+    <field name="res_model">cc.telephony.mapping</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <record id="view_cc_telephony_readback_list" model="ir.ui.view">
+    <field name="name">cc.telephony.readback.list</field>
+    <field name="model">cc.telephony.readback</field>
+    <field name="arch" type="xml">
+      <list create="false" edit="false" delete="false" default_order="recorded_at desc">
+        <field name="recorded_at"/>
+        <field name="mapping_id"/>
+        <field name="event_id"/>
+        <field name="source_system"/>
+        <field name="observed_vicidial_campaign_id"/>
+        <field name="observed_exists"/>
+        <field name="observed_enabled"/>
+        <field name="result"/>
+        <field name="evidence_reference" optional="hide"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_cc_telephony_readback_form" model="ir.ui.view">
+    <field name="name">cc.telephony.readback.form</field>
+    <field name="model">cc.telephony.readback</field>
+    <field name="arch" type="xml">
+      <form create="false" edit="false" delete="false">
+        <sheet>
+          <group>
+            <group>
+              <field name="recorded_at"/>
+              <field name="event_id"/>
+              <field name="source_system"/>
+              <field name="mapping_id" options="{'no_open': True}"/>
+              <field name="campaign_id" options="{'no_open': True}"/>
+            </group>
+            <group>
+              <field name="observed_vicidial_campaign_id"/>
+              <field name="observed_exists"/>
+              <field name="observed_enabled"/>
+              <field name="result"/>
+            </group>
+          </group>
+          <group string="Retained evidence">
+            <field name="observed_payload_hash"/>
+            <field name="event_fingerprint"/>
+            <field name="evidence_reference"/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+  <record id="action_cc_telephony_readbacks" model="ir.actions.act_window">
+    <field name="name">VICIdial Mapping Read-backs</field>
+    <field name="res_model">cc.telephony.readback</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <menuitem id="menu_cc_vicidial_root" name="VICIdial Mapping Boundary" parent="call_center_core.menu_call_center_configuration" sequence="15" groups="codestra_cc_security.group_cc_campaign_configuration_manager,codestra_cc_security.group_cc_auditor,codestra_cc_security.group_cc_global_administrator"/>
+  <menuitem id="menu_cc_telephony_mappings" name="Campaign Mappings" parent="menu_cc_vicidial_root" action="action_cc_telephony_mappings" sequence="10"/>
+  <menuitem id="menu_cc_telephony_readbacks" name="Read-back Evidence" parent="menu_cc_vicidial_root" action="action_cc_telephony_readbacks" sequence="20"/>
+</odoo>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+  <record id="sequence_codestra_data_quality_issue" model="ir.sequence">
+    <field name="name">Codestra Data Quality Issue</field>
+    <field name="code">codestra.data.quality.issue</field>
+    <field name="prefix">DQ-%(year)s-</field>
+    <field name="padding">7</field>
+    <field name="company_id" eval="False"/>
+  </record>
+</odoo>

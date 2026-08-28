@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_codestra_case_list" model="ir.ui.view">
+    <field name="name">codestra.case.list</field>
+    <field name="model">codestra.case</field>
+    <field name="arch" type="xml">
+      <list string="Cases" default_order="priority desc, opened_at desc">
+        <field name="name"/>
+        <field name="category"/>
+        <field name="partner_id"/>
+        <field name="campaign_id"/>
+        <field name="priority" widget="priority"/>
+        <field name="state"/>
+        <field name="owner_id"/>
+        <field name="due_at"/>
+        <field name="company_id" groups="base.group_multi_company"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_codestra_case_search" model="ir.ui.view">
+    <field name="name">codestra.case.search</field>
+    <field name="model">codestra.case</field>
+    <field name="arch" type="xml">
+      <search string="Cases">
+        <field name="name"/>
+        <field name="summary"/>
+        <field name="partner_id"/>
+        <field name="campaign_id"/>
+        <field name="owner_id"/>
+        <filter string="My Cases" name="my_cases" domain="[('owner_id', '=', uid)]"/>
+        <filter string="Open" name="open_cases" domain="[('state', 'not in', ('closed', 'cancelled'))]"/>
+        <group>
+          <filter string="State" name="group_state" context="{'group_by': 'state'}"/>
+          <filter string="Category" name="group_category" context="{'group_by': 'category'}"/>
+          <filter string="Campaign" name="group_campaign" context="{'group_by': 'campaign_id'}"/>
+          <filter string="Owner" name="group_owner" context="{'group_by': 'owner_id'}"/>
+        </group>
+      </search>
+    </field>
+  </record>
+
+  <record id="view_codestra_case_form" model="ir.ui.view">
+    <field name="name">codestra.case.form</field>
+    <field name="model">codestra.case</field>
+    <field name="arch" type="xml">
+      <form string="Case">
+        <header>
+          <button name="action_start" type="object" string="Start" class="btn-primary" invisible="state != 'new'"/>
+          <button name="action_escalate" type="object" string="Escalate" invisible="state != 'in_progress'"/>
+          <button name="action_resolve" type="object" string="Resolve" class="btn-primary" invisible="state not in ('in_progress', 'escalated')"/>
+          <button name="action_close" type="object" string="Close" invisible="state != 'resolved'"/>
+          <button name="action_cancel" type="object" string="Cancel" invisible="state not in ('new', 'in_progress', 'escalated')"/>
+          <button name="action_reopen" type="object" string="Reopen" invisible="state not in ('resolved', 'closed', 'cancelled')"/>
+          <field name="state" widget="statusbar" statusbar_visible="new,in_progress,escalated,resolved,closed"/>
+        </header>
+        <sheet>
+          <div class="oe_title">
+            <label for="name"/>
+            <h1><field name="name"/></h1>
+            <h2><field name="summary" placeholder="Case summary"/></h2>
+          </div>
+          <group>
+            <group>
+              <field name="category"/>
+              <field name="priority" widget="priority"/>
+              <field name="owner_id"/>
+              <field name="company_id" groups="base.group_multi_company"/>
+            </group>
+            <group>
+              <field name="partner_id"/>
+              <field name="lead_id"/>
+              <field name="campaign_id"/>
+              <field name="call_id"/>
+            </group>
+          </group>
+          <group>
+            <field name="opened_at"/>
+            <field name="due_at"/>
+            <field name="closed_at" readonly="1"/>
+            <field name="evidence_reference"/>
+          </group>
+          <notebook>
+            <page string="Details">
+              <field name="description" placeholder="Describe the complaint, dispute, refund review, incident, or escalation."/>
+            </page>
+            <page string="Escalation">
+              <field name="escalation_reason"/>
+            </page>
+            <page string="Resolution">
+              <field name="resolution"/>
+            </page>
+          </notebook>
+        </sheet>
+        <chatter/>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_codestra_cases" model="ir.actions.act_window">
+    <field name="name">Cases</field>
+    <field name="res_model">codestra.case</field>
+    <field name="view_mode">list,form</field>
+    <field name="search_view_id" ref="view_codestra_case_search"/>
+  </record>
+
+  <menuitem id="menu_codestra_cases" name="Cases" parent="call_center_core.menu_call_center_root" action="action_codestra_cases" sequence="70" groups="call_center_core.group_call_center_user"/>
+</odoo>

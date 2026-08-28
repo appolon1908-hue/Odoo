@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <!-- Idempotent adoption only. It creates canonical one-to-one wrappers and
+       disabled channel projections; it does not activate or publish anything. -->
+  <function model="cc.business.unit" name="_adopt_legacy_records"/>
+</odoo>

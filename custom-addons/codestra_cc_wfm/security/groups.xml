@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="group_cc_workforce_event_service" model="res.groups">
+    <field name="name">Contact Center Workforce Event Service</field>
+    <field name="implied_ids" eval="[(6, 0, [ref('base.group_user')])]"/>
+  </record>
+</odoo>
