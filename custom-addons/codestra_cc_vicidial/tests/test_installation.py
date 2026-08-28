@@ -152,7 +152,7 @@ class TestCodestraCcVicidialBoundary(TransactionCase):
             "disposition_set_key",
             "email_alias_key",
         ):
-            self.assertFalse(mappings.mapped(field_name))
+            self.assertFalse(mappings.filtered(field_name))
         self.assertFalse(mappings.filtered("desired_enabled"))
         self.assertFalse(mappings.filtered("provisioning_enabled"))
         self.assertFalse(mappings.filtered("agent_sync_enabled"))
