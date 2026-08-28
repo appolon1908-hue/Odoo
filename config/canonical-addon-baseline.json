@@ -66,7 +66,7 @@
     },
     "codestra_appointments": {
       "base_tree": "5812f7df199b0d5525ee7dd6a9fdc9d314947f6f",
-      "current_tree": "8b695b7e43301868b2861de818b53f0eda5efca2",
+      "current_tree": "e0f353e40a6c99d8b82ceb50059383d0556f48c3",
       "reason": "Extend the canonical VICIdial callback model with the governed appointment, reminder, and scheduler lifecycle; separate Odoo and physical campaign identities; add restartable upgrade reconciliation; deliver accessible pop-outs with real-browser regression coverage; scope child records through their parent appointment; enqueue legacy completions; and constrain callback synchronization destinations.",
       "pull_request": 38,
       "integration_boundary_exceptions": [
