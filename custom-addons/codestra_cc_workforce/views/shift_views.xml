@@ -66,5 +66,5 @@
     <field name="view_mode">list,form</field>
   </record>
 
-  <menuitem id="menu_codestra_cc_shifts" name="Workforce" parent="call_center_core.menu_call_center_root" action="action_codestra_cc_shifts" sequence="75" groups="call_center_core.group_call_center_user"/>
+  <menuitem id="menu_codestra_cc_shifts" name="Legacy Workforce Shifts" parent="call_center_core.menu_call_center_root" action="action_codestra_cc_shifts" sequence="75" groups="base.group_no_one"/>
 </odoo>

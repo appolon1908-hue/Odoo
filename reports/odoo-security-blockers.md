@@ -1,5 +1,21 @@
 # Odoo contact-center security blockers
 
+## Workforce and reporting branch
+
+- All 93 campaign workforce and reporting policy seeds are absent; the generated
+  WFM matrix therefore remains `PARTIAL` and external state read-back is
+  `NOT_TESTED`.
+- The private event-service boundary accepts only normalized adherence and
+  aggregate metrics. It has no public route, external writer, customer fields,
+  or raw payload storage.
+- Legacy company-only shift ACLs are closed and its menu is retired. Canonical
+  schedules require immutable campaign and active agent-membership bindings.
+- Agents see only their schedules, adherence, and agent-level KPI snapshots.
+  Supervisor and WFM views are campaign-scoped; aggregate snapshots contain no
+  customer or recording identifiers.
+- Raw KPI export is blocked. The staging path creates a reason-hashed,
+  checksummed, expiring manifest only and returns no business rows.
+
 Assessment date: 2026-08-28
 
 Recommendation: `STAGING-ONLY`
