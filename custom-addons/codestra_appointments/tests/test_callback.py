@@ -70,6 +70,19 @@ class TestCallbackState(TransactionCase):
         self.assertFalse(callback.vicidial_campaign_id)
         self.assertEqual(callback.owner_id, self.env.user)
 
+    def test_calendar_reminder_and_scheduler_popout_actions(self):
+        appointment_action = self.env.ref("codestra_appointments.appointment_action")
+        reminder_action = self.env.ref("codestra_appointments.reminder_event_action")
+        callback_action = self.env.ref("codestra_appointments.callback_action")
+        self.assertEqual(appointment_action.res_model, "codestra.call.appointment")
+        self.assertEqual(appointment_action.view_mode, "calendar,list,form")
+        self.assertEqual(reminder_action.res_model, "codestra.appointment.reminder.event")
+        self.assertEqual(callback_action.view_mode, "calendar,list,form")
+        appointment_calendar = self.env.ref("codestra_appointments.appointment_calendar")
+        callback_calendar = self.env.ref("codestra_appointments.callback_calendar")
+        self.assertIn('date_start="scheduled_start"', appointment_calendar.arch_db)
+        self.assertIn('date_start="scheduled_at"', callback_calendar.arch_db)
+
     def test_disabled_sync_does_not_enqueue(self):
         callback = self._callback()
         with patch.dict("os.environ", {"CODESTRA_CALLBACK_SYNC_ENABLED": "false"}):
