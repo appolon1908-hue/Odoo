@@ -810,9 +810,45 @@ class CcDisposition(models.Model):
             "_cc_disposition_catalog_capability"
         ) is not DISPOSITION_CATALOG_CAPABILITY:
             raise AccessError(_("Dispositions require the controlled catalog importer."))
+        for values in values_list:
+            self._validate_catalog_values(values)
         records = super().create(values_list)
         records._check_catalog_identity()
         return records
+
+    @api.model
+    def _validate_catalog_values(self, values):
+        legacy = self.env["codestra.disposition"].browse(
+            values.get("legacy_disposition_id")
+        ).exists()
+        disposition_set = self.env["cc.disposition.set"].browse(
+            values.get("set_id")
+        ).exists()
+        channel = self.env["cc.campaign.channel"].browse(
+            values.get("channel_id")
+        ).exists()
+        if not legacy or not disposition_set or not channel:
+            raise ValidationError(
+                _("A controlled row requires an existing legacy row, set, and channel.")
+            )
+        if disposition_set.state != "draft":
+            raise ValidationError(_("Only a draft disposition set can receive rows."))
+        if channel.campaign_id != disposition_set.campaign_id:
+            raise ValidationError(_("Disposition channel and set must share a campaign."))
+        if legacy.campaign_id != disposition_set.campaign_id.legacy_campaign_id:
+            raise ValidationError(_("Legacy and canonical dispositions must share a campaign."))
+        if not re.fullmatch(r"[A-Z0-9]{1,6}", legacy.vicidial_status_code or ""):
+            raise ValidationError(
+                _("VICIdial status codes must be one to six uppercase characters.")
+            )
+        if not SHA256_PATTERN.fullmatch(
+            str(values.get("catalog_row_sha256") or "").lower()
+        ):
+            raise ValidationError(_("Disposition rows require a SHA-256 source hash."))
+        if not EVENT_NAME_PATTERN.fullmatch(str(values.get("event_name") or "")):
+            raise ValidationError(_("Disposition event names must be versioned cc events."))
+        if legacy.callback_required and values.get("callback_behavior", "none") == "none":
+            raise ValidationError(_("Callback dispositions require callback behavior."))
 
     def write(self, values):
         if self.env.context.get(

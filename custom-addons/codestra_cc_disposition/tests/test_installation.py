@@ -23,7 +23,7 @@ class TestGovernedScriptsAndDispositions(TransactionCase):
             [("code", "=", "COD-WEB-OUT")], limit=1
         )
         cls.campaign_b = cls.Campaign.search(
-            [("id", "!=", cls.campaign_a.id)], limit=1
+            [("id", "!=", cls.campaign_a.id), ("channel_ids", "!=", False)], limit=1
         )
         cls.channel_a = cls.env["cc.campaign.channel"].with_context(
             active_test=False
