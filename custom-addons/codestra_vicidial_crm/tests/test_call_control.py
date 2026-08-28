@@ -157,6 +157,7 @@ class TestCallControl(TransactionCase):
 
     def test_callback_replay_returns_the_original_callback(self):
         call = self.call("callback-replay")
+        call.normalized_number = "+18095550100"
         lead = self.env["crm.lead"].create({"name": "Synthetic Callback Lead"})
         call.crm_lead_id = lead
         controller = call_control_controller.CallControlAPI()

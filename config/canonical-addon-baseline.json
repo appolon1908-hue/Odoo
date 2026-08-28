@@ -141,7 +141,7 @@
     },
     "codestra_vicidial_crm": {
       "base_tree": "cf0783918b94c3e396d24ebe868c4fb04096e4a1",
-      "current_tree": "61618a1d8b7386c7c6a16fb1b485416219e97dd0",
+      "current_tree": "617313316effd26e37ac8e39b688e1aeb925a5fb",
       "reason": "Preserve the Odoo 19 asset repair and supported click-to-call RPC client; remove the duplicate callback schema; make idempotent callback replay return the original result; and constrain the existing Middleware client to credential-free HTTPS destinations.",
       "pull_request": 38,
       "integration_boundary_exceptions": [
