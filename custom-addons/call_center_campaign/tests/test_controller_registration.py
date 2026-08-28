@@ -12,14 +12,16 @@ class TestControllerRegistration(TransactionCase):
         self.assertIn("from . import controllers", initializer)
 
     def test_governed_outbox_does_not_alias_lead_ingestion_outbox(self):
-        """Both installed addons must retain independent durable schemas."""
-        if "codestra.integration.outbox" not in self.env:
-            self.skipTest("lead-ingestion addon is not installed in this database")
+        """The reverse-dependent add-on must retain an independent schema."""
         governed = self.env["codestra.runtime.integration.outbox"]
-        ingestion = self.env["codestra.integration.outbox"]
+        addon_root = Path(campaign_package.__file__).parents[1]
+        ingestion_source = (
+            addon_root / "codestra_lead_ingestion" / "models" / "import_models.py"
+        ).read_text(encoding="utf-8")
 
-        self.assertNotEqual(governed._name, ingestion._name)
-        self.assertNotEqual(governed._table, ingestion._table)
+        self.assertEqual(governed._name, "codestra.runtime.integration.outbox")
+        self.assertNotEqual(governed._name, "codestra.lead.import.outbox")
         self.assertTrue(hasattr(governed, "_create_internal"))
         self.assertIn("record_environment", governed._fields)
-        self.assertIn("batch_id", ingestion._fields)
+        self.assertIn('_name = "codestra.lead.import.outbox"', ingestion_source)
+        self.assertIn("batch_id = fields.Many2one", ingestion_source)
