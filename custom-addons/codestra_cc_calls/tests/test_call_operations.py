@@ -348,7 +348,10 @@ class TestCampaignCallOperations(TransactionCase):
         )
         self.assertEqual(transfer.state, "validated")
         self.assertEqual(transfer.campaign_id, self.campaign_a)
-        self.assertEqual(transfer.destination_membership_id.campaign_id, self.campaign_a)
+        self.assertEqual(transfer.route_id.campaign_id, self.campaign_a)
+        self.assertEqual(transfer.route_id.destination_code, "SUPERVISOR")
+        with self.assertRaises(AccessError):
+            transfer.destination_membership_id.campaign_id
         self.assertEqual(transfer.event_ids.event_type, "cc.transfer.validated.v1")
         self.assertEqual(
             self.env["cc.operation.outbox"].with_user(self.agent_a).search_count(
