@@ -28,6 +28,11 @@ class TestCampaignWorkforceWorkflow(TransactionCase):
             "cc-wfm-approver@example.invalid",
             ["codestra_cc_security.group_cc_global_administrator"],
         )
+        cls.membership_requester = cls._create_user(
+            "WFM Membership Requester",
+            "cc-wfm-membership-requester@example.invalid",
+            ["codestra_cc_security.group_cc_global_administrator"],
+        )
         cls.identity_service = cls._create_user(
             "WFM Identity Service",
             "cc-wfm-identity@example.invalid",
@@ -62,6 +67,9 @@ class TestCampaignWorkforceWorkflow(TransactionCase):
             "WFM Analyst B",
             "cc-wfm-b@example.invalid",
             ["codestra_cc_security.group_cc_workforce_analyst"],
+        )
+        cls.author_membership = cls._activate_membership(
+            cls.author, cls.campaign_a, "WFM-CONFIG-A", "config_manager"
         )
         cls.agent_membership_a = cls._activate_membership(
             cls.agent_a, cls.campaign_a, "WFM-AGENT-A", "agent"
@@ -110,19 +118,21 @@ class TestCampaignWorkforceWorkflow(TransactionCase):
         employee = cls.env["hr.employee"].create(
             {"name": user.name, "user_id": user.id, "company_id": cls.env.company.id}
         )
-        membership = cls.env["cc.campaign.membership"].with_user(cls.approver).create(
+        membership = cls.env["cc.campaign.membership"].with_user(
+            cls.membership_requester
+        ).create(
             {
                 "user_id": user.id,
                 "employee_id": employee.id,
                 "campaign_id": campaign.id,
                 "role": role,
                 "is_primary_supervisor": is_primary_supervisor,
-                "requested_by_id": cls.approver.id,
+                "requested_by_id": cls.membership_requester.id,
                 "source_ticket": ticket,
                 "starts_at": fields.Datetime.now(),
             }
         )
-        membership.with_user(cls.approver).action_submit_identity()
+        membership.with_user(cls.membership_requester).action_submit_identity()
         operation = membership.with_user(cls.approver).action_approve_identity()
         operation.with_user(cls.identity_service).action_record_readback(
             {

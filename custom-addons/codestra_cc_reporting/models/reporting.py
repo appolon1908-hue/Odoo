@@ -337,6 +337,14 @@ class CcKpiDefinition(models.Model):
     def create(self, values_list):
         if not (_is_global_admin(self.env.user) or _is_configuration_manager(self.env.user)):
             raise AccessError(_("Only campaign configuration may define KPI metrics."))
+        for values in values_list:
+            policy = self.env["cc.reporting.policy"].browse(
+                values.get("policy_id")
+            ).exists()
+            if not policy or policy.state != "draft":
+                raise AccessError(_("KPI definitions require a draft reporting policy."))
+            if policy.author_id != self.env.user and not _is_global_admin(self.env.user):
+                raise AccessError(_("Only the reporting-policy author may define KPI metrics."))
         records = super().create(values_list)
         records._check_definition()
         return records

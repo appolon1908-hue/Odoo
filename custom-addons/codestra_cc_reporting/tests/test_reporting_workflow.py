@@ -26,6 +26,11 @@ class TestCampaignReportingWorkflow(TransactionCase):
             "cc-report-approver@example.invalid",
             ["codestra_cc_security.group_cc_global_administrator"],
         )
+        cls.membership_requester = cls._create_user(
+            "Reporting Membership Requester",
+            "cc-report-membership-requester@example.invalid",
+            ["codestra_cc_security.group_cc_global_administrator"],
+        )
         cls.identity_service = cls._create_user(
             "Reporting Identity Service",
             "cc-report-identity@example.invalid",
@@ -55,6 +60,9 @@ class TestCampaignReportingWorkflow(TransactionCase):
             "Reporting WFM A",
             "cc-report-wfm-a@example.invalid",
             ["codestra_cc_security.group_cc_workforce_analyst"],
+        )
+        cls.author_membership = cls._activate_membership(
+            cls.author, cls.campaign_a, "REPORT-CONFIG-A", "config_manager"
         )
         cls.agent_membership_a = cls._activate_membership(
             cls.agent_a, cls.campaign_a, "REPORT-AGENT-A", "agent"
@@ -115,6 +123,7 @@ class TestCampaignReportingWorkflow(TransactionCase):
         cls.policy.with_user(cls.author).action_submit()
         cls.policy.with_user(cls.approver).action_approve()
         cls.policy.with_user(cls.approver).action_activate()
+        cls.cutoff = fields.Datetime.now()
 
     @classmethod
     def _create_user(cls, name, login, group_xmlids):
@@ -132,19 +141,21 @@ class TestCampaignReportingWorkflow(TransactionCase):
         employee = cls.env["hr.employee"].create(
             {"name": user.name, "user_id": user.id, "company_id": cls.env.company.id}
         )
-        membership = cls.env["cc.campaign.membership"].with_user(cls.approver).create(
+        membership = cls.env["cc.campaign.membership"].with_user(
+            cls.membership_requester
+        ).create(
             {
                 "user_id": user.id,
                 "employee_id": employee.id,
                 "campaign_id": campaign.id,
                 "role": role,
                 "is_primary_supervisor": is_primary_supervisor,
-                "requested_by_id": cls.approver.id,
+                "requested_by_id": cls.membership_requester.id,
                 "source_ticket": ticket,
                 "starts_at": fields.Datetime.now(),
             }
         )
-        membership.with_user(cls.approver).action_submit_identity()
+        membership.with_user(cls.membership_requester).action_submit_identity()
         operation = membership.with_user(cls.approver).action_approve_identity()
         operation.with_user(cls.identity_service).action_record_readback(
             {
@@ -165,7 +176,7 @@ class TestCampaignReportingWorkflow(TransactionCase):
             definition_id=definition.id,
             period_reference="2026-08-28T12:00:00-04:00/30m",
             value=value,
-            data_cutoff_at=fields.Datetime.now(),
+            data_cutoff_at=self.cutoff,
             source_payload_hash="9" * 64,
             reconciliation_state="matched",
             agent_membership_id=agent.id if agent else None,
