@@ -1,9 +1,128 @@
 from datetime import timedelta
 from unittest.mock import patch
 
-from odoo import fields
-from odoo.exceptions import ValidationError
-from odoo.tests.common import TransactionCase
+from odoo import Command, fields
+from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.tests.common import TransactionCase, new_test_user
+
+
+class TestAppointmentChildSecurity(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.agent = new_test_user(
+            cls.env,
+            login="appointment-child-agent@example.invalid",
+            groups="codestra.group_agent",
+        )
+        cls.unit_a = cls.env["call.center.business.unit"].sudo().create({
+            "name": "Appointment Security A", "code": "APSEC_A", "brand": "Codestra"
+        })
+        cls.unit_b = cls.env["call.center.business.unit"].sudo().create({
+            "name": "Appointment Security B", "code": "APSEC_B", "brand": "Codestra"
+        })
+        cls.department_a = cls.env["call.center.department"].sudo().create({
+            "name": "Appointment Department A", "code": "APSEC_A",
+            "business_unit_id": cls.unit_a.id,
+        })
+        cls.department_b = cls.env["call.center.department"].sudo().create({
+            "name": "Appointment Department B", "code": "APSEC_B",
+            "business_unit_id": cls.unit_b.id,
+        })
+        cls.team_a = cls.env["call.center.team"].sudo().create({
+            "name": "Appointment Team A", "code": "APSEC_A",
+            "business_unit_id": cls.unit_a.id,
+            "department_id": cls.department_a.id,
+            "agent_ids": [Command.link(cls.agent.id)],
+        })
+        cls.team_b = cls.env["call.center.team"].sudo().create({
+            "name": "Appointment Team B", "code": "APSEC_B",
+            "business_unit_id": cls.unit_b.id,
+            "department_id": cls.department_b.id,
+        })
+        cls.campaign_a = cls.env["call.center.campaign"].sudo().create({
+            "name": "Appointment Campaign A", "code": "APSEC_A",
+            "business_unit_id": cls.unit_a.id,
+            "authorized_user_ids": [Command.link(cls.agent.id)],
+        })
+        cls.campaign_b = cls.env["call.center.campaign"].sudo().create({
+            "name": "Appointment Campaign B", "code": "APSEC_B",
+            "business_unit_id": cls.unit_b.id,
+        })
+        cls.agent.sudo().write({
+            "call_center_business_unit_ids": [Command.set(cls.unit_a.ids)],
+            "call_center_campaign_ids": [Command.set(cls.campaign_a.ids)],
+        })
+        type_a = cls.env["codestra.appointment.type"].sudo().create({
+            "name": "Appointment Type A", "code": "APSEC_A",
+            "business_unit_id": cls.unit_a.id,
+        })
+        type_b = cls.env["codestra.appointment.type"].sudo().create({
+            "name": "Appointment Type B", "code": "APSEC_B",
+            "business_unit_id": cls.unit_b.id,
+        })
+        start = fields.Datetime.now() + timedelta(hours=1)
+        base = {
+            "title": "Appointment Child Security",
+            "agent_id": cls.env.user.id,
+            "supervisor_id": cls.env.user.id,
+            "scheduled_start": start,
+            "scheduled_end": start + timedelta(minutes=30),
+            "customer_timezone": "UTC", "agent_timezone": "UTC",
+            "campaign_timezone": "UTC", "correlation_id": "APSEC",
+        }
+        cls.appointment_a = cls.env["codestra.call.appointment"].sudo().create({
+            **base, "reference": "APSEC-A", "business_unit_id": cls.unit_a.id,
+            "campaign_id": cls.campaign_a.id, "department_id": cls.department_a.id,
+            "team_id": cls.team_a.id, "agent_id": cls.agent.id, "type_id": type_a.id,
+        })
+        cls.appointment_b = cls.env["codestra.call.appointment"].sudo().create({
+            **base, "reference": "APSEC-B", "business_unit_id": cls.unit_b.id,
+            "campaign_id": cls.campaign_b.id, "department_id": cls.department_b.id,
+            "team_id": cls.team_b.id, "type_id": type_b.id,
+        })
+
+    def test_child_models_enforce_parent_orm_boundary(self):
+        for model_name in (
+            "codestra.appointment.preparation.checklist",
+            "codestra.appointment.preparation.item",
+            "codestra.appointment.acknowledgment",
+        ):
+            with self.subTest(model=model_name):
+                model = self.env[model_name]
+                allowed = model.sudo().create({
+                    "appointment_id": self.appointment_a.id, "state": "ready",
+                    "safe_detail": "authorized", "correlation_id": "APSEC-A",
+                })
+                denied = model.sudo().create({
+                    "appointment_id": self.appointment_b.id, "state": "ready",
+                    "safe_detail": "denied", "correlation_id": "APSEC-B",
+                })
+                scoped = model.with_user(self.agent)
+                self.assertEqual(scoped.search([("id", "in", (allowed.id, denied.id))]), allowed)
+                self.assertFalse(scoped.name_search("", [("id", "=", denied.id)]))
+                grouped = scoped.read_group(
+                    [("id", "=", denied.id)], ["id:count"], []
+                )
+                self.assertEqual(sum(row.get("__count", 0) for row in grouped), 0)
+                with self.assertRaises(AccessError):
+                    denied.with_user(self.agent).read(["state"])
+                with self.assertRaises(UserError):
+                    denied.with_user(self.agent).export_data(["state"])
+                with self.assertRaises(AccessError):
+                    denied.with_user(self.agent).write({"state": "changed"})
+                with self.assertRaises(AccessError):
+                    denied.with_user(self.agent).unlink()
+                with self.assertRaises(AccessError):
+                    scoped.create({
+                        "appointment_id": self.appointment_b.id, "state": "ready",
+                        "correlation_id": "APSEC-DENIED-CREATE",
+                    })
+                created = scoped.create({
+                    "appointment_id": self.appointment_a.id, "state": "ready",
+                    "correlation_id": "APSEC-ALLOWED-CREATE",
+                })
+                self.assertTrue(created)
 
 
 class TestCallbackState(TransactionCase):
@@ -114,21 +233,35 @@ class TestCallbackState(TransactionCase):
             vicidial_campaign_id=legacy_campaign.id,
             middleware_callback_uuid="018f0000-0000-7000-8000-000000000099",
         )
-        with patch.dict("os.environ", {"CODESTRA_CALLBACK_SYNC_ENABLED": "true"}):
+        with patch.dict("os.environ", {"CODESTRA_CALLBACK_SYNC_ENABLED": "false"}):
             callback.action_complete()
-        job = self.env["codestra.callback.sync.job"].search(
-            [("callback_id", "=", callback.id)], limit=1
+            callback.action_complete()
+        jobs = self.env["codestra.callback.sync.job"].search(
+            [("callback_id", "=", callback.id)]
         )
+        job = jobs.ensure_one()
         self.assertEqual(callback.state, "completed")
         self.assertEqual(job.operation, "completed")
+        self.assertEqual(job.state, "pending")
+        key = job.idempotency_key
+        job.write({"attempt_count": 1})
+        job._retry("TimeoutError")
+        self.assertEqual(job.state, "pending")
+        self.assertEqual(job.idempotency_key, key)
+        self.assertEqual(len(self.env["codestra.callback.sync.job"].search(
+            [("callback_id", "=", callback.id)]
+        )), 1)
 
-    def test_disabled_sync_does_not_enqueue(self):
+    def test_disabled_delivery_still_persists_durable_job(self):
         callback = self._callback()
         with patch.dict("os.environ", {"CODESTRA_CALLBACK_SYNC_ENABLED": "false"}):
             callback.action_schedule()
-        self.assertFalse(self.env["codestra.callback.sync.job"].search([
+            processed = self.env["codestra.callback.sync.job"]._cron_process()
+        job = self.env["codestra.callback.sync.job"].search([
             ("callback_id", "=", callback.id)
-        ]))
+        ]).ensure_one()
+        self.assertEqual(job.state, "pending")
+        self.assertEqual(processed, 0)
 
     def test_schedule_enqueues_one_idempotent_create(self):
         callback = self._callback()

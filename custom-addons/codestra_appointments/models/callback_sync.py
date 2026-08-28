@@ -227,8 +227,6 @@ class CallbackSyncJob(models.Model):
 
     @api.model
     def _enqueue(self, record, operation, correlation_id):
-        if not self._enabled():
-            return self.browse()
         if not record.middleware_callback_uuid and operation != "reconcile":
             operation = "create"
         if operation not in dict(self._fields["operation"].selection):

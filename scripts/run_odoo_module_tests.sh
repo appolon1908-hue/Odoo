@@ -94,8 +94,8 @@ PY
 )"
 
 printf '==> Pulling immutable Odoo and PostgreSQL images\n'
-docker pull "$ODOO_IMAGE"
-docker pull "$POSTGRES_IMAGE"
+docker image inspect "$ODOO_IMAGE" >/dev/null 2>&1 || docker pull "$ODOO_IMAGE"
+docker image inspect "$POSTGRES_IMAGE" >/dev/null 2>&1 || docker pull "$POSTGRES_IMAGE"
 
 printf 'ODOO_IMAGE=%s\n' "$ODOO_IMAGE"
 printf 'POSTGRES_IMAGE=%s\n' "$POSTGRES_IMAGE"
@@ -149,7 +149,7 @@ docker run --rm \
 printf 'CHROME_FOR_TESTING_VERSION=%s\n' "$CHROME_VERSION"
 printf 'CHROME_FOR_TESTING_SHA256=%s\n' "$CHROME_SHA256"
 
-docker network create "$NETWORK" >/dev/null
+docker network create --subnet="${ODOO_CI_SUBNET:-10.254.250.0/28}" "$NETWORK" >/dev/null
 docker volume create "$ODOO_DATA_VOLUME" >/dev/null
 
 printf '==> Starting isolated PostgreSQL\n'
@@ -216,6 +216,9 @@ for module_name in "${module_names[@]}"; do
   fi
   test_tags+="/${module_name}"
 done
+if [[ -n "${ODOO_CI_TEST_TAGS:-}" ]]; then
+  test_tags="$ODOO_CI_TEST_TAGS"
+fi
 
 TEST_LOG="$(mktemp)"
 if ! docker run --rm \

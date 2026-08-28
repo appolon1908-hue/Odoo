@@ -221,6 +221,15 @@ class Callback(models.Model):
 
     def action_complete(self):
         for row in self:
+            if row.state == "completed":
+                if row.vicidial_campaign_id:
+                    operation = (
+                        "create" if not row.middleware_callback_uuid else "completed"
+                    )
+                    self.env["codestra.callback.sync.job"]._enqueue(
+                        row, operation, row.correlation_id
+                    )
+                continue
             if row.state == "scheduled" and row.vicidial_campaign_id:
                 previous = row.state
                 row.with_context(skip_callback_sync=True).write({
@@ -240,13 +249,12 @@ class Callback(models.Model):
                     "actor_source": "odoo",
                     "correlation_id": row.correlation_id,
                 })
-                if not self.env.context.get("skip_callback_sync"):
-                    operation = (
-                        "create" if not row.middleware_callback_uuid else "completed"
-                    )
-                    self.env["codestra.callback.sync.job"]._enqueue(
-                        row, operation, row.correlation_id
-                    )
+                operation = (
+                    "create" if not row.middleware_callback_uuid else "completed"
+                )
+                self.env["codestra.callback.sync.job"]._enqueue(
+                    row, operation, row.correlation_id
+                )
             else:
                 row.action_transition("completed", row.correlation_id)
         return True
