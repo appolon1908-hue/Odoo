@@ -68,8 +68,8 @@
     },
     "codestra_appointments": {
       "base_tree": "5812f7df199b0d5525ee7dd6a9fdc9d314947f6f",
-      "current_tree": "cc706f78c4d654b52959db265641ee57da1ddacf",
-      "reason": "Extend the canonical VICIdial callback model with the governed appointment, reminder, and scheduler lifecycle; separate Odoo and physical campaign identities; and add restartable upgrade reconciliation with regression coverage.",
+      "current_tree": "8ced171d3fe5be87c2087ae877b3937484eb070a",
+      "reason": "Extend the canonical VICIdial callback model with the governed appointment, reminder, and scheduler lifecycle; separate Odoo and physical campaign identities; add restartable upgrade reconciliation; and deliver accessible calendar, reminder, and callback-scheduler pop-outs with real-browser regression coverage.",
       "pull_request": 25,
       "integration_boundary_exceptions": [
         {
@@ -123,8 +123,8 @@
     },
     "codestra_vicidial_crm": {
       "base_tree": "cf0783918b94c3e396d24ebe868c4fb04096e4a1",
-      "current_tree": "e46c06252252aa6d280d94be9f9322a0933a9755",
-      "reason": "Preserve the Odoo 19 asset repair and remove the duplicate callback schema by giving the VICIdial campaign relation an explicit identity, supporting pre-call governed callbacks, and adding restartable compatibility migrations.",
+      "current_tree": "4ec243402e28b9c30f23ad7c66847515751b3b9f",
+      "reason": "Preserve the Odoo 19 asset repair, use the supported Odoo 19 RPC client in the click-to-call pop-out, and remove the duplicate callback schema by giving the VICIdial campaign relation an explicit identity, supporting pre-call governed callbacks, and adding restartable compatibility migrations.",
       "pull_request": 25,
       "integration_boundary_exceptions": [
         {
