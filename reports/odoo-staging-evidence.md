@@ -37,3 +37,23 @@ membership isolation, or external integrations.
 Recommendation: `STAGING-ONLY`
 
 Production gate: `PRODUCTION_BLOCKED`
+
+## Core-domain branch evidence
+
+Branch: `feat/cc-core-domain`
+
+| Check | Result | Status |
+| --- | --- | --- |
+| Focused Odoo 19 upgrade | 8 test methods; 0 failed; 0 errors | PASS |
+| Upgrade adoption read-back | 13/13 units; 112/112 campaigns; 102/102 channels; zero duplicate links | PASS |
+| Clean 59-module Odoo 19 install/regression | 346 tests; 0 failed; 0 errors | PASS |
+| Clean-install adoption read-back | 13/13 units; 111/111 campaigns; 102/102 channels | PASS |
+| Production/live state | 0 live-enabled; 0 production-eligible; 0 active workspaces | PASS |
+| Callback compatibility | 8 mappings; 0 login-enabled; 0 active | PASS |
+| Canonical membership/record rules | Owned by the next stacked branches | NOT_TESTED |
+
+The first two disposable upgrade attempts exposed an invalid related-field path
+and two legacy synthetic identifiers outside the canonical format. The field path
+was corrected. `MIGRATION_FIXTURE` and `TEST_SYN` are now preserved without rename
+as disabled, blocked legacy exceptions. The final upgrade and clean-install runs
+are green.

@@ -1,0 +1,6 @@
+model,module,campaign_owned,ownership_field,current_acl,current_record_rule,negative_test,status
+cc.business.unit,codestra_cc_core,FALSE,legacy_business_unit_id,"Manager create/read/write; system full; no unlink for manager",None on core branch,"One-to-one adoption; immutable legacy owner; canonical code",PARTIAL
+cc.campaign,codestra_cc_core,TRUE,cc_business_unit_id,"Manager create/read/write; system full; no unlink for manager",None on core branch,"One-to-one adoption; immutable workspace owner/UUID; live activation rejected",PARTIAL
+cc.campaign.channel,codestra_cc_core,TRUE,campaign_id,"Manager create/read/write; system full; no unlink for manager",None on core branch,"Immutable campaign/mapping; callback login and activation rejected",PARTIAL
+cc.campaign.policy,codestra_cc_core,TRUE,campaign_id,"Manager create/read/write; system full; no unlink for manager",None on core branch,"Immutable approved version; effective-period validation; approval reserved",PARTIAL
+cc.campaign.scoped.mixin,codestra_cc_core,TRUE,campaign_id,Abstract model,Downstream global membership rule required,"Campaign reassignment rejected",PARTIAL

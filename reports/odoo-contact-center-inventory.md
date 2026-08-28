@@ -120,3 +120,14 @@ canonical `CC_ENABLE_*` flags are not yet implemented:
 
 Status: `PRODUCTION_BLOCKED` until canonical flags exist, default false, fail
 closed at global and campaign scope, and have negative tests.
+
+## Core-domain branch update
+
+Branch `feat/cc-core-domain` converts `codestra_cc_core` from a dependency facade
+to a concrete canonical adoption layer. Disposable upgrade read-back reconciles 13
+legacy/canonical business units, 112 legacy/canonical campaigns, and 102
+legacy/canonical mapping/channel records with zero duplicate ownership links.
+Clean-install read-back reconciles 13 units, 111 campaigns, and 102 channels after
+the full test data lifecycle. Two noncanonical synthetic identifiers are retained
+as blocked legacy exceptions rather than renamed. Status: `PASS` for the bounded
+core-domain responsibility and `PRODUCTION_BLOCKED` for the overall system.
