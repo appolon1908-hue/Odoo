@@ -102,7 +102,22 @@ jobs:
           python-version: "3.12"
 
       - name: Test modules on immutable Odoo and PostgreSQL images
-        run: bash scripts/run_odoo_module_tests.sh
+        shell: bash
+        run: |
+          set -o pipefail
+          runtime_log="$RUNNER_TEMP/odoo-runtime.log"
+          if ! bash scripts/run_odoo_module_tests.sh 2>&1 | tee "$runtime_log"; then
+            python3 - "$runtime_log" <<'PY'
+          from pathlib import Path
+          import sys
+
+          lines = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace").splitlines()
+          tail = "\n".join(lines[-160:])
+          encoded = tail.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+          print(f"::error title=Odoo runtime failure::{encoded}")
+          PY
+            exit 1
+          fi
 
   main-validation:
     if: github.event_name == 'push'
@@ -162,4 +177,19 @@ jobs:
           python-version: "3.12"
 
       - name: Test modules on immutable Odoo and PostgreSQL images
-        run: bash scripts/run_odoo_module_tests.sh
+        shell: bash
+        run: |
+          set -o pipefail
+          runtime_log="$RUNNER_TEMP/odoo-runtime.log"
+          if ! bash scripts/run_odoo_module_tests.sh 2>&1 | tee "$runtime_log"; then
+            python3 - "$runtime_log" <<'PY'
+          from pathlib import Path
+          import sys
+
+          lines = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace").splitlines()
+          tail = "\n".join(lines[-160:])
+          encoded = tail.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+          print(f"::error title=Odoo runtime failure::{encoded}")
+          PY
+            exit 1
+          fi
