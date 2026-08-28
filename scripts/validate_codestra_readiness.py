@@ -204,8 +204,8 @@ def main() -> int:
         runtime_ci_text = ""
 
     for required_text in (
-        "odoo:19.0-20260817@sha256:",
-        "postgres:15-bookworm@sha256:",
+        "odoo@sha256:f54272f31d5f77e4146b887efb3761c98480317daf687e4b4b5e76ed8bcc08c5",
+        "postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94",
         "--without-demo \\",
         "--test-enable",
         "ODOO_ASSET_COMPILATION_INTERNAL_ERROR",

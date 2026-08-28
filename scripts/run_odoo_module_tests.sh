@@ -4,9 +4,9 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-# Multi-architecture index digests for reviewed official images.
-ODOO_IMAGE="${ODOO_CI_IMAGE:-docker.io/library/odoo:19.0-20260817@sha256:f99ffac95cb39a0924622ea4118481c95651d9c84187e5b30a21c2cc4419c7dd}"
-POSTGRES_IMAGE="${POSTGRES_CI_IMAGE:-docker.io/library/postgres:15-bookworm@sha256:b0c5bab0fbba8e0c221f73b1dc6359ec35f8650074377e727299df248fc8ad51}"
+# Frozen production-compatible image identities captured read-only on 2026-08-28.
+ODOO_IMAGE="${ODOO_CI_IMAGE:-docker.io/library/odoo@sha256:f54272f31d5f77e4146b887efb3761c98480317daf687e4b4b5e76ed8bcc08c5}"
+POSTGRES_IMAGE="${POSTGRES_CI_IMAGE:-docker.io/library/postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94}"
 
 DATABASE="odoo_ci"
 DB_USER="odoo_ci"
@@ -15,6 +15,7 @@ SAFE_RUN_ID="$(
     | tr -cd 'A-Za-z0-9_.-'
 )"
 NETWORK="codestra-odoo-ci-${SAFE_RUN_ID}"
+CI_SUBNET="${ODOO_CI_SUBNET:-10.254.250.0/28}"
 DB_CONTAINER="codestra-postgres-ci-${SAFE_RUN_ID}"
 ODOO_DATA_VOLUME="codestra-odoo-data-${SAFE_RUN_ID}"
 SECRET_DIR=""
@@ -59,8 +60,13 @@ PY
 )"
 
 printf '==> Pulling immutable Odoo and PostgreSQL images\n'
-docker pull "$ODOO_IMAGE"
-docker pull "$POSTGRES_IMAGE"
+for image in "$ODOO_IMAGE" "$POSTGRES_IMAGE"; do
+  if docker image inspect "$image" >/dev/null 2>&1; then
+    printf 'IMAGE_ALREADY_PRESENT=%s\n' "$image"
+  else
+    docker pull "$image"
+  fi
+done
 
 printf 'ODOO_IMAGE=%s\n' "$ODOO_IMAGE"
 printf 'POSTGRES_IMAGE=%s\n' "$POSTGRES_IMAGE"
@@ -71,7 +77,7 @@ docker image inspect \
   --format 'POSTGRES_IMAGE_ID={{.Id}}' \
   "$POSTGRES_IMAGE"
 
-docker network create "$NETWORK" >/dev/null
+docker network create --subnet "$CI_SUBNET" "$NETWORK" >/dev/null
 docker volume create "$ODOO_DATA_VOLUME" >/dev/null
 
 printf '==> Starting isolated PostgreSQL\n'
