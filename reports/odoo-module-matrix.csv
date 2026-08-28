@@ -1,0 +1,39 @@
+layer,module,target_responsibility,current_state,legacy_owner_or_compatibility,recommended_action,status
+foundation,codestra_cc_core,"Business units; campaign workspaces; campaign-scoped mixin; lifecycle; base menus",Dependency facade,"call_center_core; call_center_campaign","Convert facade into a bounded foundation module and migrate/adopt compatible records",PARTIAL
+foundation,codestra_cc_security,"Groups; ACLs; global rules; membership constraints; break-glass; negative helpers",Absent,"call_center_campaign and distributed security XML","Create after core domain; centralize stable roles and membership-driven rules",MISSING
+foundation,codestra_cc_identity,"Employee/user mapping; SSO claims; session scope; desired state; deprovisioning",Dependency facade,call_center_identity_provisioning,"Extend the compatible identity owner with membership and session-scope contracts",PARTIAL
+foundation,codestra_cc_crm,"Campaign-scoped leads; stages; activities; customer profiles; assignment",Absent,"codestra_campaign_crm_os; codestra_crm_enterprise","Compose existing CRM records behind the new campaign scope",MISSING
+foundation,codestra_cc_helpdesk,"Campaign-scoped tickets; SLAs; escalations; knowledge links",Absent,"No installed Helpdesk model in the disposable snapshot","Add an optional Helpdesk integration with install/upgrade tests",MISSING
+foundation,codestra_cc_mail,"Aliases; sender identities; distribution; quarantine; safe chatter",Absent,"codestra_mail_inbox; codestra_cc_mailbox facade","Adopt existing mail records and enforce campaign scope on mail surfaces",MISSING
+foundation,codestra_cc_vicidial,"Canonical mappings; desired state; adapters; read-back",Dependency facade,"codestra_vicidial_crm; integration modules","Extend as mapping boundary; middleware only; no direct DB writes",PARTIAL
+foundation,codestra_cc_calls,"Calls; events; queues; transfers; callbacks; screen-pop context",Absent,"codestra_vicidial_crm; codestra_appointments; telephony bridge","Normalize legacy call objects after security and identity",MISSING
+foundation,codestra_cc_scripts,"Immutable script versions; approvals; acknowledgements; rendering",Absent,Legacy script features distributed or absent,"Create versioned campaign-owned script domain",MISSING
+foundation,codestra_cc_dispositions,"Campaign-owned sets; validation; workflow mappings",Absent,"codestra_cc_disposition facade; legacy disposition models","Create only after the controlled 2677-row catalog is supplied",MISSING
+foundation,codestra_cc_recordings,"Metadata; storage references; access; redaction; retention; holds",Absent,codestra_vicidial_recording,"Adopt compatible recording metadata and add policy enforcement",MISSING
+foundation,codestra_cc_quality,"Scorecards; sampling; evaluation; calibration; coaching",Dependency facade,Legacy quality modules,"Extend through the campaign-owned recording/call boundary",PARTIAL
+foundation,codestra_cc_wfm,"Forecast; schedule; attendance; adherence; occupancy; exceptions",Absent,codestra_cc_workforce,"Adopt the concrete shift model and migrate to the target boundary",MISSING
+foundation,codestra_cc_compliance,"Consent; DNC; calling hours; disclosures; payment safety; policy versions",Dependency facade,call_center_compliance,"Extend compatible controls with campaign policy and evidence",PARTIAL
+foundation,codestra_cc_reporting,"Campaign dashboards; reconciliation; KPI snapshots; admin aggregates",Absent,"codestra_cc_analytics; codestra_analytics_reporting","Compose existing analytics after normalized scoped events exist",MISSING
+foundation,codestra_cc_integration,"Outbox/inbox; idempotency; events; middleware client; flags",Absent,"codestra_integration_hub; telephony bridge","Create a fail-closed middleware-only boundary",MISSING
+foundation,codestra_cc_audit,"Append-only audit; access evidence; exports; release evidence",Dependency facade,Legacy audit modules,"Extend with immutable campaign and break-glass evidence",PARTIAL
+profile,codestra_cc_profile_acquisition,"Outbound prospecting; qualification; cadence; DNC; closer handoff",Absent,Existing campaign workflows,"Create reusable profile after foundation stabilizes",MISSING
+profile,codestra_cc_profile_inbound_sales,"Inbound sales; intent; qualification; same-campaign transfer",Absent,Existing campaign workflows,"Create reusable profile after foundation stabilizes",MISSING
+profile,codestra_cc_profile_support,"Tickets; severity; SLA; troubleshooting; escalation; FCR",Absent,Existing support workflows,"Create reusable profile after Helpdesk boundary",MISSING
+profile,codestra_cc_profile_billing,"Billing inquiry; verification; dispute; finance handoff",Absent,Existing campaign workflows,"Create reusable profile with minimized finance data",MISSING
+profile,codestra_cc_profile_retention,"Save reason; offers; churn; renewal; cooling periods",Absent,Existing campaign workflows,"Create reusable profile after compliance policy",MISSING
+profile,codestra_cc_profile_callback,"Callbacks; time zone; ownership; reminders; recovery",Absent,"codestra_appointments and callback models","Compose existing callback implementation; no shared callback team",MISSING
+profile,codestra_cc_profile_appointment,"Types; availability; reminders; APPT_PREP; outcomes",Absent,codestra_appointments,"Compose existing appointments and pop-outs behind scope",MISSING
+profile,codestra_cc_profile_documents,"Checklist; secure upload; completeness; reminders",Absent,Existing attachment/document flows,"Create after attachment isolation is certified",MISSING
+profile,codestra_cc_profile_compliance_review,"Consent; suitability; authority review; hold/release",Absent,call_center_compliance,"Compose compatible compliance controls",MISSING
+profile,codestra_cc_profile_fulfillment,"Delivery; status; exceptions; follow-up",Absent,Existing campaign workflows,"Create reusable profile after core workflows",MISSING
+profile,codestra_cc_profile_dispatch,"Dispatch; live exceptions; escalation; handoff",Absent,Existing logistics workflows,"Create reusable profile after call/transfer domain",MISSING
+profile,codestra_cc_profile_donor,"Pledge; donation; receipt; recurring gift; suppression",Absent,Existing campaign workflows,"Create reusable profile after compliance and payment safety",MISSING
+profile,codestra_cc_profile_export,"Export qualification; packaging; inspection; logistics; trade documents",Absent,Existing campaign workflows,"Create reusable profile with export authorization controls",MISSING
+overlay,codestra_cc_moy_logistics,"Moy Logistics domain composition",Absent,codestra_campaign_crm_os,"Create thin overlay; never duplicate security",MISSING
+overlay,codestra_cc_codestra_services,"Codestra services domain composition",Absent,codestra_campaign_crm_os,"Create thin overlay; never duplicate security",MISSING
+overlay,codestra_cc_senior_products,"Senior Citizen Products domain composition",Absent,codestra_campaign_crm_os,"Create thin overlay; never duplicate security",MISSING
+overlay,codestra_cc_moneybee_loans,"MoneyBee Business Loans domain composition",Absent,codestra_campaign_crm_os,"Create thin overlay with financial-duty separation",MISSING
+overlay,codestra_cc_rlp_real_estate,"RLP real-estate domain composition",Absent,codestra_campaign_crm_os,"Create thin overlay with minimized financial-review data",MISSING
+overlay,codestra_cc_for_the_people,"For the People domain composition",Absent,codestra_campaign_crm_os,"Create thin donor overlay",MISSING
+overlay,codestra_cc_tradex,"TradeX domain composition",Absent,codestra_campaign_crm_os,"Create thin overlay with suitability controls",MISSING
+overlay,codestra_cc_calderon_farm,"Calderon Farm domain composition",Absent,codestra_campaign_crm_os,"Create thin export/logistics overlay",MISSING
