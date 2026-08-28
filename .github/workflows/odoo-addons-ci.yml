@@ -15,24 +15,34 @@ concurrency:
 
 jobs:
   validate:
-    name: Validate Odoo custom addons
+    name: Validate exact merge or pushed result
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
-      - name: Check out repository
+      - name: Check out exact merge or pushed SHA
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Verify checkout identity
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          printf 'VALIDATED_SHA=%s\n' "$EXPECTED_SHA"
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
-      - name: Reject whitespace errors
-        run: git diff --check
+      - name: Reject whitespace and conflict markers
+        run: |
+          git diff --check
+          ! git grep -nE '^(<<<<<<< |=======$|>>>>>>> )' -- . ':!*.md'
 
       - name: Compile Python files
         run: python -m compileall -q custom-addons scripts
@@ -41,9 +51,9 @@ jobs:
         run: python scripts/validate_manifests.py
 
   odoo-runtime:
-    name: Install addons and test click-to-call on Odoo 19
+    name: Install and test all addons on exact source head
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 45
     services:
       postgres:
         image: postgres:16
@@ -58,28 +68,65 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
+
     steps:
-      - name: Check out repository
+      - name: Check out exact source or pushed SHA
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Verify exact source identity
+        env:
+          EXPECTED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          printf 'VALIDATED_SOURCE_SHA=%s\n' "$EXPECTED_SHA"
+
+      - name: Run exact-head static gates
+        run: |
+          git diff --check
+          ! git grep -nE '^(<<<<<<< |=======$|>>>>>>> )' -- . ':!*.md'
+          python -m compileall -q custom-addons scripts
+          python scripts/validate_manifests.py
 
       - name: Install all custom addons
         run: |
           modules="$(find custom-addons -mindepth 2 -maxdepth 2 -name __manifest__.py -printf '%h\n' | xargs -n1 basename | sort | paste -sd, -)"
+          test -n "$modules"
+          printf 'CUSTOM_MODULES=%s\n' "$modules"
           docker run --rm --network host \
             -e HOST=127.0.0.1 -e USER=odoo -e PASSWORD=odoo \
+            -e LIVE_WRITES=false \
+            -e ENABLE_EXTERNAL_DELIVERY=false \
+            -e LIVE_SMS_DELIVERY=false \
+            -e LIVE_EMAIL_DELIVERY=false \
+            -e LIVE_PSTN_DIALING=false \
+            -e PRODUCTION_DIALING=DISABLED \
+            -e CALLS_PLACED=0 \
             -v "$PWD/custom-addons:/mnt/extra-addons:ro" \
             odoo:19.0 odoo -d odoo_all_ci -i "$modules" \
-            --stop-after-init --no-http --log-level=warn
+            --stop-after-init --no-http --max-cron-threads=0 \
+            --without-demo=all --log-level=warn
 
-      - name: Test click-to-call and policy guards
+      - name: Run complete custom-addon test suite
         run: |
+          modules="$(find custom-addons -mindepth 2 -maxdepth 2 -name __manifest__.py -printf '%h\n' | xargs -n1 basename | sort | paste -sd, -)"
+          test_tags="/${modules//,/,/}"
+          test -n "$modules"
+          printf 'CUSTOM_TEST_TAGS=%s\n' "$test_tags"
           docker run --rm --network host \
             -e HOST=127.0.0.1 -e USER=odoo -e PASSWORD=odoo \
+            -e LIVE_WRITES=false \
+            -e ENABLE_EXTERNAL_DELIVERY=false \
+            -e LIVE_SMS_DELIVERY=false \
+            -e LIVE_EMAIL_DELIVERY=false \
+            -e LIVE_PSTN_DIALING=false \
+            -e PRODUCTION_DIALING=DISABLED \
+            -e CALLS_PLACED=0 \
             -v "$PWD/custom-addons:/mnt/extra-addons:ro" \
-            odoo:19.0 odoo -d odoo_all_ci -u codestra_vicidial_crm \
-            --test-enable \
-            --test-tags=/codestra_vicidial_crm:TestClickToCall \
-            --stop-after-init --no-http --log-level=warn
+            odoo:19.0 odoo -d odoo_all_ci -u "$modules" \
+            --test-enable --test-tags="$test_tags" \
+            --stop-after-init --no-http --max-cron-threads=0 \
+            --without-demo=all --log-level=warn
