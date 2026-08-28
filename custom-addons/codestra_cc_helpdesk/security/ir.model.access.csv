@@ -1,0 +1,12 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_cc_helpdesk_queue_scoped,cc.helpdesk.queue scoped,model_cc_helpdesk_queue,codestra_cc_security.group_cc_scoped_user,1,0,0,0
+access_cc_helpdesk_queue_config,cc.helpdesk.queue config,model_cc_helpdesk_queue,codestra_cc_security.group_cc_campaign_configuration_manager,1,1,1,0
+access_cc_helpdesk_queue_admin,cc.helpdesk.queue admin,model_cc_helpdesk_queue,codestra_cc_security.group_cc_global_administrator,1,1,1,1
+access_cc_helpdesk_sla_scoped,cc.helpdesk.sla scoped,model_cc_helpdesk_sla_policy,codestra_cc_security.group_cc_scoped_user,1,0,0,0
+access_cc_helpdesk_sla_config,cc.helpdesk.sla config,model_cc_helpdesk_sla_policy,codestra_cc_security.group_cc_campaign_configuration_manager,1,1,1,0
+access_cc_helpdesk_sla_admin,cc.helpdesk.sla admin,model_cc_helpdesk_sla_policy,codestra_cc_security.group_cc_global_administrator,1,1,1,1
+access_cc_helpdesk_ticket_agent,cc.helpdesk.ticket agent,model_cc_helpdesk_ticket,codestra_cc_security.group_cc_campaign_agent,1,1,1,0
+access_cc_helpdesk_ticket_supervisor,cc.helpdesk.ticket supervisor,model_cc_helpdesk_ticket,codestra_cc_security.group_cc_campaign_supervisor,1,1,1,0
+access_cc_helpdesk_ticket_config,cc.helpdesk.ticket config,model_cc_helpdesk_ticket,codestra_cc_security.group_cc_campaign_configuration_manager,1,0,0,0
+access_cc_helpdesk_ticket_auditor,cc.helpdesk.ticket auditor,model_cc_helpdesk_ticket,codestra_cc_security.group_cc_auditor,1,0,0,0
+access_cc_helpdesk_ticket_admin,cc.helpdesk.ticket admin,model_cc_helpdesk_ticket,codestra_cc_security.group_cc_global_administrator,1,1,1,0
