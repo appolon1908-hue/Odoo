@@ -44,6 +44,24 @@ unauthenticated route. Existing signed integration APIs and telephony projection
 owners remain unchanged. The restricted middleware is the only permitted future
 adapter boundary.
 
+## Runtime verification
+
+Draft PR [#32](https://github.com/appolon1908-hue/Odoo/pull/32) ran the exact
+branch head and stacked merge-result source validations successfully. Its pinned
+Odoo 19/PostgreSQL runtime installed all 63 custom modules and completed 397
+tests with zero failures or errors. The PostgreSQL schema audit and fail-closed
+administrator provisioning audit also passed.
+
+The `codestra_cc_vicidial` suite contributed 10 test methods / 12 Odoo test
+counters covering the catalog, collision rejection, disabled desired state,
+immutable identity, cross-campaign query isolation, exact replay, altered replay,
+append-only evidence, unsafe evidence rejection, and global false flags.
+
+The unchanged calendar/reminder/scheduler browser tour was skipped in this
+GitHub image because the optional Python `websocket-client` package is absent.
+Its successful browser execution is retained on the immediately preceding
+CRM/helpdesk base branch; this branch adds no appointment or browser assets.
+
 ## Gate
 
 The authority supplies none of the 558 required user-group, inbound-group, list,

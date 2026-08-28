@@ -164,3 +164,39 @@ The installed Community runtime has no Enterprise Helpdesk dependency. The
 branch therefore does not claim an Enterprise extension was tested and does not
 create external tickets. Status remains `STAGING-ONLY` and
 `PRODUCTION_BLOCKED`.
+
+## VICIdial canonical-mapping branch evidence
+
+Branch: `feat/cc-vicidial-mapping`
+
+Draft PR: [#32](https://github.com/appolon1908-hue/Odoo/pull/32)
+
+| Check | Result | Status |
+| --- | --- | --- |
+| Exact-head and stacked merge source validation | 63 manifests; strict review 0 errors/warnings; all source gates; 3 contract tests | PASS |
+| Clean Odoo 19/PostgreSQL install/regression | 397 tests; 0 failed; 0 errors | PASS |
+| Focused VICIdial boundary suite | 10 methods / 12 Odoo counters | PASS |
+| Controlled identifiers | 93 canonical codes; 93 unique native IDs; maximum 8 characters | PASS |
+| Legacy comparison | 93 identifier drifts; 8 unmanaged legacy mappings; no automatic rename or overwrite | PARTIAL |
+| Callback compatibility | 8 mappings; 0 agent-login enabled | PASS |
+| Missing optional native catalog | 558 of 558 values absent | BLOCKED |
+| Desired/live state | 0 mapping, provisioning, agent-sync, or live-control flags enabled | PASS |
+| Read-back contract | Exact replay idempotent; altered replay rejected; evidence append-only | PASS |
+| Campaign authorization | Search, direct ID, name search, grouped reporting, export, copy, create, and write covered | PASS |
+| Runtime operations | PostgreSQL schema and fail-closed administrator provisioning audits | PASS |
+| Calendar/reminder/scheduler browser tour | Skipped in GitHub image because optional `websocket-client` is absent; successful unchanged-base evidence retained above | NOT_TESTED |
+| External middleware/VICIdial/Asterisk/n8n read-back | No reviewed isolated staging endpoint; no external mutation attempted | NOT_TESTED |
+
+`codestra_cc_vicidial` is now a concrete middleware-only mapping boundary rather
+than a dependency facade. It owns two canonical models, read-only views,
+campaign-global record rules, restricted exports, four false global flags, and a
+checksum-pinned catalog copy. Existing signed API, agent desired-state, call,
+recording, and legacy campaign-mapping owners remain unchanged.
+
+Every controlled row is still `PARTIAL` and `blocked_partial_catalog`. No direct
+Odoo/VICIdial database or browser write, campaign provisioning, agent sync, live
+call control, carrier action, or PSTN call occurred.
+
+Recommendation: `STAGING-ONLY`
+
+Production gate: `PRODUCTION_BLOCKED`
