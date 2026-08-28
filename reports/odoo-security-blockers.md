@@ -14,7 +14,7 @@ Production status: `PRODUCTION_BLOCKED`
 | Critical | Controlled 2,677-row disposition catalog is unavailable | Attachment and repository search found no catalog | Supply, hash, review, validate, and test the original catalog | BLOCKED |
 | High | Target global record-rule contract is incomplete for later models | Canonical core, membership, identity, mail, CRM, customer-profile, queue, SLA, and Helpdesk surfaces have fail-closed rules and negative tests | Add the same global rule and negative tests to every later campaign-owned model | PARTIAL |
 | High | Helpdesk boundary is absent | `cc.helpdesk.queue`, `cc.helpdesk.sla.policy`, and `cc.helpdesk.ticket` are installed and campaign-isolated in the Community runtime; Enterprise `helpdesk.ticket` remains absent | Preserve the canonical Community IDs/evidence and require a separately reviewed adapter if Enterprise Helpdesk is later installed | RESOLVED_IN_STACK |
-| High | No campaign scripts exist in the snapshot | Script count is zero | Implement immutable versioned scripts with approval and acknowledgement | MISSING |
+| High | Campaign-script governance | Canonical script identity/version, separate approval, one-active-version constraint, hash-bound safe rendering, acknowledgements, and campaign rules are implemented | Reconcile/adopt approved legacy scripts in a reviewed staging migration; no external publication is authorized | RESOLVED_IN_STACK |
 | High | Canonical fail-closed flags are incomplete | `CC_ENABLE_EMAIL_SEND` and `CC_ENABLE_EMAIL_INBOUND_MUTATION` now install and read back as false; the other eleven canonical flags do not yet exist | Add the remaining eleven flags on their owning branches with global/campaign gates | PARTIAL |
 | High | Cross-campaign suite is incomplete | Canonical ORM/search/report/export plus membership, session, mail, CRM, customer-profile, and Helpdesk paths are covered; later transfer/call/reporting surfaces do not yet exist | Extend the same negative suite on every dependent branch | PARTIAL |
 | High | Public/service endpoints need ownership review | 65 routes exist; several `auth=none` routes rely on custom service authentication | Classify every route, enforce signed identity/scope/replay protection, and retain tests | PARTIAL |
@@ -33,4 +33,6 @@ remain disabled. The identity branch creates only transactional staging outbox
 evidence; it has no worker, network transport, production endpoint, or live flag.
 The campaign-mail branch additionally materializes both canonical email flags at
 false, hard-locks all route/sender/distribution live switches off, and contains
-no public mail controller or transport worker.
+no public mail controller or transport worker. The scripts/dispositions branch
+adds no transport or controller and keeps disposition review blocked while the
+controlled catalog is missing.

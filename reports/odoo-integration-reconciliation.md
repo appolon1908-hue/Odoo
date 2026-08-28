@@ -74,3 +74,21 @@ attempted because no reviewed isolated staging endpoint was supplied.
 Recommendation: `STAGING-ONLY`
 
 Production gate: `PRODUCTION_BLOCKED`
+
+## Scripts and dispositions boundary
+
+The scripts/dispositions branch adds no external writer. `cc.script.version`
+delegates content ownership to the compatible legacy script record while adding
+immutable approval and acknowledgement evidence. Agent rendering derives its
+campaign from the active server membership, returns only the approved version,
+and omits internal prohibited-language and supervisor-note fields.
+
+The controlled disposition catalog remains absent. The generated reconciliation
+matrices contain 93 campaign rows: every external script ID is `MISSING`, every
+external read-back is `NOT_TESTED`, and every disposition approval is `BLOCKED`.
+Zero disposition catalog rows were imported. The schema rejects native status
+codes longer than six characters and cross-campaign legacy/channel adoption, but
+it cannot claim catalog reconciliation without the original 2,677-row source.
+
+No Middleware, VICIdial, Asterisk, n8n, carrier, PSTN, or production operation was
+attempted.

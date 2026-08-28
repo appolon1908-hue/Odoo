@@ -200,3 +200,25 @@ call control, carrier action, or PSTN call occurred.
 Recommendation: `STAGING-ONLY`
 
 Production gate: `PRODUCTION_BLOCKED`
+
+## Scripts and dispositions branch evidence
+
+Branch: `feat/cc-scripts-dispositions`
+
+| Check | Result | Status |
+| --- | --- | --- |
+| Full source validation | 63 manifests; strict review 0 errors/warnings; all source, security, API, migration, evidence, and release gates; 3 contract tests | PASS |
+| Canonical script governance | Campaign identity, delegated immutable versions, separate author/approver, one approved version, content hash, safe rendering, and acknowledgement evidence implemented | PASS |
+| Campaign authorization | Global rules plus approved-state, direct-ID, search, name-search, grouped-query, export, create, write, and copy controls in the focused suite | PENDING_RUNTIME |
+| Script/disposition reports | 93 script rows and 93 disposition rows generated from the checksum-pinned identifier matrix | PASS |
+| Controlled disposition catalog | Original 2,677-row CSV still unavailable; 0 rows imported; all 93 campaign gates blocked | BLOCKED |
+| Disposition publication/read-back | No controlled rows, reviewed staging endpoint, or publication worker | NOT_TESTED |
+| Odoo 19/PostgreSQL runtime | Awaiting exact-head draft-PR runtime | NOT_TESTED |
+
+This branch reuses the existing script and disposition owners through delegated
+canonical records. It does not copy legacy content, invent catalog rows, publish
+to VICIdial, add a public controller, or enable any live capability.
+
+Recommendation: `STAGING-ONLY`
+
+Production gate: `PRODUCTION_BLOCKED`

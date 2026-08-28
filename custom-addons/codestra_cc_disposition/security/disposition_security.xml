@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="rule_cc_script_global_scope" model="ir.rule">
+    <field name="name">Contact Center: script campaign scope</field>
+    <field name="model_id" ref="model_cc_script"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_script_version_global_scope" model="ir.rule">
+    <field name="name">Contact Center: script-version campaign scope</field>
+    <field name="model_id" ref="model_cc_script_version"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('cc_campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_script_version_agent_approved" model="ir.rule">
+    <field name="name">Contact Center: agents read only approved script versions</field>
+    <field name="model_id" ref="model_cc_script_version"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_agent'))]"/>
+    <field name="domain_force">[('governance_state', '=', 'approved')]</field>
+  </record>
+  <record id="rule_cc_script_ack_global_scope" model="ir.rule">
+    <field name="name">Contact Center: script acknowledgement campaign scope</field>
+    <field name="model_id" ref="model_cc_script_acknowledgement"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_script_ack_agent_self" model="ir.rule">
+    <field name="name">Contact Center: agents read their acknowledgements</field>
+    <field name="model_id" ref="model_cc_script_acknowledgement"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_agent'))]"/>
+    <field name="domain_force">[('user_id', '=', user.id)]</field>
+  </record>
+  <record id="rule_cc_script_ack_supervisor_campaign" model="ir.rule">
+    <field name="name">Contact Center: supervisors read campaign acknowledgements</field>
+    <field name="model_id" ref="model_cc_script_acknowledgement"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_supervisor'))]"/>
+    <field name="domain_force">[('campaign_id', 'in', user.cc_supervised_campaign_ids.ids)]</field>
+  </record>
+
+  <record id="rule_cc_disposition_set_global_scope" model="ir.rule">
+    <field name="name">Contact Center: disposition-set campaign scope</field>
+    <field name="model_id" ref="model_cc_disposition_set"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_disposition_set_agent_approved" model="ir.rule">
+    <field name="name">Contact Center: agents read only approved disposition sets</field>
+    <field name="model_id" ref="model_cc_disposition_set"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_agent'))]"/>
+    <field name="domain_force">[('state', '=', 'approved')]</field>
+  </record>
+  <record id="rule_cc_disposition_global_scope" model="ir.rule">
+    <field name="name">Contact Center: disposition campaign scope</field>
+    <field name="model_id" ref="model_cc_disposition"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('cc_campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_disposition_agent_enabled" model="ir.rule">
+    <field name="name">Contact Center: agents read active approved dispositions</field>
+    <field name="model_id" ref="model_cc_disposition"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_agent'))]"/>
+    <field name="domain_force">[('set_id.state', '=', 'approved'), ('active', '=', True), ('agent_visible', '=', True)]</field>
+  </record>
+
+  <record id="rule_call_center_script_cc_scope" model="ir.rule">
+    <field name="name">Contact Center: adopted legacy script campaign scope</field>
+    <field name="model_id" ref="call_center_campaign.model_call_center_script"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else ([('campaign_id', 'in', user.cc_allowed_campaign_ids.legacy_campaign_id.ids)] if user.has_group('codestra_cc_security.group_cc_scoped_user') else [(1, '=', 1)])</field>
+  </record>
+  <record id="rule_codestra_disposition_cc_scope" model="ir.rule">
+    <field name="name">Contact Center: adopted legacy disposition campaign scope</field>
+    <field name="model_id" ref="call_center_campaign.model_codestra_disposition"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else ([('campaign_id', 'in', user.cc_allowed_campaign_ids.legacy_campaign_id.ids)] if user.has_group('codestra_cc_security.group_cc_scoped_user') else [(1, '=', 1)])</field>
+  </record>
+</odoo>
