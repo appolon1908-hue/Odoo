@@ -224,11 +224,12 @@ class CcAuditEvent(models.Model):
             [("actor_id", "=", self.env.user.id)], order="id desc", limit=1
         )
         occurred_at = fields.Datetime.now()
+        company = campaign.cc_business_unit_id.company_id if campaign else self.env.company
         values = {
             **semantic_payload,
             "event_uuid": str(uuid.uuid5(uuid.NAMESPACE_URL, f"cc-audit:{idempotency_key}")),
             "occurred_at": occurred_at,
-            "company_id": (campaign.company_id or self.env.company).id,
+            "company_id": company.id,
             "payload_hash": payload_hash,
             "previous_hash": previous.record_hash or "0" * 64,
         }
