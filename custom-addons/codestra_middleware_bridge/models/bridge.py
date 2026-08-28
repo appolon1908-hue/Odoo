@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import time
+import urllib.parse
 import urllib.request
 import uuid
 
@@ -126,6 +127,22 @@ class MiddlewareOutbound(models.AbstractModel):
     _description = "Odoo to Codestra Middleware Event Client"
 
     @api.model
+    def _validated_target(self, value):
+        parsed = urllib.parse.urlsplit(value or "")
+        if (
+            parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValidationError(
+                "Middleware event URL must be a credential-free HTTPS endpoint."
+            )
+        return value
+
+    @api.model
     def emit_synthetic_event(self, event_type, correlation_id, idempotency_key, payload):
         if not str(event_type).startswith(("customer.", "campaign.")):
             raise ValidationError("Unsupported Odoo middleware event type.")
@@ -138,6 +155,7 @@ class MiddlewareOutbound(models.AbstractModel):
         tenant = params.get_param("codestra.middleware.tenant_id")
         if not all((target, api_key, secret, tenant)):
             raise ValidationError("Middleware outbound identity is not configured.")
+        target = self._validated_target(target)
         event_id = "odoo-" + uuid.uuid4().hex
         envelope = {
             "event_type": event_type,
@@ -161,7 +179,8 @@ class MiddlewareOutbound(models.AbstractModel):
             "X-Timestamp": stamp,
             "X-Signature": "sha256=" + signature,
         }, method="POST")
-        with urllib.request.urlopen(request, timeout=5) as response:
+        # _validated_target rejects non-HTTPS and credential-bearing authorities.
+        with urllib.request.urlopen(request, timeout=5) as response:  # nosec B310
             result = json.loads(response.read())
             status = response.status
         event = self.env["codestra.integration.event"].register_event(

@@ -41,6 +41,18 @@ class TestClickToCall(TransactionCase):
         self.agent.status = "paused"
         with self.assertRaises(UserError):
             self.lead.action_click_to_call()
+
+    def test_middleware_target_requires_credential_free_https(self):
+        client = self.env["codestra.telephony.middleware.client"]
+        valid = "https://middleware.example.test/api/v1/telephony/originate"
+        self.assertEqual(client._validated_target(valid), valid)
+        for unsafe in (
+            "http://middleware.example.test/api/v1/telephony/originate",
+            "https://user:secret@middleware.example.test/api/v1/telephony/originate",
+            "https://middleware.example.test/api/v1/telephony/originate?redirect=1",
+        ):
+            with self.subTest(unsafe=unsafe), self.assertRaises(UserError):
+                client._validated_target(unsafe)
         self.agent.status = "ready"
         self.lead.x_do_not_call = True
         with self.assertRaises(UserError):

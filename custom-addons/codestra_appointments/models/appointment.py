@@ -240,6 +240,13 @@ class Callback(models.Model):
                     "actor_source": "odoo",
                     "correlation_id": row.correlation_id,
                 })
+                if not self.env.context.get("skip_callback_sync"):
+                    operation = (
+                        "create" if not row.middleware_callback_uuid else "completed"
+                    )
+                    self.env["codestra.callback.sync.job"]._enqueue(
+                        row, operation, row.correlation_id
+                    )
             else:
                 row.action_transition("completed", row.correlation_id)
         return True

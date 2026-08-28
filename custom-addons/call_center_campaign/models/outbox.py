@@ -362,20 +362,10 @@ class CodestraIntegrationOutbox(models.Model):
             raise ValidationError(
                 "Outbox lease TTL must be between 10 and 300 seconds."
             )
-        filters = []
-        parameters = []
-        if record_environment:
-            filters.append("record_environment = %s")
-            parameters.append(record_environment)
-        if business_unit_codes:
-            filters.append("business_unit_code = ANY(%s)")
-            parameters.append(list(business_unit_codes))
-        if event_type_allowlist:
-            filters.append("event_type = ANY(%s)")
-            parameters.append(list(event_type_allowlist))
-        scoped_filter = (" AND " + " AND ".join(filters)) if filters else ""
+        business_unit_codes = list(business_unit_codes or ())
+        event_type_allowlist = list(event_type_allowlist or ())
         self.env.cr.execute(
-            f"""
+            """
             SELECT id
               FROM codestra_runtime_integration_outbox
              WHERE ((
@@ -386,12 +376,22 @@ class CodestraIntegrationOutbox(models.Model):
                     delivery_state = 'processing'
                     AND lease_expires_at <= now()
                    ))
-               {scoped_filter}
+               AND (%s = FALSE OR record_environment = %s)
+               AND (%s = FALSE OR business_unit_code = ANY(%s))
+               AND (%s = FALSE OR event_type = ANY(%s))
              ORDER BY created_at, id
              FOR UPDATE SKIP LOCKED
              LIMIT %s
             """,
-            [*parameters, limit],
+            (
+                bool(record_environment),
+                record_environment or "",
+                bool(business_unit_codes),
+                business_unit_codes or [""],
+                bool(event_type_allowlist),
+                event_type_allowlist or [""],
+                limit,
+            ),
         )
         records = self.browse([row[0] for row in self.env.cr.fetchall()])
         issued_tokens = {}
@@ -481,6 +481,10 @@ class CodestraIntegrationOutbox(models.Model):
         if (
             parsed.scheme != "https"
             or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.query
+            or parsed.fragment
             or parsed.path.rstrip("/") != "/api/v1/campaign-designs/preview"
         ):
             raise ValidationError(
@@ -513,7 +517,10 @@ class CodestraIntegrationOutbox(models.Model):
             },
         )
         context = ssl.create_default_context()
-        with request.urlopen(outbound, timeout=10, context=context) as response:
+        # _middleware_configuration bounds this request to credential-free HTTPS.
+        with request.urlopen(  # nosec B310
+            outbound, timeout=10, context=context
+        ) as response:
             raw = response.read(MAX_RESPONSE_BYTES + 1)
             if len(raw) > MAX_RESPONSE_BYTES:
                 raise ValidationError("Middleware response exceeds the size limit.")

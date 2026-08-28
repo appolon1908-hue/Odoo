@@ -392,7 +392,9 @@ class MailInboundEvent(models.Model):
             }).id)
         body = html_sanitize(payload.get("body_html") or payload.get("body_text") or "", sanitize_tags=True, sanitize_attributes=True)
         conversation.message_post(
-            body=Markup(body), message_type="comment", subtype_xmlid="mail.mt_comment",
+            # html_sanitize above is the single trust transition for message HTML.
+            body=Markup(body),  # nosec B704
+            message_type="comment", subtype_xmlid="mail.mt_comment",
             email_from=sender, attachment_ids=attachment_ids,
         )
         ledger.write({"conversation_id": conversation.id, "state": "PROCESSED"})

@@ -76,7 +76,14 @@ class CallbackSyncJob(models.Model):
             if not value:
                 raise ValidationError("Callback %s is not configured." % label)
         api = urllib.parse.urlparse(base_url)
-        if api.scheme != "https" or not api.hostname:
+        if (
+            api.scheme != "https"
+            or not api.hostname
+            or api.username
+            or api.password
+            or api.query
+            or api.fragment
+        ):
             raise ValidationError("Callback API URL must use HTTPS.")
         token = urllib.parse.urlparse(token_url)
         private_keycloak = (
@@ -86,7 +93,13 @@ class CallbackSyncJob(models.Model):
             and token.username is None
             and token.password is None
         )
-        if (token.scheme != "https" and not private_keycloak) or not token.hostname:
+        if (
+            ((token.scheme != "https" and not private_keycloak) or not token.hostname)
+            or token.username
+            or token.password
+            or token.query
+            or token.fragment
+        ):
             raise ValidationError(
                 "Callback token URL must use HTTPS or the private Keycloak service."
             )
@@ -124,7 +137,8 @@ class CallbackSyncJob(models.Model):
             config["token_url"], data=body, method="POST",
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
-        with urllib.request.urlopen(
+        # _configuration bounds this request to HTTPS or private Keycloak.
+        with urllib.request.urlopen(  # nosec B310
             outbound, timeout=10, context=self._ssl_context(config["ca_file"])
         ) as response:
             result = self._read_json(response)
@@ -266,7 +280,8 @@ class CallbackSyncJob(models.Model):
         if encoded is not None:
             headers["Content-Type"] = "application/json"
         outbound = urllib.request.Request(url, data=encoded, method=method, headers=headers)
-        with urllib.request.urlopen(
+        # _configuration bounds the base URL; only fixed path segments are added.
+        with urllib.request.urlopen(  # nosec B310
             outbound, timeout=10, context=self._ssl_context(config["ca_file"])
         ) as response:
             return self._read_json(response)

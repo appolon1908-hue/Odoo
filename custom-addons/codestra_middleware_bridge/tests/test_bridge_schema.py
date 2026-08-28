@@ -1,8 +1,21 @@
 from odoo.tests.common import TransactionCase
+from odoo.exceptions import ValidationError
 from psycopg2 import IntegrityError
 
 
 class TestBridgeSchema(TransactionCase):
+    def test_middleware_target_requires_credential_free_https(self):
+        client = self.env["codestra.middleware.outbound"]
+        valid = "https://middleware.example.test/api/v1/events"
+        self.assertEqual(client._validated_target(valid), valid)
+        for unsafe in (
+            "http://middleware.example.test/api/v1/events",
+            "https://user:secret@middleware.example.test/api/v1/events",
+            "https://middleware.example.test/api/v1/events?redirect=1",
+        ):
+            with self.subTest(unsafe=unsafe), self.assertRaises(ValidationError):
+                client._validated_target(unsafe)
+
     def test_external_identity_uniqueness_belongs_to_partner(self):
         external_id = "synthetic-contact-identity"
         self.env["res.partner"].create({

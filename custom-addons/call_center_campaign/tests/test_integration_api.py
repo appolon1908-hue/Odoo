@@ -7,13 +7,29 @@ from odoo.tests.common import TransactionCase, tagged
 from ..controllers.integration_api import (
     CodestraIntegrationApiController,
     CodestraServiceOperationsController,
+    IntegrationRejected,
     _b64url,
     _effective_service_key,
+    _validated_jwks_url,
 )
 
 
 @tagged("post_install", "-at_install")
 class TestIntegrationApiContract(TransactionCase):
+    def test_jwks_url_is_bounded_to_keycloak_certificate_endpoints(self):
+        public = "https://auth.example.test/realms/test/protocol/openid-connect/certs"
+        private = "http://keycloak:8080/realms/test/protocol/openid-connect/certs"
+        self.assertEqual(_validated_jwks_url(public), public)
+        self.assertEqual(_validated_jwks_url(private), private)
+        for unsafe in (
+            "http://auth.example.test/realms/test/protocol/openid-connect/certs",
+            "https://user:secret@auth.example.test/realms/test/protocol/openid-connect/certs",
+            "https://auth.example.test/realms/test/protocol/openid-connect/certs?redirect=1",
+            "https://auth.example.test/realms/test/.well-known/openid-configuration",
+        ):
+            with self.subTest(unsafe=unsafe), self.assertRaises(IntegrationRejected):
+                _validated_jwks_url(unsafe)
+
     def test_jwt_segments_require_canonical_base64url(self):
         encoded = base64.urlsafe_b64encode(b"synthetic").rstrip(b"=").decode()
         self.assertEqual(_b64url(encoded), b"synthetic")

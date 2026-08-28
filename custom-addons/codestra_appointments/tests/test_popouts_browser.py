@@ -1,3 +1,4 @@
+import logging
 import os
 from contextlib import nullcontext
 from unittest.mock import patch
@@ -7,6 +8,9 @@ from odoo import Command
 from odoo.http import root
 from odoo.tests import HttpCase, tagged
 from odoo.tools.misc import file_path
+
+
+_logger = logging.getLogger(__name__)
 
 
 def _windows_static_file(url, host=""):
@@ -111,3 +115,4 @@ class TestAppointmentPopoutsBrowser(HttpCase):
                 login="admin",
                 timeout=90,
             )
+        _logger.info("APPOINTMENT_POPOUT_BROWSER=PASS")

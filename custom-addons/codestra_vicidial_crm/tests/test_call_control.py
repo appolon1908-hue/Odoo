@@ -1,8 +1,13 @@
 import uuid
+from datetime import timedelta
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from odoo import fields
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests.common import TransactionCase
+
+from ..controllers import call_control as call_control_controller
 
 
 class TestCallControl(TransactionCase):
@@ -149,3 +154,40 @@ class TestCallControl(TransactionCase):
         call = self.call("isolation")
         with self.assertRaises(AccessError):
             call.with_user(self.other_user)._check_call_owner()
+
+    def test_callback_replay_returns_the_original_callback(self):
+        call = self.call("callback-replay")
+        lead = self.env["crm.lead"].create({"name": "Synthetic Callback Lead"})
+        call.crm_lead_id = lead
+        controller = call_control_controller.CallControlAPI()
+        first_at = fields.Datetime.now() + timedelta(hours=1)
+        second_at = first_at + timedelta(hours=1)
+        request = SimpleNamespace(env=self.env)
+        with (
+            patch.object(call_control_controller, "request", request),
+            patch.object(controller, "_owned_call", return_value=call),
+        ):
+            first = controller.callback(
+                call.call_id,
+                fields.Datetime.to_string(first_at),
+                "UTC",
+                "First synthetic callback",
+                "callback-replay-key-0001",
+            )
+            second = controller.callback(
+                call.call_id,
+                fields.Datetime.to_string(second_at),
+                "UTC",
+                "Second synthetic callback",
+                "callback-replay-key-0002",
+            )
+            replay = controller.callback(
+                call.call_id,
+                fields.Datetime.to_string(first_at),
+                "UTC",
+                "First synthetic callback",
+                "callback-replay-key-0001",
+            )
+        self.assertNotEqual(first["callback_id"], second["callback_id"])
+        self.assertTrue(replay["duplicate"])
+        self.assertEqual(replay["callback_id"], first["callback_id"])

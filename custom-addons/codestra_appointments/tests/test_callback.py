@@ -83,6 +83,45 @@ class TestCallbackState(TransactionCase):
         self.assertIn('date_start="scheduled_start"', appointment_calendar.arch_db)
         self.assertIn('date_start="scheduled_at"', callback_calendar.arch_db)
 
+    def test_appointment_child_models_are_parent_scoped(self):
+        rule_ids = (
+            "appointment_checklist_agent_scope_rule",
+            "appointment_item_agent_scope_rule",
+            "appointment_ack_agent_scope_rule",
+            "appointment_checklist_supervisor_scope_rule",
+            "appointment_item_supervisor_scope_rule",
+            "appointment_ack_supervisor_scope_rule",
+            "appointment_escalation_supervisor_scope_rule",
+            "appointment_telephony_supervisor_scope_rule",
+            "appointment_audit_supervisor_scope_rule",
+            "appointment_metric_supervisor_scope_rule",
+        )
+        for xmlid in rule_ids:
+            rule = self.env.ref("codestra_appointments.%s" % xmlid)
+            with self.subTest(rule=xmlid):
+                self.assertTrue(rule.active)
+                self.assertIn("appointment_id.business_unit_id", rule.domain_force)
+
+    def test_legacy_callback_completion_enqueues_middleware_completion(self):
+        legacy_campaign = self.env["codestra.vicidial.campaign"].search(
+            [("campaign_id", "=", "TEST_SYN")], limit=1
+        ) or self.env["codestra.vicidial.campaign"].create(
+            {"name": "Synthetic Callback Campaign", "campaign_id": "TEST_SYN", "mode": "test"}
+        )
+        callback = self._callback(
+            state="scheduled",
+            status="scheduled",
+            vicidial_campaign_id=legacy_campaign.id,
+            middleware_callback_uuid="018f0000-0000-7000-8000-000000000099",
+        )
+        with patch.dict("os.environ", {"CODESTRA_CALLBACK_SYNC_ENABLED": "true"}):
+            callback.action_complete()
+        job = self.env["codestra.callback.sync.job"].search(
+            [("callback_id", "=", callback.id)], limit=1
+        )
+        self.assertEqual(callback.state, "completed")
+        self.assertEqual(job.operation, "completed")
+
     def test_disabled_sync_does_not_enqueue(self):
         callback = self._callback()
         with patch.dict("os.environ", {"CODESTRA_CALLBACK_SYNC_ENABLED": "false"}):
@@ -121,6 +160,20 @@ class TestCallbackState(TransactionCase):
         values["CODESTRA_CALLBACK_TOKEN_URL"] = "http://auth.example.test:8080/token"
         with patch.dict("os.environ", values, clear=True), self.assertRaises(ValidationError):
             jobs._configuration()
+        values["CODESTRA_CALLBACK_TOKEN_URL"] = (
+            "http://keycloak:8080/realms/codestra/protocol/openid-connect/token"
+        )
+        for unsafe in (
+            "https://user:secret@api.codestra.co/api/v1",
+            "https://api.codestra.co/api/v1?redirect=1",
+        ):
+            values["CODESTRA_CALLBACK_API_BASE_URL"] = unsafe
+            with (
+                self.subTest(unsafe=unsafe),
+                patch.dict("os.environ", values, clear=True),
+                self.assertRaises(ValidationError),
+            ):
+                jobs._configuration()
 
     def test_acknowledgement_persists_canonical_identity(self):
         callback = self._callback(state="scheduled", version=2)

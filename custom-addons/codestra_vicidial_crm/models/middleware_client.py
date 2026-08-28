@@ -1,5 +1,6 @@
 import json
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from odoo import api, models
@@ -11,12 +12,29 @@ class TelephonyMiddlewareClient(models.AbstractModel):
     _description = "Governed Codestra Telephony Middleware Client"
 
     @api.model
+    def _validated_target(self, value):
+        parsed = urllib.parse.urlsplit(value or "")
+        if (
+            parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise UserError(
+                "Click-to-call middleware must use a credential-free HTTPS endpoint."
+            )
+        return value
+
+    @api.model
     def originate_call(self, correlation_id, idempotency_key, payload):
         params = self.env["ir.config_parameter"].sudo()
         target = params.get_param("codestra.middleware.telephony_originate_url")
         api_key = params.get_param("codestra.middleware.api_key")
         if not target or not api_key:
             raise UserError("Click-to-call middleware is not configured.")
+        target = self._validated_target(target)
         raw = json.dumps(
             dict(payload, idempotency_key=idempotency_key), separators=(",", ":")
         ).encode()
@@ -31,7 +49,10 @@ class TelephonyMiddlewareClient(models.AbstractModel):
             method="POST",
         )
         try:
-            with urllib.request.urlopen(outbound_request, timeout=10) as response:
+            # _validated_target rejects non-HTTPS and credential-bearing authorities.
+            with urllib.request.urlopen(  # nosec B310
+                outbound_request, timeout=10
+            ) as response:
                 result = json.loads(response.read())
         except urllib.error.HTTPError as exc:
             try:

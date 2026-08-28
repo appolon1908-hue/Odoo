@@ -998,7 +998,8 @@ class CcMailInboundEvent(models.Model):
         thread.with_context(
             mail_create_nosubscribe=True, mail_post_autofollow=False
         ).message_post(
-            body=Markup(body),
+            # html_sanitize above is the single trust transition for message HTML.
+            body=Markup(body),  # nosec B704
             message_type="comment",
             subtype_xmlid="mail.mt_comment",
             email_from=sender,

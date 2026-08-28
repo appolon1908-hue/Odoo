@@ -450,3 +450,23 @@ class TestCampaignTransactionalOutbox(TransactionCase):
             self.assertRaisesRegex(ValidationError, "committed design revision"),
         ):
             event._send_to_middleware()
+
+    def test_middleware_endpoint_rejects_credentials_and_query_parameters(self):
+        outbox = self.env["codestra.runtime.integration.outbox"]
+        for unsafe in (
+            "https://user:secret@middleware.example/api/v1/campaign-designs/preview",
+            "https://middleware.example/api/v1/campaign-designs/preview?redirect=1",
+        ):
+            with (
+                self.subTest(unsafe=unsafe),
+                patch.dict(
+                    "os.environ",
+                    {
+                        "CODESTRA_MIDDLEWARE_CAMPAIGN_DESIGN_URL": unsafe,
+                        "CODESTRA_MIDDLEWARE_TOKEN_FILE": "/run/secrets/middleware",
+                    },
+                    clear=True,
+                ),
+                self.assertRaisesRegex(ValidationError, "exact HTTPS"),
+            ):
+                outbox._middleware_configuration()

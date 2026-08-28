@@ -23,8 +23,6 @@
     "codestra_ivr_control": "3b27a0bfe3501da52f205cacf756cd8741fdf9f5",
     "codestra_lead_automation": "30b65a165e91988e8be9edc0c97aef9c19059194",
     "codestra_lead_ingestion": "071935b8becbaa636b656d05a040d4650b15ae24",
-    "codestra_mail_inbox": "396f22ab185e538e4781b4d75a8ae01b5ae0eeff",
-    "codestra_middleware_bridge": "d5f2785ea737689dfc1bdc88bb1eb1650a334e02",
     "codestra_social_orchestration": "1850feb3a99c90babccb9a3ec79d30374f0c0bd9",
     "codestra_staging_campaign_design": "fd0fdb619d2f60a3e3dfcc4a0ccba7e7cd32abc7",
     "codestra_telephony_bridge": "b6b377e715ff4754e20d1e7a3dc8fcc9d75d18c0",
@@ -35,9 +33,9 @@
   "strict_mission_overrides": {
     "call_center_campaign": {
       "base_tree": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
-      "current_tree": "ab05f8165b83974a8c64d83980d0fe67f58819a8",
-      "reason": "Repair Odoo 19 campaign regression coverage, canonical JWT base64url fixtures, and business-unit scoped integration outbox rules while preserving the deterministic inactive campaign inventory.",
-      "pull_request": 21,
+      "current_tree": "062b168d44f17329c1071f70ed8d9faf643ef1bc",
+      "reason": "Repair Odoo 19 campaign regression coverage, canonical JWT base64url fixtures, and business-unit scoped integration outbox rules; compose transactional SQL through Odoo's SQL helper; and constrain JWKS and Middleware destinations before network access while preserving the deterministic inactive campaign inventory.",
+      "pull_request": 38,
       "integration_boundary_exceptions": [
         {
           "path": "controllers/integration_api.py",
@@ -68,9 +66,9 @@
     },
     "codestra_appointments": {
       "base_tree": "5812f7df199b0d5525ee7dd6a9fdc9d314947f6f",
-      "current_tree": "8ced171d3fe5be87c2087ae877b3937484eb070a",
-      "reason": "Extend the canonical VICIdial callback model with the governed appointment, reminder, and scheduler lifecycle; separate Odoo and physical campaign identities; add restartable upgrade reconciliation; and deliver accessible calendar, reminder, and callback-scheduler pop-outs with real-browser regression coverage.",
-      "pull_request": 25,
+      "current_tree": "8b695b7e43301868b2861de818b53f0eda5efca2",
+      "reason": "Extend the canonical VICIdial callback model with the governed appointment, reminder, and scheduler lifecycle; separate Odoo and physical campaign identities; add restartable upgrade reconciliation; deliver accessible pop-outs with real-browser regression coverage; scope child records through their parent appointment; enqueue legacy completions; and constrain callback synchronization destinations.",
+      "pull_request": 38,
       "integration_boundary_exceptions": [
         {
           "path": "models/callback_sync.py",
@@ -93,9 +91,9 @@
     },
     "codestra_identity_provisioning": {
       "base_tree": "245f4e9fc94f3447ecbaa22b17b4784d5b1c36cc",
-      "current_tree": "29ecc9579ccf76f23b93764d9699a8e500a54bc1",
-      "reason": "Update the duplicate-login regression to assert Odoo 19 ORM ValidationError behavior, document the provisioning boundary, and retain concurrency-safe identity allocation.",
-      "pull_request": 21,
+      "current_tree": "7f31cc4d6f40338aaaf800a42c6ed599c6d9fc5f",
+      "reason": "Update the duplicate-login regression to assert Odoo 19 ORM ValidationError behavior, document the provisioning boundary, retain concurrency-safe identity allocation, and explicitly bind reviewed provisioning network access to validated destinations.",
+      "pull_request": 38,
       "allow_post_init_hook": true,
       "integration_boundary_exceptions": [
         {
@@ -121,11 +119,31 @@
       "reason": "Preserve the disabled synthetic-company hierarchy and make TEST_SYN disposition certification deterministic across canonical business codes and physical VICIdial status aliases.",
       "pull_request": 21
     },
+    "codestra_mail_inbox": {
+      "base_tree": "396f22ab185e538e4781b4d75a8ae01b5ae0eeff",
+      "current_tree": "dd51eef5dabcaba2cdb27822c08a9defa6568447",
+      "reason": "Keep rendered inbox content on the reviewed Odoo sanitization boundary and document that boundary for the security scanner before Markup is constructed.",
+      "pull_request": 38,
+      "allow_post_init_hook": true
+    },
+    "codestra_middleware_bridge": {
+      "base_tree": "d5f2785ea737689dfc1bdc88bb1eb1650a334e02",
+      "current_tree": "a28c2efed1d1bd6f6f5b2bed93c2df824a0a004a",
+      "reason": "Constrain the existing synthetic Odoo-to-Middleware event bridge to credential-free HTTPS destinations and add regression coverage without expanding Middleware authority or adding a second integration stack.",
+      "pull_request": 38,
+      "integration_boundary_exceptions": [
+        {
+          "path": "tests/test_bridge_schema.py",
+          "kind": "odoo_test_driver_exception",
+          "reason": "The Odoo transaction test imports only IntegrityError to assert partner external-identity uniqueness and never opens a database connection."
+        }
+      ]
+    },
     "codestra_vicidial_crm": {
       "base_tree": "cf0783918b94c3e396d24ebe868c4fb04096e4a1",
-      "current_tree": "4ec243402e28b9c30f23ad7c66847515751b3b9f",
-      "reason": "Preserve the Odoo 19 asset repair, use the supported Odoo 19 RPC client in the click-to-call pop-out, and remove the duplicate callback schema by giving the VICIdial campaign relation an explicit identity, supporting pre-call governed callbacks, and adding restartable compatibility migrations.",
-      "pull_request": 25,
+      "current_tree": "243264a21e86661ddd70772969db7443996ad34e",
+      "reason": "Preserve the Odoo 19 asset repair and supported click-to-call RPC client; remove the duplicate callback schema; make idempotent callback replay return the original result; and constrain the existing Middleware client to credential-free HTTPS destinations.",
+      "pull_request": 38,
       "integration_boundary_exceptions": [
         {
           "path": "models/reconciliation.py",

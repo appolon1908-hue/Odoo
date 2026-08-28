@@ -80,7 +80,8 @@ class PrivateProvisioningService(models.AbstractModel):
     @api.model
     def _open_json(self, request, context):
         try:
-            with urllib.request.urlopen(
+            # Callers supply only URLs accepted by _https_url or _token_url.
+            with urllib.request.urlopen(  # nosec B310
                 request, context=context, timeout=15
             ) as response:
                 if response.status not in (200, 201, 202):

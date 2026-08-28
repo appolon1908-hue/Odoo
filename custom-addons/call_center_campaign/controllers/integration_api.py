@@ -4,6 +4,7 @@ import json
 import os
 import time
 from datetime import datetime, timedelta, timezone
+from urllib import parse as urlparse
 from urllib import request as urlrequest
 
 from cryptography.exceptions import InvalidSignature
@@ -70,6 +71,28 @@ def _effective_service_key(claims):
     return claims.get("service_key") or claims.get("azp")
 
 
+def _validated_jwks_url(value):
+    parsed = urlparse.urlsplit(value or "")
+    private_keycloak = (
+        parsed.scheme == "http"
+        and parsed.hostname == "keycloak"
+        and parsed.port == 8080
+    )
+    if (
+        (parsed.scheme != "https" and not private_keycloak)
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+        or not parsed.path.endswith("/protocol/openid-connect/certs")
+    ):
+        raise IntegrationRejected(
+            "JWKS URL must use credential-free HTTPS or the private Keycloak service."
+        )
+    return value
+
+
 def _verify_service_token(token, required_scope):
     parts = token.split(".")
     if len(parts) != 3:
@@ -97,7 +120,9 @@ def _verify_service_token(token, required_scope):
         or not header.get("kid")
     ):
         raise IntegrationRejected("service identity is not configured")
-    with urlrequest.urlopen(jwks_url, timeout=5) as response:
+    jwks_url = _validated_jwks_url(jwks_url)
+    # The URL is scheme-, authority-, and path-bounded immediately above.
+    with urlrequest.urlopen(jwks_url, timeout=5) as response:  # nosec B310
         jwks = json.loads(response.read(MAX_BODY_BYTES))
     jwk = next(
         (item for item in jwks.get("keys", []) if item.get("kid") == header["kid"]),

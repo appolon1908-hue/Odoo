@@ -472,10 +472,21 @@ class CallControlAPI(http.Controller):
     def callback(self, call_id, scheduled_at, timezone, reason, idempotency_key, priority="1"):
         call = self._owned_call(call_id)
         key = self._key({"idempotency_key": idempotency_key})
-        _command, duplicate = self._command(call, "callback", key, {"scheduled_at": scheduled_at})
+        command, duplicate = self._command(call, "callback", key, {"scheduled_at": scheduled_at})
+        callback_key = "call-control:%s" % key
         if duplicate:
-            callback = request.env["codestra.callback"].search([("call_id", "=", call.id)], order="id desc", limit=1)
-            return {"duplicate": True, "callback_id": callback.id or None, "dispatch_enabled": False}
+            callback = request.env["codestra.callback"].search(
+                [
+                    ("call_id", "=", call.id),
+                    ("idempotency_key", "=", callback_key),
+                ],
+                limit=1,
+            )
+            if not callback:
+                raise ValidationError(
+                    "The original callback result is unavailable for this command."
+                )
+            return {"duplicate": True, "callback_id": callback.id, "dispatch_enabled": False}
         lead = call.crm_lead_id or call.lead_id
         if not lead:
             raise ValidationError("A callback requires a correlated CRM lead.")
@@ -492,7 +503,12 @@ class CallControlAPI(http.Controller):
                 "timezone": timezone,
                 "reason": reason,
                 "priority": priority,
+                "idempotency_key": callback_key,
+                "correlation_id": call.correlation_id,
             }
+        )
+        command.sudo().write(
+            {"result_json": json.dumps({"callback_id": callback.id}, sort_keys=True)}
         )
         self._audit(call, "call.callback", {"callback_id": callback.id})
         return {"duplicate": False, "callback_id": callback.id, "dispatch_enabled": False}
