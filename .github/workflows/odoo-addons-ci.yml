@@ -112,9 +112,14 @@ jobs:
           import sys
 
           lines = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace").splitlines()
-          tail = "\n".join(lines[-40:])
-          encoded = tail.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
-          print(f"::error title=Odoo runtime failure::{encoded}")
+          starts = [i for i, line in enumerate(lines) if line == "Traceback (most recent call last):"]
+          blocks = [lines[max(0, start - 4):min(len(lines), start + 28)] for start in starts[-10:]]
+          if not blocks:
+              blocks = [lines[-40:]]
+          for number, block in enumerate(blocks, 1):
+              text = "\n".join(block)[:8000]
+              encoded = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+              print(f"::error title=Odoo runtime failure {number}::{encoded}")
           PY
             exit 1
           fi
@@ -187,9 +192,14 @@ jobs:
           import sys
 
           lines = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace").splitlines()
-          tail = "\n".join(lines[-40:])
-          encoded = tail.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
-          print(f"::error title=Odoo runtime failure::{encoded}")
+          starts = [i for i, line in enumerate(lines) if line == "Traceback (most recent call last):"]
+          blocks = [lines[max(0, start - 4):min(len(lines), start + 28)] for start in starts[-10:]]
+          if not blocks:
+              blocks = [lines[-40:]]
+          for number, block in enumerate(blocks, 1):
+              text = "\n".join(block)[:8000]
+              encoded = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+              print(f"::error title=Odoo runtime failure {number}::{encoded}")
           PY
             exit 1
           fi
