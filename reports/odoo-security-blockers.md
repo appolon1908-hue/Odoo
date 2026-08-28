@@ -1,5 +1,25 @@
 # Odoo contact-center security blockers
 
+## Compliance and audit branch
+
+- All 93 campaign compliance policy seeds are absent; the generated compliance
+  matrix therefore remains `PARTIAL` and external policy/provider read-back is
+  `NOT_TESTED`.
+- Consent grants and revocations, suppression, and pre-contact eligibility are
+  append-only, hash-bound, campaign-scoped, and exact-replay protected. DNC and
+  revocation block contact before the next click-to-call command.
+- Calling hours use the protected customer time zone. Missing policy, missing
+  consent, active suppression, predictive outreach, AI voice, and prerecorded
+  voice all fail closed.
+- Payment safety requires recording pause evidence before a tokenized provider
+  handoff. Card, CVV, bank credential, authentication-secret, and payment URL
+  values are rejected from governed notes and chatter.
+- Audit events are capability-guarded, immutable, payload-hashed, and linked by
+  actor-specific chains. Break-glass request, approval, activation, use,
+  revocation, and expiry create retained evidence.
+- Legal hold supersedes elapsed retention. This branch creates decisions only;
+  it exposes no deletion, external compliance transport, or live outreach path.
+
 ## Workforce and reporting branch
 
 - All 93 campaign workforce and reporting policy seeds are absent; the generated
@@ -28,15 +48,15 @@ Production status: `PRODUCTION_BLOCKED`
 | Critical | Exact-one operational campaign authority | Active agents and supervisors resolve through exactly one canonical membership; browser campaign parameters are ignored | Complete migration/read-back against an approved staging snapshot | RESOLVED_IN_STACK |
 | Critical | All 93 required native campaign IDs drift from the disposable database | Reconciliation result: 0 exact, 93 drift, 0 missing, 8 unmanaged | Run an approved disabled-state migration with collision checks, backup, read-back, and rollback | FAIL |
 | Critical | Controlled 2,677-row disposition catalog is unavailable | Attachment and repository search found no catalog | Supply, hash, review, validate, and test the original catalog | BLOCKED |
-| High | Target global record-rule contract is incomplete for later models | Canonical core, membership, identity, mail, CRM, customer-profile, queue, SLA, Helpdesk, callback, appointment, reminder, transfer, referral, event, and outbox surfaces have fail-closed rules and negative tests | Add the same global rule and negative tests to recording, QA, WFM, compliance, and reporting models | PARTIAL |
+| High | Target global record-rule contract is incomplete for later models | Canonical core, membership, identity, mail, CRM, Helpdesk, call, recording, QA, WFM, reporting, compliance, retention, payment, and audit surfaces now have fail-closed rules and focused negative tests | Preserve the invariant in business-unit overlays and complete the integrated branch-21 certification suite | RESOLVED_IN_STACK |
 | High | Helpdesk boundary is absent | `cc.helpdesk.queue`, `cc.helpdesk.sla.policy`, and `cc.helpdesk.ticket` are installed and campaign-isolated in the Community runtime; Enterprise `helpdesk.ticket` remains absent | Preserve the canonical Community IDs/evidence and require a separately reviewed adapter if Enterprise Helpdesk is later installed | RESOLVED_IN_STACK |
 | High | Campaign-script governance | Canonical script identity/version, separate approval, one-active-version constraint, hash-bound safe rendering, acknowledgements, and campaign rules are implemented | Reconcile/adopt approved legacy scripts in a reviewed staging migration; no external publication is authorized | RESOLVED_IN_STACK |
 | High | Canonical fail-closed flags are incomplete | Email, campaign provisioning, agent sync, VICIdial writes, live call control, warm transfer, and callback publication flags install and read back false | Add lead publication, IVR routing, recording playback, AI assist, and production dialing flags on their owning branches | PARTIAL |
-| High | Cross-campaign suite is incomplete | Canonical ORM/search/report/export plus membership, session, mail, CRM, customer-profile, Helpdesk, callback, appointment, reminder, live-transfer rejection, and asynchronous referral isolation paths are covered | Extend the same negative suite to recording, QA, WFM, compliance, and reporting surfaces | PARTIAL |
+| High | Cross-campaign suite is incomplete | Canonical ORM/search/report/export plus membership, session, mail, CRM, Helpdesk, call, recording, QA, WFM, reporting, compliance, payment, retention, and audit isolation paths are covered | Execute the full combined persona/model/communication-path matrix on branch 21 | PARTIAL |
 | High | Public/service endpoints need ownership review | 65 routes exist; several `auth=none` routes rely on custom service authentication | Classify every route, enforce signed identity/scope/replay protection, and retain tests | PARTIAL |
 | High | Privileged ORM/SQL paths need model-level review | Raw inventory found 205 `.sudo(` and 47 cursor references | Prove least privilege, revalidation, parameterization, and non-bypass behavior per path | PARTIAL |
 | High | No integration endpoint is configured in the snapshot | Integration endpoint count is zero | Configure authenticated staging middleware and read-back without secrets in source | BLOCKED |
-| Medium | Full human isolation certification is incomplete | Synthetic Campaign A/B agents, supervisors, administrators, integration service, mail, CRM, and Helpdesk tests now pass | Add QA/WFM/call personas as their owning branches land | PARTIAL |
+| Medium | Full human isolation certification is incomplete | Synthetic Campaign A/B agents, supervisors, QA, WFM, Compliance, administrators, auditors, and private service boundaries have focused coverage | Execute the consolidated branch-21 identity and stale-session certification | PARTIAL |
 | Medium | Authority attachment is incomplete | Supplied text ends mid-sentence | Obtain the complete signed/controlled authority and record its hash | PARTIAL |
 | Medium | Required evidence packet is incomplete | Only inventory/module/blocker reports are created on the authority branch | Update all 23 required reports across the implementation stack | PARTIAL |
 
@@ -72,3 +92,23 @@ only through a destination-isolated minimum-data referral service.
 - Approved policy/program seeds and authoritative storage/Middleware read-back
   remain unavailable, so the 93 campaign rows remain `PARTIAL` and production is
   blocked.
+
+## Compliance and audit controls
+
+- `codestra_cc_compliance` enforces versioned jurisdiction/campaign/channel
+  policy, separate approval, active-policy uniqueness, immediate suppression,
+  customer-local calling hours, and pre-contact evidence.
+- `CC_ENABLE_AUTOMATED_OUTREACH=false`,
+  `CC_ENABLE_PREDICTIVE_DIALING=false`,
+  `CC_ENABLE_PRERECORDED_VOICE=false`, and
+  `CC_ENABLE_PAYMENT_DELIVERY=false` install as closed defaults. Existing live
+  dialing, AI, callback, transfer, email, and provider flags remain false.
+- Payment workflows retain only protected hashes and ordered pause/tokenization
+  evidence. No card field, payment URL, direct provider call, or delivery worker
+  is present.
+- `codestra_cc_audit` provides immutable actor-chain evidence and controlled
+  campaign/auditor visibility. Technical users see only their own events unless
+  a separately approved break-glass grant is active.
+- Campaign policy seeds, external legal/provider validation, authoritative
+  suppression read-back, and jurisdictional approval are unavailable. Every one
+  of the 93 compliance rows remains `PARTIAL`; production stays blocked.

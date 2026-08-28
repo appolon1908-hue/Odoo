@@ -9,6 +9,7 @@
         "codestra_cc_crm",
         "codestra_cc_calls",
         "codestra_cc_recordings",
+        "codestra_cc_wfm",
         "codestra_vicidial_crm",
         "call_center_compliance",
         "codestra_cc_audit",
