@@ -245,6 +245,7 @@ class CcScriptVersion(models.Model):
     )
     cc_campaign_id = fields.Many2one(
         "cc.campaign",
+        string="Canonical Campaign Workspace",
         related="script_id.campaign_id",
         store=True,
         readonly=True,
@@ -755,6 +756,7 @@ class CcDisposition(models.Model):
     )
     cc_campaign_id = fields.Many2one(
         "cc.campaign",
+        string="Canonical Campaign Workspace",
         related="set_id.campaign_id",
         store=True,
         readonly=True,
@@ -764,6 +766,7 @@ class CcDisposition(models.Model):
         "cc.campaign.channel", required=True, ondelete="restrict", index=True, copy=False
     )
     native_status_code = fields.Char(
+        string="Native VICIdial Status",
         related="legacy_disposition_id.vicidial_status_code",
         store=True,
         readonly=True,

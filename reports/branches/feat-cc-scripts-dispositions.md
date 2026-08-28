@@ -29,7 +29,13 @@ Base: `feat/cc-vicidial-mapping` at
 - 63 manifests reviewed; 0 strict review errors/warnings.
 - Mission security: no unrestricted `sudo()`, raw SQL, direct network writer, or
   public controller in the module.
-- Odoo 19/PostgreSQL exact-head runtime: pending draft-PR execution.
+- Draft PR [#33](https://github.com/appolon1908-hue/Odoo/pull/33) exact-head and
+  merge-result source checks: PASS.
+- Pinned Odoo 19/PostgreSQL runtime: 404 tests, 0 failed, 0 errors; focused module
+  10 counters; PostgreSQL schema and fail-closed administrator audits: PASS.
+- Calendar/reminder/scheduler browser tour: `NOT_TESTED` in this image because
+  optional `websocket-client` is absent; immediately preceding successful
+  unchanged-base evidence remains retained.
 
 ## Unresolved gates
 
