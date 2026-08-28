@@ -106,12 +106,18 @@ All captured production-effect flags were false except `CODESTRA_CALLBACK_SYNC_E
 
 The latest observed paired backup was `klyrow-unified-20260822T200000Z` (database plus filestore with checksums), not a current release pair. Existing evidence records a 30-second mechanics exercise but says representative Odoo 19 rollback remains blocked. Recovery is therefore **not certified**.
 
-## Security and correctness blockers
+## Source-candidate validation
 
-- Fresh isolated Odoo 19/PostgreSQL 17.6 install passed 451 tests, but four campaign integration models emitted missing-ACL warnings.
+- The exact PR head passed a fresh isolated Odoo 19/PostgreSQL 17.6 install: 458 tests, zero failures, zero errors, and zero browser skips.
+- The Chrome browser test passed the calendar, reminder, and scheduler pop-outs.
+- All 67 custom modules upgraded successfully; the PostgreSQL schema, administrator state, and module state audits passed.
+- A disposable database backup/restore rehearsal passed. This validates the source candidate and CI mechanics, not the captured production data or filestore.
+
+## Remaining certification blockers
+
 - Installed-vs-manifest version drift exists on live modules; content drift requires staged migrations, not direct copying.
-- Campaign isolation negative tests, deployed-baseline upgrade, interruption restart, paired restore, and staging certification remain required.
-- HTTP health is not accepted as business certification.
+- Sanitized deployed-baseline upgrade, external integration contracts, authorization-negative scenarios, interruption restart, representative load/soak, and paired database-plus-filestore restore remain required in isolated staging.
+- HTTP health and disposable CI success are not accepted as staging or business certification.
 """, encoding="utf-8")
 
 if __name__ == "__main__": main()
