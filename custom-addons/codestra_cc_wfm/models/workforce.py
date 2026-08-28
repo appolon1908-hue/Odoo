@@ -10,6 +10,7 @@ from odoo.exceptions import AccessError, UserError, ValidationError
 POLICY_CAPABILITY = object()
 FORECAST_CAPABILITY = object()
 SCHEDULE_CAPABILITY = object()
+SCHEDULE_CHANGE_CAPABILITY = object()
 ADHERENCE_CAPABILITY = object()
 EXCEPTION_CAPABILITY = object()
 EXCEPTION_EVENT_CAPABILITY = object()
@@ -458,6 +459,7 @@ class CcWorkforceSchedule(models.Model):
     published_at = fields.Datetime(readonly=True, copy=False)
     acknowledged_at = fields.Datetime(readonly=True, copy=False)
     completed_at = fields.Datetime(readonly=True, copy=False)
+    cancelled_at = fields.Datetime(readonly=True, copy=False)
     adherence_event_ids = fields.One2many(
         "cc.workforce.adherence.event", "schedule_id", readonly=True
     )
@@ -553,6 +555,10 @@ class CcWorkforceSchedule(models.Model):
                 or _is_global_admin(self.env.user)
             ):
                 raise AccessError(_("Only WFM or the campaign supervisor may publish."))
+            if _is_wfm(self.env.user) and not _is_global_admin(self.env.user):
+                _membership(self.env, schedule.campaign_id, "workforce")
+            elif _is_supervisor(self.env.user) and not _is_global_admin(self.env.user):
+                _membership(self.env, schedule.campaign_id, "supervisor")
             payload = {
                 "reference": schedule.reference,
                 "policy_hash": schedule.policy_id.policy_hash,
@@ -593,8 +599,319 @@ class CcWorkforceSchedule(models.Model):
                 or _is_global_admin(self.env.user)
             ):
                 raise AccessError(_("Only WFM or the campaign supervisor may complete."))
+            if _is_wfm(self.env.user) and not _is_global_admin(self.env.user):
+                _membership(self.env, schedule.campaign_id, "workforce")
+            elif _is_supervisor(self.env.user) and not _is_global_admin(self.env.user):
+                _membership(self.env, schedule.campaign_id, "supervisor")
             schedule.with_context(_cc_wfm_schedule_capability=SCHEDULE_CAPABILITY).write(
                 {"state": "completed", "completed_at": fields.Datetime.now()}
+            )
+        return True
+
+
+class CcWorkforceScheduleChange(models.Model):
+    _name = "cc.workforce.schedule.change"
+    _description = "Approved Campaign Schedule Change"
+    _inherit = "cc.campaign.scoped.mixin"
+    _order = "requested_at desc, id desc"
+
+    reference = fields.Char(
+        required=True, default=lambda self: str(uuid.uuid4()), readonly=True, copy=False
+    )
+    schedule_id = fields.Many2one(
+        "cc.workforce.schedule", required=True, readonly=True, ondelete="restrict", index=True
+    )
+    replacement_schedule_id = fields.Many2one(
+        "cc.workforce.schedule", readonly=True, copy=False, ondelete="restrict"
+    )
+    requester_id = fields.Many2one(
+        "res.users", required=True, readonly=True, ondelete="restrict"
+    )
+    reviewer_id = fields.Many2one(
+        "res.users", readonly=True, copy=False, ondelete="restrict"
+    )
+    request_type = fields.Selection(
+        [
+            ("change", "Schedule Change"),
+            ("overtime", "Overtime"),
+            ("cancel", "Cancellation"),
+        ],
+        required=True,
+        readonly=True,
+        index=True,
+    )
+    requested_start_at = fields.Datetime(required=True, readonly=True)
+    requested_end_at = fields.Datetime(required=True, readonly=True)
+    requested_activity_type = fields.Selection(
+        [
+            ("shift", "Shift"),
+            ("break", "Break"),
+            ("meeting", "Meeting"),
+            ("training", "Training"),
+            ("shrinkage", "Shrinkage"),
+            ("overtime", "Overtime"),
+        ],
+        required=True,
+        readonly=True,
+    )
+    requested_break_minutes = fields.Integer(required=True, readonly=True, default=0)
+    reason = fields.Text(required=True, readonly=True)
+    state = fields.Selection(
+        [
+            ("requested", "Requested"),
+            ("approved", "Approved"),
+            ("rejected", "Rejected"),
+            ("applied", "Applied"),
+        ],
+        required=True,
+        default="requested",
+        readonly=True,
+        index=True,
+    )
+    requested_at = fields.Datetime(
+        required=True, default=fields.Datetime.now, readonly=True
+    )
+    reviewed_at = fields.Datetime(readonly=True, copy=False)
+    applied_at = fields.Datetime(readonly=True, copy=False)
+    original_schedule_hash = fields.Char(required=True, size=64, readonly=True)
+    request_hash = fields.Char(required=True, size=64, readonly=True, index=True)
+    evidence_hash = fields.Char(size=64, readonly=True, copy=False, index=True)
+
+    @api.model_create_multi
+    def create(self, values_list):
+        if (
+            self.env.context.get("_cc_wfm_schedule_change_capability")
+            is not SCHEDULE_CHANGE_CAPABILITY
+        ):
+            raise AccessError(_("Schedule changes require the governed request workflow."))
+        records = super().create(values_list)
+        records._check_scope()
+        return records.with_context(_cc_wfm_schedule_change_capability=None)
+
+    def write(self, values):
+        if (
+            self.env.context.get("_cc_wfm_schedule_change_capability")
+            is not SCHEDULE_CHANGE_CAPABILITY
+        ):
+            raise AccessError(_("Schedule-change evidence is immutable."))
+        return super().write(values)
+
+    def unlink(self):
+        raise AccessError(_("Schedule-change evidence cannot be deleted."))
+
+    @api.constrains(
+        "campaign_id",
+        "schedule_id",
+        "replacement_schedule_id",
+        "requested_start_at",
+        "requested_end_at",
+        "requested_break_minutes",
+        "request_type",
+        "requested_activity_type",
+    )
+    def _check_scope(self):
+        for change in self:
+            if change.schedule_id.campaign_id != change.campaign_id:
+                raise ValidationError(_("Schedule change belongs to another campaign."))
+            if (
+                change.replacement_schedule_id
+                and change.replacement_schedule_id.campaign_id != change.campaign_id
+            ):
+                raise ValidationError(_("Replacement schedule belongs to another campaign."))
+            if change.requested_end_at <= change.requested_start_at:
+                raise ValidationError(_("Requested schedule end must be after start."))
+            total_minutes = int(
+                (change.requested_end_at - change.requested_start_at).total_seconds() / 60
+            )
+            if (
+                change.requested_break_minutes < 0
+                or change.requested_break_minutes >= total_minutes
+            ):
+                raise ValidationError(_("Requested break must fit inside the interval."))
+            if (
+                change.request_type == "overtime"
+                and change.requested_activity_type != "overtime"
+            ):
+                raise ValidationError(_("Overtime requests must create overtime activity."))
+
+    @api.model
+    def request_change(
+        self,
+        schedule,
+        request_type,
+        reason,
+        requested_start_at=None,
+        requested_end_at=None,
+        requested_activity_type=None,
+        requested_break_minutes=None,
+    ):
+        schedule.ensure_one()
+        if schedule.state not in {"published", "acknowledged"} or not schedule.schedule_hash:
+            raise ValidationError(_("Only a published schedule may be changed."))
+        if request_type not in {"change", "overtime", "cancel"}:
+            raise ValidationError(_("Schedule-change type is invalid."))
+        is_agent = schedule.agent_membership_id.user_id == self.env.user
+        if _is_wfm(self.env.user) and not _is_global_admin(self.env.user):
+            _membership(self.env, schedule.campaign_id, "workforce")
+        elif _is_supervisor(self.env.user) and not _is_global_admin(self.env.user):
+            _membership(self.env, schedule.campaign_id, "supervisor")
+        elif not (_is_global_admin(self.env.user) or is_agent):
+            raise AccessError(_("Only the scheduled agent or campaign operations may request a change."))
+        start = fields.Datetime.to_datetime(requested_start_at or schedule.start_at)
+        end = fields.Datetime.to_datetime(requested_end_at or schedule.end_at)
+        activity = requested_activity_type or schedule.activity_type
+        if request_type == "overtime":
+            activity = "overtime"
+        break_minutes = (
+            schedule.break_minutes
+            if requested_break_minutes is None
+            else int(requested_break_minutes)
+        )
+        clean_reason = str(reason or "").strip()
+        if not clean_reason:
+            raise ValidationError(_("A schedule-change reason is required."))
+        payload = {
+            "campaign": schedule.campaign_id.code,
+            "schedule_reference": schedule.reference,
+            "original_schedule_hash": schedule.schedule_hash,
+            "request_type": request_type,
+            "requested_interval": [start, end],
+            "requested_activity_type": activity,
+            "requested_break_minutes": break_minutes,
+            "reason_hash": _digest(clean_reason),
+            "requester": self.env.user.login,
+        }
+        return self.with_context(
+            _cc_wfm_schedule_change_capability=SCHEDULE_CHANGE_CAPABILITY
+        ).create(
+            {
+                "campaign_id": schedule.campaign_id.id,
+                "schedule_id": schedule.id,
+                "requester_id": self.env.user.id,
+                "request_type": request_type,
+                "requested_start_at": start,
+                "requested_end_at": end,
+                "requested_activity_type": activity,
+                "requested_break_minutes": break_minutes,
+                "reason": clean_reason,
+                "original_schedule_hash": schedule.schedule_hash,
+                "request_hash": _digest(payload),
+            }
+        )
+
+    def _review_membership(self):
+        self.ensure_one()
+        if _is_global_admin(self.env.user):
+            return False
+        if not _is_supervisor(self.env.user):
+            raise AccessError(_("A campaign supervisor must review schedule changes."))
+        membership = _membership(self.env, self.campaign_id, "supervisor")
+        if not membership.is_primary_supervisor:
+            raise AccessError(_("The primary campaign supervisor must review schedule changes."))
+        return membership
+
+    def action_approve(self):
+        for change in self:
+            change._review_membership()
+            if change.state != "requested":
+                raise ValidationError(_("Only requested schedule changes may be approved."))
+            if change.requester_id == self.env.user:
+                raise ValidationError(_("A requester cannot approve the same schedule change."))
+            reviewed_at = fields.Datetime.now()
+            evidence = _digest(
+                {
+                    "request_hash": change.request_hash,
+                    "decision": "approved",
+                    "reviewer": self.env.user.login,
+                    "reviewed_at": reviewed_at,
+                }
+            )
+            change.with_context(
+                _cc_wfm_schedule_change_capability=SCHEDULE_CHANGE_CAPABILITY
+            ).write(
+                {
+                    "state": "approved",
+                    "reviewer_id": self.env.user.id,
+                    "reviewed_at": reviewed_at,
+                    "evidence_hash": evidence,
+                }
+            )
+        return True
+
+    def action_reject(self):
+        for change in self:
+            change._review_membership()
+            if change.state != "requested":
+                raise ValidationError(_("Only requested schedule changes may be rejected."))
+            if change.requester_id == self.env.user:
+                raise ValidationError(_("A requester cannot reject the same schedule change."))
+            reviewed_at = fields.Datetime.now()
+            change.with_context(
+                _cc_wfm_schedule_change_capability=SCHEDULE_CHANGE_CAPABILITY
+            ).write(
+                {
+                    "state": "rejected",
+                    "reviewer_id": self.env.user.id,
+                    "reviewed_at": reviewed_at,
+                    "evidence_hash": _digest(
+                        {
+                            "request_hash": change.request_hash,
+                            "decision": "rejected",
+                            "reviewer": self.env.user.login,
+                            "reviewed_at": reviewed_at,
+                        }
+                    ),
+                }
+            )
+        return True
+
+    def action_apply(self):
+        for change in self:
+            if not (_is_wfm(self.env.user) or _is_global_admin(self.env.user)):
+                raise AccessError(_("Only WFM may apply an approved schedule change."))
+            if _is_wfm(self.env.user) and not _is_global_admin(self.env.user):
+                _membership(self.env, change.campaign_id, "workforce")
+            if change.state != "approved":
+                raise ValidationError(_("Only an approved schedule change may be applied."))
+            original = change.schedule_id
+            if (
+                original.state not in {"published", "acknowledged"}
+                or original.schedule_hash != change.original_schedule_hash
+            ):
+                raise ValidationError(_("The original schedule changed after this request."))
+            replacement = self.env["cc.workforce.schedule"]
+            if change.request_type != "cancel":
+                replacement = self.env["cc.workforce.schedule"].create_schedule(
+                    original.policy_id,
+                    original.agent_membership_id,
+                    change.requested_start_at,
+                    change.requested_end_at,
+                    activity_type=change.requested_activity_type,
+                    break_minutes=change.requested_break_minutes,
+                    timezone=original.timezone,
+                )
+                replacement.action_publish()
+            original.with_context(_cc_wfm_schedule_capability=SCHEDULE_CAPABILITY).write(
+                {"state": "cancelled", "cancelled_at": fields.Datetime.now()}
+            )
+            applied_at = fields.Datetime.now()
+            change.with_context(
+                _cc_wfm_schedule_change_capability=SCHEDULE_CHANGE_CAPABILITY
+            ).write(
+                {
+                    "state": "applied",
+                    "replacement_schedule_id": replacement.id or False,
+                    "applied_at": applied_at,
+                    "evidence_hash": _digest(
+                        {
+                            "approval_hash": change.evidence_hash,
+                            "original": original.reference,
+                            "replacement": replacement.reference if replacement else None,
+                            "applied_by": self.env.user.login,
+                            "applied_at": applied_at,
+                        }
+                    ),
+                }
             )
         return True
 

@@ -62,7 +62,7 @@ class TestCampaignReportingWorkflow(TransactionCase):
             ["codestra_cc_security.group_cc_workforce_analyst"],
         )
         cls.author_membership = cls._activate_membership(
-            cls.author, cls.campaign_a, "REPORT-CONFIG-A", "config_manager"
+            cls.author, cls.campaign_a, "REPORT-CONFIG-A", "configuration_manager"
         )
         cls.agent_membership_a = cls._activate_membership(
             cls.agent_a, cls.campaign_a, "REPORT-AGENT-A", "agent"
@@ -195,11 +195,19 @@ class TestCampaignReportingWorkflow(TransactionCase):
         self.assertNotEqual(self.policy.author_id, self.policy.approver_id)
 
     def test_controlled_metric_catalog_rejects_unknown_code(self):
+        draft_policy = self.env["cc.reporting.policy"].with_user(self.author).create(
+            {
+                "campaign_id": self.campaign_a.id,
+                "name": "Invalid Metric Test Policy",
+                "version": 2,
+                "source_reference": "TEST-REPORTING-INVALID-METRIC",
+            }
+        )
         with self.assertRaises(ValidationError):
             self.env["cc.kpi.definition"].with_user(self.author).create(
                 {
                     "campaign_id": self.campaign_a.id,
-                    "policy_id": self.policy.id,
+                    "policy_id": draft_policy.id,
                     "family": "inbound",
                     "metric_code": "invented_metric",
                     "display_name": "Invented",

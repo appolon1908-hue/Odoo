@@ -69,7 +69,7 @@ class TestCampaignWorkforceWorkflow(TransactionCase):
             ["codestra_cc_security.group_cc_workforce_analyst"],
         )
         cls.author_membership = cls._activate_membership(
-            cls.author, cls.campaign_a, "WFM-CONFIG-A", "config_manager"
+            cls.author, cls.campaign_a, "WFM-CONFIG-A", "configuration_manager"
         )
         cls.agent_membership_a = cls._activate_membership(
             cls.agent_a, cls.campaign_a, "WFM-AGENT-A", "agent"
@@ -227,6 +227,36 @@ class TestCampaignWorkforceWorkflow(TransactionCase):
                 start + timedelta(hours=1),
             )
         self.assertIsInstance(caught.exception, (AccessError, ValidationError))
+
+    def test_overtime_change_requires_separate_approval_and_preserves_evidence(self):
+        schedule = self._schedule(start_offset=60)
+        schedule.with_user(self.wfm_a).action_publish()
+        requested_end = schedule.end_at + timedelta(minutes=30)
+        change = self.env["cc.workforce.schedule.change"].with_user(
+            self.agent_a
+        ).request_change(
+            schedule.with_user(self.agent_a),
+            "overtime",
+            "Customer queue requires approved coverage extension",
+            requested_end_at=requested_end,
+        )
+        self.assertEqual(change.state, "requested")
+        self.assertEqual(change.requested_activity_type, "overtime")
+        self.assertEqual(len(change.request_hash), 64)
+        with self.assertRaises(AccessError):
+            change.with_user(self.agent_a).action_approve()
+        change.with_user(self.supervisor_a).action_approve()
+        self.assertEqual(change.state, "approved")
+        self.assertNotEqual(change.requester_id, change.reviewer_id)
+        change.with_user(self.wfm_a).action_apply()
+        self.assertEqual(change.state, "applied")
+        self.assertEqual(schedule.state, "cancelled")
+        self.assertEqual(change.replacement_schedule_id.state, "published")
+        self.assertEqual(change.replacement_schedule_id.activity_type, "overtime")
+        self.assertEqual(change.replacement_schedule_id.end_at, requested_end)
+        self.assertEqual(len(change.evidence_hash), 64)
+        with self.assertRaises(AccessError):
+            change.with_user(self.wfm_a).write({"reason": "changed"})
 
     def test_adherence_event_is_idempotent_and_opens_supervisor_exception(self):
         schedule = self._schedule()

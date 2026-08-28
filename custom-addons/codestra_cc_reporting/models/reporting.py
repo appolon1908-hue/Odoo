@@ -268,6 +268,17 @@ class CcReportingPolicy(models.Model):
             ).write({"state": "active", "activated_at": fields.Datetime.now()})
         return True
 
+    def action_retire(self):
+        if not _is_global_admin(self.env.user):
+            raise AccessError(_("Global contact-center retirement is required."))
+        for policy in self:
+            if policy.state != "active":
+                raise ValidationError(_("Only active reporting policy may be retired."))
+            policy.with_context(
+                _cc_reporting_policy_capability=REPORTING_POLICY_CAPABILITY
+            ).write({"state": "retired"})
+        return True
+
 
 class CcKpiDefinition(models.Model):
     _name = "cc.kpi.definition"

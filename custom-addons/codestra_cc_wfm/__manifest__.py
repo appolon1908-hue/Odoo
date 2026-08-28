@@ -7,6 +7,7 @@
     "depends": [
         "codestra_cc_security",
         "codestra_cc_calls",
+        "codestra_cc_quality",
         "codestra_cc_vicidial",
         "codestra_cc_workforce",
     ],
