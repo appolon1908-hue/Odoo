@@ -187,9 +187,10 @@ class CcScript(models.Model):
             "state": "draft",
             **content,
         }
-        return self.env["cc.script.version"].with_context(
+        created = self.env["cc.script.version"].with_context(
             _cc_script_version_capability=SCRIPT_VERSION_CAPABILITY
         ).create(values)
+        return self.env["cc.script.version"].browse(created.ids)
 
     def action_adopt_legacy_version(self, legacy_script_id):
         self.ensure_one()
@@ -207,7 +208,7 @@ class CcScript(models.Model):
         ):
             raise ValidationError(_("The legacy script version is already adopted."))
         next_number = max(self.version_ids.mapped("version_number"), default=0) + 1
-        return self.env["cc.script.version"].with_context(
+        created = self.env["cc.script.version"].with_context(
             _cc_script_version_capability=SCRIPT_VERSION_CAPABILITY
         ).create(
             {
@@ -217,6 +218,7 @@ class CcScript(models.Model):
                 "governance_state": "draft",
             }
         )
+        return self.env["cc.script.version"].browse(created.ids)
 
     def action_render_active(self):
         self.ensure_one()
@@ -469,7 +471,7 @@ class CcScriptVersion(models.Model):
         )
         if prior:
             raise ValidationError(_("This script version was acknowledged with another event."))
-        return Acknowledgement.with_context(
+        created = Acknowledgement.with_context(
             _cc_script_ack_capability=SCRIPT_ACK_CAPABILITY
         ).create(
             {
@@ -480,6 +482,7 @@ class CcScriptVersion(models.Model):
                 "content_hash": self.content_hash,
             }
         )
+        return Acknowledgement.browse(created.ids)
 
 
 class CcScriptAcknowledgement(models.Model):
@@ -766,7 +769,7 @@ class CcDisposition(models.Model):
         readonly=True,
         index=True,
     )
-    required_fields_json = fields.Json(required=True, default=list, readonly=True)
+    required_fields_json = fields.Json(default=list, readonly=True)
     callback_behavior = fields.Selection(
         [("none", "None"), ("required", "Required"), ("optional", "Optional")],
         required=True,
@@ -786,7 +789,7 @@ class CcDisposition(models.Model):
     )
     reporting_category = fields.Char(required=True, readonly=True, index=True)
     event_name = fields.Char(required=True, readonly=True, index=True)
-    workflow_mapping_json = fields.Json(required=True, default=dict, readonly=True)
+    workflow_mapping_json = fields.Json(default=dict, readonly=True)
     catalog_row_sha256 = fields.Char(required=True, size=64, readonly=True, index=True)
     source_catalog_sha256 = fields.Char(
         related="set_id.catalog_sha256", store=True, readonly=True, index=True
