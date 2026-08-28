@@ -305,7 +305,7 @@ class TestProfessionalCallWorkspace(TransactionCase):
                 "owner_id": self.agent_user.id,
                 "call_id": self.call.id,
                 "tenant_id": "COD",
-                "campaign_id": self.campaign.id,
+                "vicidial_campaign_id": self.campaign.id,
                 "phone": "+18095550100",
                 "scheduled_at": fields.Datetime.add(fields.Datetime.now(), days=1),
                 "timezone": "America/Santo_Domingo",

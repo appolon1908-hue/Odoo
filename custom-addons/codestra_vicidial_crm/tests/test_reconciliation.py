@@ -70,7 +70,7 @@ class TestCoreReconciliation(TransactionCase):
                 "owner_id": self.env.user.id,
                 "call_id": call.id,
                 "tenant_id": "COD",
-                "campaign_id": campaign.id,
+                "vicidial_campaign_id": campaign.id,
                 "phone": "+18095550100",
                 "scheduled_at": fields.Datetime.now() + timedelta(days=1),
                 "timezone": "UTC",
@@ -78,6 +78,7 @@ class TestCoreReconciliation(TransactionCase):
             }
         )
         self.assertEqual(callback.status, "scheduled")
+        self.assertEqual(callback.vicidial_campaign_id, campaign)
         with self.assertRaises(ValidationError):
             self.env["codestra.callback"].create(
                 {
@@ -86,7 +87,7 @@ class TestCoreReconciliation(TransactionCase):
                     "owner_id": self.env.user.id,
                     "call_id": call.id,
                     "tenant_id": "COD",
-                    "campaign_id": campaign.id,
+                    "vicidial_campaign_id": campaign.id,
                     "phone": "+18095550100",
                     "scheduled_at": fields.Datetime.now() - timedelta(days=1),
                     "timezone": "UTC",

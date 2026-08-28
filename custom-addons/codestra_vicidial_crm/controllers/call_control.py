@@ -486,7 +486,7 @@ class CallControlAPI(http.Controller):
                 "owner_id": request.env.user.id,
                 "call_id": call.id,
                 "tenant_id": call.tenant_id,
-                "campaign_id": call.campaign_id.id,
+                "vicidial_campaign_id": call.campaign_id.id,
                 "phone": call.normalized_number or call.destination or call.caller_id,
                 "scheduled_at": scheduled_at,
                 "timezone": timezone,

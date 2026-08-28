@@ -62,6 +62,14 @@ class TestCallbackState(TransactionCase):
         with self.assertRaises(ValidationError):
             callback.action_transition("due", "TEST-SYN-CORRELATION")
 
+    def test_callback_can_precede_a_telephony_call(self):
+        callback = self._callback()
+        self.assertFalse(callback.call_id)
+        self.assertFalse(callback.lead_id)
+        self.assertEqual(callback.campaign_id, self.campaign)
+        self.assertFalse(callback.vicidial_campaign_id)
+        self.assertEqual(callback.owner_id, self.env.user)
+
     def test_disabled_sync_does_not_enqueue(self):
         callback = self._callback()
         with patch.dict("os.environ", {"CODESTRA_CALLBACK_SYNC_ENABLED": "false"}):

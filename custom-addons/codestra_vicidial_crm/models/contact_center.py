@@ -33,11 +33,22 @@ class Callback(models.Model):
     _description = "Codestra Callback"
 
     name = fields.Char(required=True)
-    lead_id = fields.Many2one("crm.lead", required=True, index=True)
-    owner_id = fields.Many2one("res.users", required=True)
-    call_id = fields.Many2one("codestra.vicidial.call", required=True, ondelete="restrict", index=True)
+    # A callback may originate from an appointment/contact before a CRM lead
+    # exists.  Keep this optional in the canonical shared callback table; the
+    # VICIdial call-control flow still supplies a lead whenever it has one.
+    lead_id = fields.Many2one("crm.lead", index=True)
+    # Appointment-originated callbacks can be team-owned and can precede the
+    # first telephony interaction, so neither legacy reference is physically
+    # mandatory in the shared table.
+    owner_id = fields.Many2one("res.users")
+    call_id = fields.Many2one("codestra.vicidial.call", ondelete="restrict", index=True)
     tenant_id = fields.Char(required=True, index=True)
-    campaign_id = fields.Many2one("codestra.vicidial.campaign", required=True, ondelete="restrict")
+    vicidial_campaign_id = fields.Many2one(
+        "codestra.vicidial.campaign",
+        string="VICIdial Campaign",
+        ondelete="restrict",
+        index=True,
+    )
     phone = fields.Char(required=True)
     scheduled_at = fields.Datetime(required=True, index=True)
     timezone = fields.Char(required=True)
