@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="group_cc_audit_service" model="res.groups">
+    <field name="name">Contact Center Audit Append Service</field>
+    <field name="privilege_id" ref="codestra_cc_security.privilege_codestra_contact_center"/>
+    <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+  </record>
+
+  <record id="rule_cc_audit_event_scope" model="ir.rule">
+    <field name="name">Contact Center: audit evidence scope</field>
+    <field name="model_id" ref="model_cc_audit_event"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_security.group_cc_auditor') or user.has_group('codestra_cc_audit.group_cc_audit_service') else (['|', ('campaign_id', '=', False), ('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)] if user.has_group('codestra_cc_security.group_cc_compliance_officer') else [('actor_id', '=', user.id)])</field>
+  </record>
+</odoo>

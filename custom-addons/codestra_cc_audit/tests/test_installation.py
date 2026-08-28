@@ -7,6 +7,7 @@ class TestCodestraCcAuditFacade(TransactionCase):
     def test_dependencies_are_installed(self):
         expected = {
             "codestra_cc_core",
+            "codestra_cc_security",
             "call_center_core",
             "codestra_integration_hub",
         }
