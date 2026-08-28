@@ -350,7 +350,7 @@ class CcQualitySample(models.Model):
             raise AccessError(_("Quality samples require the governed assignment workflow."))
         records = super().create(values_list)
         records._check_sample_scope()
-        return records
+        return records.with_context(_cc_quality_sample_capability=None)
 
     def write(self, values):
         if self.env.context.get("_cc_quality_sample_capability") is not SAMPLE_WRITE_CAPABILITY:
@@ -502,7 +502,7 @@ class CcQualityEvaluation(models.Model):
             raise AccessError(_("Evaluations require the governed quality workflow."))
         records = super().create(values_list)
         records._check_evaluation_scope()
-        return records
+        return records.with_context(_cc_quality_evaluation_capability=None)
 
     def write(self, values):
         if self.env.context.get("_cc_quality_evaluation_capability") is not EVALUATION_WRITE_CAPABILITY:
@@ -752,7 +752,7 @@ class CcQualityAnswer(models.Model):
             raise AccessError(_("Quality answers require the evaluation workflow."))
         records = super().create(values_list)
         records._check_answer_scope()
-        return records
+        return records.with_context(_cc_quality_answer_capability=None)
 
     def write(self, values):
         if self.env.context.get("_cc_quality_answer_capability") is not ANSWER_WRITE_CAPABILITY:
@@ -825,7 +825,7 @@ class CcQualityCalibration(models.Model):
             raise AccessError(_("Calibration sessions require the governed scheduling workflow."))
         records = super().create(values_list)
         records._check_calibration_scope()
-        return records
+        return records.with_context(_cc_quality_calibration_capability=None)
 
     def write(self, values):
         if self.env.context.get("_cc_quality_calibration_capability") is not CALIBRATION_WRITE_CAPABILITY:
@@ -939,7 +939,9 @@ class CcQualityDispute(models.Model):
     def create(self, values_list):
         if self.env.context.get("_cc_quality_dispute_capability") is not DISPUTE_WRITE_CAPABILITY:
             raise AccessError(_("Quality disputes require the governed dispute workflow."))
-        return super().create(values_list)
+        return super().create(values_list).with_context(
+            _cc_quality_dispute_capability=None
+        )
 
     def write(self, values):
         if self.env.context.get("_cc_quality_dispute_capability") is not DISPUTE_WRITE_CAPABILITY:
@@ -1052,7 +1054,7 @@ class CcCoachingPlan(models.Model):
             raise AccessError(_("Coaching plans require the governed assignment workflow."))
         records = super().create(values_list)
         records._check_coaching_scope()
-        return records
+        return records.with_context(_cc_coaching_write_capability=None)
 
     def write(self, values):
         if self.env.context.get("_cc_coaching_write_capability") is not COACHING_WRITE_CAPABILITY:
@@ -1191,7 +1193,9 @@ class CcQualityEvent(models.Model):
     def create(self, values_list):
         if self.env.context.get("_cc_quality_event_capability") is not QUALITY_EVENT_CAPABILITY:
             raise AccessError(_("Quality evidence requires the governed workflow."))
-        return super().create(values_list)
+        return super().create(values_list).with_context(
+            _cc_quality_event_capability=None
+        )
 
     def write(self, values):
         raise AccessError(_("Quality evidence is immutable."))

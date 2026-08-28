@@ -322,11 +322,8 @@ class TestRecordingAndQualityWorkflow(TransactionCase):
             self.env["cc.recording"].with_user(self.recording_service).create(
                 {"campaign_id": self.campaign_a.id}
             )
-        self.assertFalse(
-            self.recording_a.with_user(self.agent_a).check_access_rights(
-                "read", raise_exception=False
-            )
-        )
+        with self.assertRaises(AccessError):
+            self.recording_a.with_user(self.agent_a).check_access("read")
         self.assertEqual(
             self.env["cc.recording"].with_user(self.qa_a).search([]), self.recording_a
         )
@@ -480,7 +477,7 @@ class TestRecordingAndQualityWorkflow(TransactionCase):
         self.assertEqual(calibration.state, "completed")
         self.assertEqual(calibration.variance, 0.0)
         self.assertEqual(len(calibration.outcome_hash), 64)
-        with self.assertRaises((AccessError, ValidationError)):
+        with self.assertRaises(Exception) as caught:
             self.env["cc.quality.sample"].with_user(self.supervisor_a).assign_sample(
                 program_id=self.program_a.id,
                 recording_id=self.recording_a.id,
@@ -488,3 +485,4 @@ class TestRecordingAndQualityWorkflow(TransactionCase):
                 sample_reason="risk",
                 reason_reference="synthetic-cross-campaign",
             )
+        self.assertIsInstance(caught.exception, (AccessError, ValidationError))

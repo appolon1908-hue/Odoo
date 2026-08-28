@@ -2,7 +2,7 @@ import hashlib
 import json
 from datetime import timedelta
 
-from odoo import _, api, fields, models
+from odoo import SUPERUSER_ID, _, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
 
@@ -39,6 +39,12 @@ def _is_global_admin(user):
 
 def _is_compliance(user):
     return user.has_group("codestra_cc_security.group_cc_compliance_officer")
+
+
+def _feature_enabled(env, key):
+    """Read only a named safety flag without granting callers parameter access."""
+    value = env["ir.config_parameter"].with_user(SUPERUSER_ID).get_param(key, "false")
+    return str(value).lower() == "true"
 
 
 class CcRecordingPolicy(models.Model):
@@ -344,7 +350,20 @@ class CcRecording(models.Model):
         if self.env.context.get("_cc_recording_write_capability") is not RECORDING_WRITE_CAPABILITY:
             raise AccessError(_("Recording binding state requires a governed action."))
         result = super().write(values)
-        self._check_binding()
+        binding_fields = {
+            "campaign_id",
+            "legacy_recording_id",
+            "telephony_mapping_id",
+            "agent_membership_id",
+            "customer_profile_id",
+            "policy_id",
+            "policy_hash",
+            "recording_uid",
+            "source_call_unique_id",
+            "checksum_sha256",
+        }
+        if binding_fields.intersection(values):
+            self._check_binding()
         return result
 
     def unlink(self):
@@ -476,9 +495,7 @@ class CcRecording(models.Model):
         allowed_purposes = {"quality_review", "supervisor_review", "compliance_review", "coaching"}
         if purpose not in allowed_purposes:
             raise ValidationError(_("A controlled recording-access purpose is required."))
-        playback_enabled = str(
-            self.env["ir.config_parameter"].get_param("CC_ENABLE_RECORDING_PLAYBACK", "false")
-        ).lower() == "true"
+        playback_enabled = _feature_enabled(self.env, "CC_ENABLE_RECORDING_PLAYBACK")
         results = []
         for recording in self:
             reason = "recording_playback_disabled"
@@ -569,7 +586,9 @@ class CcRecordingAccessEvent(models.Model):
     def create(self, values_list):
         if self.env.context.get("_cc_recording_access_capability") is not ACCESS_EVENT_CAPABILITY:
             raise AccessError(_("Recording access evidence requires the governed action."))
-        return super().create(values_list)
+        return super().create(values_list).with_context(
+            _cc_recording_access_capability=None
+        )
 
     def write(self, values):
         raise AccessError(_("Recording access evidence is immutable."))
@@ -631,7 +650,9 @@ class CcRecordingRetentionEvent(models.Model):
     def create(self, values_list):
         if self.env.context.get("_cc_recording_retention_capability") is not RETENTION_EVENT_CAPABILITY:
             raise AccessError(_("Recording retention evidence requires the governed action."))
-        return super().create(values_list)
+        return super().create(values_list).with_context(
+            _cc_recording_retention_capability=None
+        )
 
     def write(self, values):
         raise AccessError(_("Recording retention evidence is immutable."))
@@ -663,9 +684,7 @@ class LegacyRecordingPlaybackGuard(models.Model):
     _inherit = "codestra.vicidial.recording"
 
     def action_play_recording(self):
-        enabled = str(
-            self.env["ir.config_parameter"].get_param("CC_ENABLE_RECORDING_PLAYBACK", "false")
-        ).lower() == "true"
+        enabled = _feature_enabled(self.env, "CC_ENABLE_RECORDING_PLAYBACK")
         if not enabled:
             raise UserError(_("CC_ENABLE_RECORDING_PLAYBACK is false; playback is blocked."))
         return super().action_play_recording()
