@@ -33,7 +33,7 @@
   "strict_mission_overrides": {
     "call_center_campaign": {
       "base_tree": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
-      "current_tree": "f681fa14cd9a686dab1dd9c4821428e719a92f0f",
+      "current_tree": "ccaf567c47f231813d0ea58a87a195b490b8dea1",
       "reason": "Repair Odoo 19 campaign regression coverage, canonical JWT base64url fixtures, and business-unit scoped integration outbox rules; compose transactional SQL through Odoo's SQL helper; and constrain JWKS and Middleware destinations before network access while preserving the deterministic inactive campaign inventory.",
       "pull_request": 38,
       "integration_boundary_exceptions": [
