@@ -146,3 +146,29 @@ objects are removed before governed records return to callers.
 No recording object was downloaded, copied, deleted, played, or exposed through
 a signed URL. No AI, Middleware, VICIdial, Asterisk, carrier, PSTN, n8n, or
 production operation was attempted.
+
+## Workforce and reporting boundary
+
+Draft PR [#36](https://github.com/appolon1908-hue/Odoo/pull/36) adds governed
+workforce and reporting models without adding an external adapter, poller,
+writer, public route, or transport. The private service accepts normalized,
+source-hashed adherence, real-time, and KPI events; exact replay returns the
+existing record and altered replay is rejected.
+
+Published schedules bind the approved workforce-policy hash and agent identity.
+Schedule changes, cancellations, and overtime bind the original schedule hash,
+require a separate primary-supervisor decision, and may be applied only by WFM.
+The original schedule is retained as cancelled evidence and a replacement is
+published where applicable.
+
+The 93-row workforce/reporting matrix has no approved campaign policy seeds and
+no external read-back. Schedule, schedule-change, adherence, exception, and
+aggregate snapshot contracts are `STAGING_READY`; campaign policy and external
+source reconciliation gates remain `MISSING` or `NOT_TESTED`, so every row is
+`PARTIAL`.
+
+Run
+[33192950718](https://github.com/appolon1908-hue/Odoo/actions/runs/33192950718)
+installed all 67 modules and passed 435 Odoo tests with zero failures or errors.
+No external WFM, Middleware, VICIdial, Asterisk, reporting, email, carrier,
+PSTN, n8n, or production operation was attempted.

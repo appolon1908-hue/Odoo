@@ -289,3 +289,34 @@ create a superseding version.
 Recommendation: `STAGING-ONLY`
 
 Production gate: `PRODUCTION_BLOCKED`
+
+## Workforce management and KPI reporting branch evidence
+
+Branch: `feat/cc-wfm-reporting`
+
+Draft PR: [#36](https://github.com/appolon1908-hue/Odoo/pull/36)
+
+| Check | Result | Status |
+| --- | --- | --- |
+| Exact-head and stacked merge source validation | 67 manifests; strict review 0 errors/warnings; all source gates | PASS |
+| Clean Odoo 19/PostgreSQL install/regression | 435 tests; 0 failed; 0 errors | PASS |
+| Focused WFM/reporting suites | WFM 11 counters; reporting 7 counters | PASS |
+| Workforce governance | Versioned policy, separate author/approver, active-policy uniqueness, deterministic hash, and retirement | PASS |
+| Forecast and schedule | Derived staffing, published immutable schedule, agent acknowledgement, completion, and campaign isolation | PASS |
+| Schedule change and overtime | Separate request/primary-supervisor approval/WFM application; requester self-approval and direct evidence forgery denied | PASS |
+| Adherence and exceptions | Exact replay, altered replay rejection, derived classifications, primary-supervisor workflow, and append-only timeline | PASS |
+| Real-time operations | Privacy-minimized aggregates derive ASA, abandon, occupancy, staffing variance, backlog, health, and alert tier | PASS |
+| KPI reporting | Controlled definitions, immutable snapshots, server thresholds, agent/supervisor/WFM scope, and raw-export denial | PASS |
+| Workforce/reporting readiness matrix | 93 controlled rows with schedule-change status generated | PASS |
+| Campaign policy seeds | 93 workforce policies and 93 reporting policies missing; every row remains partial | MISSING |
+| External WFM/Middleware/VICIdial/reporting read-back | No reviewed isolated staging endpoint; no external mutation attempted | NOT_TESTED |
+
+The private workforce event service has read-only access to the canonical and
+delegated ownership chain and create-only access to normalized evidence. Global
+rule overrides preserve the existing mail, CRM, call, and recording service
+exceptions. Operational users remain campaign-scoped, and service records do
+not retain internal write capabilities.
+
+Recommendation: `STAGING-ONLY`
+
+Production gate: `PRODUCTION_BLOCKED`
