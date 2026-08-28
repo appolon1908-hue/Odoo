@@ -112,7 +112,7 @@ jobs:
           import sys
 
           lines = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace").splitlines()
-          tail = "\n".join(lines[-160:])
+          tail = "\n".join(lines[-40:])
           encoded = tail.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
           print(f"::error title=Odoo runtime failure::{encoded}")
           PY
@@ -187,7 +187,7 @@ jobs:
           import sys
 
           lines = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace").splitlines()
-          tail = "\n".join(lines[-160:])
+          tail = "\n".join(lines[-40:])
           encoded = tail.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
           print(f"::error title=Odoo runtime failure::{encoded}")
           PY
