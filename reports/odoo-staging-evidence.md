@@ -114,3 +114,24 @@ The desired-state outbox deliberately has no transport worker. Keycloak, mail,
 Middleware, VICIdial, and external OIDC read-back remain `NOT_TESTED` until
 reviewed staging endpoints exist. Status remains `STAGING-ONLY` and
 `PRODUCTION_BLOCKED`.
+
+## Campaign-mail branch evidence
+
+Branch: `feat/cc-campaign-mail`
+
+| Check | Result | Status |
+| --- | --- | --- |
+| Focused mail upgrade | 11 methods / 13 counters; 0 failed; 0 errors | PASS |
+| Legacy campaign/CRM/lead/telephony regression | 144 tests; 0 failed; 0 errors | PASS |
+| Clean 61-module Odoo 19 install/regression | 377 tests; 0 failed; 0 errors | PASS |
+| Campaign isolation | Alias routing, threads, chatter, followers, activities, attachments, query surfaces, and cross-thread quarantine covered | PASS |
+| Clean database ownership | 13 units; 111 campaigns; 102 channels | PASS |
+| Clean database mail state | 0 routes, sender identities, groups, memberships, threads, inbound events, or quarantine rows after rollback | PASS |
+| Mail schema | 7 mail tables; 72 mail-table indexes; 11 module-owned global rules | PASS |
+| Email safety defaults | Both named global flags false; 0 model live switches enabled | PASS |
+| Authority alias catalog | 93 rows; 93 alias keys missing; 0 routes provisioned | BLOCKED |
+| External mail/provider read-back | No reviewed staging endpoint or transport configured; no external mutation attempted | NOT_TESTED |
+
+The module installed as version `19.0.1.0.0`; the dependent mailbox facade
+installed as `19.0.1.1.0`. It contains no public inbound controller or transport
+worker. Status remains `STAGING-ONLY` and `PRODUCTION_BLOCKED`.

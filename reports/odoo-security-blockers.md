@@ -15,7 +15,7 @@ Production status: `PRODUCTION_BLOCKED`
 | High | Target global record-rule contract is incomplete for later models | Canonical core, membership, outbox, session, and reassignment surfaces have fail-closed rules and negative tests | Add a global membership rule and negative tests to every later campaign-owned model | PARTIAL |
 | High | Helpdesk boundary is absent | Disposable snapshot has no Helpdesk table/module | Install or provide compatible Helpdesk dependency and test campaign isolation | MISSING |
 | High | No campaign scripts exist in the snapshot | Script count is zero | Implement immutable versioned scripts with approval and acknowledgement | MISSING |
-| High | Canonical fail-closed flags are absent | Only legacy configuration keys exist | Add all thirteen `CC_ENABLE_*` flags at false defaults with global/campaign gates | MISSING |
+| High | Canonical fail-closed flags are incomplete | `CC_ENABLE_EMAIL_SEND` and `CC_ENABLE_EMAIL_INBOUND_MUTATION` now install and read back as false; the other eleven canonical flags do not yet exist | Add the remaining eleven flags on their owning branches with global/campaign gates | PARTIAL |
 | High | Cross-campaign suite is incomplete | Canonical ORM/search/report/export plus membership and session paths are covered; later mail/helpdesk/transfer/reporting surfaces do not yet exist | Extend the same negative suite on every dependent branch | PARTIAL |
 | High | Public/service endpoints need ownership review | 65 routes exist; several `auth=none` routes rely on custom service authentication | Classify every route, enforce signed identity/scope/replay protection, and retain tests | PARTIAL |
 | High | Privileged ORM/SQL paths need model-level review | Raw inventory found 205 `.sudo(` and 47 cursor references | Prove least privilege, revalidation, parameterization, and non-bypass behavior per path | PARTIAL |
@@ -31,3 +31,6 @@ publication, VICIdial writes, live call control, warm transfer, callback
 publication, IVR routing, recording playback, AI assist, and production dialing
 remain disabled. The identity branch creates only transactional staging outbox
 evidence; it has no worker, network transport, production endpoint, or live flag.
+The campaign-mail branch additionally materializes both canonical email flags at
+false, hard-locks all route/sender/distribution live switches off, and contains
+no public mail controller or transport worker.
