@@ -15,12 +15,12 @@ class TestControllerRegistration(TransactionCase):
         """Both addons retain distinct schemas regardless of module load order."""
         governed = self.env["codestra.runtime.integration.outbox"]
         ingestion_source = Path(
-            "/mnt/extra-addons/codestra_lead_ingestion/models/outbox.py"
+            "/mnt/extra-addons/codestra_lead_ingestion/models/import_models.py"
         ).read_text(encoding="utf-8")
 
-        self.assertNotEqual(governed._name, "codestra.integration.outbox")
-        self.assertNotEqual(governed._table, "codestra_integration_outbox")
+        self.assertNotEqual(governed._name, "codestra.lead.import.outbox")
+        self.assertNotEqual(governed._table, "codestra_lead_import_outbox")
         self.assertTrue(hasattr(governed, "_create_internal"))
         self.assertIn("record_environment", governed._fields)
-        self.assertIn('_name = "codestra.integration.outbox"', ingestion_source)
+        self.assertIn('_name = "codestra.lead.import.outbox"', ingestion_source)
         self.assertIn("batch_id = fields.Many2one", ingestion_source)
