@@ -53,9 +53,9 @@ def main() -> None:
         elif not server[0].startswith(gh_hash): classification="CONTENT_DRIFT"
         else: classification="MATCH"
         security="REVIEW_REQUIRED" if module=="call_center_campaign" else "SOURCE_CI_PASS"
-        rows.append(dict(zip(cols,[module, f"/mnt/extra-addons/{module}" if server and server[0] not in {"ABSENT","NOT_CAPTURED_SHARED_PATH"} else "", server[0] if server else "", server[1] if server else "", server[2] if server else "absent", f"custom-addons/{module}" if github_path.is_dir() else "", gh_hash, gh_ver, gh_hash, item.get("source_branch",""), item.get("source_commit",""), item.get("dependencies",""), "YES" if item.get("migrations","0") not in {"","0"} else "NO", security, "PASS_451_SUITE", classification, "RECONCILE_IN_STAGING" if classification not in {"MATCH","GITHUB_ONLY"} else ("INSTALL_ONLY_IF_APPROVED" if classification=="GITHUB_ONLY" else "RETAIN"), item.get("ownership","")])))
+        rows.append(dict(zip(cols,[module, f"/mnt/extra-addons/{module}" if server and server[0] not in {"ABSENT","NOT_CAPTURED_SHARED_PATH"} else "", server[0] if server else "", server[1] if server else "", server[2] if server else "absent", f"custom-addons/{module}" if github_path.is_dir() else "", gh_hash, gh_ver, gh_hash, item.get("source_branch",""), item.get("source_commit",""), item.get("dependencies",""), "YES" if item.get("migrations","0") not in {"","0"} else "NO", security, "PASS_CURRENT_RUNTIME_SUITE", classification, "RECONCILE_IN_STAGING" if classification not in {"MATCH","GITHUB_ONLY"} else ("INSTALL_ONLY_IF_APPROVED" if classification=="GITHUB_ONLY" else "RETAIN"), item.get("ownership","")])))
     with (ROOT/"SERVER-VS-GITHUB-MODULE-LEDGER.csv").open("w",newline="") as f:
-        w=csv.DictWriter(f,fieldnames=cols); w.writeheader(); w.writerows(rows)
+        w=csv.DictWriter(f,fieldnames=cols,lineterminator="\n"); w.writeheader(); w.writerows(rows)
     counts={c:sum(r["classification"]==c for r in rows) for c in sorted({r["classification"] for r in rows})}
     (ROOT/"SERVER-VS-GITHUB-DRIFT.md").write_text(f"""# Server vs GitHub drift — 2026-08-28
 

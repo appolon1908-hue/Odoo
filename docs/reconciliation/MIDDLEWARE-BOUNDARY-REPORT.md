@@ -18,7 +18,7 @@ Odoo may own transactional outbox/inbox and resource-specific service operations
 - `REVIEW`: direct VICIdial database write at `custom-addons/codestra_ai_agent_assistant/models/assistant_draft.py:35`
 - `REVIEW`: direct VICIdial database write at `custom-addons/codestra_campaign_crm_os/models/engine.py:130`
 - `REVIEW`: direct VICIdial database write at `custom-addons/codestra_campaign_crm_os/models/engine.py:426`
-- `REVIEW`: external PostgreSQL client at `custom-addons/codestra_middleware_bridge/tests/test_bridge_schema.py:2`
+- `REVIEW`: external PostgreSQL client at `custom-addons/codestra_middleware_bridge/tests/test_bridge_schema.py:3`
 - `REVIEW`: external PostgreSQL client at `custom-addons/codestra_lead_automation/models/automation_domain.py:8`
 - `REVIEW`: external PostgreSQL client at `custom-addons/codestra_telephony_bridge/tests/test_telephony_models.py:6`
 - `REVIEW`: external PostgreSQL client at `custom-addons/codestra_telephony_bridge/tests/test_telephony_hardening.py:5`

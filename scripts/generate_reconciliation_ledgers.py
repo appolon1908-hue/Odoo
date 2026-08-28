@@ -41,7 +41,7 @@ def gh_json(*args: str) -> Any:
 def write_csv(path: Path, columns: list[str], rows: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=columns, extrasaction="ignore")
+        writer = csv.DictWriter(handle, fieldnames=columns, extrasaction="ignore", lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -57,8 +57,12 @@ def changed_files(ref: str) -> list[str]:
 
 
 def classify_branch(name: str, sha: str, unique_tip_count: int) -> str:
-    if name == SOURCE_BRANCH:
+    if name == "reconcile/odoo-canonical-source-v1":
         return "CANONICAL_CANDIDATE"
+    if name == "import/server-odoo-20260828":
+        return "SERVER_CAPTURE"
+    if name == SOURCE_BRANCH:
+        return "SUPERSEDED"
     if name == "main":
         return "DOCUMENTATION_ONLY"
     if unique_tip_count > 1:
@@ -221,7 +225,7 @@ def generate_module_inventory() -> None:
             "module": module.name,
             "technical_name": module.name,
             "manifest_version": data.get("version", ""),
-            "tree_sha": git("rev-parse", f"{SOURCE_REF}:custom-addons/{module.name}"),
+            "tree_sha": git("rev-parse", f"HEAD:custom-addons/{module.name}"),
             "source_branch": SOURCE_BRANCH,
             "source_commit": source_commit,
             "dependencies": ";".join(data.get("depends", [])),
