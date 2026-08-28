@@ -226,3 +226,35 @@ to VICIdial, add a public controller, or enable any live capability.
 Recommendation: `STAGING-ONLY`
 
 Production gate: `PRODUCTION_BLOCKED`
+
+## Callback, appointment, transfer, referral, and pop-out branch evidence
+
+Branch: `feat/cc-callback-transfer`
+
+Draft PR: [#34](https://github.com/appolon1908-hue/Odoo/pull/34)
+
+| Check | Result | Status |
+| --- | --- | --- |
+| Exact-head and stacked merge source validation | 64 manifests; strict review 0 errors/warnings; all source gates | PASS |
+| Clean Odoo 19/PostgreSQL install/regression | 412 tests; 0 failed; 0 errors | PASS |
+| Focused call-operations suite | 8 methods / 10 Odoo counters | PASS |
+| Callback ownership and lifecycle | Server-derived campaign, local schedule, consent, attempts, recovery, immutable history, and exact read-back covered | PASS |
+| Appointment and reminders | Same-campaign callback and preparation reminder created; agent acknowledgement covered | PASS |
+| Same-campaign transfer | Approved route validated once and preserves safe call context | PASS |
+| Cross-campaign live transfer | Rejected and audited; no operation-outbox command created | PASS |
+| Cross-campaign referral | Consent hash, minimum fields, exactly-once destination, and source/destination isolation covered | PASS |
+| Callback readiness report | 93 controlled rows generated | PASS |
+| Campaign callback configuration | 93 policies missing; every row remains partial | MISSING |
+| Live operation flags | Callback publication and warm transfer both false | PASS |
+| Calendar/reminder/scheduler pop-out contract | Canonical model bindings and click-to-call preservation source-tested | PASS |
+| Headless browser tour | Optional `websocket-client` absent in GitHub image; preceding unchanged-base success retained | NOT_TESTED |
+| External Middleware/VICIdial/Asterisk read-back | No reviewed isolated staging endpoint; no external mutation attempted | NOT_TESTED |
+
+The call service receives only the read access needed to translate canonical and
+delegated legacy campaign identifiers. Agent reads of protected target campaign
+and destination membership records remain denied. Held desired-state events do
+not have a delivery worker.
+
+Recommendation: `STAGING-ONLY`
+
+Production gate: `PRODUCTION_BLOCKED`

@@ -98,3 +98,27 @@ exact-head and stacked merge-result source checks. The pinned Odoo 19/PostgreSQL
 runtime installed all 63 custom modules and passed 404 tests with zero failures
 or errors; `codestra_cc_disposition` contributed 10 focused test counters. The
 PostgreSQL schema and fail-closed administrator audits also passed.
+
+## Callback, transfer, and referral boundary
+
+Draft PR [#34](https://github.com/appolon1908-hue/Odoo/pull/34) adds an immutable
+held operation outbox. It deliberately has no transport worker. Callback and
+transfer payloads derive the campaign from the authenticated Odoo membership;
+browser-supplied cross-campaign scope is rejected.
+
+The 93-row callback matrix has zero publication-enabled rows. All callback
+policies are `MISSING`, external read-back is `NOT_TESTED`, and every overall
+row is `PARTIAL`. The eight `*-CALLBACK-OUT` identifiers remain disabled
+technical compatibility mappings and are not user-login queues.
+
+The positive same-campaign transfer produces one held validation event. A
+cross-campaign live-transfer request produces a safe rejection and no outbox
+command. Cross-campaign referrals use a separate asynchronous flow: the source
+stores consent and payload hashes, the privileged service creates one
+minimum-data destination record, and the source user cannot read the destination
+campaign or destination record.
+
+The exact branch runtime installed all 64 custom modules and passed 412 tests
+with zero failures or errors; `codestra_cc_calls` contributed 10 focused
+counters. No Middleware, VICIdial, Asterisk, carrier, PSTN, n8n, or production
+operation was attempted.
