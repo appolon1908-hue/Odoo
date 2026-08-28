@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import csv
 import hashlib
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,9 +35,28 @@ SERVER = {
 }
 
 def digest(path: Path) -> str:
+    """Hash the committed module files, independent of checkout line endings."""
+    module_path = path.relative_to(ROOT).as_posix()
+    listing = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", "HEAD", "--", module_path],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
     h = hashlib.sha256()
-    for f in sorted(x for x in path.rglob("*") if x.is_file() and ".git" not in x.parts and "__pycache__" not in x.parts):
-        h.update(f.relative_to(path).as_posix().encode()); h.update(b"\0"); h.update(f.read_bytes()); h.update(b"\0")
+    for tracked_path in sorted(listing):
+        relative_path = tracked_path.removeprefix(f"{module_path}/")
+        blob = subprocess.run(
+            ["git", "show", f"HEAD:{tracked_path}"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+        ).stdout
+        h.update(relative_path.encode())
+        h.update(b"\0")
+        h.update(blob)
+        h.update(b"\0")
     return h.hexdigest()
 
 def main() -> None:
