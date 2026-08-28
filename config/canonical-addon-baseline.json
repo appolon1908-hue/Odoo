@@ -16,7 +16,6 @@
     "codestra_ai_realtime_assistant": "3b46dbd7f3e116c9be7273d81c771e91db031ed4",
     "codestra_ai_review": "3863c6a202a3ca2a61b7cb5ee4d8b231111781f0",
     "codestra_analytics_reporting": "d46d50da27725bab9b5b8bae85e55e902cd3e068",
-    "codestra_appointments": "5812f7df199b0d5525ee7dd6a9fdc9d314947f6f",
     "codestra_base": "8bf385e37463092ad45d86fd0f474a41d2f87828",
     "codestra_daily_reporting": "d28b3589c50fbc566218eef123ca4f13a2c1646d",
     "codestra_integration_hub": "f4db314a557fdf2a9e0aac81ed5543d1994f7f70",
@@ -67,6 +66,24 @@
         }
       ]
     },
+    "codestra_appointments": {
+      "base_tree": "5812f7df199b0d5525ee7dd6a9fdc9d314947f6f",
+      "current_tree": "cc706f78c4d654b52959db265641ee57da1ddacf",
+      "reason": "Extend the canonical VICIdial callback model with the governed appointment, reminder, and scheduler lifecycle; separate Odoo and physical campaign identities; and add restartable upgrade reconciliation with regression coverage.",
+      "pull_request": 25,
+      "integration_boundary_exceptions": [
+        {
+          "path": "models/callback_sync.py",
+          "kind": "odoo_cursor_locking",
+          "reason": "The callback outbox worker claims pending jobs with SELECT FOR UPDATE SKIP LOCKED on Odoo's active cursor to prevent duplicate delivery across concurrent workers."
+        },
+        {
+          "path": "tests/test_callback.py",
+          "kind": "odoo_test_fixture_sql",
+          "reason": "The rolled-back Odoo transaction test rebinds an existing disabled synthetic campaign fixture to the synthetic business unit without external connectivity."
+        }
+      ]
+    },
     "codestra_campaign_crm_os": {
       "base_tree": "352f91cb58850fb959972502f6c2e8b574ef7ec5",
       "current_tree": "73f661adc77a263d68c70a8cd300aa90a11416f8",
@@ -106,9 +123,9 @@
     },
     "codestra_vicidial_crm": {
       "base_tree": "cf0783918b94c3e396d24ebe868c4fb04096e4a1",
-      "current_tree": "234d6cdc6ff0dd1850acc56152bb33e1e5022a22",
-      "reason": "Replace Sass min() mixed-unit syntax with an equivalent width and max-width contract that compiles cleanly in the pinned Odoo 19 asset pipeline.",
-      "pull_request": 21,
+      "current_tree": "e46c06252252aa6d280d94be9f9322a0933a9755",
+      "reason": "Preserve the Odoo 19 asset repair and remove the duplicate callback schema by giving the VICIdial campaign relation an explicit identity, supporting pre-call governed callbacks, and adding restartable compatibility migrations.",
+      "pull_request": 25,
       "integration_boundary_exceptions": [
         {
           "path": "models/reconciliation.py",
