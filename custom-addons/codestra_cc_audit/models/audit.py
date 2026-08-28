@@ -87,6 +87,20 @@ def _validate_metadata(value, path="metadata"):
     raise ValidationError(_("Audit metadata must use JSON-safe values."))
 
 
+class CcCampaign(models.Model):
+    _inherit = "cc.campaign"
+
+    # Persist the company on the canonical campaign table. A normal operational
+    # user must not need read access to the delegated legacy business-unit row
+    # merely to append immutable audit evidence.
+    cc_audit_company_id = fields.Many2one(
+        "res.company",
+        related="cc_business_unit_id.company_id",
+        store=True,
+        readonly=True,
+    )
+
+
 class CcAuditEvent(models.Model):
     _name = "cc.audit.event"
     _description = "Append-Only Contact Center Audit Evidence"
@@ -224,7 +238,7 @@ class CcAuditEvent(models.Model):
             [("actor_id", "=", self.env.user.id)], order="id desc", limit=1
         )
         occurred_at = fields.Datetime.now()
-        company = campaign.cc_business_unit_id.company_id if campaign else self.env.company
+        company = campaign.cc_audit_company_id if campaign else self.env.company
         values = {
             **semantic_payload,
             "event_uuid": str(uuid.uuid5(uuid.NAMESPACE_URL, f"cc-audit:{idempotency_key}")),

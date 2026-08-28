@@ -101,6 +101,7 @@ class TestGovernedAuditWorkflow(TransactionCase):
             event.with_user(self.global_admin).export_data(["event_type"])
 
     def test_append_is_idempotent_rejects_drift_and_verifies_actor_chain(self):
+        self.assertEqual(self.campaign.cc_audit_company_id, self.env.company)
         Audit = self.env["cc.audit.event"].with_user(self.audit_service)
         values = {
             "event_type": "cc.synthetic.integration.v1",
