@@ -399,6 +399,22 @@ class CcQualitySample(models.Model):
             raise AccessError(_("Only a campaign supervisor or global administrator may assign samples."))
         if _is_supervisor(self.env.user) and not _is_global_admin(self.env.user):
             _membership(self.env, program.campaign_id, "supervisor")
+        if program.state != "active" or recording.campaign_id != program.campaign_id:
+            raise ValidationError(
+                _("Quality samples require an active program and recording in one campaign.")
+            )
+        if (
+            qa.campaign_id != program.campaign_id
+            or qa.role != "qa"
+            or qa.state != "active"
+        ):
+            raise ValidationError(
+                _("Quality samples require active QA membership in the same campaign.")
+            )
+        if recording.agent_membership_id.campaign_id != program.campaign_id:
+            raise ValidationError(
+                _("The recorded agent membership belongs to another campaign.")
+            )
         reason_reference = str(reason_reference or "").strip()
         if not reason_reference:
             raise ValidationError(_("Sampling requires a controlled reason reference."))
