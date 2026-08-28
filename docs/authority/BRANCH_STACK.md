@@ -11,8 +11,8 @@ The stack begins at tested commit `6dc403350da71962af28603c0bdf2e73f7f6821e`.
 | 3 | `feat/cc-campaign-security` | branch 2 | Groups, ACLs, global rules, partial indexes, negative tests | PASS — bounded staging implementation; draft and unmerged |
 | 4 | `feat/cc-identity-membership` | branch 3 | Membership, identity, SSO/session scope, lifecycle | PASS — bounded Odoo identity/session implementation; external adapters not tested |
 | 5 | `feat/cc-campaign-mail` | branch 4 | Aliases, distribution, quarantine, chatter/attachment isolation | PASS — bounded staging implementation; draft and unmerged; provider read-back not tested |
-| 6 | `feat/cc-crm-helpdesk-workspaces` | branch 5 | Campaign CRM, profiles, Helpdesk, activities, SLAs | BLOCKED pending branch 5 review and Helpdesk dependency |
-| 7 | `feat/cc-vicidial-mapping` | branch 6 | Identifier catalog, desired state, middleware contract, read-back | BLOCKED pending complete mapping fields and controlled migration design |
+| 6 | `feat/cc-crm-helpdesk-workspaces` | branch 5 | Campaign CRM, profiles, Helpdesk, activities, SLAs | PASS — bounded Community implementation; draft and unmerged; Enterprise adapter not tested |
+| 7 | `feat/cc-vicidial-mapping` | branch 6 | Identifier catalog, desired state, middleware contract, read-back | BLOCKED pending branch 6 review, complete mapping fields, and controlled migration design |
 | 8 | `feat/cc-scripts-dispositions` | branch 7 | Immutable scripts and campaign-owned dispositions | BLOCKED — controlled 2,677-row catalog is missing |
 | 9 | `feat/cc-callback-transfer` | branch 8 | Callbacks, appointments, transfers, referrals | BLOCKED pending dispositions and scope |
 | 10 | `feat/cc-recordings-quality` | branch 9 | Recording metadata/policy and QA | BLOCKED pending calls and scope |

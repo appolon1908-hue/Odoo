@@ -135,3 +135,32 @@ Branch: `feat/cc-campaign-mail`
 The module installed as version `19.0.1.0.0`; the dependent mailbox facade
 installed as `19.0.1.1.0`. It contains no public inbound controller or transport
 worker. Status remains `STAGING-ONLY` and `PRODUCTION_BLOCKED`.
+
+## CRM and Helpdesk workspace branch evidence
+
+Branch: `feat/cc-crm-helpdesk-workspaces`
+
+| Check | Result | Status |
+| --- | --- | --- |
+| Focused CRM/Helpdesk/legacy-CRM compatibility | Odoo aggregate 41 tests; CRM 7 counters, Helpdesk 8 counters, legacy CRM OS 34 counters; 0 failed; 0 errors | PASS |
+| Clean 63-module Odoo 19 install/regression | 388 tests; 0 failed; 0 errors | PASS |
+| Source validation | 63 manifests; strict review 0 errors/warnings; all source gates; 3 contract tests | PASS |
+| Campaign CRM isolation | Customer profiles and leads cover search, direct ID, name search, grouped queries, copy, export, create, write, chatter, activities, and attachments | PASS |
+| Helpdesk isolation and workflow | Queue, approved SLA, ticket scope, deadlines, breach, escalation, resolution, direct ID, grouped queries, chatter, activities, and attachments | PASS |
+| Clean database ownership | 13 units; 111 campaigns; 102 channels | PASS |
+| Clean CRM/Helpdesk state | 0 customer profiles, queues, SLA policies, or tickets after transactional rollback | PASS |
+| CRM/Helpdesk schema | 4 tables; 67 indexes; 12 module-owned rules | PASS |
+| Enterprise Helpdesk | `helpdesk.ticket` table/module absent; canonical Community substitute installed | NOT_TESTED |
+| External ticket/provider integration | No reviewed staging endpoint or transport configured; no external mutation attempted | NOT_TESTED |
+| Calendar/reminder/scheduler browser tour | Headless Chrome reported `test successful` in the clean 388-test run | PASS |
+
+The CRM module composes the existing campaign CRM operating system and adapts
+both of its legacy global lead rules to canonical membership-derived scope. The
+Customer 360 and agent-desktop facades now depend on the canonical CRM and
+Helpdesk owners instead of maintaining parallel data. Both modules install as
+`19.0.1.0.0`; the two facades install as `19.0.1.1.0`.
+
+The installed Community runtime has no Enterprise Helpdesk dependency. The
+branch therefore does not claim an Enterprise extension was tested and does not
+create external tickets. Status remains `STAGING-ONLY` and
+`PRODUCTION_BLOCKED`.
