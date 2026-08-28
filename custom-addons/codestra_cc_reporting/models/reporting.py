@@ -525,7 +525,7 @@ class CcKpiSnapshot(models.Model):
             "data_cutoff_at": fields.Datetime.to_datetime(data_cutoff_at),
             "source_payload_hash": source_payload_hash,
             "reconciliation_state": reconciliation_state,
-            "agent_membership": agent.membership_uuid if agent else None,
+            "agent_membership": agent.identity_uuid if agent else None,
             "aggregate_only": bool(aggregate_only),
         }
         binding_hash = _digest(payload)

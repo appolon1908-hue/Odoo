@@ -562,7 +562,7 @@ class CcWorkforceSchedule(models.Model):
             payload = {
                 "reference": schedule.reference,
                 "policy_hash": schedule.policy_id.policy_hash,
-                "agent_membership": schedule.agent_membership_id.membership_uuid,
+                "agent_membership": schedule.agent_membership_id.identity_uuid,
                 "interval": [schedule.start_at, schedule.end_at],
                 "activity_type": schedule.activity_type,
                 "break_minutes": schedule.break_minutes,
@@ -1055,7 +1055,7 @@ class CcWorkforceAdherenceEvent(models.Model):
             "event_uuid": event_uuid,
             "campaign": schedule.campaign_id.code,
             "schedule": schedule.reference,
-            "agent_membership": agent.membership_uuid,
+            "agent_membership": agent.identity_uuid,
             "state": normalized_state,
             "interval": [start, end],
             "source_reference_hash": hashlib.sha256(
