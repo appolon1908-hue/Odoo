@@ -1,5 +1,5 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_agent_user,agent user,model_codestra_vicidial_agent,group_agent,1,1,0,0
+access_agent_user,agent user,model_codestra_vicidial_agent,group_agent,1,0,0,0
 access_agent_admin,agent admin,model_codestra_vicidial_agent,group_integration_admin,1,1,1,0
 access_campaign_user,campaign user,model_codestra_vicidial_campaign,group_agent,1,0,0,0
 access_campaign_manager,campaign manager,model_codestra_vicidial_campaign,group_manager,1,1,1,0
