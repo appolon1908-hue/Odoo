@@ -1,7 +1,9 @@
+from unittest.mock import Mock, patch
+
 from odoo.addons.codestra_vicidial_recording.controllers.recording_api import (
     RecordingAPI,
 )
-from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.tests.common import TransactionCase, new_test_user
 from psycopg2.errors import UniqueViolation
 
@@ -148,7 +150,7 @@ class TestRecordingReference(TransactionCase):
         )
         self.assertFalse(recording.with_user(supervisor).search([]))
 
-    def test_supervisor_campaign_and_group_scope_and_playback_is_fail_closed(self):
+    def test_supervisor_campaign_and_group_scope_and_playback_audit(self):
         supervisor = new_test_user(
             self.env,
             login="recording-scoped-supervisor",
@@ -162,19 +164,29 @@ class TestRecordingReference(TransactionCase):
             [("recording_uid", "=", recording.recording_uid)]
         )
         self.assertEqual(visible, recording)
+        params = self.env["ir.config_parameter"].sudo()
+        params.set_param("codestra.recording_middleware_url", "https://middleware")
+        params.set_param("codestra.recording_middleware_service_token", "test-token")
+        response = Mock()
+        response.json.return_value = {
+            "playback_url": "https://private.invalid/grant",
+            "expires_in": 120,
+        }
+        response.raise_for_status.return_value = None
+        with patch(
+            "odoo.addons.codestra_vicidial_recording.models.recording.requests.post",
+            return_value=response,
+        ) as playback_request:
+            action = recording.with_user(supervisor).action_play_recording()
         self.assertEqual(
-            self.env["ir.config_parameter"].get_param(
-                "CC_ENABLE_RECORDING_PLAYBACK", "false"
-            ),
-            "false",
+            playback_request.call_args.kwargs["headers"]["X-Codestra-Environment"],
+            "staging",
         )
-        with self.assertRaises(UserError):
-            recording.with_user(supervisor).action_play_recording()
-        self.assertFalse(
-            self.env["codestra.vicidial.recording.playback.audit"].search(
-                [("recording_uid", "=", recording.recording_uid)]
-            )
+        self.assertEqual(action["tag"], "codestra_recording_playback")
+        audit = self.env["codestra.vicidial.recording.playback.audit"].search(
+            [("recording_uid", "=", recording.recording_uid)]
         )
+        self.assertEqual(audit.result, "granted")
         self.assertNotIn("playback_url", recording._fields)
 
     def test_qa_scope_and_limited_write(self):
