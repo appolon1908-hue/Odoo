@@ -295,7 +295,6 @@ class CcTransfer(models.Model):
             "script_version_id": script.id,
             "source_membership_id": membership.id,
             "route_id": route.id,
-            "requested_target_campaign_id": (target or campaign).id,
             "transfer_type": route.transfer_type,
             "compliance_state": compliance_state,
             "state": "rejected" if rejection else "validated",
@@ -306,6 +305,11 @@ class CcTransfer(models.Model):
             "idempotency_key": idempotency_key,
             "correlation_id": correlation_id,
         }
+        if target and (
+            _is_service(self.env.user)
+            or self.env.user.has_group("codestra_cc_security.group_cc_global_administrator")
+        ):
+            values["requested_target_campaign_id"] = target.id
         transfer = self.with_context(_cc_transfer_write_capability=TRANSFER_WRITE_CAPABILITY).create(values)
         event_type = "rejected" if rejection else "validated"
         self.env["cc.transfer.event"]._append(transfer, f"cc.transfer.{event_type}.v1", idempotency_key)
@@ -472,12 +476,6 @@ class CcReferral(models.Model):
         required=True,
         readonly=True,
         ondelete="restrict",
-        groups=(
-            "codestra_cc_calls.group_cc_call_service,"
-            "codestra_cc_security.group_cc_campaign_supervisor,"
-            "codestra_cc_security.group_cc_campaign_configuration_manager,"
-            "codestra_cc_security.group_cc_global_administrator"
-        ),
     )
     destination_service_code = fields.Char(required=True, readonly=True, index=True)
     destination_service_label = fields.Char(required=True, readonly=True)

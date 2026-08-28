@@ -245,6 +245,9 @@ class TestCampaignCallOperations(TransactionCase):
         self.assertFalse(self.policy_a.publication_enabled)
         self.assertFalse(self.transfer_route_a.live_control_enabled)
         self.assertFalse(self.referral_route_a.delivery_enabled)
+        parameters = self.env["ir.config_parameter"]
+        self.assertEqual(parameters.get_param("CC_ENABLE_CALLBACK_PUBLICATION"), "false")
+        self.assertEqual(parameters.get_param("CC_ENABLE_WARM_TRANSFER"), "false")
 
     def test_callback_schedules_once_is_campaign_owned_and_publication_stays_held(self):
         callback = self._create_callback(
@@ -429,8 +432,12 @@ class TestCampaignCallOperations(TransactionCase):
         self.assertEqual(referral.state, "pending")
         self.assertEqual(referral.destination_service_label, "Campaign B Requested Service")
         self.assertEqual(len(referral.payload_hash), 64)
+        self.assertEqual(
+            referral.with_user(self.agent_a).route_id.service_code,
+            "CAMPAIGN-B-SERVICE",
+        )
         with self.assertRaises(AccessError):
-            referral.with_user(self.agent_a).read(["route_id"])
+            referral.route_id.with_user(self.agent_a).read(["destination_campaign_id"])
         with self.assertRaises(AccessError):
             self.env["cc.referral.delivery"].with_user(self.agent_a).search([])
         delivery = referral.with_user(self.call_service).action_materialize_destination(

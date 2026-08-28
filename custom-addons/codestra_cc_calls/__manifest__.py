@@ -12,6 +12,7 @@
     "data": [
         "security/calls_security.xml",
         "security/ir.model.access.csv",
+        "data/feature_flags.xml",
         "views/callback_transfer_views.xml",
     ],
     "assets": {
