@@ -57,3 +57,31 @@ and two legacy synthetic identifiers outside the canonical format. The field pat
 was corrected. `MIGRATION_FIXTURE` and `TEST_SYN` are now preserved without rename
 as disabled, blocked legacy exceptions. The final upgrade and clean-install runs
 are green.
+
+## Campaign-security branch evidence
+
+Branch: `feat/cc-campaign-security`
+
+| Check | Result | Status |
+| --- | --- | --- |
+| Focused Odoo 19 upgrade | 12 methods / 14 counters; 0 failed; 0 errors | PASS |
+| Clean 60-module Odoo 19 install/regression | 358 tests; 0 failed; 0 errors | PASS |
+| Stable authority roles | Ten role groups plus one reusable scoped base group | PASS |
+| Database invariants | Four membership partial unique indexes plus one break-glass partial unique index | PASS |
+| Global canonical rules | Six fail-closed rules installed | PASS |
+| Agent campaign isolation | Search, direct ID, name search, grouped reporting, export, copy, create, and write covered | PASS |
+| Membership visibility | Agent self-only; supervisor campaign-only; cross-campaign record hidden | PASS |
+| Supervisor invariant | One active campaign per supervisor and one active primary supervisor per campaign | PASS |
+| Technical administrator | Zero canonical campaign visibility without break-glass; separate approval and revocation covered | PASS |
+| Production/live state | 0 live-enabled; 0 production-eligible; 0 active workspaces | PASS |
+| Callback compatibility | 8 mappings; 0 login-enabled; 0 active | PASS |
+
+The clean database contained 13 canonical business units, 111 canonical
+campaigns, and 102 canonical channels. Transactional security fixtures rolled
+back cleanly, leaving zero memberships and zero break-glass grants. The clean
+run included the calendar, reminder, and scheduler pop-out browser tour.
+
+The module intentionally does not add OIDC, session pinning, external account
+provisioning, or automatic session revocation; those remain owned by the next
+stacked identity branch. Status remains `STAGING-ONLY` and
+`PRODUCTION_BLOCKED`.

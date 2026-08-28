@@ -131,3 +131,19 @@ Clean-install read-back reconciles 13 units, 111 campaigns, and 102 channels aft
 the full test data lifecycle. Two noncanonical synthetic identifiers are retained
 as blocked legacy exceptions rather than renamed. Status: `PASS` for the bounded
 core-domain responsibility and `PRODUCTION_BLOCKED` for the overall system.
+
+## Campaign-security branch update
+
+Branch `feat/cc-campaign-security` adds the previously missing canonical
+membership and authorization layer. It installs ten stable authority roles,
+four membership partial unique indexes, one break-glass partial unique index,
+and six global fail-closed record rules. Agents resolve to one operational
+campaign, supervisors resolve to one campaign and one primary supervisor slot,
+and technical administrators resolve to no canonical campaign unless a separate
+time-bounded break-glass grant is active.
+
+The clean 60-module database completed 358 tests with zero failures/errors and
+retained zero live-enabled, production-eligible, or active campaign workspaces.
+This closes the base inventory gaps for membership, database uniqueness, and the
+canonical core record-rule contract. Server-side OIDC session pinning,
+deprovisioning, and the remaining campaign-owned model rules are still open.
