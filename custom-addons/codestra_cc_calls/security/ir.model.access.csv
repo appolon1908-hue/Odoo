@@ -60,3 +60,5 @@ access_cc_referral_delivery_service,cc.referral.delivery service,model_cc_referr
 access_cc_call_service_campaign,cc.campaign call service,codestra_cc_core.model_cc_campaign,group_cc_call_service,1,0,0,0
 access_cc_call_service_business_unit,cc.business.unit call service,codestra_cc_core.model_cc_business_unit,group_cc_call_service,1,0,0,0
 access_cc_call_service_membership,cc.campaign.membership call service,codestra_cc_security.model_cc_campaign_membership,group_cc_call_service,1,0,0,0
+access_cc_call_service_legacy_campaign,call.center.campaign call service,call_center_campaign.model_call_center_campaign,group_cc_call_service,1,0,0,0
+access_cc_call_service_legacy_business_unit,call.center.business.unit call service,call_center_core.model_call_center_business_unit,group_cc_call_service,1,0,0,0

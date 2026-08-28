@@ -227,9 +227,19 @@ class CcTransfer(models.Model):
                 raise ValidationError(_("Transfer source member belongs to another campaign."))
             if transfer.route_id.campaign_id != transfer.campaign_id:
                 raise ValidationError(_("Transfer route belongs to another campaign."))
-            target_differs = transfer.requested_target_campaign_id and (
-                transfer.requested_target_campaign_id != transfer.campaign_id
-            )
+            target_differs = False
+            if (
+                _is_service(self.env.user)
+                or self.env.user.has_group(
+                    "codestra_cc_security.group_cc_campaign_configuration_manager"
+                )
+                or self.env.user.has_group(
+                    "codestra_cc_security.group_cc_global_administrator"
+                )
+            ):
+                target_differs = transfer.requested_target_campaign_id and (
+                    transfer.requested_target_campaign_id != transfer.campaign_id
+                )
             if target_differs and transfer.state != "rejected":
                 raise ValidationError(_("Cross-campaign live transfers must be rejected."))
 
