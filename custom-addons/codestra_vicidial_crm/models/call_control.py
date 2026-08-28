@@ -313,10 +313,7 @@ class CallControlCommand(models.Model):
 
     def write(self, values):
         allowed = {"state", "result_json"}
-        authorized = self.env.su or self.env.user.has_group(
-            "codestra_vicidial_crm.group_integration_admin"
-        )
-        if set(values) - allowed or not authorized:
+        if set(values) - allowed or not self.env.user.has_group("codestra_vicidial_crm.group_integration_admin"):
             raise AccessError("Call-control command evidence is immutable.")
         return super().write(values)
 
