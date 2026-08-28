@@ -1,7 +1,7 @@
 {
     "name": "Codestra Contact Center Core",
-    "summary": "Canonical contact-center facade over the audited Codestra interaction foundation",
-    "version": "19.0.1.0.0",
+    "summary": "Canonical campaign workspaces over the audited Codestra foundation",
+    "version": "19.0.2.0.0",
     "author": "Codestra",
     "license": "LGPL-3",
     "depends": [
@@ -9,7 +9,11 @@
         "codestra_interaction_workflow",
         "codestra_vicidial_crm",
     ],
-    "data": [],
+    "data": [
+        "security/ir.model.access.csv",
+        "views/core_domain_views.xml",
+        "adopt_legacy_records.xml",
+    ],
     "installable": True,
     "application": False,
 }
