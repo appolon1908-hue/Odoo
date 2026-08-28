@@ -122,3 +122,27 @@ The exact branch runtime installed all 64 custom modules and passed 412 tests
 with zero failures or errors; `codestra_cc_calls` contributed 10 focused
 counters. No Middleware, VICIdial, Asterisk, carrier, PSTN, n8n, or production
 operation was attempted.
+
+## Recording and quality boundary
+
+Draft PR [#35](https://github.com/appolon1908-hue/Odoo/pull/35) adds a canonical
+recording metadata binding and campaign quality workflow without adding an
+external transport or public route. The legacy recording owner remains the raw
+source; Odoo retains only controlled identifiers, checksums, protected
+storage-reference hashes, policy hashes, and append-only evidence.
+
+The 93-row recording matrix has zero playback-enabled rows, zero externally
+reconciled storage rows, and 93 missing campaign policy seeds. The 93-row
+quality matrix has zero AI-enabled rows and 93 missing program/scorecard seeds.
+Every row in both reports remains `PARTIAL`.
+
+The runtime installed all 65 custom modules and passed 421 tests with zero
+failures or errors. The focused tests verify exact recording binding,
+campaign-scoped access, immutable evidence, purpose-bound legal holds, weighted
+scorecards, critical failures, separate finalization, superseding corrections,
+calibration, disputes, and coaching. They also verify that internal capability
+objects are removed before governed records return to callers.
+
+No recording object was downloaded, copied, deleted, played, or exposed through
+a signed URL. No AI, Middleware, VICIdial, Asterisk, carrier, PSTN, n8n, or
+production operation was attempted.

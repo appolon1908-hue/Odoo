@@ -258,3 +258,34 @@ not have a delivery worker.
 Recommendation: `STAGING-ONLY`
 
 Production gate: `PRODUCTION_BLOCKED`
+
+## Recording governance and quality-program branch evidence
+
+Branch: `feat/cc-recordings-quality`
+
+Draft PR: [#35](https://github.com/appolon1908-hue/Odoo/pull/35)
+
+| Check | Result | Status |
+| --- | --- | --- |
+| Exact-head and stacked merge source validation | 65 manifests; strict review 0 errors/warnings; all source gates | PASS |
+| Clean Odoo 19/PostgreSQL install/regression | 421 tests; 0 failed; 0 errors | PASS |
+| Focused recording/quality suite | Recording governance 3 counters; quality 13 counters | PASS |
+| Recording binding | One campaign, call, active agent, customer, active policy hash, checksum, and protected storage-reference hash | PASS |
+| Recording access | Agent library denied; QA and supervisor campaign scope; purpose evidence append-only | PASS |
+| Legal hold | Compliance apply/release is reason-hashed; direct state writes denied | PASS |
+| Quality governance | Weighted scorecards, critical fail, versioning, and separate author/finalizer covered | PASS |
+| Quality operations | Sampling, calibration, acknowledgement, dispute, correction, coaching, due date, and effectiveness covered | PASS |
+| Internal workflow capabilities | Returned sample, evaluation, answer, calibration, dispute, coaching, and event records do not retain write capabilities | PASS |
+| Recording-policy matrix | 93 rows; 93 policies missing; 93 partial | PARTIAL |
+| Quality-program matrix | 93 rows; 93 programs/scorecards missing; 93 partial | PARTIAL |
+| Safety flags | Recording playback false; AI assist false | PASS |
+| External storage/telephony read-back | No reviewed isolated staging endpoint; no external mutation attempted | NOT_TESTED |
+
+Odoo stores governed metadata and evidence only. It does not expose raw audio or
+an unrestricted object URL. Legal hold overrides deletion eligibility without
+granting playback access. Finalized evaluations remain immutable; corrections
+create a superseding version.
+
+Recommendation: `STAGING-ONLY`
+
+Production gate: `PRODUCTION_BLOCKED`
