@@ -172,3 +172,26 @@ Run
 installed all 67 modules and passed 435 Odoo tests with zero failures or errors.
 No external WFM, Middleware, VICIdial, Asterisk, reporting, email, carrier,
 PSTN, n8n, or production operation was attempted.
+
+## Compliance and audit boundary
+
+Draft PR [#37](https://github.com/appolon1908-hue/Odoo/pull/37) adds a governed
+compliance and immutable audit boundary without introducing a public route,
+external transport, provider call, deletion worker, or live capability.
+
+Consent grants and revocations, suppression, eligibility, payment transitions,
+retention decisions, legal holds, and break-glass lifecycle changes bind
+campaign, actor, policy/evidence hashes, and exact idempotency keys. Audit
+events form an actor-specific hash chain so an operational user never receives
+cross-actor evidence access merely to append an event.
+
+The 93-row compliance/audit matrix contains zero approved campaign policy
+seeds. Controlled workflow contracts are `STAGING_READY`, every live outreach
+flag is false, and external policy/suppression/provider read-back is
+`NOT_TESTED`; all rows therefore remain `PARTIAL`.
+
+Run
+[33198525497](https://github.com/appolon1908-hue/Odoo/actions/runs/33198525497)
+installed all 67 modules and passed 451 Odoo tests with zero failures or errors.
+No Middleware, VICIdial, Asterisk, carrier, PSTN, payment provider, email, n8n,
+or production operation was attempted.

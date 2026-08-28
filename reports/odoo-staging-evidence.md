@@ -320,3 +320,32 @@ not retain internal write capabilities.
 Recommendation: `STAGING-ONLY`
 
 Production gate: `PRODUCTION_BLOCKED`
+
+## Compliance and append-only audit branch evidence
+
+Branch: `feat/cc-compliance-audit`
+
+Draft PR: [#37](https://github.com/appolon1908-hue/Odoo/pull/37)
+
+| Check | Result | Status |
+| --- | --- | --- |
+| Exact-head and stacked merge source validation | 67 manifests; strict review 0 errors/warnings; all source gates | PASS |
+| Clean Odoo 19/PostgreSQL install/regression | 451 tests; 0 failed; 0 errors ([run 33198525497](https://github.com/appolon1908-hue/Odoo/actions/runs/33198525497)) | PASS |
+| Focused audit/compliance suites | Audit 6 counters; compliance 12 counters | PASS |
+| Audit integrity | Capability append, exact replay, secret rejection, actor-chain verification, and immutable CRUD guards | PASS |
+| Break-glass accountability | Request, separate approval, activation, use, revocation, expiry, and scoped evidence | PASS |
+| Consent and suppression | Versioned consent, exact replay, immediate revocation/DNC, and separate removal approval | PASS |
+| Pre-contact enforcement | Policy, consent, DNC, customer-local time, predictive, AI voice, and prerecorded voice gates | PASS |
+| Payment safety | Recording pause precedes tokenized handoff; hashes only; payment data rejected from notes/chatter | PASS |
+| Retention and holds | Separate legal-hold approval and immutable retention decision; no deletion action | PASS |
+| Compliance/audit readiness matrix | 93 controlled rows generated | PASS |
+| Campaign policy seeds | 93 compliance policies missing; every row remains partial | MISSING |
+| Live capabilities | Automated outreach, predictive dialing, prerecorded voice, and payment delivery false | PASS |
+| External legal/provider/Middleware read-back | No reviewed isolated staging endpoint or approved policy source | NOT_TESTED |
+
+Odoo stores protected evidence and decisions only. It does not send a call,
+voice message, payment link, export, provider request, or deletion command.
+
+Recommendation: `STAGING-ONLY`
+
+Production gate: `PRODUCTION_BLOCKED`
