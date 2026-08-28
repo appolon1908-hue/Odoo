@@ -1,6 +1,7 @@
 /** @odoo-module **/
 
 import { Component, onWillStart, useState } from "@odoo/owl";
+import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
@@ -8,7 +9,7 @@ export class CodestraCallPopup extends Component {
     static template = "codestra_vicidial_crm.CallPopup";
 
     setup() {
-        this.rpc = useService("rpc");
+        this.rpc = rpc;
         this.bus = useService("bus_service");
         this.actionService = useService("action");
         this.notification = useService("notification");
