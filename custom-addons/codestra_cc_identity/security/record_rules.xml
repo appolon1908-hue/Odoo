@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="rule_cc_identity_outbox_global_scope" model="ir.rule">
+    <field name="name">Contact Center: identity outbox scope</field>
+    <field name="model_id" ref="model_cc_identity_outbox"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_identity_provisioning.group_provisioning_service') else ([('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)] if user.has_group('codestra_cc_security.group_cc_auditor') else ['&amp;', ('campaign_id', 'in', user.cc_allowed_campaign_ids.ids), ('user_id', '=', user.id)])</field>
+  </record>
+
+  <record id="rule_cc_identity_session_global_scope" model="ir.rule">
+    <field name="name">Contact Center: pinned session scope</field>
+    <field name="model_id" ref="model_cc_identity_session_scope"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') else ([('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)] if user.has_group('codestra_cc_security.group_cc_auditor') else ['&amp;', ('campaign_id', 'in', user.cc_allowed_campaign_ids.ids), ('user_id', '=', user.id)])</field>
+  </record>
+
+  <record id="rule_cc_identity_reassignment_global_scope" model="ir.rule">
+    <field name="name">Contact Center: reassignment scope</field>
+    <field name="model_id" ref="model_cc_identity_reassignment"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') else ['|', ('source_campaign_id', 'in', user.cc_allowed_campaign_ids.ids), ('destination_campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+
+  <record id="rule_cc_global_admin_all_devices" model="ir.rule">
+    <field name="name">Contact Center: global administrators can revoke assigned devices</field>
+    <field name="model_id" ref="base.model_res_device"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_global_administrator'))]"/>
+    <field name="domain_force">[(1, '=', 1)]</field>
+  </record>
+</odoo>

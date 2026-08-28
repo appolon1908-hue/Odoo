@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_cc_campaign_membership_identity_form" model="ir.ui.view">
+    <field name="name">cc.campaign.membership.identity.form</field>
+    <field name="model">cc.campaign.membership</field>
+    <field name="inherit_id" ref="codestra_cc_security.view_cc_campaign_membership_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//header/button[@name='action_activate']" position="attributes">
+        <attribute name="invisible">state != 'pending_sync'</attribute>
+      </xpath>
+      <xpath expr="//header" position="inside">
+        <button name="action_submit_identity" type="object" string="Submit" groups="codestra_cc_security.group_cc_global_administrator" invisible="state != 'draft'"/>
+        <button name="action_approve_identity" type="object" string="Approve &amp; Queue" groups="codestra_cc_security.group_cc_global_administrator" invisible="state != 'pending_approval'"/>
+        <button name="action_expire_identity" type="object" string="Expire" groups="codestra_cc_security.group_cc_global_administrator" invisible="state not in ('active', 'suspended') or not ends_at"/>
+      </xpath>
+      <xpath expr="//sheet" position="inside">
+        <notebook>
+          <page string="Identity Lifecycle">
+            <group>
+              <group>
+                <field name="identity_uuid" readonly="1"/>
+                <field name="desired_state_version" readonly="1"/>
+                <field name="keycloak_subject" readonly="state not in ('draft', 'pending_approval')"/>
+                <field name="vicidial_user" readonly="state not in ('draft', 'pending_approval')"/>
+                <field name="vicidial_user_group" readonly="state not in ('draft', 'pending_approval')"/>
+              </group>
+              <group>
+                <field name="campaign_email_identity" readonly="state not in ('draft', 'pending_approval')"/>
+                <field name="distribution_groups" readonly="state not in ('draft', 'pending_approval')"/>
+              </group>
+            </group>
+            <field name="identity_outbox_ids" readonly="1">
+              <list create="false" delete="false">
+                <field name="event_type"/>
+                <field name="operation"/>
+                <field name="desired_state_version"/>
+                <field name="state"/>
+                <field name="correlation_id"/>
+                <field name="read_back_at"/>
+              </list>
+            </field>
+          </page>
+          <page string="Pinned Sessions">
+            <field name="identity_session_scope_ids" readonly="1">
+              <list create="false" delete="false">
+                <field name="campaign_id"/>
+                <field name="scope_version_snapshot"/>
+                <field name="state"/>
+                <field name="started_at"/>
+                <field name="expires_at"/>
+                <field name="revoked_at"/>
+                <field name="revocation_reason"/>
+              </list>
+            </field>
+          </page>
+          <page string="Provisioning Requests">
+            <field name="provisioning_request_ids" readonly="1">
+              <list create="false" delete="false">
+                <field name="request_number"/>
+                <field name="request_type"/>
+                <field name="state"/>
+                <field name="correlation_id"/>
+                <field name="drift_state"/>
+              </list>
+            </field>
+          </page>
+        </notebook>
+      </xpath>
+    </field>
+  </record>
+
+  <record id="view_cc_identity_outbox_list" model="ir.ui.view">
+    <field name="name">cc.identity.outbox.list</field>
+    <field name="model">cc.identity.outbox</field>
+    <field name="arch" type="xml">
+      <list create="false" delete="false">
+        <field name="create_date"/>
+        <field name="membership_id"/>
+        <field name="campaign_id"/>
+        <field name="event_type"/>
+        <field name="desired_state_version"/>
+        <field name="state"/>
+        <field name="correlation_id"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_cc_identity_outbox_form" model="ir.ui.view">
+    <field name="name">cc.identity.outbox.form</field>
+    <field name="model">cc.identity.outbox</field>
+    <field name="arch" type="xml">
+      <form create="false" delete="false" edit="false">
+        <sheet>
+          <group>
+            <group>
+              <field name="name"/>
+              <field name="membership_id"/>
+              <field name="campaign_id"/>
+              <field name="operation"/>
+              <field name="event_type"/>
+              <field name="state"/>
+            </group>
+            <group>
+              <field name="desired_state_version"/>
+              <field name="payload_hash"/>
+              <field name="idempotency_key"/>
+              <field name="correlation_id"/>
+              <field name="approved_by_id"/>
+            </group>
+          </group>
+          <group string="Desired State">
+            <field name="required_targets"/>
+            <field name="payload_json"/>
+          </group>
+          <group string="Read-Back">
+            <field name="dispatched_at"/>
+            <field name="read_back_at"/>
+            <field name="evidence_reference"/>
+            <field name="read_back_hash"/>
+            <field name="last_error_code"/>
+            <field name="read_back_json"/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_cc_identity_outbox" model="ir.actions.act_window">
+    <field name="name">Identity Desired State</field>
+    <field name="res_model">cc.identity.outbox</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <record id="view_cc_identity_session_scope_list" model="ir.ui.view">
+    <field name="name">cc.identity.session.scope.list</field>
+    <field name="model">cc.identity.session.scope</field>
+    <field name="arch" type="xml">
+      <list create="false" delete="false">
+        <field name="user_id"/>
+        <field name="membership_id"/>
+        <field name="campaign_id"/>
+        <field name="scope_version_snapshot"/>
+        <field name="state"/>
+        <field name="started_at"/>
+        <field name="expires_at"/>
+        <field name="revoked_at"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="action_cc_identity_session_scope" model="ir.actions.act_window">
+    <field name="name">Pinned Contact Center Sessions</field>
+    <field name="res_model">cc.identity.session.scope</field>
+    <field name="view_mode">list</field>
+  </record>
+
+  <record id="view_cc_identity_reassignment_list" model="ir.ui.view">
+    <field name="name">cc.identity.reassignment.list</field>
+    <field name="model">cc.identity.reassignment</field>
+    <field name="arch" type="xml">
+      <list create="true" delete="false">
+        <field name="source_membership_id"/>
+        <field name="destination_membership_id"/>
+        <field name="user_id"/>
+        <field name="effective_at"/>
+        <field name="state"/>
+        <field name="source_ticket"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_cc_identity_reassignment_form" model="ir.ui.view">
+    <field name="name">cc.identity.reassignment.form</field>
+    <field name="model">cc.identity.reassignment</field>
+    <field name="arch" type="xml">
+      <form create="true" delete="false">
+        <header>
+          <button name="action_submit" type="object" string="Submit" invisible="state != 'draft'"/>
+          <button name="action_approve" type="object" string="Approve" invisible="state != 'pending_approval'"/>
+          <button name="action_execute" type="object" string="Execute Revoke-Then-Grant" invisible="state != 'approved'"/>
+          <button name="action_complete" type="object" string="Complete After Read-Back" invisible="state != 'pending_readback'"/>
+          <field name="state" widget="statusbar" statusbar_visible="draft,pending_approval,approved,pending_readback,completed"/>
+        </header>
+        <sheet>
+          <group>
+            <group>
+              <field name="source_membership_id" readonly="state != 'draft'"/>
+              <field name="destination_membership_id" readonly="state != 'draft'"/>
+              <field name="user_id" readonly="1"/>
+              <field name="effective_at" readonly="state != 'draft'"/>
+              <field name="source_ticket" readonly="state != 'draft'"/>
+            </group>
+            <group>
+              <field name="pause_evidence"/>
+              <field name="work_handoff_evidence"/>
+              <field name="requested_by_id" readonly="1"/>
+              <field name="approved_by_id" readonly="1"/>
+              <field name="approved_at" readonly="1"/>
+              <field name="completed_at" readonly="1"/>
+            </group>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_cc_identity_reassignment" model="ir.actions.act_window">
+    <field name="name">Campaign Reassignments</field>
+    <field name="res_model">cc.identity.reassignment</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <menuitem id="menu_cc_identity_outbox" name="Identity Desired State" parent="call_center_core.menu_call_center_configuration" action="action_cc_identity_outbox" sequence="36" groups="codestra_cc_security.group_cc_global_administrator,codestra_cc_security.group_cc_auditor"/>
+  <menuitem id="menu_cc_identity_sessions" name="Pinned Sessions" parent="call_center_core.menu_call_center_configuration" action="action_cc_identity_session_scope" sequence="37" groups="codestra_cc_security.group_cc_global_administrator,codestra_cc_security.group_cc_auditor"/>
+  <menuitem id="menu_cc_identity_reassignments" name="Campaign Reassignments" parent="call_center_core.menu_call_center_configuration" action="action_cc_identity_reassignment" sequence="38" groups="codestra_cc_security.group_cc_global_administrator,codestra_cc_security.group_cc_auditor"/>
+</odoo>

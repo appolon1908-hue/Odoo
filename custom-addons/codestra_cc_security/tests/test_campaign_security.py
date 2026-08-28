@@ -14,6 +14,7 @@ class TestCampaignSecurity(TransactionCase):
         super().setUpClass()
         cls.Campaign = cls.env["cc.campaign"].with_context(active_test=False)
         cls.Membership = cls.env["cc.campaign.membership"]
+        cls.identity_managed = "cc.identity.outbox" in cls.env
         cls.Campaign.env["cc.business.unit"]._adopt_legacy_records()
         cls.campaign_a = cls.Campaign.search(
             [("code", "=", "COD-WEB-OUT")], limit=1
@@ -56,6 +57,26 @@ class TestCampaignSecurity(TransactionCase):
             "authority-technical@example.invalid",
             "codestra_cc_security.group_cc_technical_administrator",
         )
+        cls.identity_service = False
+        if cls.identity_managed:
+            cls.identity_service = cls.env["res.users"].create(
+                {
+                    "name": "Campaign Security Identity Service",
+                    "login": "campaign-security-identity-service@example.invalid",
+                    "group_ids": [
+                        (
+                            6,
+                            0,
+                            [
+                                cls.env.ref("base.group_user").id,
+                                cls.env.ref(
+                                    "codestra_identity_provisioning.group_provisioning_service"
+                                ).id,
+                            ],
+                        )
+                    ],
+                }
+            )
         cls.agent_employee = cls._create_employee(cls.agent)
         cls.other_employee = cls._create_employee(cls.other_agent)
         cls.supervisor_employee = cls._create_employee(cls.supervisor)
@@ -93,7 +114,8 @@ class TestCampaignSecurity(TransactionCase):
     @classmethod
     def _activate_membership(cls, user, employee, campaign, role, primary=False):
         membership = cls.Membership.with_user(cls.requester).create(
-            {
+            cls._identity_safe_values(
+                {
                 "user_id": user.id,
                 "employee_id": employee.id,
                 "campaign_id": campaign.id,
@@ -105,10 +127,36 @@ class TestCampaignSecurity(TransactionCase):
                 "starts_at": fields.Datetime.now(),
                 "last_sync_status": "matched",
                 "read_back_evidence": "synthetic staging read-back matched",
-            }
+                }
+            )
         )
+        cls._synchronize_identity(membership)
         membership.with_user(cls.approver).action_activate()
         return membership
+
+    @classmethod
+    def _identity_safe_values(cls, values):
+        values = dict(values)
+        if cls.identity_managed:
+            values["state"] = "draft"
+            values.pop("last_sync_status", None)
+            values.pop("read_back_evidence", None)
+        return values
+
+    @classmethod
+    def _synchronize_identity(cls, membership):
+        if not cls.identity_managed:
+            return False
+        membership.with_user(cls.requester).action_submit_identity()
+        operation = membership.with_user(cls.approver).action_approve_identity()
+        operation.with_user(cls.identity_service).action_record_readback(
+            {
+                target: {"status": "matched", "evidence_hash": "a" * 64}
+                for target in operation.required_targets
+            },
+            "staging://security-suite/readback",
+        )
+        return operation
 
     def test_stable_role_catalog_is_available(self):
         roles = {
@@ -200,7 +248,8 @@ class TestCampaignSecurity(TransactionCase):
 
     def test_exact_one_operational_membership_is_enforced(self):
         second = self.Membership.with_user(self.requester).create(
-            {
+            self._identity_safe_values(
+                {
                 "user_id": self.agent.id,
                 "employee_id": self.agent_employee.id,
                 "campaign_id": self.campaign_b.id,
@@ -212,8 +261,10 @@ class TestCampaignSecurity(TransactionCase):
                 "starts_at": fields.Datetime.now(),
                 "last_sync_status": "matched",
                 "read_back_evidence": "synthetic staging read-back matched",
-            }
+                }
+            )
         )
+        self._synchronize_identity(second)
         with self.assertRaises(ValidationError):
             second.with_user(self.approver).action_activate()
 
@@ -229,7 +280,8 @@ class TestCampaignSecurity(TransactionCase):
         )
         other_employee = self._create_employee(other_supervisor)
         duplicate = self.Membership.with_user(self.requester).create(
-            {
+            self._identity_safe_values(
+                {
                 "user_id": other_supervisor.id,
                 "employee_id": other_employee.id,
                 "campaign_id": self.campaign_a.id,
@@ -241,8 +293,10 @@ class TestCampaignSecurity(TransactionCase):
                 "starts_at": fields.Datetime.now(),
                 "last_sync_status": "matched",
                 "read_back_evidence": "synthetic staging read-back matched",
-            }
+                }
+            )
         )
+        self._synchronize_identity(duplicate)
         with self.assertRaises(ValidationError):
             duplicate.with_user(self.approver).action_activate()
 
@@ -298,7 +352,8 @@ class TestCampaignSecurity(TransactionCase):
             membership.with_user(self.approver).action_activate()
 
         wrong_role = self.Membership.with_user(self.requester).create(
-            {
+            self._identity_safe_values(
+                {
                 "user_id": self.other_agent.id,
                 "employee_id": self.other_employee.id,
                 "campaign_id": self.campaign_a.id,
@@ -309,7 +364,9 @@ class TestCampaignSecurity(TransactionCase):
                 "starts_at": fields.Datetime.now(),
                 "last_sync_status": "matched",
                 "read_back_evidence": "synthetic staging read-back matched",
-            }
+                }
+            )
         )
+        self._synchronize_identity(wrong_role)
         with self.assertRaises(ValidationError):
             wrong_role.with_user(self.approver).action_activate()
