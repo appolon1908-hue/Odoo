@@ -317,5 +317,23 @@ class CallControlCommand(models.Model):
             raise AccessError("Call-control command evidence is immutable.")
         return super().write(values)
 
+    def _record_callback_result(self, callback):
+        """Bind one confirmed callback command to its immutable result."""
+        self.ensure_one()
+        callback.ensure_one()
+        if (
+            self.action != "callback"
+            or self.state != "confirmed"
+            or callback._name != "codestra.callback"
+            or callback.call_id != self.call_id
+        ):
+            raise ValidationError("Callback result does not match this command.")
+        result = json.dumps({"callback_id": callback.id}, sort_keys=True)
+        if self.result_json and self.result_json != result:
+            raise ValidationError("Call-control command result is already bound.")
+        if not self.result_json:
+            super(CallControlCommand, self.sudo()).write({"result_json": result})
+        return True
+
     def unlink(self):
         raise AccessError("Call-control command evidence is immutable.")

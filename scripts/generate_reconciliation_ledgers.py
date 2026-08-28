@@ -215,7 +215,13 @@ def generate_module_inventory() -> None:
     rows: list[dict[str, Any]] = []
     for module in sorted(path for path in ADDONS.iterdir() if path.is_dir() and not path.name.startswith(".")):
         data = manifest(module)
-        files = [path for path in module.rglob("*") if path.is_file()]
+        files = sorted(
+            (path for path in module.rglob("*") if path.is_file()),
+            key=lambda path: path.relative_to(module).as_posix(),
+        )
+        relative_paths = {
+            path: path.relative_to(module).as_posix() for path in files
+        }
         text = "\n".join(
             path.read_text(encoding="utf-8", errors="ignore")
             for path in files if path.suffix in {".py", ".xml", ".csv", ".json", ".yaml", ".yml"}
@@ -230,11 +236,11 @@ def generate_module_inventory() -> None:
             "source_commit": source_commit,
             "dependencies": ";".join(data.get("depends", [])),
             "model_owner": ";".join(model_names(module)),
-            "views": ";".join(str(path.relative_to(module)) for path in files if "/views/" in f"/{path.relative_to(module)}"),
-            "security_files": ";".join(str(path.relative_to(module)) for path in files if "/security/" in f"/{path.relative_to(module)}"),
-            "migrations": sum("/migrations/" in f"/{path.relative_to(module)}" and path.suffix == ".py" for path in files),
-            "tests": sum("/tests/test_" in f"/{path.relative_to(module)}" and path.suffix == ".py" for path in files),
-            "external_api": "YES" if any("/controllers/" in f"/{path.relative_to(module)}" and path.suffix == ".py" for path in files) else "NO",
+            "views": ";".join(relative_paths[path] for path in files if "/views/" in f"/{relative_paths[path]}"),
+            "security_files": ";".join(relative_paths[path] for path in files if "/security/" in f"/{relative_paths[path]}"),
+            "migrations": sum("/migrations/" in f"/{relative_paths[path]}" and path.suffix == ".py" for path in files),
+            "tests": sum("/tests/test_" in f"/{relative_paths[path]}" and path.suffix == ".py" for path in files),
+            "external_api": "YES" if any("/controllers/" in f"/{relative_paths[path]}" and path.suffix == ".py" for path in files) else "NO",
             "scheduled_jobs": "YES" if "ir.cron" in text else "NO",
             "outbox": "YES" if re.search(r"\boutbox\b", text, re.I) else "NO",
             "inbox": "YES" if re.search(r"\binbox\b", text, re.I) else "NO",

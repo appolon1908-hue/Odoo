@@ -504,9 +504,7 @@ class CallControlAPI(http.Controller):
                 "priority": priority,
             }
         )
-        command.sudo().write(
-            {"result_json": json.dumps({"callback_id": callback.id}, sort_keys=True)}
-        )
+        command._record_callback_result(callback)
         self._audit(call, "call.callback", {"callback_id": callback.id})
         return {"duplicate": False, "callback_id": callback.id, "dispatch_enabled": False}
 
