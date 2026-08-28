@@ -30,6 +30,7 @@ def main():
                 "workforce_policy_status": "MISSING",
                 "forecast_status": "NOT_TESTED",
                 "schedule_status": "STAGING_READY",
+                "schedule_change_status": "STAGING_READY",
                 "adherence_status": "STAGING_READY",
                 "exception_queue_status": "STAGING_READY",
                 "realtime_snapshot_status": "STAGING_READY",

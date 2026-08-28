@@ -317,6 +317,18 @@ class TestCampaignWorkforceWorkflow(TransactionCase):
             "resolved",
         ])
         with self.assertRaises(AccessError):
+            self.env["cc.workforce.exception.event"].with_user(
+                self.supervisor_a
+            ).create(
+                {
+                    "campaign_id": self.campaign_a.id,
+                    "exception_id": exception.id,
+                    "actor_id": self.supervisor_a.id,
+                    "event_type": "resolved",
+                    "evidence_hash": "0" * 64,
+                }
+            )
+        with self.assertRaises(AccessError):
             exception.event_ids[0].unlink()
 
     def test_realtime_snapshot_derives_metrics_alerts_and_rejects_replay_drift(self):
