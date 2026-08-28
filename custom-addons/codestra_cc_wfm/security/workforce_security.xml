@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+  <record id="codestra_cc_security.rule_cc_business_unit_global_scope" model="ir.rule">
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_wfm.group_cc_workforce_event_service') or user.cc_has_active_break_glass else [('id', 'in', user.cc_allowed_business_unit_ids.ids)]</field>
+  </record>
   <record id="codestra_cc_security.rule_cc_campaign_global_scope" model="ir.rule">
     <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_wfm.group_cc_workforce_event_service') or user.cc_has_active_break_glass else [('id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
   </record>
