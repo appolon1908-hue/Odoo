@@ -19,6 +19,7 @@ SAFE_RUN_ID="$(
     | tr -cd 'A-Za-z0-9_.-'
 )"
 NETWORK="codestra-odoo-ci-${SAFE_RUN_ID}"
+CI_SUBNET="${ODOO_CI_SUBNET:-10.254.250.0/28}"
 DB_CONTAINER="codestra-postgres-ci-${SAFE_RUN_ID}"
 ODOO_DATA_VOLUME="codestra-odoo-data-${SAFE_RUN_ID}"
 ODOO_TEST_IMAGE="codestra-odoo-ci-browser:${SAFE_RUN_ID}"
@@ -94,8 +95,13 @@ PY
 )"
 
 printf '==> Pulling immutable Odoo and PostgreSQL images\n'
-docker pull "$ODOO_IMAGE"
-docker pull "$POSTGRES_IMAGE"
+for image in "$ODOO_IMAGE" "$POSTGRES_IMAGE"; do
+  if docker image inspect "$image" >/dev/null 2>&1; then
+    printf 'IMAGE_ALREADY_PRESENT=%s\n' "$image"
+  else
+    docker pull "$image"
+  fi
+done
 
 printf 'ODOO_IMAGE=%s\n' "$ODOO_IMAGE"
 printf 'POSTGRES_IMAGE=%s\n' "$POSTGRES_IMAGE"
@@ -149,7 +155,7 @@ docker run --rm \
 printf 'CHROME_FOR_TESTING_VERSION=%s\n' "$CHROME_VERSION"
 printf 'CHROME_FOR_TESTING_SHA256=%s\n' "$CHROME_SHA256"
 
-docker network create "$NETWORK" >/dev/null
+docker network create --subnet "$CI_SUBNET" "$NETWORK" >/dev/null
 docker volume create "$ODOO_DATA_VOLUME" >/dev/null
 
 printf '==> Starting isolated PostgreSQL\n'
