@@ -7,10 +7,10 @@ The stack begins at tested commit `6dc403350da71962af28603c0bdf2e73f7f6821e`.
 | Order | Branch | Depends on | Scope | Current gate |
 | ---: | --- | --- | --- | --- |
 | 1 | `docs/odoo-contact-center-authority` | `fix/cc-11-production-readiness` | Authority, controlled inputs, access matrix, ADRs, inventory | PARTIAL — disposition catalog and complete authority ending are missing |
-| 2 | `feat/cc-core-domain` | branch 1 | Business unit, campaign, channel, policy, scoped mixin | BLOCKED pending branch 1 review only; implementation may proceed in staging |
-| 3 | `feat/cc-campaign-security` | branch 2 | Groups, ACLs, global rules, partial indexes, negative tests | BLOCKED pending core models |
-| 4 | `feat/cc-identity-membership` | branch 3 | Membership, identity, SSO/session scope, lifecycle | BLOCKED pending security foundation |
-| 5 | `feat/cc-campaign-mail` | branch 4 | Aliases, distribution, quarantine, chatter/attachment isolation | BLOCKED pending membership scope |
+| 2 | `feat/cc-core-domain` | branch 1 | Business unit, campaign, channel, policy, scoped mixin | PASS — bounded staging implementation; draft and unmerged |
+| 3 | `feat/cc-campaign-security` | branch 2 | Groups, ACLs, global rules, partial indexes, negative tests | PASS — bounded staging implementation; draft and unmerged |
+| 4 | `feat/cc-identity-membership` | branch 3 | Membership, identity, SSO/session scope, lifecycle | PASS — bounded Odoo identity/session implementation; external adapters not tested |
+| 5 | `feat/cc-campaign-mail` | branch 4 | Aliases, distribution, quarantine, chatter/attachment isolation | BLOCKED pending branch 4 review; staging implementation may proceed |
 | 6 | `feat/cc-crm-helpdesk-workspaces` | branch 5 | Campaign CRM, profiles, Helpdesk, activities, SLAs | BLOCKED pending mail and scope foundation |
 | 7 | `feat/cc-vicidial-mapping` | branch 6 | Identifier catalog, desired state, middleware contract, read-back | BLOCKED pending complete mapping fields and controlled migration design |
 | 8 | `feat/cc-scripts-dispositions` | branch 7 | Immutable scripts and campaign-owned dispositions | BLOCKED — controlled 2,677-row catalog is missing |

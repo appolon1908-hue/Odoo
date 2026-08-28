@@ -85,3 +85,32 @@ The module intentionally does not add OIDC, session pinning, external account
 provisioning, or automatic session revocation; those remain owned by the next
 stacked identity branch. Status remains `STAGING-ONLY` and
 `PRODUCTION_BLOCKED`.
+
+## Identity-membership branch evidence
+
+Branch: `feat/cc-identity-membership`
+
+| Check | Result | Status |
+| --- | --- | --- |
+| Focused identity upgrade | 9 methods / 13 counters; 0 failed; 0 errors | PASS |
+| Campaign-security regression | 12 methods / 14 counters; 0 failed; 0 errors | PASS |
+| Clean 60-module Odoo 19 install/regression | 366 tests; 0 failed; 0 errors | PASS |
+| Governed identity lifecycle | Separate submit/approval, immutable desired-state envelope, exact read-back, and activation gate | PASS |
+| Session authority | SHA-256-only server session/OIDC binding to one membership, campaign, and scope version | PASS |
+| Revocation lifecycle | Suspension, expiry, revocation, device revocation, and revoke-then-grant reassignment covered | PASS |
+| Authenticated route | Forged `campaign_id=999999` ignored; server-derived agent landing returned 303 | PASS |
+| Identity schema | 3 identity tables; 3 global identity rules; 52 membership/identity indexes | PASS |
+| Clean database ownership | 13 units; 111 campaigns; 102 channels | PASS |
+| Clean database identity state | 0 memberships, outbox rows, session scopes, reassignments, or active membership after rollback | PASS |
+| Production identity state | 0 production-enabled envelopes; no external transport or network action | PASS |
+| Calendar/reminder/scheduler browser tour | Included in the 366-test clean run | PASS |
+
+The full run loaded 138 Odoo modules, including all 60 workspace modules. The
+identity module installed as version `19.0.2.0.0`. Authenticated operational
+requests are checked globally and fail closed if their server-pinned membership
+or campaign scope no longer matches.
+
+The desired-state outbox deliberately has no transport worker. Keycloak, mail,
+Middleware, VICIdial, and external OIDC read-back remain `NOT_TESTED` until
+reviewed staging endpoints exist. Status remains `STAGING-ONLY` and
+`PRODUCTION_BLOCKED`.
