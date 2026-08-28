@@ -473,16 +473,15 @@ class CallControlAPI(http.Controller):
         call = self._owned_call(call_id)
         key = self._key({"idempotency_key": idempotency_key})
         command, duplicate = self._command(call, "callback", key, {"scheduled_at": scheduled_at})
-        callback_key = "call-control:%s" % key
         if duplicate:
-            callback = request.env["codestra.callback"].search(
-                [
-                    ("call_id", "=", call.id),
-                    ("idempotency_key", "=", callback_key),
-                ],
-                limit=1,
-            )
-            if not callback:
+            try:
+                callback_id = int(json.loads(command.result_json or "{}")["callback_id"])
+            except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+                raise ValidationError(
+                    "The original callback result is unavailable for this command."
+                )
+            callback = request.env["codestra.callback"].browse(callback_id).exists()
+            if not callback or callback.call_id != call:
                 raise ValidationError(
                     "The original callback result is unavailable for this command."
                 )
@@ -503,8 +502,6 @@ class CallControlAPI(http.Controller):
                 "timezone": timezone,
                 "reason": reason,
                 "priority": priority,
-                "idempotency_key": callback_key,
-                "correlation_id": call.correlation_id,
             }
         )
         command.sudo().write(
