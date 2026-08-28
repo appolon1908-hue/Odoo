@@ -1,17 +1,21 @@
 {
     "name": "Codestra Contact Center Quality",
-    "summary": "Versioned QA scorecard, recording review, dispute, and coaching facade",
-    "version": "19.0.1.0.0",
+    "summary": "Campaign scorecards, sampling, evaluations, calibration, disputes, and coaching",
+    "version": "19.0.2.0.0",
     "author": "Codestra",
     "license": "LGPL-3",
     "depends": [
-        "codestra_cc_core",
+        "codestra_cc_recordings",
         "codestra_ai_call_audit",
         "codestra_ai_review",
         "codestra_transcription",
         "codestra_cc_audit",
     ],
-    "data": [],
+    "data": [
+        "security/quality_security.xml",
+        "security/ir.model.access.csv",
+        "views/quality_views.xml",
+    ],
     "installable": True,
     "application": False,
 }

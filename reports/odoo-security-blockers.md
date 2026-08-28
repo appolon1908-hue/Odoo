@@ -39,3 +39,20 @@ controlled catalog is missing. The call-operations branch materializes callback
 publication and warm-transfer flags at false, retains only held desired-state
 events, rejects cross-campaign live transfers, and creates cross-campaign work
 only through a destination-isolated minimum-data referral service.
+
+## Recording and quality controls
+
+- `codestra_cc_recordings` now binds legacy metadata to one canonical campaign,
+  controlled telephony mapping, active agent membership, customer profile, and
+  approved recording-policy hash. It stores no audio binary or object URL.
+- `CC_ENABLE_RECORDING_PLAYBACK=false` and `CC_ENABLE_AI_ASSIST=false` are
+  installed as fail-closed defaults. The legacy playback action is also guarded
+  before it can request a signed external URL.
+- Recording access and retention evidence is append-only. Legal hold changes
+  state and evidence but never expands campaign visibility.
+- `codestra_cc_quality` now enforces campaign program versions, author/approver
+  separation, QA author/finalizer separation, signed answer hashes, correction by
+  superseding version, agent acknowledgement/dispute, calibration, and coaching.
+- Approved policy/program seeds and authoritative storage/Middleware read-back
+  remain unavailable, so the 93 campaign rows remain `PARTIAL` and production is
+  blocked.

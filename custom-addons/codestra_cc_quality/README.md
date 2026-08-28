@@ -1,5 +1,9 @@
-# Codestra Contact Center Quality
+# Codestra contact-center quality
 
-Mission facade for versioned scorecards, weighted questions, critical failures, recording review, agent acknowledgment, disputes, calibration, coaching, re-evaluation, and QA trends.
+This module owns campaign-specific quality programs, immutable scorecard versions,
+random/risk/new-agent samples, separately authored and finalized evaluations,
+calibration, disputes, coaching, acknowledgement, and effectiveness evidence.
 
-AI output is advisory evidence only. It cannot overwrite original call events, finalize a QA decision without an authorized reviewer, or bypass recording access controls.
+It composes the canonical recording binding and existing AI/transcription owners.
+AI remains assistive and globally disabled; it cannot score, finalize, dispute,
+coach, or mutate an authoritative quality record.

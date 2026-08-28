@@ -6,7 +6,7 @@ from odoo.tests.common import TransactionCase
 class TestQualityFacade(TransactionCase):
     def test_dependencies_are_installed(self):
         expected = {
-            "codestra_cc_core",
+            "codestra_cc_recordings",
             "codestra_ai_call_audit",
             "codestra_ai_review",
             "codestra_transcription",
