@@ -459,11 +459,14 @@ docker exec -i \
   < "$BACKUP_FILE"
 docker run --rm \
   --entrypoint sh \
+  --user 0:0 \
+  -e ODOO_UID="${odoo_ids[0]}" \
+  -e ODOO_GID="${odoo_ids[1]}" \
   -e RESTORE_FILESTORE_DATABASE_DIR="$RESTORE_FILESTORE_DATABASE_DIR" \
   -v "$FILESTORE_BACKUP_FILE:/tmp/codestra-filestore-backup.tar:ro" \
   -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
   "$ODOO_IMAGE" \
-  -c 'set -eu; test ! -e "$RESTORE_FILESTORE_DATABASE_DIR"; mkdir -p "$RESTORE_FILESTORE_DATABASE_DIR"; tar -C "$RESTORE_FILESTORE_DATABASE_DIR" -xf /tmp/codestra-filestore-backup.tar; chown -R odoo:odoo "$RESTORE_FILESTORE_DATABASE_DIR"'
+  -c 'set -eu; test ! -e "$RESTORE_FILESTORE_DATABASE_DIR"; mkdir -p "$RESTORE_FILESTORE_DATABASE_DIR"; tar -C "$RESTORE_FILESTORE_DATABASE_DIR" -xf /tmp/codestra-filestore-backup.tar; chown -R "$ODOO_UID:$ODOO_GID" "$RESTORE_FILESTORE_DATABASE_DIR"'
 
 run_database_audits "$RESTORE_DATABASE"
 docker run --rm -i \
