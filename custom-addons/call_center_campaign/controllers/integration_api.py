@@ -11,7 +11,7 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives.hashes import SHA256
 from markupsafe import Markup, escape
-from odoo import SUPERUSER_ID, fields, http
+from odoo import fields, http
 from odoo.exceptions import ValidationError
 from odoo.http import Response, request
 
@@ -286,6 +286,47 @@ def _assert_organization_scope(claims, organization):
     )
     if organization not in organizations:
         raise IntegrationRejected("organization scope rejected")
+
+
+def _provider_activity_service_scope(body):
+    parameters = request.env["ir.config_parameter"].sudo()
+    try:
+        service_user_id = int(
+            parameters.get_param("codestra.integration.service_user_id", "0")
+        )
+    except (TypeError, ValueError) as exc:
+        raise IntegrationRejected(
+            "provider activity service identity rejected"
+        ) from exc
+    service_user = request.env["res.users"].sudo().browse(service_user_id).exists()
+    if (
+        not service_user
+        or not service_user.active
+        or not service_user.has_group(
+            "call_center_core.group_call_center_integration_service"
+        )
+    ):
+        raise IntegrationRejected("provider activity service identity rejected")
+    business_unit = request.env["call.center.business.unit"].sudo().search(
+        [("code", "=", body["business_unit_public_id"])], limit=2
+    )
+    if len(business_unit) != 1:
+        raise IntegrationRejected("provider activity business scope rejected")
+    campaign = request.env["call.center.campaign"].sudo().search(
+        [
+            ("code", "=", body["campaign_public_id"]),
+            ("business_unit_id", "=", business_unit.id),
+        ],
+        limit=2,
+    )
+    if (
+        len(campaign) != 1
+        or business_unit not in service_user.call_center_business_unit_ids
+        or business_unit.company_id not in service_user.company_ids
+    ):
+        raise IntegrationRejected("provider activity business scope rejected")
+    request.update_env(user=service_user.id)
+    return service_user, business_unit
 
 
 def _outbox_document(record, lease_token=None):
@@ -778,11 +819,21 @@ class CodestraIntegrationApiController(http.Controller):
             phone = str(
                 body.get("phone_number") or body.get("from_number") or ""
             ).strip()
-            partners = request.env["res.partner"].sudo().search([
-                "|",
-                ("phone_sanitized", "=", phone),
-                ("phone", "=", phone),
-            ], limit=2)
+            service_user, business_unit = _provider_activity_service_scope(body)
+            partners = (
+                request.env["res.partner"]
+                .with_user(service_user)
+                .with_company(business_unit.company_id)
+                .search(
+                    [
+                        ("business_unit_id", "=", business_unit.id),
+                        "|",
+                        ("phone_sanitized", "=", phone),
+                        ("phone", "=", phone),
+                    ],
+                    limit=2,
+                )
+            )
             if not partners:
                 raise IntegrationNotFound("contact not found")
             if len(partners) != 1:
@@ -835,7 +886,7 @@ class CodestraIntegrationApiController(http.Controller):
                 ) % tuple(escape(body[field_name]) for field_name in (
                     "from_number", "provider_message_id", "received_at", "body",
                 ))
-            message = partners.with_user(SUPERUSER_ID).message_post(
+            message = partners.with_user(service_user).message_post(
                 body=message_body,
                 message_type="comment",
                 subtype_xmlid="mail.mt_note",
