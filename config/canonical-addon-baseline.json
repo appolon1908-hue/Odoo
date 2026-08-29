@@ -32,9 +32,9 @@
   "strict_mission_overrides": {
     "call_center_campaign": {
       "base_tree": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
-      "current_tree": "133d337cef015d2e9f1ff2f6d3485e3a725f96af",
-      "reason": "Preserve the reviewed provider activity endpoint and its Stage 3 compatibility backfills while restricting Odoo 19 contact lookup to the available phone and phone_sanitized fields.",
-      "pull_request": 43,
+      "current_tree": "da208adf11246c86aa5b00668dbe03800f7fb23d",
+      "reason": "Preserve the reviewed provider activity endpoint and its Stage 3 compatibility backfills while using an explicit Odoo service user for chatter writes from the auth-none integration route.",
+      "pull_request": 44,
       "integration_boundary_exceptions": [
         {
           "path": "controllers/integration_api.py",

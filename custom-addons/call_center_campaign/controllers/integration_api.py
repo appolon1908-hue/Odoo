@@ -11,7 +11,7 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives.hashes import SHA256
 from markupsafe import Markup, escape
-from odoo import fields, http
+from odoo import SUPERUSER_ID, fields, http
 from odoo.exceptions import ValidationError
 from odoo.http import Response, request
 
@@ -835,7 +835,7 @@ class CodestraIntegrationApiController(http.Controller):
                 ) % tuple(escape(body[field_name]) for field_name in (
                     "from_number", "provider_message_id", "received_at", "body",
                 ))
-            message = partners.message_post(
+            message = partners.with_user(SUPERUSER_ID).message_post(
                 body=message_body,
                 message_type="comment",
                 subtype_xmlid="mail.mt_note",
