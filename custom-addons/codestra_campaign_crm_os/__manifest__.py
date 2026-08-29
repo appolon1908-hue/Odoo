@@ -1,6 +1,6 @@
 {
     "name": "Codestra Campaign-Specific CRM Operating System",
-    "version": "19.0.1.3.0",
+    "version": "19.0.1.4.0",
     "category": "Sales/CRM",
     "summary": "Configurable campaign workflows, RBAC, SLA, appointments, timeline and reporting",
     "author": "Codestra",

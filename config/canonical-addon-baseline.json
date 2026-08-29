@@ -6,7 +6,6 @@
   "policy": "An unchanged pinned subtree may retain its separately reviewed Odoo hook and local ORM-locking implementation. Any subtree change removes the exception, must be declared as a strict mission override, and must pass the current strict module review at its exact tree SHA. Narrow integration-boundary exceptions must be path-specific, reasoned, structurally validated, and invalidated by any subtree change.",
   "modules": {
     "call_center_compliance": "85610757c8f9bd140611b6ca99e435283b803e63",
-    "call_center_core": "35a16bc1b7e107c3ba7f7087054ee86a7b26c326",
     "call_center_lead_validation": "a401fa2f26c86b585c1826aa6c434d4876d03c09",
     "call_center_orchestration": "962b1f8aa1854b6a7a18b901a11bb4382ba37b4e",
     "codestra": "09f56f84556c642f1fee4027b7e9f22db3623e7f",
@@ -33,9 +32,9 @@
   "strict_mission_overrides": {
     "call_center_campaign": {
       "base_tree": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
-      "current_tree": "ccaf567c47f231813d0ea58a87a195b490b8dea1",
-      "reason": "Repair Odoo 19 campaign regression coverage, canonical JWT base64url fixtures, and business-unit scoped integration outbox rules; compose transactional SQL through Odoo's SQL helper; and constrain JWKS and Middleware destinations before network access while preserving the deterministic inactive campaign inventory.",
-      "pull_request": 38,
+      "current_tree": "a798878baebf1bbe64cc203e45d6646ef6afcb2a",
+      "reason": "Preserve the reviewed campaign integration controls and add a Keycloak-authenticated, scope-bound, idempotent provider activity endpoint for VICIdial call results and inbound SMS contact chatter delivery.",
+      "pull_request": 41,
       "integration_boundary_exceptions": [
         {
           "path": "controllers/integration_api.py",
@@ -64,6 +63,12 @@
         }
       ]
     },
+    "call_center_core": {
+      "base_tree": "35a16bc1b7e107c3ba7f7087054ee86a7b26c326",
+      "current_tree": "e2c53688eb228096bead826d1a621de9df4fb0b1",
+      "reason": "Add a non-interactive Integration Service authorization group that inherits ordinary call-center scoping but no manager or administrator role, allowing resource-specific service ACLs and business-unit record rules to remain explicit.",
+      "pull_request": 39
+    },
     "codestra_appointments": {
       "base_tree": "5812f7df199b0d5525ee7dd6a9fdc9d314947f6f",
       "current_tree": "e0f353e40a6c99d8b82ceb50059383d0556f48c3",
@@ -84,9 +89,9 @@
     },
     "codestra_campaign_crm_os": {
       "base_tree": "352f91cb58850fb959972502f6c2e8b574ef7ec5",
-      "current_tree": "73f661adc77a263d68c70a8cd300aa90a11416f8",
-      "reason": "Consolidate the duplicate data-quality concrete model into an extension of the canonical codestra_data_quality model, preserve campaign metadata, normalize legacy values, and add an idempotent upgrade migration.",
-      "pull_request": 21,
+      "current_tree": "dd5efbdac9ed2801d897a5b70010f2841a71c5e2",
+      "reason": "Consolidate the duplicate data-quality model and extend the global CRM boundary so the dedicated non-interactive Integration Service group may create leads only inside its explicitly authorized business units, without campaign-manager or administrator access.",
+      "pull_request": 39,
       "allow_post_init_hook": true
     },
     "codestra_identity_provisioning": {
@@ -128,9 +133,9 @@
     },
     "codestra_middleware_bridge": {
       "base_tree": "d5f2785ea737689dfc1bdc88bb1eb1650a334e02",
-      "current_tree": "a28c2efed1d1bd6f6f5b2bed93c2df824a0a004a",
-      "reason": "Constrain the existing synthetic Odoo-to-Middleware event bridge to credential-free HTTPS destinations and add regression coverage without expanding Middleware authority or adding a second integration stack.",
-      "pull_request": 38,
+      "current_tree": "4f16e11ea12770def990bd062d0860b12ef993d9",
+      "reason": "Preserve the reviewed Stage 3 Odoo destination and repair its Odoo 19 ACL identifiers, canonical campaign fixture, and business-unit-scoped service campaign resolution for runtime certification.",
+      "pull_request": 41,
       "integration_boundary_exceptions": [
         {
           "path": "tests/test_bridge_schema.py",

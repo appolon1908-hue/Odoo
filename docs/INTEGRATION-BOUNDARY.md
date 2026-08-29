@@ -35,7 +35,10 @@ Both interfaces are Odoo application interfaces. Neither is a generic database p
 
 ## Bridge requirements
 
-The planned bridge module is `codestra_integration_bridge`. Before activation it must:
+The reviewed bridge module is `codestra_middleware_bridge`. Its canonical CRM
+command endpoint is
+`POST /codestra/middleware/v1/commands/crm.lead.upsert`. Before activation it
+must:
 
 - authenticate a dedicated Middleware service identity;
 - enforce least-privilege access controls and record rules;

@@ -4,12 +4,17 @@ import hashlib
 import hmac
 import json
 import time
+import uuid
+from datetime import datetime, timezone
 from typing import ClassVar
 
 from odoo import fields, http
 from odoo.http import request
 
 PREFIX = "CODESTRA-INTEGRATION-TEST-"
+# PostgreSQL unique_violation. Matched on the driver's SQLSTATE so the
+# controller does not import a database driver of its own.
+UNIQUE_VIOLATION = "23505"
 
 
 class CodestraMiddlewareBridge(http.Controller):
@@ -18,11 +23,34 @@ class CodestraMiddlewareBridge(http.Controller):
         "campaign", "description", "customer_reference", "external_id", "middleware_id",
         "form_type", "form_version", "source_site", "consent_timestamp",
         "consent_disclosure_version", "sms_consent", "email_marketing_consent",
-        "consent_correlation_id",
+        "phone_consent", "consent_correlation_id", "consent_status",
+        "allow_external_contact", "do_not_call", "suppression_reason",
+        "consent_source", "consent_evidence_reference", "review_required",
+        "initial_stage", "requested_by", "provenance_method",
+        "provenance_reference", "provenance_legal_basis", "provenance_digest",
+        "preferred_language", "company_domain", "company_industry",
+        "tags",
     }
     CRM_LEAD_PATCH_FIELDS: ClassVar[set[str]] = {
         "name", "contact_name", "email", "phone", "company_name", "source",
         "campaign", "description",
+    }
+    COMMAND_FIELDS: ClassVar[set[str]] = {
+        "command_id", "command_type", "command_version", "target", "tenant_id",
+        "requested_by", "correlation_id", "idempotency_key", "capability", "payload",
+    }
+    COMMAND_PAYLOAD_FIELDS: ClassVar[set[str]] = {
+        "lead_source", "source_record_id", "initial_stage", "review_required",
+        "allow_external_contact", "provenance", "consent", "lead",
+    }
+    PROVENANCE_FIELDS: ClassVar[set[str]] = {
+        "method", "captured_by", "source_reference", "legal_basis", "content_digest",
+    }
+    CONSENT_FIELDS: ClassVar[set[str]] = {
+        "status", "captured_at", "policy_version", "channels",
+    }
+    LEAD_FIELDS: ClassVar[set[str]] = {
+        "name", "description", "contact", "company", "campaign_code", "tags",
     }
     def _json(self, status, value):
         return request.make_json_response(value, status=status)
@@ -51,7 +79,6 @@ class CodestraMiddlewareBridge(http.Controller):
         idempotency = headers.get("Idempotency-Key", "")
         params = request.env["ir.config_parameter"].sudo()
         expected_tenant = params.get_param("codestra.middleware.tenant_id")
-        secret = params.get_param("codestra.middleware.inbound_hmac_secret")
         try:
             fresh = abs(int(time.time()) - int(timestamp)) <= 300
         except (TypeError, ValueError):
@@ -65,14 +92,29 @@ class CodestraMiddlewareBridge(http.Controller):
             allowed_tenants.update(item.strip() for item in (params.get_param(tenant_allowlist_parameter) or "").split(",") if item.strip())
         if not any(hmac.compare_digest(tenant, item) for item in allowed_tenants):
             return None, self._json(403, {"error": "tenant_rejected"})
+        # Each tenant is bound to its own secret and its own service identity,
+        # so one tenant's credential cannot authenticate another. A global value
+        # remains the fallback for single-tenant installations.
+        tenant_scope = "codestra.middleware.tenant." + tenant + "."
+        secret = (
+            params.get_param(tenant_scope + "inbound_hmac_secret")
+            or params.get_param("codestra.middleware.inbound_hmac_secret")
+        )
+        # The security headers are covered by the signature; otherwise they can
+        # be swapped freely on an otherwise valid signed body.
         canonical = b"\n".join((
             timestamp.encode(), event_id.encode(), request.httprequest.method.encode(),
-            request.httprequest.path.encode(), body,
+            request.httprequest.path.encode(),
+            tenant.encode(), correlation.encode(), idempotency.encode(),
+            body,
         ))
         expected = hmac.new((secret or "").encode(), canonical, hashlib.sha256).hexdigest()
         if not secret or not hmac.compare_digest(expected, supplied):
             return None, self._json(401, {"error": "invalid_signature"})
-        user_id = int(params.get_param(service_user_parameter, "0"))
+        user_id = int(
+            params.get_param(tenant_scope + service_user_parameter)
+            or params.get_param(service_user_parameter, "0")
+        )
         user = request.env["res.users"].sudo().browse(user_id).exists()
         group_xmlid = "codestra_middleware_bridge.group_codestra_crm_api" if service_user_parameter == "codestra.crm.service_user_id" else "codestra_middleware_bridge.group_codestra_middleware_bridge"
         group = request.env.ref(group_xmlid)
@@ -115,9 +157,14 @@ class CodestraMiddlewareBridge(http.Controller):
 
     def _complete(self, auth, operation, value, partner=None, status=200):
         event_model = request.env["codestra.integration.event"].with_user(auth["user"])
+        # Only a deliberately configured synthetic environment records synthetic
+        # evidence; a real command must not be audited as a test.
+        synthetic = bool(request.env["ir.config_parameter"].sudo().get_param(
+            "codestra.middleware.synthetic_test"
+        ))
         event = event_model.register_event(
             "middleware.odoo." + operation, "middleware", "odoo",
-            {"synthetic_test": True, "partner_id": partner.id if partner else None},
+            {"synthetic_test": synthetic, "partner_id": partner.id if partner else None},
             correlation_id=auth["correlation_id"],
             idempotency_key=f'middleware:{operation}:{auth["idempotency_key"]}',
         )
@@ -134,6 +181,32 @@ class CodestraMiddlewareBridge(http.Controller):
             "partner_id": partner.id if partner else False,
         })
         return self._json(status, value)
+
+    def _serialized(self, auth, run):
+        """Run a write path so a concurrent duplicate cannot double-write.
+
+        The tenant/idempotency uniqueness constraint is the serialization
+        point. If a concurrent request records its evidence first, this one
+        rolls back to the savepoint and returns the recorded outcome rather
+        than surfacing an unhandled server error.
+        """
+        try:
+            with request.env.cr.savepoint():
+                return run()
+        except Exception as error:
+            causes = (error, getattr(error, "__cause__", None))
+            if not any(getattr(cause, "pgcode", None) == UNIQUE_VIOLATION for cause in causes):
+                raise
+        request.env.invalidate_all()
+        prior = request.env["codestra.middleware.request"].with_user(auth["user"]).search([
+            ("tenant_id", "=", auth["tenant_id"]),
+            ("idempotency_key", "=", auth["idempotency_key"]),
+        ], limit=1)
+        if not prior:
+            return self._json(409, {"error": "idempotency_conflict"})
+        value = json.loads(prior.response_json)
+        value["duplicate"] = True
+        return self._json(200, value)
 
     def _partner(self, auth, partner_id):
         partner = request.env["res.partner"].with_user(auth["user"]).browse(partner_id).exists()
@@ -171,7 +244,18 @@ class CodestraMiddlewareBridge(http.Controller):
             "source_site": lead.codestra_source_site,
             "sms_consent": lead.codestra_sms_consent,
             "email_marketing_consent": lead.codestra_email_marketing_consent,
+            "phone_consent": lead.codestra_phone_consent,
             "consent_correlation_id": lead.codestra_consent_correlation_id,
+            "preferred_language": lead.codestra_preferred_language,
+            "company_domain": lead.codestra_company_domain,
+            "company_industry": lead.codestra_company_industry,
+            "consent_status": lead.consent_status,
+            "allow_external_contact": lead.codestra_allow_external_contact,
+            "review_required": lead.codestra_review_required,
+            "initial_stage": lead.codestra_initial_stage,
+            "do_not_call": lead.do_not_call,
+            "contact_eligibility": lead.contact_eligibility,
+            "contact_eligibility_reason": lead.contact_eligibility_reason,
             "status": "active" if lead.active else "archived",
             "created_at": lead.create_date.isoformat() if lead.create_date else None,
             "updated_at": lead.write_date.isoformat() if lead.write_date else None,
@@ -181,10 +265,46 @@ class CodestraMiddlewareBridge(http.Controller):
         unsupported = sorted(set(payload) - allowed)
         if unsupported:
             return None, self._json(422, {"error": "unsupported_fields", "fields": unsupported})
+        for field_name in (
+            "sms_consent", "email_marketing_consent", "phone_consent",
+            "allow_external_contact", "do_not_call", "review_required",
+        ):
+            if field_name in payload and not isinstance(payload[field_name], bool):
+                return None, self._json(422, {"error": "invalid_boolean", "field": field_name})
+        if payload.get("consent_status", "unknown") not in {
+            "unknown", "granted", "denied", "not_applicable",
+        }:
+            return None, self._json(422, {"error": "invalid_consent_status"})
+        if payload.get("suppression_reason", "optout") not in {
+            "dnc", "optout", "complaint", "legal", "invalid", "fraud",
+        }:
+            return None, self._json(422, {"error": "invalid_suppression_reason"})
+        if payload.get("initial_stage", "new") not in {"new", "review_pending"}:
+            return None, self._json(422, {"error": "invalid_initial_stage"})
+        if payload.get("review_required") and (
+            payload.get("initial_stage") != "review_pending"
+            or payload.get("allow_external_contact") is not False
+        ):
+            return None, self._json(422, {"error": "unsafe_review_state"})
+        if payload.get("do_not_call") and payload.get("phone_consent"):
+            return None, self._json(422, {"error": "conflicting_phone_consent"})
+        # External contact is only representable when consent was granted for at
+        # least one channel. This rejects the "unknown consent, contact allowed"
+        # and "granted with every channel false" combinations the contract
+        # otherwise permits.
+        if payload.get("allow_external_contact") and (
+            payload.get("consent_status") != "granted"
+            or not any(
+                payload.get(name)
+                for name in ("phone_consent", "email_marketing_consent", "sms_consent")
+            )
+        ):
+            return None, self._json(422, {"error": "consent_does_not_permit_contact"})
         values = {}
         mapping = {
             "name": "name", "contact_name": "contact_name", "email": "email_from",
             "phone": "phone", "company_name": "partner_name", "description": "description",
+            "external_id": "external_source_id", "customer_reference": "source_detail",
         }
         for source, target in mapping.items():
             if source in payload:
@@ -195,19 +315,397 @@ class CodestraMiddlewareBridge(http.Controller):
             "consent_disclosure_version": "codestra_consent_disclosure_version",
             "sms_consent": "codestra_sms_consent",
             "email_marketing_consent": "codestra_email_marketing_consent",
+            "phone_consent": "codestra_phone_consent",
             "consent_correlation_id": "codestra_consent_correlation_id",
+            "allow_external_contact": "codestra_allow_external_contact",
+            "review_required": "codestra_review_required",
+            "initial_stage": "codestra_initial_stage",
+            "requested_by": "codestra_requested_by",
+            "provenance_method": "codestra_provenance_method",
+            "provenance_reference": "codestra_provenance_reference",
+            "provenance_legal_basis": "codestra_provenance_legal_basis",
+            "provenance_digest": "codestra_provenance_digest",
+            "preferred_language": "codestra_preferred_language",
+            "company_domain": "codestra_company_domain",
+            "company_industry": "codestra_company_industry",
         }
         for source, target in consent_mapping.items():
             if source in payload:
                 values[target] = payload[source]
-        for source, model in (("source", "utm.source"), ("campaign", "utm.campaign")):
-            if source in payload:
-                record = request.env[model].with_user(user).search([("name", "=", payload[source])], limit=1)
-                if not record:
-                    return None, self._json(422, {"error": "unknown_" + source})
-                values[source + "_id"] = record.id
+        if payload.get("source"):
+            record = request.env["utm.source"].with_user(user).search(
+                [("name", "=", payload["source"])], limit=1
+            )
+            if not record:
+                return None, self._json(422, {"error": "unknown_source"})
+            values["source_id"] = record.id
+        # crm.lead.campaign_id is redefined by codestra_cc_crm as cc.campaign, so
+        # the campaign code resolves against the governed workspace scoped to the
+        # authorized business unit, never against utm.campaign.
+        if payload.get("campaign"):
+            # The service identity is scoped by the already-authorized legacy
+            # business unit, but it deliberately has no human campaign
+            # membership. Resolve that governed workspace under the explicit
+            # unit boundary instead of granting a synthetic operator role.
+            campaign = request.env["cc.campaign"].sudo().search([
+                ("code", "=", payload["campaign"]),
+                ("cc_business_unit_id.legacy_business_unit_id", "=", unit.id),
+            ], limit=1)
+            if not campaign:
+                return None, self._json(422, {"error": "unknown_campaign"})
+            values["campaign_id"] = campaign.id
+            # Governed campaign records require an explicit source-list key.
+            values["cc_source_list_key"] = (
+                payload.get("customer_reference")
+                or payload.get("external_id")
+                or payload.get("source")
+                or "codestra-middleware"
+            )
+        if "tags" in payload:
+            tags = payload["tags"]
+            if (
+                not isinstance(tags, list)
+                or len(tags) > 50
+                or any(not isinstance(tag, str) or not tag or len(tag) > 128 for tag in tags)
+                or len(tags) != len(set(tags))
+            ):
+                return None, self._json(422, {"error": "invalid_tags"})
+            records = request.env["crm.tag"].with_user(user).search([("name", "in", tags)])
+            unknown = sorted(set(tags) - set(records.mapped("name")))
+            if unknown:
+                return None, self._json(422, {"error": "unknown_tags", "tags": unknown})
+            values["tag_ids"] = [(6, 0, records.ids)]
+        if "initial_stage" in payload:
+            stage_xmlid = (
+                "codestra_middleware_bridge.crm_stage_middleware_review_pending"
+                if payload["initial_stage"] == "review_pending"
+                else "codestra_middleware_bridge.crm_stage_middleware_intake"
+            )
+            values["stage_id"] = request.env.ref(stage_xmlid).id
         values.update({"company_id": unit.company_id.id, "business_unit_id": unit.id})
         return values, None
+
+    def _apply_crm_compliance(self, auth, lead, payload, unit):
+        consent_status = payload.get("consent_status", "unknown")
+        allow_external_contact = payload.get("allow_external_contact", False)
+        do_not_call = bool(payload.get("do_not_call") or consent_status == "denied")
+        channel_values = {
+            "phone": bool(payload.get("phone_consent")),
+            "email": bool(payload.get("email_marketing_consent")),
+            "sms": bool(payload.get("sms_consent")),
+        }
+        # Fail closed: a channel is only preferred when consent was actually
+        # granted for it. No fallback to whatever contact detail happens to
+        # exist on the lead.
+        consent_permits_contact = (
+            consent_status == "granted" and any(channel_values.values())
+        )
+        if do_not_call or not allow_external_contact or not consent_permits_contact:
+            preferred = "none"
+        else:
+            preferred = next(
+                channel for channel in ("phone", "email", "sms") if channel_values[channel]
+            )
+        reason = payload.get("suppression_reason", "optout")
+        lead.write({
+            "consent_status": consent_status,
+            "do_not_call": do_not_call,
+            "do_not_contact_reason": (
+                reason if do_not_call else "middleware_contact_not_allowed"
+                if not allow_external_contact else False
+            ),
+            "preferred_contact_method": preferred,
+        })
+
+        if consent_status in {"granted", "denied"}:
+            consent_model = request.env["call.center.consent"].with_user(auth["user"])
+            consent_source = payload.get("consent_source") or "codestra-middleware"
+            evidence_reference = (
+                payload.get("consent_evidence_reference")
+                or payload.get("consent_correlation_id")
+                or auth["correlation_id"]
+            )
+            channels = (
+                [channel for channel, granted in channel_values.items() if granted]
+                if consent_status == "granted"
+                else list(channel_values)
+            )
+            for channel in channels:
+                consent_model.create({
+                    "lead_id": lead.id,
+                    "business_unit_id": unit.id,
+                    "channel": channel,
+                    "status": consent_status,
+                    "consented_at": payload.get("consent_timestamp") or fields.Datetime.now(),
+                    "source": consent_source,
+                    "evidence_reference": evidence_reference,
+                })
+
+        identifiers = []
+        if do_not_call or consent_status == "denied":
+            identifiers.append(("phone", lead.phone))
+        if consent_status == "denied":
+            identifiers.extend((
+                ("email", lead.email_from),
+                ("external_id", lead.external_source_id),
+            ))
+        suppression_model = request.env["call.center.suppression"].with_user(auth["user"])
+        for identifier_type, identifier in identifiers:
+            digest = suppression_model.hash_identifier(identifier)
+            if not digest:
+                continue
+            suppression = suppression_model.search([
+                ("business_unit_id", "=", unit.id),
+                ("identifier_type", "=", identifier_type),
+                ("identifier_hash", "=", digest),
+            ], limit=1)
+            values = {
+                "reason": reason,
+                "source": payload.get("consent_source") or "codestra-middleware",
+                "active": True,
+            }
+            if suppression:
+                suppression.write(values)
+            else:
+                suppression_model.create({
+                    **values,
+                    "business_unit_id": unit.id,
+                    "identifier_type": identifier_type,
+                    "identifier_hash": digest,
+                })
+        lead.action_check_contact_eligibility()
+
+    def _command_to_crm_payload(self, command, auth):
+        if set(command) != self.COMMAND_FIELDS:
+            return None, self._json(422, {"error": "invalid_command_fields"})
+        if (
+            command.get("command_type") != "crm.lead.upsert"
+            or command.get("command_version") != "1.0"
+            or command.get("target") != "odoo-19"
+            or command.get("capability") != "ODOO_WRITE"
+        ):
+            return None, self._json(422, {"error": "unsupported_command"})
+        try:
+            uuid.UUID(str(command.get("command_id")))
+        except (TypeError, ValueError, AttributeError):
+            return None, self._json(422, {"error": "invalid_command_id"})
+        for field_name in (
+            "tenant_id", "requested_by", "correlation_id", "idempotency_key"
+        ):
+            value = command.get(field_name)
+            if not isinstance(value, str) or not value.strip():
+                return None, self._json(422, {
+                    "error": "invalid_command_identity", "field": field_name,
+                })
+        if (
+            command.get("command_id") != auth["event_id"]
+            or command.get("tenant_id") != auth["tenant_id"]
+            or command.get("correlation_id") != auth["correlation_id"]
+            or command.get("idempotency_key") != auth["idempotency_key"]
+        ):
+            return None, self._json(422, {"error": "command_header_mismatch"})
+        payload = command.get("payload")
+        if not isinstance(payload, dict) or set(payload) != self.COMMAND_PAYLOAD_FIELDS:
+            return None, self._json(422, {"error": "invalid_command_payload_fields"})
+        provenance = payload.get("provenance")
+        consent = payload.get("consent")
+        lead = payload.get("lead")
+        if (
+            not isinstance(provenance, dict)
+            or not self.PROVENANCE_FIELDS.issuperset(provenance)
+            or not {"method", "captured_by", "source_reference", "legal_basis"}.issubset(provenance)
+            or not isinstance(consent, dict)
+            or not self.CONSENT_FIELDS.issuperset(consent)
+            or not {"status", "channels"}.issubset(consent)
+            or not isinstance(lead, dict)
+            or not self.LEAD_FIELDS.issuperset(lead)
+            or not {"name", "description", "contact", "company", "tags"}.issubset(lead)
+        ):
+            return None, self._json(422, {"error": "invalid_nested_command_fields"})
+        channels = consent.get("channels")
+        if not isinstance(channels, dict) or set(channels) != {"email", "sms", "phone"}:
+            return None, self._json(422, {"error": "invalid_consent_channels"})
+        if any(not isinstance(value, bool) for value in channels.values()):
+            return None, self._json(422, {"error": "invalid_consent_channels"})
+        if consent.get("status") not in {
+            "granted", "denied", "not_applicable", "unknown",
+        }:
+            return None, self._json(422, {"error": "invalid_consent_status"})
+        if provenance.get("method") not in {
+            "submitted_by_person", "crawler_discovery", "scraper_import",
+        } or provenance.get("legal_basis") not in {
+            "consent", "legitimate_interest_review_required", "contract_request",
+            "unknown_review_required",
+        }:
+            return None, self._json(422, {"error": "invalid_provenance"})
+        for field_name in ("captured_by", "source_reference"):
+            value = provenance.get(field_name)
+            if not isinstance(value, str) or not value.strip():
+                return None, self._json(422, {
+                    "error": "invalid_provenance", "field": field_name,
+                })
+        digest = provenance.get("content_digest")
+        if digest is not None and (
+            not isinstance(digest, str)
+            or len(digest) != 64
+            or any(character not in "0123456789abcdef" for character in digest)
+        ):
+            return None, self._json(422, {"error": "invalid_provenance_digest"})
+        contact = lead.get("contact") or {}
+        company = lead.get("company") or {}
+        if (
+            not isinstance(contact, dict)
+            or not {"name", "email", "phone", "preferred_language"}.issuperset(contact)
+            or not isinstance(company, dict)
+            or not {"name", "domain", "industry"}.issuperset(company)
+        ):
+            return None, self._json(422, {"error": "invalid_lead_subject"})
+        # Nested values are optional, but when present they must be non-empty
+        # bounded strings. Without this a malformed value reaches the ORM and
+        # becomes a server error instead of a deterministic 422.
+        # Limits mirror odoo-lead-command.schema.json exactly. A narrower cap here
+        # would reject payloads the published contract accepts.
+        for container, container_name, limits in (
+            (contact, "contact", {
+                "name": 255, "email": 320, "phone": 64, "preferred_language": 16,
+            }),
+            (company, "company", {"name": 255, "domain": 255, "industry": 255}),
+            (lead, "lead", {"name": 255, "campaign_code": 128, "description": 10000}),
+        ):
+            for field_name, limit in limits.items():
+                value = container.get(field_name)
+                if value is None:
+                    continue
+                if not isinstance(value, str) or not value.strip() or len(value) > limit:
+                    return None, self._json(422, {
+                        "error": "invalid_lead_subject_value",
+                        "section": container_name,
+                        "field": field_name,
+                    })
+        if (
+            payload.get("review_required") is True
+            and (
+                payload.get("initial_stage") != "review_pending"
+                or payload.get("allow_external_contact") is not False
+            )
+        ):
+            return None, self._json(422, {"error": "unsafe_review_state"})
+        if not all(isinstance(payload.get(field), bool) for field in ("review_required", "allow_external_contact")):
+            return None, self._json(422, {"error": "invalid_command_boolean"})
+        if payload.get("initial_stage") not in {"new", "review_pending"}:
+            return None, self._json(422, {"error": "invalid_initial_stage"})
+        for field_name in ("lead_source", "source_record_id"):
+            value = payload.get(field_name)
+            if not isinstance(value, str) or not value.strip():
+                return None, self._json(422, {
+                    "error": "invalid_command_payload", "field": field_name,
+                })
+        if not isinstance(lead.get("name"), str) or not lead["name"].strip():
+            return None, self._json(422, {"error": "missing_lead_name"})
+        captured_at = consent.get("captured_at")
+        if captured_at:
+            try:
+                parsed_captured_at = datetime.fromisoformat(
+                    str(captured_at).replace("Z", "+00:00")
+                )
+                if parsed_captured_at.tzinfo:
+                    parsed_captured_at = parsed_captured_at.astimezone(
+                        timezone.utc
+                    ).replace(tzinfo=None)
+                captured_at = fields.Datetime.to_string(parsed_captured_at)
+            except (TypeError, ValueError):
+                return None, self._json(422, {"error": "invalid_consent_timestamp"})
+        return {
+            "name": lead["name"],
+            "description": lead.get("description"),
+            "contact_name": contact.get("name"),
+            "email": contact.get("email"),
+            "phone": contact.get("phone"),
+            "company_name": company.get("name"),
+            "preferred_language": contact.get("preferred_language"),
+            "company_domain": company.get("domain"),
+            "company_industry": company.get("industry"),
+            "source": payload["lead_source"],
+            "campaign": lead.get("campaign_code"),
+            "external_id": payload["source_record_id"],
+            "middleware_id": command["command_id"],
+            "initial_stage": payload["initial_stage"],
+            "review_required": payload["review_required"],
+            "allow_external_contact": payload["allow_external_contact"],
+            "form_type": provenance["method"],
+            "source_site": provenance["source_reference"],
+            "consent_timestamp": captured_at,
+            "consent_disclosure_version": consent.get("policy_version"),
+            "email_marketing_consent": channels["email"],
+            "sms_consent": channels["sms"],
+            "phone_consent": channels["phone"],
+            "consent_status": consent["status"],
+            "consent_correlation_id": command["correlation_id"],
+            "consent_source": provenance["captured_by"],
+            "consent_evidence_reference": provenance.get("content_digest") or provenance["source_reference"],
+            "do_not_call": consent["status"] == "denied",
+            "suppression_reason": "optout",
+            "requested_by": command["requested_by"],
+            "provenance_method": provenance["method"],
+            "provenance_reference": provenance["source_reference"],
+            "provenance_legal_basis": provenance["legal_basis"],
+            "provenance_digest": provenance.get("content_digest"),
+            "tags": lead["tags"],
+        }, None
+
+    def _prepare_update_values(self, lead, values):
+        """Strip immutable campaign ownership from an update.
+
+        codestra_cc_crm treats campaign_id and cc_source_list_key as immutable,
+        so an unchanged binding is dropped and a changed one is a conflict
+        rather than an AccessError surfaced as a 500.
+        """
+        incoming = values.pop("campaign_id", None)
+        values.pop("cc_source_list_key", None)
+        if incoming is not None and incoming != lead.campaign_id.id:
+            return self._json(409, {"error": "campaign_binding_immutable"})
+        return None
+
+    def _reject_stale_update(self, lead, payload):
+        """Reject a command that carries older consent than the stored record."""
+        incoming = payload.get("consent_timestamp")
+        existing = lead.codestra_consent_timestamp
+        if not incoming or not existing:
+            return None
+        parsed = fields.Datetime.to_datetime(incoming)
+        if parsed and parsed < existing:
+            return self._json(409, {
+                "error": "stale_command",
+                "stored_consent_timestamp": existing.isoformat(),
+            })
+        return None
+
+    def _create_crm_lead(self, auth, payload, unit):
+        values, error = self._crm_values(
+            payload, self.CRM_LEAD_CREATE_FIELDS, unit, auth["user"]
+        )
+        if error:
+            return None, None, error
+        if not payload.get("name") or not payload.get("external_id") or not payload.get("middleware_id"):
+            return None, None, self._json(422, {"error": "missing_required_fields"})
+        # The integration identity creates an unassigned lead; assigning it as
+        # a human owner would incorrectly require an operator membership.
+        values.update({"type": "lead", "user_id": False})
+        # Payload fields and ownership were validated above.  Elevation is
+        # limited to the ORM create so delegated campaign constraints can read
+        # the already-bound governed workspace without requiring a human
+        # campaign membership on the non-interactive service identity.
+        lead = request.env["crm.lead"].with_user(auth["user"]).sudo().with_company(
+            unit.company_id
+        ).create(values)
+        mapping = request.env["codestra.crm.external.mapping"].with_user(auth["user"]).create({
+            "customer_key": auth["tenant_id"], "external_id": payload["external_id"],
+            "middleware_id": payload["middleware_id"], "model": "crm.lead", "record_id": lead.id,
+            "company_id": unit.company_id.id, "business_unit_id": unit.id,
+            "service_user_id": auth["user"].id,
+        })
+        self._apply_crm_compliance(auth, lead, payload, unit)
+        return lead, mapping, None
 
     @http.route("/codestra/middleware/v1/crm/leads", type="http", auth="none", methods=["POST"], csrf=False)
     def crm_lead_create(self):
@@ -215,19 +713,119 @@ class CodestraMiddlewareBridge(http.Controller):
         if error: return error
         unit = self._crm_scope(auth)
         if not unit: return self._json(403, {"error": "crm_service_scope_rejected"})
-        values, error = self._crm_values(payload, self.CRM_LEAD_CREATE_FIELDS, unit, auth["user"])
-        if error: return error
-        if not payload.get("name") or not payload.get("external_id") or not payload.get("middleware_id"):
-            return self._json(422, {"error": "missing_required_fields"})
-        values.update({"type": "lead", "user_id": auth["user"].id})
-        lead = request.env["crm.lead"].with_user(auth["user"]).with_company(unit.company_id).create(values)
-        mapping = request.env["codestra.crm.external.mapping"].with_user(auth["user"]).create({
-            "customer_key": auth["tenant_id"], "external_id": payload["external_id"],
-            "middleware_id": payload["middleware_id"], "model": "crm.lead", "record_id": lead.id,
-            "company_id": unit.company_id.id, "business_unit_id": unit.id,
-            "service_user_id": auth["user"].id,
+        def run():
+            lead, mapping, error = self._create_crm_lead(auth, payload, unit)
+            if error:
+                return error
+            return self._complete(
+                auth, "crm.lead.create", self._crm_lead_value(lead, mapping), status=201
+            )
+
+        return self._serialized(auth, run)
+
+    @http.route(
+        "/codestra/middleware/v1/commands/crm.lead.upsert",
+        type="http",
+        auth="none",
+        methods=["POST"],
+        csrf=False,
+    )
+    def crm_lead_upsert_command(self):
+        auth, command, error = self._begin(
+            "crm.lead.upsert",
+            allow_event_replay=True,
+            tenant_allowlist_parameter="codestra.crm.tenant_ids",
+            service_user_parameter="codestra.crm.service_user_id",
+        )
+        if error:
+            return error
+        unit = self._crm_scope(auth)
+        if not unit:
+            return self._json(403, {"error": "crm_service_scope_rejected"})
+        payload, error = self._command_to_crm_payload(command, auth)
+        if error:
+            return error
+
+        def run():
+            mapping = self._crm_mapping(auth, payload["external_id"])
+            status = 200
+            outcome = "updated"
+            if mapping:
+                lead = request.env["crm.lead"].with_user(auth["user"]).browse(
+                    mapping.record_id
+                ).exists()
+                if not lead:
+                    # The mapping outlived its lead. Say so distinctly so the
+                    # Middleware can reconcile instead of retrying forever
+                    # against a generic scope conflict.
+                    return self._json(409, {
+                        "error": "mapping_target_missing",
+                        "external_id": mapping.external_id,
+                        "middleware_id": mapping.middleware_id,
+                    })
+                if lead.company_id != unit.company_id or lead.business_unit_id != unit:
+                    return self._json(409, {"error": "external_mapping_scope_conflict"})
+                values, error = self._crm_values(
+                    payload, self.CRM_LEAD_CREATE_FIELDS, unit, auth["user"]
+                )
+                if error:
+                    return error
+                error = self._reject_stale_update(lead, payload)
+                if error:
+                    return error
+                error = self._prepare_update_values(lead, values)
+                if error:
+                    return error
+                lead.write(values)
+                self._apply_crm_compliance(auth, lead, payload, unit)
+            else:
+                lead, mapping, error = self._create_crm_lead(auth, payload, unit)
+                if error:
+                    return error
+                status = 201
+                outcome = "created"
+            result = self._crm_lead_value(lead, mapping)
+            result.update({"command_id": command["command_id"], "outcome": outcome})
+            return self._complete(auth, "crm.lead.upsert", result, status=status)
+
+        return self._serialized(auth, run)
+
+    @http.route(
+        "/codestra/middleware/v1/commands/<string:command_id>/status",
+        type="http",
+        auth="none",
+        methods=["GET"],
+        csrf=False,
+    )
+    def crm_command_status(self, command_id):
+        """Report the recorded outcome of an earlier command.
+
+        Reconciliation needs a way to ask what actually happened to a command
+        whose response was never observed, rather than replaying a write.
+        """
+        auth, _payload, error = self._begin(
+            "crm.command.status",
+            allow_event_replay=True,
+            tenant_allowlist_parameter="codestra.crm.tenant_ids",
+            service_user_parameter="codestra.crm.service_user_id",
+        )
+        if error:
+            return error
+        unit = self._crm_scope(auth)
+        if not unit:
+            return self._json(403, {"error": "crm_service_scope_rejected"})
+        record = request.env["codestra.middleware.request"].with_user(auth["user"]).search([
+            ("tenant_id", "=", auth["tenant_id"]),
+            ("event_id", "=", command_id),
+        ], limit=1)
+        if not record:
+            return self._json(404, {"error": "command_not_found"})
+        return self._complete(auth, "crm.command.status", {
+            "command_id": command_id,
+            "operation": record.operation,
+            "recorded_at": record.created_at.isoformat(),
+            "result": json.loads(record.response_json),
         })
-        return self._complete(auth, "crm.lead.create", self._crm_lead_value(lead, mapping), status=201)
 
     @http.route("/codestra/middleware/v1/crm/leads/<string:external_id>", type="http", auth="none", methods=["GET", "PATCH"], csrf=False)
     def crm_lead(self, external_id):
@@ -242,6 +840,8 @@ class CodestraMiddlewareBridge(http.Controller):
             return self._json(404, {"error": "lead_not_found"})
         if operation.endswith("update"):
             values, error = self._crm_values(payload, self.CRM_LEAD_PATCH_FIELDS, unit, auth["user"])
+            if error: return error
+            error = self._prepare_update_values(lead, values)
             if error: return error
             lead.write(values)
         return self._complete(auth, operation, self._crm_lead_value(lead, mapping))

@@ -28,6 +28,7 @@ CI_BROWSER_DIR=""
 TEST_LOG=""
 UPGRADE_LOG=""
 BACKUP_FILE=""
+FILESTORE_BACKUP_FILE=""
 
 remove_ci_temp_dir() {
   local candidate="$1"
@@ -54,6 +55,9 @@ cleanup() {
   fi
   if [[ -n "$BACKUP_FILE" && -f "$BACKUP_FILE" ]]; then
     rm -f "$BACKUP_FILE" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$FILESTORE_BACKUP_FILE" && -f "$FILESTORE_BACKUP_FILE" ]]; then
+    rm -f "$FILESTORE_BACKUP_FILE" >/dev/null 2>&1 || true
   fi
   if [[ -n "$CI_PYTHON_DIR" && -d "$CI_PYTHON_DIR" ]]; then
     remove_ci_temp_dir "$CI_PYTHON_DIR"
@@ -326,7 +330,7 @@ if ((${#odoo_ids[@]} != 2)); then
 fi
 sudo chown "${odoo_ids[0]}:${odoo_ids[1]}" "$ADMIN_SECRET"
 
-docker run --rm \
+docker run --rm -i \
   --network "$NETWORK" \
   -e HOST=db \
   -e PORT=5432 \
@@ -351,7 +355,7 @@ run_database_audits() {
   local schema_ok
 
   printf '==> Auditing database, administrator, and module state in %s\n' "$target_database"
-  docker run --rm \
+  docker run --rm -i \
     --network "$NETWORK" \
     -e HOST=db \
     -e PORT=5432 \
@@ -390,8 +394,38 @@ run_database_audits() {
 
 run_database_audits "$DATABASE"
 
-printf '==> Backing up and restoring the upgraded disposable database\n'
+printf '==> Creating a synthetic filestore object for paired restore verification\n'
+sentinel_output="$(docker run --rm -i \
+  --network "$NETWORK" \
+  -e HOST=db \
+  -e PORT=5432 \
+  -e USER="$DB_USER" \
+  -e PASSWORD="$DB_PASSWORD" \
+  -v "$ROOT_DIR/custom-addons:/mnt/extra-addons:ro" \
+  -v "$ROOT_DIR/scripts/create_filestore_restore_sentinel.py:/opt/codestra/create_filestore_restore_sentinel.py:ro" \
+  -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
+  "$ODOO_IMAGE" \
+  -- \
+  shell -d "$DATABASE" --no-http \
+  < "$ROOT_DIR/scripts/create_filestore_restore_sentinel.py" 2>&1)"
+printf '%s\n' "$sentinel_output"
+FILESTORE_DATABASE_DIR="$(
+  printf '%s\n' "$sentinel_output" \
+    | sed -n 's/^FILESTORE_DATABASE_DIR=//p'
+)"
+case "$FILESTORE_DATABASE_DIR" in
+  /var/lib/odoo/*/filestore/"$DATABASE"|/var/lib/odoo/filestore/"$DATABASE") ;;
+  *)
+    printf 'ERROR=UNSAFE_OR_MISSING_FILESTORE_DATABASE_DIR:%s\n' \
+      "$FILESTORE_DATABASE_DIR" >&2
+    exit 1
+    ;;
+esac
+RESTORE_FILESTORE_DATABASE_DIR="${FILESTORE_DATABASE_DIR%/$DATABASE}/$RESTORE_DATABASE"
+
+printf '==> Capturing a paired database and filestore recovery point\n'
 BACKUP_FILE="$(mktemp --suffix=.dump)"
+FILESTORE_BACKUP_FILE="$(mktemp --suffix=.tar)"
 docker exec \
   -e PGPASSWORD="$DB_PASSWORD" \
   "$DB_CONTAINER" \
@@ -401,6 +435,19 @@ if [[ ! -s "$BACKUP_FILE" ]]; then
   printf 'ERROR=ODOO_CI_BACKUP_IS_EMPTY\n' >&2
   exit 1
 fi
+docker run --rm \
+  --entrypoint sh \
+  -e SOURCE_FILESTORE_DATABASE_DIR="$FILESTORE_DATABASE_DIR" \
+  -v "$ODOO_DATA_VOLUME:/var/lib/odoo:ro" \
+  "$ODOO_IMAGE" \
+  -c 'test -d "$SOURCE_FILESTORE_DATABASE_DIR" && tar -C "$SOURCE_FILESTORE_DATABASE_DIR" -cf - .' \
+  > "$FILESTORE_BACKUP_FILE"
+if [[ ! -s "$FILESTORE_BACKUP_FILE" ]]; then
+  printf 'ERROR=ODOO_CI_FILESTORE_BACKUP_IS_EMPTY\n' >&2
+  exit 1
+fi
+
+printf '==> Restoring the paired recovery point under an isolated database name\n'
 docker exec \
   -e PGPASSWORD="$DB_PASSWORD" \
   "$DB_CONTAINER" \
@@ -410,11 +457,37 @@ docker exec -i \
   "$DB_CONTAINER" \
   pg_restore --exit-on-error --no-owner -U "$DB_USER" -d "$RESTORE_DATABASE" \
   < "$BACKUP_FILE"
+docker run --rm \
+  --entrypoint sh \
+  --user 0:0 \
+  -e ODOO_UID="${odoo_ids[0]}" \
+  -e ODOO_GID="${odoo_ids[1]}" \
+  -e RESTORE_FILESTORE_DATABASE_DIR="$RESTORE_FILESTORE_DATABASE_DIR" \
+  -v "$FILESTORE_BACKUP_FILE:/tmp/codestra-filestore-backup.tar:ro" \
+  -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
+  "$ODOO_IMAGE" \
+  -c 'set -eu; test ! -e "$RESTORE_FILESTORE_DATABASE_DIR"; mkdir -p "$RESTORE_FILESTORE_DATABASE_DIR"; tar -C "$RESTORE_FILESTORE_DATABASE_DIR" -xf /tmp/codestra-filestore-backup.tar; chown -R "$ODOO_UID:$ODOO_GID" "$RESTORE_FILESTORE_DATABASE_DIR"'
 
 run_database_audits "$RESTORE_DATABASE"
+docker run --rm -i \
+  --network "$NETWORK" \
+  -e HOST=db \
+  -e PORT=5432 \
+  -e USER="$DB_USER" \
+  -e PASSWORD="$DB_PASSWORD" \
+  -v "$ROOT_DIR/custom-addons:/mnt/extra-addons:ro" \
+  -v "$ROOT_DIR/scripts/audit_filestore_restore.py:/opt/codestra/audit_filestore_restore.py:ro" \
+  -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
+  "$ODOO_IMAGE" \
+  -- \
+  shell -d "$RESTORE_DATABASE" --no-http \
+  < "$ROOT_DIR/scripts/audit_filestore_restore.py"
 
 printf 'POSTGRESQL_SCHEMA_AUDIT=PASS\n'
 printf 'ADMINISTRATOR_STATE_AUDIT=PASS\n'
 printf 'MODULE_STATE_AUDIT=PASS\n'
 printf 'DISPOSABLE_BACKUP_RESTORE=PASS\n'
+printf 'DATABASE_BACKUP_RESTORE=PASS\n'
+printf 'FILESTORE_BACKUP_RESTORE=PASS\n'
+printf 'PAIRED_DATABASE_FILESTORE_RESTORE=PASS\n'
 printf 'ODOO_POSTGRESQL_RUNTIME_CI=PASS\n'

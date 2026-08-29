@@ -15,6 +15,18 @@
     <field name="sequence">10</field>
     <field name="implied_ids" eval="[(4, ref('sales_team.group_sale_salesman_all_leads'))]"/>
   </record>
+  <record id="group_call_center_integration_service" model="res.groups">
+    <field name="name">Integration Service</field>
+    <!-- Deliberately implies only the internal-user baseline. Inheriting
+         group_call_center_user pulled in sales_team.group_sale_salesman_all_leads
+         and dozens of unrelated call centre create/write ACLs, which is far more
+         authority than a non-interactive service identity should hold. Each
+         service grants itself the narrow ACLs it actually needs. -->
+    <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    <field name="privilege_id" ref="privilege_call_center"/>
+    <field name="sequence">15</field>
+    <field name="comment">Non-interactive service identity; record access remains restricted to explicitly authorized business units and service-specific ACLs.</field>
+  </record>
   <record id="group_call_center_agent" model="res.groups">
     <field name="name">Agent</field>
     <field name="implied_ids" eval="[(4, ref('group_call_center_user'))]"/>

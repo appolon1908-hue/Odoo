@@ -42,7 +42,7 @@ class MissionContractTests(unittest.TestCase):
         ) as handle:
             rows = list(csv.DictReader(handle))
 
-        self.assertEqual(len(rows), 71)
+        self.assertEqual(len(rows), 72)
         self.assertFalse(
             [row for row in rows if row["status"].startswith("REJECT")]
         )

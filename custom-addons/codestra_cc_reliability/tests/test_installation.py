@@ -8,7 +8,6 @@ class TestCodestraCcReliabilityFacade(TransactionCase):
         expected = {
             "codestra_cc_core",
             "codestra_integration_hub",
-            "codestra_middleware_bridge",
             "call_center_orchestration",
         }
         modules = self.env["ir.module.module"].search([("name", "in", sorted(expected))])

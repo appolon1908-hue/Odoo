@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+  <record id="crm_stage_middleware_intake" model="crm.stage">
+    <field name="name">Middleware Intake</field>
+    <field name="sequence">1</field>
+  </record>
+  <record id="crm_stage_middleware_review_pending" model="crm.stage">
+    <field name="name">Middleware Review Pending</field>
+    <field name="sequence">2</field>
+  </record>
+</odoo>
