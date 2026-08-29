@@ -24,6 +24,9 @@ python3 scripts/validate_manifests.py
 printf '==> Validating the Middleware and Odoo write boundary\n'
 python3 scripts/validate_integration_boundary.py
 
+printf '==> Validating the four-repository platform control plane\n'
+python3 scripts/validate_platform_control_plane.py
+
 printf '==> Reviewing every custom Odoo module\n'
 python3 scripts/review_modules.py --strict
 
