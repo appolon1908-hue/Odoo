@@ -1,3 +1,6 @@
+import hashlib
+import json
+
 from psycopg2 import IntegrityError
 
 from odoo import api, fields, models
@@ -27,6 +30,30 @@ MONEYBEE_FIELDS = frozenset(
         "moneybee_membership_type",
     }
 )
+
+
+def _assert_no_identity_secrets(value, path="payload"):
+    if isinstance(value, dict):
+        for raw_key, nested in value.items():
+            key = str(raw_key).strip().lower()
+            if key in FORBIDDEN_IDENTITY_FIELDS:
+                raise ValidationError(
+                    f"Identity secret material is prohibited at {path}.{key}."
+                )
+            _assert_no_identity_secrets(nested, f"{path}.{key}")
+    elif isinstance(value, (list, tuple)):
+        for index, nested in enumerate(value):
+            _assert_no_identity_secrets(nested, f"{path}[{index}]")
+
+
+def _payload_hash(payload):
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 class ResPartner(models.Model):
@@ -95,19 +122,12 @@ class ResPartner(models.Model):
 
     @api.model
     def moneybee_upsert_contact(self, payload):
-        """Idempotently apply the Middleware `crm.contact.upsert.v1` command.
-
-        The RPC entry point is restricted to the dedicated Middleware integration
-        group. Identity secrets, verification codes and browser/service tokens are
-        rejected even if a caller attempts to include them.
-        """
+        """Idempotently apply the Middleware `crm.contact.upsert.v1` payload."""
 
         self._assert_moneybee_middleware_principal()
         if not isinstance(payload, dict):
             raise ValidationError("MoneyBee contact payload must be an object.")
-        forbidden = FORBIDDEN_IDENTITY_FIELDS.intersection(payload)
-        if forbidden:
-            raise ValidationError("Identity secret material is prohibited in CRM sync.")
+        _assert_no_identity_secrets(payload)
 
         user_id = str(payload.get("user_id") or "").strip()
         organization_id = str(payload.get("organization_id") or "").strip()
@@ -146,9 +166,6 @@ class ResPartner(models.Model):
             with self.env.cr.savepoint():
                 partner = self.create(create_values)
         except IntegrityError:
-            # A concurrent delivery may have inserted the same immutable
-            # MoneyBee identity first. The unique DB constraint is authoritative;
-            # reconcile to the winning row instead of creating a duplicate.
             partner = self.search([("moneybee_user_id", "=", user_id)], limit=1)
             if not partner:
                 raise
@@ -156,3 +173,96 @@ class ResPartner(models.Model):
             return {"partner_id": partner.id, "created": False}
 
         return {"partner_id": partner.id, "created": True}
+
+    @api.model
+    def moneybee_apply_contact_command(self, command):
+        """Apply one Middleware command with an immutable command receipt.
+
+        This is the preferred enterprise integration entry point. Replays with the
+        same command ID and payload hash return the original result; a command ID
+        reused with different content fails closed.
+        """
+
+        self._assert_moneybee_middleware_principal()
+        if not isinstance(command, dict):
+            raise ValidationError("MoneyBee Middleware command must be an object.")
+        _assert_no_identity_secrets(command, "command")
+
+        command_id = str(command.get("command_id") or "").strip()
+        source_event_id = str(command.get("source_event_id") or "").strip()
+        tenant_id = str(command.get("tenant_id") or "").strip()
+        command_type = str(command.get("command_type") or "").strip()
+        schema_version = command.get("schema_version")
+        payload = command.get("payload")
+        if not all((command_id, source_event_id, tenant_id)):
+            raise ValidationError(
+                "command_id, source_event_id and tenant_id are required."
+            )
+        if command_type != "crm.contact.upsert.v1":
+            raise ValidationError("Unsupported MoneyBee CRM command type.")
+        if schema_version != 1:
+            raise ValidationError("Unsupported MoneyBee CRM command schema version.")
+        if not isinstance(payload, dict):
+            raise ValidationError("MoneyBee CRM command payload must be an object.")
+        if str(payload.get("organization_id") or "").strip() != tenant_id:
+            raise ValidationError("MoneyBee CRM command tenant does not match payload organization.")
+
+        digest = _payload_hash(payload)
+        receipts = self.env["codestra.moneybee.integration.receipt"]
+        existing = receipts.search([("command_id", "=", command_id)], limit=1)
+        if existing:
+            if (
+                existing.payload_hash != digest
+                or existing.source_event_id != source_event_id
+                or existing.tenant_id != tenant_id
+                or existing.command_type != command_type
+            ):
+                raise ValidationError(
+                    "MoneyBee command ID was already used with different command content."
+                )
+            return {
+                "status": existing.status,
+                "partner_id": existing.partner_id.id or None,
+                "created": False,
+                "replayed": True,
+                "command_id": command_id,
+            }
+
+        result = self.moneybee_upsert_contact(payload)
+        partner_id = result.get("partner_id")
+        try:
+            with self.env.cr.savepoint():
+                receipts.create(
+                    {
+                        "command_id": command_id,
+                        "source_event_id": source_event_id,
+                        "tenant_id": tenant_id,
+                        "schema_version": schema_version,
+                        "command_type": command_type,
+                        "payload_hash": digest,
+                        "status": "APPLIED",
+                        "applied_at": fields.Datetime.now(),
+                        "partner_id": partner_id,
+                    }
+                )
+        except IntegrityError:
+            existing = receipts.search([("command_id", "=", command_id)], limit=1)
+            if not existing or existing.payload_hash != digest:
+                raise ValidationError(
+                    "Concurrent MoneyBee command receipt conflict requires reconciliation."
+                )
+            return {
+                "status": existing.status,
+                "partner_id": existing.partner_id.id or partner_id,
+                "created": False,
+                "replayed": True,
+                "command_id": command_id,
+            }
+
+        return {
+            "status": "APPLIED",
+            "partner_id": partner_id,
+            "created": bool(result.get("created")),
+            "replayed": False,
+            "command_id": command_id,
+        }
