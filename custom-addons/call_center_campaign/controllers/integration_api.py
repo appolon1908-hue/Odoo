@@ -10,6 +10,7 @@ from urllib import request as urlrequest
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives.hashes import SHA256
+from markupsafe import Markup, escape
 from odoo import fields, http
 from odoo.exceptions import ValidationError
 from odoo.http import Response, request
@@ -717,6 +718,147 @@ class CodestraIntegrationApiController(http.Controller):
                 },
                 status,
             )
+
+        return _handle_errors(operation)
+
+    @http.route(
+        "/api/v1/integration/provider-activities",
+        type="http",
+        auth="none",
+        methods=["POST"],
+        csrf=False,
+        save_session=False,
+    )
+    def create_provider_activity(self):
+        def operation():
+            claims, body, _ = _body(
+                {"odoo.provider.activities.write", "odoo.integration.results.write"},
+                {
+                    "operation",
+                    "event_id",
+                    "environment",
+                    "organization_public_id",
+                    "business_unit_public_id",
+                    "campaign_public_id",
+                },
+            )
+            _assert_organization_scope(claims, body["organization_public_id"])
+            _assert_scope(
+                claims,
+                str(body["environment"]).upper(),
+                body["business_unit_public_id"],
+                body["campaign_public_id"],
+            )
+            fields_by_operation = {
+                "log_call_result": {
+                    "operation", "event_id", "environment",
+                    "organization_public_id", "business_unit_public_id",
+                    "campaign_public_id", "phone_number", "disposition",
+                    "duration_seconds", "provider_call_id", "notes",
+                },
+                "log_inbound_sms": {
+                    "operation", "event_id", "environment",
+                    "organization_public_id", "business_unit_public_id",
+                    "campaign_public_id", "from_number", "body",
+                    "provider_message_id", "received_at",
+                },
+            }
+            provider_operation = body["operation"]
+            allowed = fields_by_operation.get(provider_operation)
+            if allowed is None:
+                raise ValidationError("unsupported provider activity operation")
+            unsupported = sorted(set(body) - allowed)
+            if unsupported:
+                raise ValidationError(
+                    "unsupported provider activity fields: " + ",".join(unsupported)
+                )
+            required = allowed - {"notes"}
+            if any(body.get(field_name) in (None, "") for field_name in required):
+                raise ValidationError("provider activity required fields missing")
+            phone = str(
+                body.get("phone_number") or body.get("from_number") or ""
+            ).strip()
+            partners = request.env["res.partner"].sudo().search([
+                "|", "|",
+                ("phone_sanitized", "=", phone),
+                ("phone", "=", phone),
+                ("mobile", "=", phone),
+            ], limit=2)
+            if not partners:
+                raise IntegrationNotFound("contact not found")
+            if len(partners) != 1:
+                raise IntegrationConflict("ambiguous phone number")
+            idempotency_key = request.httprequest.headers["Idempotency-Key"]
+            ledger = request.env["codestra.integration.idempotency"].sudo()
+            registered = ledger.register_idempotent_event(
+                "odoo.provider.activity",
+                idempotency_key,
+                "provider.activity." + provider_operation,
+                "codestra-middleware",
+                "odoo",
+                body,
+                request.httprequest.headers["X-Codestra-Correlation-ID"],
+            )
+            if registered["conflict"]:
+                raise IntegrationConflict("provider activity idempotency conflict")
+            if registered["replay"]:
+                reference = ledger.search([
+                    ("event_id", "=", registered["event"].id),
+                    ("scope", "=", "odoo.provider.activity"),
+                ], limit=1).result_reference
+                _, partner_id, message_id = str(reference).split(":", 2)
+                return _json_response({
+                    "status": "APPLIED",
+                    "event_id": body["event_id"],
+                    "operation": provider_operation,
+                    "partner_id": int(partner_id),
+                    "message_id": int(message_id),
+                    "duplicate": True,
+                    "correlation_id": request.httprequest.headers[
+                        "X-Codestra-Correlation-ID"
+                    ],
+                })
+            if provider_operation == "log_call_result":
+                message_body = Markup(
+                    "<p><strong>VICIdial call result</strong></p>"
+                    "<ul><li>Disposition: %s</li><li>Duration: %s seconds</li>"
+                    "<li>Call ID: %s</li><li>Campaign: %s</li>"
+                    "<li>Notes: %s</li></ul>"
+                ) % tuple(escape(body.get(field_name) or "") for field_name in (
+                    "disposition", "duration_seconds", "provider_call_id",
+                    "campaign_public_id", "notes",
+                ))
+            else:
+                message_body = Markup(
+                    "<p><strong>Inbound SMS</strong></p>"
+                    "<ul><li>From: %s</li><li>Message ID: %s</li>"
+                    "<li>Received: %s</li></ul><p>%s</p>"
+                ) % tuple(escape(body[field_name]) for field_name in (
+                    "from_number", "provider_message_id", "received_at", "body",
+                ))
+            message = partners.message_post(
+                body=message_body,
+                message_type="comment",
+                subtype_xmlid="mail.mt_note",
+            )
+            registered["idempotency"].with_context(
+                integration_ledger_write=True
+            ).write({
+                "result_reference": (
+                    f"provider_activity:{partners.id}:{message.id}"
+                )
+            })
+            return _json_response({
+                "status": "APPLIED",
+                "event_id": body["event_id"],
+                "operation": provider_operation,
+                "partner_id": partners.id,
+                "message_id": message.id,
+                "duplicate": False,
+                "correlation_id": request.httprequest.headers[
+                    "X-Codestra-Correlation-ID"
+                ],
+            }, 201)
 
         return _handle_errors(operation)
 

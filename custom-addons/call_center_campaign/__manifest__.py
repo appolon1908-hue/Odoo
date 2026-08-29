@@ -5,7 +5,7 @@
     "summary": "Campaigns, teams, scripts, and lifecycle stages",
     "author": "Codestra",
     "license": "LGPL-3",
-    "depends": ["call_center_core"],
+    "depends": ["call_center_core", "codestra_integration_hub", "phone_validation"],
     "data": [
         "security/ir.model.access.csv",
         "security/record_rules.xml",
