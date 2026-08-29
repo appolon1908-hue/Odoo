@@ -5,25 +5,84 @@ def migrate(cr, version):
     deliveries must be investigated and reconciled instead of being deleted or
     silently rewritten by a migration.
     """
+    cr.execute("SELECT to_regclass('codestra_runtime_integration_outbox')")
+    outbox_exists = cr.fetchone()[0] is not None
+    cr.execute("SELECT to_regclass('codestra_integration_result_inbox')")
+    result_inbox_exists = cr.fetchone()[0] is not None
+
+    if outbox_exists:
+        cr.execute(
+            """
+            ALTER TABLE codestra_runtime_integration_outbox
+            ADD COLUMN IF NOT EXISTS idempotency_key varchar
+            """
+        )
+        cr.execute(
+            """
+            UPDATE codestra_runtime_integration_outbox
+               SET idempotency_key = deterministic_event_key
+             WHERE idempotency_key IS NULL
+            """
+        )
+        cr.execute(
+            """
+            ALTER TABLE codestra_runtime_integration_outbox
+            ALTER COLUMN idempotency_key SET NOT NULL
+            """
+        )
+
+    if not result_inbox_exists:
+        return
+
+    # Preserve legacy evidence whose original outbox table/row is absent, but
+    # quarantine the stale integer before Odoo adds the new foreign key.
     cr.execute(
         """
-        ALTER TABLE codestra_runtime_integration_outbox
-        ADD COLUMN IF NOT EXISTS idempotency_key varchar
+        ALTER TABLE codestra_integration_result_inbox
+        ADD COLUMN IF NOT EXISTS originating_outbox_legacy_id integer
         """
     )
     cr.execute(
         """
-        UPDATE codestra_runtime_integration_outbox
-           SET idempotency_key = deterministic_event_key
-         WHERE idempotency_key IS NULL
+        ALTER TABLE codestra_integration_result_inbox
+        ALTER COLUMN originating_outbox_id DROP NOT NULL
         """
     )
-    cr.execute(
-        """
-        ALTER TABLE codestra_runtime_integration_outbox
-        ALTER COLUMN idempotency_key SET NOT NULL
-        """
-    )
+    if outbox_exists:
+        cr.execute(
+            """
+            UPDATE codestra_integration_result_inbox AS result
+               SET originating_outbox_legacy_id = result.originating_outbox_id,
+                   originating_outbox_id = NULL,
+                   reconciliation_status = 'REVIEW_REQUIRED',
+                   error_class = COALESCE(result.error_class, 'LEGACY_OUTBOX_MISSING'),
+                   error_summary = COALESCE(
+                       result.error_summary,
+                       'Historical originating outbox record is unavailable; numeric reference preserved.'
+                   )
+             WHERE result.originating_outbox_id IS NOT NULL
+               AND NOT EXISTS (
+                   SELECT 1
+                     FROM codestra_runtime_integration_outbox AS outbox
+                    WHERE outbox.id = result.originating_outbox_id
+               )
+            """
+        )
+    else:
+        cr.execute(
+            """
+            UPDATE codestra_integration_result_inbox
+               SET originating_outbox_legacy_id = originating_outbox_id,
+                   originating_outbox_id = NULL,
+                   reconciliation_status = 'REVIEW_REQUIRED',
+                   error_class = COALESCE(error_class, 'LEGACY_OUTBOX_MISSING'),
+                   error_summary = COALESCE(
+                       error_summary,
+                       'Historical originating outbox record is unavailable; numeric reference preserved.'
+                   )
+             WHERE originating_outbox_id IS NOT NULL
+            """
+        )
     cr.execute(
         """
         SELECT delivery_id, count(*)
