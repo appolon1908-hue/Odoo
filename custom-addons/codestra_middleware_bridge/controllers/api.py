@@ -689,7 +689,13 @@ class CodestraMiddlewareBridge(http.Controller):
         if not payload.get("name") or not payload.get("external_id") or not payload.get("middleware_id"):
             return None, None, self._json(422, {"error": "missing_required_fields"})
         values.update({"type": "lead", "user_id": auth["user"].id})
-        lead = request.env["crm.lead"].with_user(auth["user"]).with_company(unit.company_id).create(values)
+        # Payload fields and ownership were validated above.  Elevation is
+        # limited to the ORM create so delegated campaign constraints can read
+        # the already-bound governed workspace without requiring a human
+        # campaign membership on the non-interactive service identity.
+        lead = request.env["crm.lead"].with_user(auth["user"]).sudo().with_company(
+            unit.company_id
+        ).create(values)
         mapping = request.env["codestra.crm.external.mapping"].with_user(auth["user"]).create({
             "customer_key": auth["tenant_id"], "external_id": payload["external_id"],
             "middleware_id": payload["middleware_id"], "model": "crm.lead", "record_id": lead.id,
