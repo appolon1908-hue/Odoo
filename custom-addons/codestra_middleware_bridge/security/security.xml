@@ -8,4 +8,10 @@
     <field name="comment">Non-interactive, single-business-unit identity for narrow CRM commands from Codestra Middleware.</field>
     <field name="implied_ids" eval="[(4, ref('group_codestra_middleware_bridge')), (4, ref('call_center_core.group_call_center_integration_service'))]"/>
   </record>
+  <record id="rule_codestra_crm_api_lead_unit" model="ir.rule">
+    <field name="name">Codestra CRM API leads in authorized business unit</field>
+    <field name="model_id" ref="crm.model_crm_lead"/>
+    <field name="groups" eval="[(4, ref('group_codestra_crm_api'))]"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
 </odoo>

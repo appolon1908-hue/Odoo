@@ -133,7 +133,7 @@
     },
     "codestra_middleware_bridge": {
       "base_tree": "d5f2785ea737689dfc1bdc88bb1eb1650a334e02",
-      "current_tree": "b165c2b1abff718b5ba4e5b0a426b6ddb869ab63",
+      "current_tree": "0c952311afb039f42012003a6cdf38ce3e906065",
       "reason": "Implement the reviewed Stage 3 Odoo destination: signed canonical CRM lead upsert, single-business-unit service identity, atomic idempotency, canonical consent and hashed suppression writes, authenticated runtime coverage, and paired database/filestore recovery rehearsal without expanding Middleware authority or adding a second integration stack.",
       "pull_request": 39,
       "integration_boundary_exceptions": [
