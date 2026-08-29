@@ -3,4 +3,9 @@
     <field name="name">Codestra Middleware Bridge</field>
     <field name="comment">Non-interactive least-privilege identity for the signed middleware API.</field>
   </record>
+  <record id="group_codestra_crm_api" model="res.groups">
+    <field name="name">Codestra CRM Service API</field>
+    <field name="comment">Non-interactive, single-business-unit identity for narrow CRM commands from Codestra Middleware.</field>
+    <field name="implied_ids" eval="[(4, ref('group_codestra_middleware_bridge')), (4, ref('call_center_core.group_call_center_user'))]"/>
+  </record>
 </odoo>

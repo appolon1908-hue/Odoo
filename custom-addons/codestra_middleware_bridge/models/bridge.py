@@ -38,7 +38,54 @@ class CrmLead(models.Model):
     codestra_consent_disclosure_version = fields.Char(readonly=True, copy=False)
     codestra_sms_consent = fields.Boolean(readonly=True, copy=False)
     codestra_email_marketing_consent = fields.Boolean(readonly=True, copy=False)
+    codestra_phone_consent = fields.Boolean(readonly=True, copy=False)
     codestra_consent_correlation_id = fields.Char(index=True, readonly=True, copy=False)
+    codestra_allow_external_contact = fields.Boolean(readonly=True, copy=False)
+    codestra_review_required = fields.Boolean(readonly=True, copy=False)
+    codestra_initial_stage = fields.Selection(
+        [("new", "New"), ("review_pending", "Review Pending")],
+        readonly=True,
+        copy=False,
+    )
+    codestra_requested_by = fields.Char(readonly=True, copy=False)
+    codestra_provenance_method = fields.Selection(
+        [
+            ("submitted_by_person", "Submitted by Person"),
+            ("crawler_discovery", "Crawler Discovery"),
+            ("scraper_import", "Scraper Import"),
+        ],
+        readonly=True,
+        copy=False,
+    )
+    codestra_provenance_reference = fields.Char(readonly=True, copy=False)
+    codestra_provenance_legal_basis = fields.Selection(
+        [
+            ("consent", "Consent"),
+            ("legitimate_interest_review_required", "Legitimate Interest — Review Required"),
+            ("contract_request", "Contract Request"),
+            ("unknown_review_required", "Unknown — Review Required"),
+        ],
+        readonly=True,
+        copy=False,
+    )
+    codestra_provenance_digest = fields.Char(readonly=True, copy=False)
+
+    consent_status = fields.Selection(
+        selection_add=[
+            ("denied", "Denied"),
+            ("not_applicable", "Not Applicable"),
+        ],
+        ondelete={"denied": "set default", "not_applicable": "set default"},
+    )
+
+
+class CallCenterConsent(models.Model):
+    _inherit = "call.center.consent"
+
+    status = fields.Selection(
+        selection_add=[("denied", "Denied")],
+        ondelete={"denied": "set default"},
+    )
 
 class MiddlewareRequest(models.Model):
     _name = "codestra.middleware.request"
