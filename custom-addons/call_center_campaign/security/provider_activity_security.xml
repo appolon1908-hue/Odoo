@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="group_provider_activity_service" model="res.groups">
+    <field name="name">Provider Activity Service</field>
+    <field name="comment">Non-interactive identity permitted to post scoped provider call and SMS activity to contact chatter.</field>
+    <field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_integration_service'))]"/>
+  </record>
+</odoo>

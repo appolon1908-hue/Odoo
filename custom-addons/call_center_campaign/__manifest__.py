@@ -7,6 +7,7 @@
     "license": "LGPL-3",
     "depends": ["call_center_core", "codestra_integration_hub", "phone_validation"],
     "data": [
+        "security/provider_activity_security.xml",
         "security/ir.model.access.csv",
         "security/record_rules.xml",
         "data/lifecycle_stages.xml",

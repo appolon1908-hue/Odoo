@@ -32,9 +32,9 @@
   "strict_mission_overrides": {
     "call_center_campaign": {
       "base_tree": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
-      "current_tree": "7a823b72747a62459ce64c76b0cfded1c0e9e989",
-      "reason": "Preserve the reviewed provider activity endpoint and its Stage 3 compatibility backfills while enforcing scoped Odoo service-user and business-unit boundaries for chatter writes from the auth-none integration route.",
-      "pull_request": 45,
+      "current_tree": "662164d923afd7bbf487f83d6a932d191c40f5ab",
+      "reason": "Preserve the reviewed provider activity endpoint and its Stage 3 compatibility backfills while enforcing scoped Odoo service-user and business-unit boundaries and a provider-specific chatter permission isolated from unrelated integration identities.",
+      "pull_request": 46,
       "integration_boundary_exceptions": [
         {
           "path": "controllers/integration_api.py",
