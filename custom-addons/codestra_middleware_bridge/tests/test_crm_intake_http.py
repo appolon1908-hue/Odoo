@@ -51,7 +51,7 @@ class TestMiddlewareCrmIntakeHttp(HttpCase):
             "name": "Synthetic Middleware Campaign",
             "code": cls.campaign_code,
             "business_unit_id": cls.unit.id,
-            "active": False,
+            "active": True,
         })
         cls.campaign = cls.env["cc.campaign"].with_context(
             active_test=False
