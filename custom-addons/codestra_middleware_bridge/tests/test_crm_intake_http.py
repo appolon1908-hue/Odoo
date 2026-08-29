@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from odoo.tests import HttpCase, tagged
+from odoo.tools import html2plaintext
 
 
 @tagged("post_install", "-at_install")
@@ -47,12 +48,15 @@ class TestMiddlewareCrmIntakeHttp(HttpCase):
             active_test=False
         ).search([("legacy_business_unit_id", "=", cls.unit.id)], limit=1)
         cls.campaign_code = f"MWCAMP-{uuid.uuid4().hex[:8].upper()}"
-        cls.campaign = cls.env["cc.campaign"].with_context(active_test=False).create({
+        legacy_campaign = cls.env["call.center.campaign"].create({
             "name": "Synthetic Middleware Campaign",
             "code": cls.campaign_code,
-            "cc_business_unit_id": cls.canonical_unit.id,
             "business_unit_id": cls.unit.id,
+            "active": True,
         })
+        cls.campaign = cls.env["cc.campaign"].with_context(
+            active_test=False
+        ).search([("legacy_campaign_id", "=", legacy_campaign.id)], limit=1)
         # The service identity must stay narrow: it carries the internal-user
         # baseline and its own explicit ACLs, never the broad call centre or
         # all-leads sales roles.
@@ -433,7 +437,7 @@ class TestMiddlewareCrmIntakeHttp(HttpCase):
         self.assertEqual(response.status_code, 201, response.text)
         lead = self.lead_for(command)
         self.assertEqual(len(lead.email_from), 320)
-        self.assertEqual(len(lead.description), 10000)
+        self.assertEqual(len(html2plaintext(lead.description)), 10000)
 
     def test_value_beyond_the_contract_maximum_is_rejected(self):
         command = self.command()
