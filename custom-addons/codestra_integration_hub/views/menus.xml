@@ -1,0 +1,11 @@
+<odoo>
+  <menuitem id="menu_integration_root" name="Integration" sequence="70" groups="codestra_base.group_codestra_manager,codestra_base.group_codestra_integration_admin"/>
+  <menuitem id="menu_integration_events" name="Events" parent="menu_integration_root" action="action_integration_events" sequence="10"/>
+  <menuitem id="menu_integration_deliveries" name="Delivery Attempts" parent="menu_integration_root" action="action_integration_deliveries" sequence="20"/>
+  <menuitem id="menu_integration_retry" name="Retry Queue" parent="menu_integration_root" action="action_integration_retry_queue" sequence="30"/>
+  <menuitem id="menu_integration_dead" name="Dead Letters" parent="menu_integration_root" action="action_integration_dead_letters" sequence="40"/>
+  <menuitem id="menu_integration_mappings" name="Mappings" parent="menu_integration_root" action="action_integration_mappings" sequence="50" groups="codestra_base.group_codestra_integration_admin"/>
+  <menuitem id="menu_integration_audit" name="Audit" parent="menu_integration_root" action="action_integration_audit" sequence="60"/>
+  <menuitem id="menu_integration_configuration" name="Configuration" parent="menu_integration_root" sequence="90" groups="codestra_base.group_codestra_integration_admin"/>
+  <menuitem id="menu_integration_endpoints" name="Endpoints" parent="menu_integration_configuration" action="action_integration_endpoints" sequence="10"/>
+</odoo>

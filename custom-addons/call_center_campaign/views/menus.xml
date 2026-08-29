@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <menuitem id="menu_campaigns" name="Campaigns" parent="call_center_core.menu_call_center_configuration" action="action_campaigns" sequence="30" groups="call_center_core.group_call_center_manager"/>
+  <menuitem id="menu_queues" name="Queues" parent="call_center_core.menu_call_center_configuration" action="action_queues" sequence="40" groups="call_center_core.group_call_center_manager"/>
+  <menuitem id="menu_dispositions" name="Dispositions" parent="call_center_core.menu_call_center_configuration" action="action_dispositions" sequence="80" groups="call_center_core.group_call_center_manager"/>
+  <menuitem id="menu_scripts" name="Scripts" parent="call_center_core.menu_call_center_root" action="action_scripts" sequence="20"/>
+</odoo>

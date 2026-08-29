@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_codestra_agent_onboarding_list" model="ir.ui.view">
+    <field name="name">codestra.agent.onboarding.list</field>
+    <field name="model">codestra.agent.onboarding</field>
+    <field name="arch" type="xml">
+      <list string="Agent Onboarding" default_order="target_start_date desc">
+        <field name="name"/>
+        <field name="employee_id"/>
+        <field name="manager_id"/>
+        <field name="target_start_date"/>
+        <field name="completion_percent"/>
+        <field name="provisioning_request_id"/>
+        <field name="state"/>
+        <field name="company_id" groups="base.group_multi_company"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_codestra_agent_onboarding_form" model="ir.ui.view">
+    <field name="name">codestra.agent.onboarding.form</field>
+    <field name="model">codestra.agent.onboarding</field>
+    <field name="arch" type="xml">
+      <form string="Agent Onboarding">
+        <header>
+          <button name="action_submit" type="object" string="Submit for Review" class="btn-primary" invisible="state != 'draft'"/>
+          <button name="action_approve" type="object" string="Approve" class="btn-primary" invisible="state != 'in_review'"/>
+          <button name="action_start_provisioning" type="object" string="Start Provisioning" class="btn-primary" invisible="state != 'approved'"/>
+          <button name="action_activate" type="object" string="Activate" class="btn-primary" invisible="state != 'provisioning'"/>
+          <button name="action_begin_offboarding" type="object" string="Begin Offboarding" invisible="state != 'active'"/>
+          <button name="action_close" type="object" string="Close" invisible="state not in ('offboarding', 'cancelled')"/>
+          <button name="action_fail" type="object" string="Mark Failed" invisible="state in ('closed', 'cancelled')"/>
+          <button name="action_cancel" type="object" string="Cancel" invisible="state not in ('draft', 'in_review', 'approved')"/>
+          <field name="state" widget="statusbar" statusbar_visible="draft,in_review,approved,provisioning,active,offboarding,closed"/>
+        </header>
+        <sheet>
+          <div class="oe_title"><h1><field name="name"/></h1></div>
+          <group>
+            <group>
+              <field name="employee_id"/>
+              <field name="manager_id"/>
+              <field name="target_start_date"/>
+              <field name="company_id" groups="base.group_multi_company"/>
+            </group>
+            <group>
+              <field name="completion_percent" readonly="1"/>
+              <field name="provisioning_request_id"/>
+              <field name="failure_reason" invisible="state != 'failed'"/>
+            </group>
+          </group>
+          <group string="Readiness gates">
+            <field name="identity_verified"/>
+            <field name="employment_documents_complete"/>
+            <field name="approved_checks_complete"/>
+            <field name="equipment_ready"/>
+            <field name="training_complete"/>
+            <field name="compliance_approved"/>
+          </group>
+          <field name="notes"/>
+        </sheet>
+        <chatter/>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_codestra_agent_onboarding" model="ir.actions.act_window">
+    <field name="name">Agent Onboarding</field>
+    <field name="res_model">codestra.agent.onboarding</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <menuitem id="menu_codestra_agent_onboarding" name="Agent Onboarding" parent="call_center_core.menu_call_center_root" action="action_codestra_agent_onboarding" sequence="76" groups="call_center_core.group_call_center_manager"/>
+</odoo>

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="group_cc_recording_service" model="res.groups">
+    <field name="name">Contact Center Recording Integration Service</field>
+    <field name="privilege_id" ref="codestra_cc_security.privilege_codestra_contact_center"/>
+    <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+  </record>
+
+  <record id="codestra_cc_security.rule_cc_business_unit_global_scope" model="ir.rule">
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_mail.group_cc_mail_ingestion_service') or user.has_group('codestra_cc_crm.group_cc_crm_service') or user.has_group('codestra_cc_calls.group_cc_call_service') or user.has_group('codestra_cc_recordings.group_cc_recording_service') or user.cc_has_active_break_glass else [('id', 'in', user.cc_allowed_business_unit_ids.ids)]</field>
+  </record>
+  <record id="codestra_cc_security.rule_cc_campaign_global_scope" model="ir.rule">
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_mail.group_cc_mail_ingestion_service') or user.has_group('codestra_cc_crm.group_cc_crm_service') or user.has_group('codestra_cc_calls.group_cc_call_service') or user.has_group('codestra_cc_recordings.group_cc_recording_service') or user.cc_has_active_break_glass else [('id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="codestra_cc_security.rule_cc_membership_global_scope" model="ir.rule">
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_calls.group_cc_call_service') or user.has_group('codestra_cc_recordings.group_cc_recording_service') or user.cc_has_active_break_glass else ['&amp;', ('campaign_id', 'in', user.cc_allowed_campaign_ids.ids), '|', ('user_id', '=', user.id), ('campaign_id', 'in', user.cc_supervised_campaign_ids.ids)]</field>
+  </record>
+  <record id="codestra_cc_crm.rule_cc_customer_profile_global_scope" model="ir.rule">
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_crm.group_cc_crm_service') or user.has_group('codestra_cc_recordings.group_cc_recording_service') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="codestra_cc_vicidial.rule_cc_telephony_mapping_global_scope" model="ir.rule">
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_vicidial.group_cc_telephony_readback_service') or user.has_group('codestra_cc_recordings.group_cc_recording_service') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+
+  <record id="rule_cc_recording_policy_scope" model="ir.rule">
+    <field name="name">Contact Center: recording policy campaign scope</field>
+    <field name="model_id" ref="model_cc_recording_policy"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_recordings.group_cc_recording_service') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_recording_scope" model="ir.rule">
+    <field name="name">Contact Center: recording binding campaign scope</field>
+    <field name="model_id" ref="model_cc_recording"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_recordings.group_cc_recording_service') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_recording_supervisor_scope" model="ir.rule">
+    <field name="name">Contact Center: supervisors see their campaign recordings</field>
+    <field name="model_id" ref="model_cc_recording"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_supervisor'))]"/>
+    <field name="domain_force">[('campaign_id', 'in', user.cc_supervised_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_recording_access_event_scope" model="ir.rule">
+    <field name="name">Contact Center: recording access evidence campaign scope</field>
+    <field name="model_id" ref="model_cc_recording_access_event"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_recordings.group_cc_recording_service') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_recording_retention_event_scope" model="ir.rule">
+    <field name="name">Contact Center: recording retention evidence campaign scope</field>
+    <field name="model_id" ref="model_cc_recording_retention_event"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_recordings.group_cc_recording_service') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+</odoo>

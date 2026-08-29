@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_crm_lead_click_to_call" model="ir.ui.view">
+    <field name="name">crm.lead.form.click.to.call</field>
+    <field name="model">crm.lead</field>
+    <field name="inherit_id" ref="crm.crm_lead_view_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//header" position="inside">
+        <button name="action_click_to_call" type="object" string="Call" icon="fa-phone" class="btn-primary"/>
+      </xpath>
+    </field>
+  </record>
+</odoo>

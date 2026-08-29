@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "system": "odoo-19",
+  "system_role": "business_system_of_record",
+  "authorized_cross_system_writer": "codestra-middleware",
+  "approved_external_write_interfaces": [
+    "odoo_service_api",
+    "odoo_orm_bridge"
+  ],
+  "direct_external_postgresql_writes_allowed": false,
+  "external_services_may_receive_database_credentials": false,
+  "generic_model_write_endpoint_allowed": false,
+  "required_external_write_controls": [
+    "dedicated_service_identity",
+    "least_privilege_acl",
+    "tenant_and_company_mapping",
+    "versioned_resource_specific_contract",
+    "idempotency",
+    "correlation_id",
+    "stable_external_mapping",
+    "audit_trail",
+    "optimistic_concurrency_when_applicable"
+  ],
+  "odoo_owns": [
+    "customers_and_contacts",
+    "leads_and_opportunities",
+    "activities_and_campaigns",
+    "call_history",
+    "post_call_forms_and_notes",
+    "callbacks_and_appointments",
+    "consent_and_communication_preferences",
+    "sms_and_email_history",
+    "delivery_results",
+    "agent_and_supervisor_business_views",
+    "business_reporting"
+  ],
+  "repository_contains": [
+    "custom_modules",
+    "module_tests",
+    "migrations",
+    "non_secret_configuration_templates",
+    "deployment_controls",
+    "operational_documentation"
+  ],
+  "repository_excludes": [
+    "postgresql_database",
+    "database_dumps",
+    "filestore",
+    "credentials",
+    "certificates",
+    "runtime_sessions",
+    "runtime_logs",
+    "runtime_edits",
+    "backups"
+  ],
+  "orm_bridge": {
+    "planned_module_name": "codestra_integration_bridge",
+    "must_use_odoo_orm_for_business_writes": true,
+    "may_use_migration_sql_inside_reviewed_migrations": true,
+    "must_store_middleware_command_identity_atomically": true,
+    "must_not_expose_arbitrary_model_or_method_parameters": true
+  }
+}

@@ -1,0 +1,20 @@
+<odoo>
+  <record id="rule_recording_administrator_all" model="ir.rule">
+    <field name="name">Recording administrators see all metadata</field>
+    <field name="model_id" ref="model_codestra_vicidial_recording"/>
+    <field name="groups" eval="[(4, ref('group_recording_administrator'))]"/>
+    <field name="domain_force">[(1, '=', 1)]</field>
+  </record>
+  <record id="rule_recording_supervisor_scope" model="ir.rule">
+    <field name="name">Recording supervisors require campaign and group scope</field>
+    <field name="model_id" ref="model_codestra_vicidial_recording"/>
+    <field name="groups" eval="[(4, ref('group_recording_supervisor')), (4, ref('codestra_vicidial_crm.group_supervisor'))]"/>
+    <field name="domain_force">[('campaign_id.supervisor_ids', 'in', [user.id]), ('agent_id.recording_scope_group_id', 'in', user.recording_scope_group_ids.ids)]</field>
+  </record>
+  <record id="rule_recording_qa_scope" model="ir.rule">
+    <field name="name">Recording QA requires explicit campaign and group scope</field>
+    <field name="model_id" ref="model_codestra_vicidial_recording"/>
+    <field name="groups" eval="[(4, ref('group_recording_qa_reviewer'))]"/>
+    <field name="domain_force">[('campaign_id', 'in', user.recording_qa_campaign_ids.ids), ('agent_id.recording_scope_group_id', 'in', user.recording_scope_group_ids.ids)]</field>
+  </record>
+</odoo>

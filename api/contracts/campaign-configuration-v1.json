@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "lifecycle": ["draft", "in_review", "approved", "published", "superseded", "rolled_back"],
+  "required_sections": [
+    "client_and_authorized_contacts",
+    "contract_and_billing",
+    "purpose_and_direction",
+    "hours_timezone_holidays",
+    "odoo_teams",
+    "vicidial_campaign_lists_queue_did",
+    "approved_caller_ids",
+    "languages_and_skills",
+    "scripts_and_forms",
+    "dispositions_and_next_actions",
+    "callbacks_and_escalations",
+    "sla_targets",
+    "consent_and_jurisdiction",
+    "recording_and_retention",
+    "email_domain_and_mailbox",
+    "sms_sender_and_templates",
+    "n8n_allowlist",
+    "reporting_and_portal",
+    "pricing_cost_and_margin",
+    "independent_review"
+  ],
+  "activation_defaults": {
+    "email": false,
+    "sms": false,
+    "callbacks": false,
+    "n8n": false,
+    "pstn": false
+  }
+}

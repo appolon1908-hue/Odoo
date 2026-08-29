@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "default_expected_result": "deny-and-audit",
+  "scenarios": [
+    {"id":"agent-cross-campaign-read","actor":"agent","attempt":"read another campaign","expected":"deny"},
+    {"id":"agent-restricted-recording","actor":"agent","attempt":"read restricted recording","expected":"deny"},
+    {"id":"agent-consent-evidence-change","actor":"agent","attempt":"change consent evidence","expected":"deny"},
+    {"id":"qa-original-event-change","actor":"qa-analyst","attempt":"alter original call event","expected":"deny"},
+    {"id":"supervisor-cross-company-control","actor":"supervisor","attempt":"control unrelated company or campaign","expected":"deny"},
+    {"id":"reporting-record-change","actor":"reporting-viewer","attempt":"change business record","expected":"deny"},
+    {"id":"billing-live-call-control","actor":"billing-manager","attempt":"operate live call","expected":"deny"},
+    {"id":"browser-raw-service-endpoint","actor":"browser-user","attempt":"invoke raw service endpoint","expected":"deny"},
+    {"id":"service-interactive-login","actor":"service-account","attempt":"interactive login","expected":"deny"},
+    {"id":"arbitrary-workflow-or-sender","actor":"any-user","attempt":"choose arbitrary n8n workflow or provider sender","expected":"deny"}
+  ]
+}

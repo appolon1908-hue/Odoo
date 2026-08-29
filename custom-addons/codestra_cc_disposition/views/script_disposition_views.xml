@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_cc_script_list" model="ir.ui.view">
+    <field name="name">cc.script.list</field>
+    <field name="model">cc.script</field>
+    <field name="arch" type="xml">
+      <list delete="false" default_order="campaign_id,name,language_code">
+        <field name="name"/>
+        <field name="campaign_id"/>
+        <field name="language_code"/>
+        <field name="active_version_id"/>
+        <field name="active"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_cc_script_form" model="ir.ui.view">
+    <field name="name">cc.script.form</field>
+    <field name="model">cc.script</field>
+    <field name="arch" type="xml">
+      <form delete="false">
+        <header>
+          <button name="action_create_version" type="object" string="Create Next Version" class="btn-primary" groups="codestra_cc_security.group_cc_campaign_configuration_manager,codestra_cc_security.group_cc_global_administrator"/>
+        </header>
+        <sheet>
+          <group>
+            <field name="name"/>
+            <field name="campaign_id" options="{'no_create': True}"/>
+            <field name="language_code"/>
+            <field name="active"/>
+            <field name="active_version_id" readonly="1" options="{'no_create': True}"/>
+          </group>
+          <field name="version_ids" readonly="1">
+            <list create="false" delete="false">
+              <field name="version_number"/>
+              <field name="governance_state"/>
+              <field name="content_hash"/>
+              <field name="submitted_by_id"/>
+              <field name="approved_by_id"/>
+              <field name="approved_at"/>
+            </list>
+          </field>
+        </sheet>
+      </form>
+    </field>
+  </record>
+  <record id="view_cc_script_search" model="ir.ui.view">
+    <field name="name">cc.script.search</field>
+    <field name="model">cc.script</field>
+    <field name="arch" type="xml">
+      <search>
+        <field name="name"/>
+        <field name="campaign_id"/>
+        <field name="language_code"/>
+        <group><filter name="group_campaign" string="Campaign" context="{'group_by': 'campaign_id'}"/></group>
+      </search>
+    </field>
+  </record>
+  <record id="action_cc_scripts" model="ir.actions.act_window">
+    <field name="name">Governed Campaign Scripts</field>
+    <field name="res_model">cc.script</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <record id="view_cc_script_version_list" model="ir.ui.view">
+    <field name="name">cc.script.version.list</field>
+    <field name="model">cc.script.version</field>
+    <field name="arch" type="xml">
+      <list create="false" delete="false" default_order="cc_campaign_id,script_id,version_number desc">
+        <field name="script_id"/>
+        <field name="cc_campaign_id"/>
+        <field name="version_number"/>
+        <field name="language_code"/>
+        <field name="governance_state"/>
+        <field name="content_hash"/>
+        <field name="submitted_by_id" optional="hide"/>
+        <field name="approved_by_id"/>
+        <field name="approved_at"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_cc_script_version_form" model="ir.ui.view">
+    <field name="name">cc.script.version.form</field>
+    <field name="model">cc.script.version</field>
+    <field name="arch" type="xml">
+      <form create="false" delete="false">
+        <header>
+          <button name="action_submit_for_review" type="object" string="Submit for Review" class="btn-primary" invisible="governance_state != 'draft'" groups="codestra_cc_security.group_cc_campaign_configuration_manager,codestra_cc_security.group_cc_global_administrator"/>
+          <button name="action_approve" type="object" string="Approve" class="btn-primary" invisible="governance_state != 'review'" groups="codestra_cc_security.group_cc_campaign_configuration_manager,codestra_cc_security.group_cc_global_administrator"/>
+          <button name="action_retire" type="object" string="Retire" invisible="governance_state != 'approved'" groups="codestra_cc_security.group_cc_campaign_configuration_manager,codestra_cc_security.group_cc_global_administrator"/>
+          <field name="governance_state" widget="statusbar" statusbar_visible="draft,review,approved,retired"/>
+        </header>
+        <sheet>
+          <group>
+            <group>
+              <field name="script_id" readonly="1"/>
+              <field name="cc_campaign_id" readonly="1"/>
+              <field name="language_code" readonly="1"/>
+              <field name="version_number" readonly="1"/>
+              <field name="content_hash" readonly="1"/>
+            </group>
+            <group>
+              <field name="submitted_by_id" readonly="1"/>
+              <field name="submitted_at" readonly="1"/>
+              <field name="approval_ticket_input" invisible="governance_state != 'review'" required="governance_state == 'review'"/>
+              <field name="approval_ticket" readonly="1"/>
+              <field name="approved_by_id" readonly="1"/>
+              <field name="approved_at" readonly="1"/>
+              <field name="required_acknowledgement" readonly="governance_state != 'draft'"/>
+            </group>
+          </group>
+          <notebook>
+            <page string="Opening and Identity"><field name="opening" readonly="governance_state != 'draft'"/><field name="identity_verification" readonly="governance_state != 'draft'"/><field name="ai_disclosure" readonly="governance_state != 'draft'"/><field name="recording_disclosure" readonly="governance_state != 'draft'"/></page>
+            <page string="Qualification"><field name="qualification_questions" readonly="governance_state != 'draft'"/><field name="product_explanation" readonly="governance_state != 'draft'"/></page>
+            <page string="Handling"><field name="objection_handling" readonly="governance_state != 'draft'"/><field name="pricing_guidance" readonly="governance_state != 'draft'"/><field name="closing" readonly="governance_state != 'draft'"/></page>
+            <page string="Compliance"><field name="required_legal_statements" readonly="governance_state != 'draft'"/><field name="opt_out_language" readonly="governance_state != 'draft'"/><field name="escalation_instructions" readonly="governance_state != 'draft'"/><field name="prohibited_statements" readonly="governance_state != 'draft'"/><field name="supervisor_notes" readonly="governance_state != 'draft'"/></page>
+            <page string="Acknowledgements"><field name="acknowledgement_ids" readonly="1"><list create="false" edit="false" delete="false"><field name="acknowledged_at"/><field name="user_id"/><field name="event_id"/><field name="content_hash"/></list></field></page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+  <record id="action_cc_script_versions" model="ir.actions.act_window">
+    <field name="name">Script Versions</field>
+    <field name="res_model">cc.script.version</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <record id="view_cc_disposition_set_list" model="ir.ui.view">
+    <field name="name">cc.disposition.set.list</field>
+    <field name="model">cc.disposition.set</field>
+    <field name="arch" type="xml">
+      <list delete="false" default_order="campaign_id,version desc">
+        <field name="name"/>
+        <field name="campaign_id"/>
+        <field name="version"/>
+        <field name="state"/>
+        <field name="catalog_status"/>
+        <field name="catalog_row_count"/>
+        <field name="catalog_sha256" optional="hide"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_cc_disposition_set_form" model="ir.ui.view">
+    <field name="name">cc.disposition.set.form</field>
+    <field name="model">cc.disposition.set</field>
+    <field name="arch" type="xml">
+      <form delete="false">
+        <header>
+          <button name="action_submit_for_review" type="object" string="Submit for Review" class="btn-primary" invisible="state != 'draft'" groups="codestra_cc_security.group_cc_campaign_configuration_manager,codestra_cc_security.group_cc_global_administrator"/>
+          <button name="action_approve" type="object" string="Approve" class="btn-primary" invisible="state != 'review'" groups="codestra_cc_security.group_cc_campaign_configuration_manager,codestra_cc_security.group_cc_global_administrator"/>
+          <button name="action_retire" type="object" string="Retire" invisible="state != 'approved'" groups="codestra_cc_security.group_cc_campaign_configuration_manager,codestra_cc_security.group_cc_global_administrator"/>
+          <field name="state" widget="statusbar" statusbar_visible="draft,review,approved,retired"/>
+        </header>
+        <sheet>
+          <div class="alert alert-warning" role="alert" invisible="catalog_status != 'missing'">The original controlled 2,677-row catalog has not been supplied. Review and approval remain blocked.</div>
+          <group>
+            <group><field name="name"/><field name="campaign_id" options="{'no_create': True}"/><field name="version"/><field name="catalog_status" readonly="1"/><field name="catalog_row_count" readonly="1"/></group>
+            <group><field name="catalog_sha256" readonly="1"/><field name="catalog_evidence_reference" readonly="1"/><field name="submitted_by_id" readonly="1"/><field name="approval_ticket_input" invisible="state != 'review'"/><field name="approval_ticket" readonly="1"/><field name="approved_by_id" readonly="1"/><field name="approved_at" readonly="1"/></group>
+          </group>
+          <field name="disposition_ids" readonly="1">
+            <list create="false" edit="false" delete="false"><field name="native_status_code"/><field name="name"/><field name="channel_id"/><field name="reporting_category"/><field name="callback_behavior"/><field name="suppression_behavior"/><field name="event_name"/><field name="active"/></list>
+          </field>
+        </sheet>
+      </form>
+    </field>
+  </record>
+  <record id="action_cc_disposition_sets" model="ir.actions.act_window">
+    <field name="name">Governed Disposition Sets</field>
+    <field name="res_model">cc.disposition.set</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <record id="view_cc_disposition_list" model="ir.ui.view">
+    <field name="name">cc.disposition.list</field>
+    <field name="model">cc.disposition</field>
+    <field name="arch" type="xml">
+      <list create="false" edit="false" delete="false" default_order="cc_campaign_id,native_status_code">
+        <field name="native_status_code"/>
+        <field name="name"/>
+        <field name="cc_campaign_id"/>
+        <field name="channel_id"/>
+        <field name="set_id"/>
+        <field name="reporting_category"/>
+        <field name="callback_behavior"/>
+        <field name="suppression_behavior"/>
+        <field name="event_name"/>
+        <field name="active"/>
+      </list>
+    </field>
+  </record>
+  <record id="action_cc_dispositions" model="ir.actions.act_window">
+    <field name="name">Controlled Dispositions</field>
+    <field name="res_model">cc.disposition</field>
+    <field name="view_mode">list</field>
+  </record>
+
+  <menuitem id="menu_cc_script_disposition_root" name="Scripts and Dispositions" parent="call_center_core.menu_call_center_configuration" sequence="16" groups="codestra_cc_security.group_cc_campaign_configuration_manager,codestra_cc_security.group_cc_auditor,codestra_cc_security.group_cc_global_administrator"/>
+  <menuitem id="menu_cc_scripts" name="Scripts" parent="menu_cc_script_disposition_root" action="action_cc_scripts" sequence="10"/>
+  <menuitem id="menu_cc_script_versions" name="Script Versions" parent="menu_cc_script_disposition_root" action="action_cc_script_versions" sequence="20"/>
+  <menuitem id="menu_cc_disposition_sets" name="Disposition Sets" parent="menu_cc_script_disposition_root" action="action_cc_disposition_sets" sequence="30"/>
+  <menuitem id="menu_cc_dispositions" name="Disposition Rows" parent="menu_cc_script_disposition_root" action="action_cc_dispositions" sequence="40"/>
+</odoo>

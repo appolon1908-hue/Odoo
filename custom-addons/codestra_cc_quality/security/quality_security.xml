@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="codestra_cc_security.rule_cc_membership_global_scope" model="ir.rule">
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_calls.group_cc_call_service') or user.has_group('codestra_cc_recordings.group_cc_recording_service') or user.cc_has_active_break_glass else ([('campaign_id', 'in', user.cc_allowed_campaign_ids.ids), ('role', '=', 'qa')] if user.has_group('codestra_cc_security.group_cc_quality_analyst') else ['&amp;', ('campaign_id', 'in', user.cc_allowed_campaign_ids.ids), '|', ('user_id', '=', user.id), ('campaign_id', 'in', user.cc_supervised_campaign_ids.ids)])</field>
+  </record>
+  <record id="rule_cc_quality_program_scope" model="ir.rule">
+    <field name="name">Contact Center: quality program campaign scope</field>
+    <field name="model_id" ref="model_cc_quality_program"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_quality_question_scope" model="ir.rule">
+    <field name="name">Contact Center: quality question campaign scope</field>
+    <field name="model_id" ref="model_cc_quality_question"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_quality_sample_scope" model="ir.rule">
+    <field name="name">Contact Center: quality sample campaign scope</field>
+    <field name="model_id" ref="model_cc_quality_sample"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_quality_sample_qa_assignment" model="ir.rule">
+    <field name="name">Contact Center: QA sees assigned campaign samples</field>
+    <field name="model_id" ref="model_cc_quality_sample"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_quality_analyst'))]"/>
+    <field name="domain_force">[('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_quality_sample_supervisor_scope" model="ir.rule">
+    <field name="name">Contact Center: supervisors see campaign samples</field>
+    <field name="model_id" ref="model_cc_quality_sample"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_supervisor'))]"/>
+    <field name="domain_force">[('campaign_id', 'in', user.cc_supervised_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_quality_evaluation_scope" model="ir.rule">
+    <field name="name">Contact Center: quality evaluation campaign scope</field>
+    <field name="model_id" ref="model_cc_quality_evaluation"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_quality_evaluation_qa_assignment" model="ir.rule">
+    <field name="name">Contact Center: QA sees assigned campaign evaluations</field>
+    <field name="model_id" ref="model_cc_quality_evaluation"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_quality_analyst'))]"/>
+    <field name="domain_force">[('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_quality_evaluation_agent_own" model="ir.rule">
+    <field name="name">Contact Center: agents see finalized own evaluations</field>
+    <field name="model_id" ref="model_cc_quality_evaluation"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_agent'))]"/>
+    <field name="domain_force">[('sample_id.agent_membership_id.user_id', '=', user.id), ('state', 'in', ['finalized', 'superseded'])]</field>
+  </record>
+  <record id="rule_cc_quality_evaluation_supervisor_scope" model="ir.rule">
+    <field name="name">Contact Center: supervisors see campaign evaluations</field>
+    <field name="model_id" ref="model_cc_quality_evaluation"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_supervisor'))]"/>
+    <field name="domain_force">[('campaign_id', 'in', user.cc_supervised_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_quality_answer_scope" model="ir.rule">
+    <field name="name">Contact Center: quality answer campaign scope</field>
+    <field name="model_id" ref="model_cc_quality_answer"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_quality_calibration_scope" model="ir.rule">
+    <field name="name">Contact Center: calibration campaign scope</field>
+    <field name="model_id" ref="model_cc_quality_calibration"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_quality_dispute_scope" model="ir.rule">
+    <field name="name">Contact Center: quality dispute campaign scope</field>
+    <field name="model_id" ref="model_cc_quality_dispute"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_quality_dispute_agent_own" model="ir.rule">
+    <field name="name">Contact Center: agents see own disputes</field>
+    <field name="model_id" ref="model_cc_quality_dispute"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_agent'))]"/>
+    <field name="domain_force">[('agent_membership_id.user_id', '=', user.id)]</field>
+  </record>
+  <record id="rule_cc_coaching_plan_scope" model="ir.rule">
+    <field name="name">Contact Center: coaching plan campaign scope</field>
+    <field name="model_id" ref="model_cc_coaching_plan"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_coaching_plan_agent_own" model="ir.rule">
+    <field name="name">Contact Center: agents see own coaching</field>
+    <field name="model_id" ref="model_cc_coaching_plan"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_agent'))]"/>
+    <field name="domain_force">[('agent_membership_id.user_id', '=', user.id)]</field>
+  </record>
+  <record id="rule_cc_coaching_plan_supervisor_scope" model="ir.rule">
+    <field name="name">Contact Center: supervisors see campaign coaching</field>
+    <field name="model_id" ref="model_cc_coaching_plan"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_supervisor'))]"/>
+    <field name="domain_force">[('campaign_id', 'in', user.cc_supervised_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_quality_event_scope" model="ir.rule">
+    <field name="name">Contact Center: quality event campaign scope</field>
+    <field name="model_id" ref="model_cc_quality_event"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_quality_event_agent_own" model="ir.rule">
+    <field name="name">Contact Center: agents see own quality evidence</field>
+    <field name="model_id" ref="model_cc_quality_event"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_agent'))]"/>
+    <field name="domain_force">['|', ('actor_id', '=', user.id), ('subject_membership_id.user_id', '=', user.id)]</field>
+  </record>
+</odoo>

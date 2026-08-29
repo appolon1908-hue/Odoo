@@ -1,0 +1,5 @@
+* @appolon1908-hue
+/custom-addons/ @appolon1908-hue
+/.github/ @appolon1908-hue
+/scripts/deploy_odoo_release.sh @appolon1908-hue
+/docs/release/ @appolon1908-hue

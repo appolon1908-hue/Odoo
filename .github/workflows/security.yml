@@ -1,0 +1,59 @@
+name: Security gates
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  secret-and-source-security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Secret scan
+        env:
+          GITLEAKS_VERSION: v8.28.0
+        run: |
+          go install "github.com/zricethezav/gitleaks/v8@${GITLEAKS_VERSION}"
+          "$(go env GOPATH)/bin/gitleaks" git --redact --no-banner --exit-code 1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Python security and dependency scan
+        run: |
+          python -m pip install --disable-pip-version-check bandit==1.8.6 pip-audit==2.9.0
+          bandit -r custom-addons -x '*/tests/*,*/migrations/*' -ll
+          mapfile -t requirements < <(find . -type f -name 'requirements*.txt' -not -path './.git/*' -print)
+          if ((${#requirements[@]})); then
+            for requirement in "${requirements[@]}"; do pip-audit --strict -r "$requirement"; done
+          else
+            printf 'DEPENDENCY_LOCKFILES=NONE\n'
+          fi
+      - name: Repository authority scans
+        run: |
+          python scripts/validate_mission_security.py
+          python scripts/validate_action_pins.py
+
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: read
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+        continue-on-error: true # Private-repository Advanced Security is not licensed; reported as a platform blocker.
+        with:
+          fail-on-severity: moderate
+      - name: Record dependency-review platform gate
+        run: echo 'DEPENDENCY_REVIEW=BLOCKED_GITHUB_ADVANCED_SECURITY_NOT_LICENSED'

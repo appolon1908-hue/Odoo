@@ -1,0 +1,26 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_cc_mail_route_scoped,cc.mail.route scoped,model_cc_mail_route,codestra_cc_security.group_cc_scoped_user,1,0,0,0
+access_cc_mail_route_config,cc.mail.route config,model_cc_mail_route,codestra_cc_security.group_cc_campaign_configuration_manager,1,1,1,0
+access_cc_mail_route_admin,cc.mail.route admin,model_cc_mail_route,codestra_cc_security.group_cc_global_administrator,1,1,1,1
+access_cc_mail_route_service,cc.mail.route service,model_cc_mail_route,group_cc_mail_ingestion_service,1,0,0,0
+access_cc_mail_sender_scoped,cc.mail.sender scoped,model_cc_mail_sender_identity,codestra_cc_security.group_cc_scoped_user,1,0,0,0
+access_cc_mail_sender_admin,cc.mail.sender admin,model_cc_mail_sender_identity,codestra_cc_security.group_cc_global_administrator,1,1,1,0
+access_cc_mail_sender_service,cc.mail.sender service,model_cc_mail_sender_identity,group_cc_mail_ingestion_service,1,1,0,0
+access_cc_mail_group_scoped,cc.mail.group scoped,model_cc_mail_distribution_group,codestra_cc_security.group_cc_scoped_user,1,0,0,0
+access_cc_mail_group_admin,cc.mail.group admin,model_cc_mail_distribution_group,codestra_cc_security.group_cc_global_administrator,1,1,1,0
+access_cc_mail_group_service,cc.mail.group service,model_cc_mail_distribution_group,group_cc_mail_ingestion_service,1,1,0,0
+access_cc_mail_membership_scoped,cc.mail.membership scoped,model_cc_mail_distribution_membership,codestra_cc_security.group_cc_scoped_user,1,0,0,0
+access_cc_mail_membership_admin,cc.mail.membership admin,model_cc_mail_distribution_membership,codestra_cc_security.group_cc_global_administrator,1,1,1,0
+access_cc_mail_membership_service,cc.mail.membership service,model_cc_mail_distribution_membership,group_cc_mail_ingestion_service,1,1,1,0
+access_cc_mail_thread_scoped,cc.mail.thread scoped,model_cc_mail_thread,codestra_cc_security.group_cc_scoped_user,1,1,1,0
+access_cc_mail_thread_admin,cc.mail.thread admin,model_cc_mail_thread,codestra_cc_security.group_cc_global_administrator,1,1,1,0
+access_cc_mail_thread_auditor,cc.mail.thread auditor,model_cc_mail_thread,codestra_cc_security.group_cc_auditor,1,0,0,0
+access_cc_mail_thread_service,cc.mail.thread service,model_cc_mail_thread,group_cc_mail_ingestion_service,1,1,1,0
+access_cc_mail_event_admin,cc.mail.event admin,model_cc_mail_inbound_event,codestra_cc_security.group_cc_global_administrator,1,0,0,0
+access_cc_mail_event_auditor,cc.mail.event auditor,model_cc_mail_inbound_event,codestra_cc_security.group_cc_auditor,1,0,0,0
+access_cc_mail_event_service,cc.mail.event service,model_cc_mail_inbound_event,group_cc_mail_ingestion_service,1,1,1,0
+access_cc_mail_quarantine_admin,cc.mail.quarantine admin,model_cc_mail_quarantine,codestra_cc_security.group_cc_global_administrator,1,0,0,0
+access_cc_mail_quarantine_auditor,cc.mail.quarantine auditor,model_cc_mail_quarantine,codestra_cc_security.group_cc_auditor,1,0,0,0
+access_cc_mail_quarantine_service,cc.mail.quarantine service,model_cc_mail_quarantine,group_cc_mail_ingestion_service,1,0,1,0
+access_cc_mail_unit_service,cc.business.unit mail service,codestra_cc_core.model_cc_business_unit,group_cc_mail_ingestion_service,1,0,0,0
+access_cc_mail_campaign_service,cc.campaign mail service,codestra_cc_core.model_cc_campaign,group_cc_mail_ingestion_service,1,0,0,0

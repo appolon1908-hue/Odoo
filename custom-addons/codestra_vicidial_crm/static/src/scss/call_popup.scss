@@ -1,0 +1,16 @@
+.o_codestra_call_popup {
+  position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 1100;
+  width: calc(100vw - 2rem); max-width: 26rem; max-height: calc(100vh - 2rem); overflow: auto;
+  padding: 1rem; border: 1px solid var(--border-color, #d8dadd); border-radius: .75rem;
+  background: var(--body-bg, #fff); box-shadow: 0 .75rem 2.5rem rgba(0,0,0,.24);
+  header, .o_codestra_controls, footer { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+  header { justify-content: space-between; }
+  .badge { text-transform: uppercase; }
+  .o_codestra_identity { padding: .75rem 0; }
+  .o_codestra_identity h3, .o_codestra_identity p { margin: 0; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: .25rem .75rem; }
+  dt { color: var(--text-muted, #6c757d); } dd { margin: 0; }
+  textarea { min-height: 5rem; margin-bottom: .5rem; }
+  .o_codestra_disposition { margin-top: .75rem; display: grid; gap: .5rem; }
+  footer { margin-top: .5rem; }
+}

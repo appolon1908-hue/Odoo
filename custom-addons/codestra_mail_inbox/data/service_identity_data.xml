@@ -1,0 +1,6 @@
+<odoo>
+    <function
+        model="res.users"
+        name="_provision_codestra_mail_ingestion_service"
+    />
+</odoo>

@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_cc_business_unit_list" model="ir.ui.view">
+    <field name="name">cc.business.unit.list</field>
+    <field name="model">cc.business.unit</field>
+    <field name="arch" type="xml">
+      <list string="Canonical Business Units" default_order="sequence,name">
+        <field name="name"/>
+        <field name="code"/>
+        <field name="brand"/>
+        <field name="company_id" groups="base.group_multi_company"/>
+        <field name="scope_uuid" optional="hide"/>
+        <field name="active"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_cc_business_unit_form" model="ir.ui.view">
+    <field name="name">cc.business.unit.form</field>
+    <field name="model">cc.business.unit</field>
+    <field name="arch" type="xml">
+      <form string="Canonical Business Unit">
+        <sheet>
+          <div class="oe_title"><h1><field name="name"/></h1></div>
+          <group>
+            <group>
+              <field name="code"/>
+              <field name="brand"/>
+              <field name="company_id" groups="base.group_multi_company"/>
+              <field name="active"/>
+            </group>
+            <group>
+              <field name="scope_uuid" readonly="1"/>
+              <field name="legacy_business_unit_id" readonly="1"/>
+              <field name="timezone"/>
+            </group>
+          </group>
+          <notebook>
+            <page string="Campaign Workspaces">
+              <field name="campaign_ids" readonly="1">
+                <list>
+                  <field name="code"/>
+                  <field name="name"/>
+                  <field name="environment"/>
+                  <field name="lifecycle_state"/>
+                </list>
+              </field>
+            </page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="view_cc_campaign_list" model="ir.ui.view">
+    <field name="name">cc.campaign.list</field>
+    <field name="model">cc.campaign</field>
+    <field name="arch" type="xml">
+      <list string="Campaign Workspaces" default_order="cc_business_unit_id,code">
+        <field name="code"/>
+        <field name="name"/>
+        <field name="cc_business_unit_id"/>
+        <field name="direction"/>
+        <field name="environment"/>
+        <field name="identifier_status"/>
+        <field name="lifecycle_state"/>
+        <field name="is_human_staffed"/>
+        <field name="live_enabled"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_cc_campaign_form" model="ir.ui.view">
+    <field name="name">cc.campaign.form</field>
+    <field name="model">cc.campaign</field>
+    <field name="arch" type="xml">
+      <form string="Campaign Workspace">
+        <header>
+          <field name="lifecycle_state" widget="statusbar" statusbar_visible="draft,design_pending,design_ready,approval_pending,approved,provisioning,provisioned_disabled,testing,staging_ready,activation_pending,blocked"/>
+        </header>
+        <sheet>
+          <div class="oe_title"><h1><field name="name"/></h1></div>
+          <group>
+            <group>
+              <field name="code"/>
+              <field name="cc_business_unit_id"/>
+              <field name="direction"/>
+              <field name="campaign_type"/>
+              <field name="is_human_staffed"/>
+            </group>
+            <group>
+              <field name="workspace_uuid" readonly="1"/>
+              <field name="legacy_campaign_id" readonly="1"/>
+              <field name="environment"/>
+              <field name="identifier_status" readonly="1"/>
+              <field name="scope_version" readonly="1"/>
+              <field name="production_eligible" readonly="1"/>
+              <field name="live_enabled" readonly="1"/>
+            </group>
+          </group>
+          <notebook>
+            <page string="Channels">
+              <field name="channel_ids">
+                <list editable="bottom">
+                  <field name="code"/>
+                  <field name="name"/>
+                  <field name="direction"/>
+                  <field name="technical_callback_compatibility"/>
+                  <field name="agent_login_allowed"/>
+                  <field name="active"/>
+                </list>
+              </field>
+            </page>
+            <page string="Policies">
+              <field name="policy_ids">
+                <list>
+                  <field name="name"/>
+                  <field name="policy_type"/>
+                  <field name="version"/>
+                  <field name="state"/>
+                  <field name="policy_hash" optional="hide"/>
+                </list>
+              </field>
+            </page>
+          </notebook>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="view_cc_campaign_channel_list" model="ir.ui.view">
+    <field name="name">cc.campaign.channel.list</field>
+    <field name="model">cc.campaign.channel</field>
+    <field name="arch" type="xml">
+      <list string="Campaign Channels">
+        <field name="campaign_id"/>
+        <field name="code"/>
+        <field name="direction"/>
+        <field name="technical_callback_compatibility"/>
+        <field name="identifier_status"/>
+        <field name="agent_login_allowed"/>
+        <field name="legacy_mapping_id" optional="hide"/>
+        <field name="active"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_cc_campaign_channel_form" model="ir.ui.view">
+    <field name="name">cc.campaign.channel.form</field>
+    <field name="model">cc.campaign.channel</field>
+    <field name="arch" type="xml">
+      <form string="Campaign Channel">
+        <sheet>
+          <group>
+            <group>
+              <field name="campaign_id"/>
+              <field name="name"/>
+              <field name="code"/>
+              <field name="direction"/>
+            </group>
+            <group>
+              <field name="business_unit_id" readonly="1"/>
+              <field name="technical_callback_compatibility"/>
+              <field name="identifier_status" readonly="1"/>
+              <field name="agent_login_allowed"/>
+              <field name="active"/>
+              <field name="legacy_mapping_id" readonly="1"/>
+            </group>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="view_cc_campaign_policy_list" model="ir.ui.view">
+    <field name="name">cc.campaign.policy.list</field>
+    <field name="model">cc.campaign.policy</field>
+    <field name="arch" type="xml">
+      <list string="Campaign Policies" default_order="campaign_id,policy_type,version desc">
+        <field name="campaign_id"/>
+        <field name="name"/>
+        <field name="policy_type"/>
+        <field name="version"/>
+        <field name="state"/>
+        <field name="effective_from"/>
+        <field name="effective_to"/>
+        <field name="policy_hash" optional="hide"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_cc_campaign_policy_form" model="ir.ui.view">
+    <field name="name">cc.campaign.policy.form</field>
+    <field name="model">cc.campaign.policy</field>
+    <field name="arch" type="xml">
+      <form string="Campaign Policy">
+        <sheet>
+          <div class="oe_title"><h1><field name="name"/></h1></div>
+          <group>
+            <group>
+              <field name="campaign_id"/>
+              <field name="policy_type"/>
+              <field name="version"/>
+              <field name="state" readonly="1"/>
+            </group>
+            <group>
+              <field name="business_unit_id" readonly="1"/>
+              <field name="effective_from"/>
+              <field name="effective_to"/>
+              <field name="policy_hash" readonly="1"/>
+            </group>
+          </group>
+          <group string="Versioned settings">
+            <field name="settings_json"/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_cc_business_units" model="ir.actions.act_window">
+    <field name="name">Canonical Business Units</field>
+    <field name="res_model">cc.business.unit</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <record id="action_cc_campaigns" model="ir.actions.act_window">
+    <field name="name">Campaign Workspaces</field>
+    <field name="res_model">cc.campaign</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <record id="action_cc_campaign_channels" model="ir.actions.act_window">
+    <field name="name">Campaign Channels</field>
+    <field name="res_model">cc.campaign.channel</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <record id="action_cc_campaign_policies" model="ir.actions.act_window">
+    <field name="name">Campaign Policies</field>
+    <field name="res_model">cc.campaign.policy</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <menuitem id="menu_cc_core_domain" name="Campaign Workspace Foundation" parent="call_center_core.menu_call_center_configuration" sequence="5" groups="call_center_core.group_call_center_manager"/>
+  <menuitem id="menu_cc_business_units" name="Canonical Business Units" parent="menu_cc_core_domain" action="action_cc_business_units" sequence="10" groups="call_center_core.group_call_center_manager"/>
+  <menuitem id="menu_cc_campaigns" name="Campaign Workspaces" parent="menu_cc_core_domain" action="action_cc_campaigns" sequence="20" groups="call_center_core.group_call_center_manager"/>
+  <menuitem id="menu_cc_campaign_channels" name="Campaign Channels" parent="menu_cc_core_domain" action="action_cc_campaign_channels" sequence="30" groups="call_center_core.group_call_center_manager"/>
+  <menuitem id="menu_cc_campaign_policies" name="Campaign Policies" parent="menu_cc_core_domain" action="action_cc_campaign_policies" sequence="40" groups="call_center_core.group_call_center_manager"/>
+</odoo>

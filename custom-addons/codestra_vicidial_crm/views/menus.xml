@@ -1,0 +1,10 @@
+<odoo>
+  <menuitem id="menu_codestra_root" name="Codestra Call Center" sequence="10" groups="group_agent"/>
+  <menuitem id="menu_codestra_agents" name="Agents" parent="menu_codestra_root" action="action_codestra_agent"/>
+  <menuitem id="menu_codestra_campaigns" name="Campaigns" parent="menu_codestra_root" action="action_codestra_campaign"/>
+  <menuitem id="menu_codestra_calls" name="Calls" parent="menu_codestra_root" action="action_codestra_call"/>
+  <menuitem id="menu_codestra_events" name="Integration Events" parent="menu_codestra_root" action="action_codestra_event" groups="group_integration_admin"/>
+  <menuitem id="menu_codestra_dispositions" name="Dispositions" parent="menu_codestra_root" action="action_codestra_disposition"/>
+  <menuitem id="menu_codestra_reconciliation" name="Duplicate and Identity Review" parent="menu_codestra_root" action="action_vicidial_reconciliation_issue" groups="group_manager"/>
+  <menuitem id="menu_codestra_sync_monitor" name="Sync Monitor" parent="menu_codestra_root" action="action_vicidial_sync_run" groups="group_manager"/>
+</odoo>

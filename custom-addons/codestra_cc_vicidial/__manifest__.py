@@ -1,0 +1,25 @@
+{
+    "name": "Codestra Contact Center VICIdial",
+    "summary": "Governed canonical VICIdial mapping and read-back boundary",
+    "version": "19.0.2.0.0",
+    "author": "Codestra",
+    "license": "LGPL-3",
+    "depends": [
+        "codestra_cc_core",
+        "codestra_cc_security",
+        "codestra_cc_reliability",
+        "codestra_vicidial_crm",
+        "codestra_vicidial_connector",
+        "codestra_telephony_bridge",
+        "codestra_vicidial_recording",
+    ],
+    "data": [
+        "security/vicidial_security.xml",
+        "security/ir.model.access.csv",
+        "data/feature_flags.xml",
+        "data/load_catalog.xml",
+        "views/telephony_mapping_views.xml",
+    ],
+    "installable": True,
+    "application": False,
+}

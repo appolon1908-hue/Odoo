@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "release_type": "source-candidate-only",
+  "workflow_dispatch_only": true,
+  "automatic_publish": false,
+  "automatic_deploy": false,
+  "automatic_signing": false,
+  "runtime_environment_changes": false,
+  "required_branch_order": [
+    "feature/cc-00-mission-foundation",
+    "feature/cc-01-core-reliability",
+    "feature/cc-02-vicidial-api",
+    "feature/cc-03-agent-campaign-experience",
+    "feature/cc-04-supervisor-quality-compliance",
+    "feature/cc-05-workforce-identity-onboarding",
+    "feature/cc-06-omnichannel-client-operations",
+    "feature/cc-07-revenue-analytics-portal",
+    "feature/cc-08-ai-agent-assistant",
+    "test/cc-09-security-load-migrations",
+    "release/cc-10-staging-certification"
+  ],
+  "required_gates": [
+    "exact-head-source-validation",
+    "merge-result-validation",
+    "odoo-postgresql-runtime-tests",
+    "migration-upgrade-and-restart",
+    "backup-and-isolated-restore",
+    "negative-authorization",
+    "kong-keycloak-mtls-contracts",
+    "browser-screen-pop",
+    "load-and-recovery",
+    "secret-and-vulnerability-scans",
+    "signed-immutable-artifact",
+    "sbom-and-provenance",
+    "independent-exact-head-approval",
+    "isolated-staging-certification",
+    "rollback-rehearsal"
+  ],
+  "candidate_artifacts": [
+    "source archive",
+    "source-addon SPDX SBOM",
+    "release manifest",
+    "checksums",
+    "blocked-by-default final report"
+  ],
+  "not_satisfied_by_candidate_packaging": [
+    "signed commit",
+    "container image digest",
+    "complete container SBOM",
+    "SLSA provenance",
+    "staging installation",
+    "production approval",
+    "production deployment"
+  ]
+}

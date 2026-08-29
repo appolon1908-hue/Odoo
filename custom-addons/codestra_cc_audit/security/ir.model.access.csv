@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_cc_audit_event_scoped_append,cc.audit.event scoped append,model_cc_audit_event,codestra_cc_security.group_cc_scoped_user,1,0,1,0
+access_cc_audit_event_compliance,cc.audit.event compliance,model_cc_audit_event,codestra_cc_security.group_cc_compliance_officer,1,0,1,0
+access_cc_audit_event_auditor,cc.audit.event auditor,model_cc_audit_event,codestra_cc_security.group_cc_auditor,1,0,1,0
+access_cc_audit_event_global_admin,cc.audit.event global admin,model_cc_audit_event,codestra_cc_security.group_cc_global_administrator,1,0,1,0
+access_cc_audit_event_technical_append,cc.audit.event technical append,model_cc_audit_event,codestra_cc_security.group_cc_technical_administrator,1,0,1,0
+access_cc_audit_event_service,cc.audit.event service,model_cc_audit_event,group_cc_audit_service,1,0,1,0

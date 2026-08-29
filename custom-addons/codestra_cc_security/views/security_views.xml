@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_cc_campaign_membership_list" model="ir.ui.view">
+    <field name="name">cc.campaign.membership.list</field>
+    <field name="model">cc.campaign.membership</field>
+    <field name="arch" type="xml">
+      <list create="false" delete="false">
+        <field name="campaign_id"/>
+        <field name="user_id"/>
+        <field name="employee_id"/>
+        <field name="role"/>
+        <field name="state"/>
+        <field name="is_primary_supervisor"/>
+        <field name="starts_at"/>
+        <field name="ends_at"/>
+        <field name="last_sync_status"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_cc_campaign_membership_form" model="ir.ui.view">
+    <field name="name">cc.campaign.membership.form</field>
+    <field name="model">cc.campaign.membership</field>
+    <field name="arch" type="xml">
+      <form create="false" delete="false">
+        <header>
+          <button name="action_activate" type="object" string="Activate" groups="codestra_cc_security.group_cc_global_administrator" invisible="state not in ('pending_approval', 'pending_sync')"/>
+          <button name="action_suspend" type="object" string="Suspend" groups="codestra_cc_security.group_cc_global_administrator" invisible="state != 'active'"/>
+          <button name="action_revoke" type="object" string="Revoke" groups="codestra_cc_security.group_cc_global_administrator" invisible="state in ('revoked', 'expired')"/>
+          <field name="state" widget="statusbar" statusbar_visible="draft,pending_approval,pending_sync,active,suspended,revoked"/>
+        </header>
+        <sheet>
+          <group>
+            <group>
+              <field name="campaign_id" readonly="state != 'draft'"/>
+              <field name="user_id" readonly="state != 'draft'"/>
+              <field name="employee_id" readonly="state != 'draft'"/>
+              <field name="role" readonly="state != 'draft'"/>
+              <field name="is_primary_supervisor" readonly="state != 'draft'"/>
+            </group>
+            <group>
+              <field name="source_ticket"/>
+              <field name="starts_at"/>
+              <field name="ends_at"/>
+              <field name="requested_by_id" readonly="1"/>
+              <field name="approved_by_id" readonly="1"/>
+              <field name="approved_at" readonly="1"/>
+            </group>
+          </group>
+          <group string="Reconciliation">
+            <field name="last_sync_status"/>
+            <field name="read_back_evidence"/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_cc_campaign_membership" model="ir.actions.act_window">
+    <field name="name">Campaign Memberships</field>
+    <field name="res_model">cc.campaign.membership</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <menuitem id="menu_cc_campaign_memberships" name="Campaign Memberships" parent="call_center_core.menu_call_center_configuration" action="action_cc_campaign_membership" sequence="35" groups="codestra_cc_security.group_cc_global_administrator,codestra_cc_security.group_cc_auditor"/>
+</odoo>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="group_cc_telephony_readback_service" model="res.groups">
+    <field name="name">Contact Center Telephony Read-back Service</field>
+    <field name="privilege_id" ref="codestra_cc_security.privilege_codestra_contact_center"/>
+    <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+  </record>
+
+  <record id="rule_cc_telephony_mapping_global_scope" model="ir.rule">
+    <field name="name">Contact Center: telephony mapping campaign scope</field>
+    <field name="model_id" ref="model_cc_telephony_mapping"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_vicidial.group_cc_telephony_readback_service') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_telephony_readback_global_scope" model="ir.rule">
+    <field name="name">Contact Center: telephony read-back campaign scope</field>
+    <field name="model_id" ref="model_cc_telephony_readback"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_vicidial.group_cc_telephony_readback_service') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+
+  <record id="call_center_core.menu_call_center_configuration" model="ir.ui.menu">
+    <field name="group_ids" eval="[(4, ref('codestra_cc_security.group_cc_campaign_configuration_manager'))]"/>
+  </record>
+</odoo>

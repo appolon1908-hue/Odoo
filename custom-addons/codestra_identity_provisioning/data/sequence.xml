@@ -1,0 +1,8 @@
+<odoo noupdate="1">
+  <record id="sequence_provisioning_request" model="ir.sequence">
+    <field name="name">Provisioning Request</field>
+    <field name="code">codestra.provisioning.request</field>
+    <field name="prefix">PRV-%(year)s-</field>
+    <field name="padding">6</field>
+  </record>
+</odoo>

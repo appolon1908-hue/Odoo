@@ -1,0 +1,9 @@
+<odoo noupdate="1">
+  <record id="cron_retry_eligibility_report" model="ir.cron">
+    <field name="name">Integration Hub: retry eligibility report (disabled)</field>
+    <field name="model_id" ref="codestra_vicidial_crm.model_codestra_integration_event"/>
+    <field name="state">code</field><field name="code">model._cron_report_retry_eligible()</field>
+    <field name="interval_number">1</field><field name="interval_type">hours</field>
+    <field name="active" eval="False"/>
+  </record>
+</odoo>

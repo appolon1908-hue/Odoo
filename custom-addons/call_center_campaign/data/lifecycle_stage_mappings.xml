@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="stage_validating" model="crm.stage"><field name="canonical_journey_status_id" ref="call_center_core.status_journey_validation"/></record>
+  <record id="stage_ready_ai" model="crm.stage"><field name="canonical_journey_status_id" ref="call_center_core.status_journey_qualification"/></record>
+  <record id="stage_ai_progress" model="crm.stage"><field name="canonical_journey_status_id" ref="call_center_core.status_journey_qualification"/></record>
+  <record id="stage_ai_qualified" model="crm.stage"><field name="canonical_journey_status_id" ref="call_center_core.status_journey_qualification"/></record>
+  <record id="stage_human_required" model="crm.stage"><field name="canonical_journey_status_id" ref="call_center_core.status_journey_qualification"/></record>
+  <record id="stage_callback" model="crm.stage"><field name="canonical_journey_status_id" ref="call_center_core.status_journey_engaged"/></record>
+  <record id="stage_closer" model="crm.stage"><field name="canonical_journey_status_id" ref="call_center_core.status_journey_engaged"/></record>
+  <record id="stage_fulfillment" model="crm.stage"><field name="canonical_journey_status_id" ref="call_center_core.status_journey_converted"/></record>
+  <record id="stage_retention" model="crm.stage"><field name="canonical_journey_status_id" ref="call_center_core.status_journey_retention"/></record>
+  <record id="stage_upsell" model="crm.stage"><field name="canonical_journey_status_id" ref="call_center_core.status_journey_retention"/></record>
+  <record id="stage_do_not_contact" model="crm.stage"><field name="canonical_journey_status_id" ref="call_center_core.status_journey_blocked"/></record>
+</odoo>

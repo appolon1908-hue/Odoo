@@ -1,0 +1,69 @@
+<odoo>
+    <record id="module_category_codestra_mail" model="ir.module.category">
+        <field name="name">Codestra Shared Inbox</field>
+        <field name="sequence">45</field>
+    </record>
+    <record id="privilege_codestra_mail" model="res.groups.privilege">
+        <field name="name">Shared Inbox</field>
+        <field name="category_id" ref="module_category_codestra_mail"/>
+        <field name="sequence">45</field>
+    </record>
+
+    <record id="group_mail_support_user" model="res.groups">
+        <field name="name">Shared Inbox Support User</field>
+        <field name="privilege_id" ref="privilege_codestra_mail"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+    <record id="group_mail_support_manager" model="res.groups">
+        <field name="name">Shared Inbox Support Manager</field>
+        <field name="privilege_id" ref="privilege_codestra_mail"/>
+        <field name="implied_ids" eval="[(4, ref('group_mail_support_user'))]"/>
+    </record>
+    <record id="group_mail_admin_user" model="res.groups">
+        <field name="name">Shared Inbox Administration User</field>
+        <field name="privilege_id" ref="privilege_codestra_mail"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+    <record id="group_mail_admin_manager" model="res.groups">
+        <field name="name">Shared Inbox Administration Manager</field>
+        <field name="privilege_id" ref="privilege_codestra_mail"/>
+        <field name="implied_ids" eval="[(4, ref('group_mail_admin_user'))]"/>
+    </record>
+    <record id="group_mail_auditor" model="res.groups">
+        <field name="name">Shared Inbox Auditor</field>
+        <field name="privilege_id" ref="privilege_codestra_mail"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+    <record id="group_mail_ingestion_service" model="res.groups">
+        <field name="name">Shared Inbox Ingestion Service</field>
+        <field name="privilege_id" ref="privilege_codestra_mail"/>
+    </record>
+
+    <record id="rule_conversation_support" model="ir.rule">
+        <field name="name">Support conversations for assigned teams only</field>
+        <field name="model_id" ref="model_codestra_mail_conversation"/>
+        <field name="groups" eval="[(4, ref('group_mail_support_user'))]"/>
+        <field name="domain_force">[('queue_type_id.code','=','SUPPORT'), '|', ('team_id.member_ids','in',[user.id]), ('team_id.manager_ids','in',[user.id])]</field>
+    </record>
+    <record id="rule_conversation_admin" model="ir.rule">
+        <field name="name">Administration conversations for assigned teams only</field>
+        <field name="model_id" ref="model_codestra_mail_conversation"/>
+        <field name="groups" eval="[(4, ref('group_mail_admin_user'))]"/>
+        <field name="domain_force">[('queue_type_id.code','in',['ADMINISTRATION','BILLING']), '|', ('team_id.member_ids','in',[user.id]), ('team_id.manager_ids','in',[user.id])]</field>
+    </record>
+    <record id="rule_conversation_auditor" model="ir.rule">
+        <field name="name">Auditors see explicitly assigned teams</field>
+        <field name="model_id" ref="model_codestra_mail_conversation"/>
+        <field name="groups" eval="[(4, ref('group_mail_auditor'))]"/>
+        <field name="domain_force">[('team_id.auditor_ids','in',[user.id])]</field>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="rule_conversation_system_emergency" model="ir.rule">
+        <field name="name">Audited system emergency access</field>
+        <field name="model_id" ref="model_codestra_mail_conversation"/>
+        <field name="groups" eval="[(4, ref('base.group_system'))]"/>
+        <field name="domain_force">[(1,'=',1)]</field>
+    </record>
+</odoo>

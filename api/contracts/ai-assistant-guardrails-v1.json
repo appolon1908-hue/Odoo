@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "allowed_outputs": ["interaction_summary", "knowledge_suggestion", "response_draft"],
+  "storage": {
+    "raw_provider_prompt": false,
+    "prompt_sha256": true,
+    "response_sha256": true,
+    "controlled_input_reference": true,
+    "maximum_output_characters": 20000
+  },
+  "review": {
+    "human_required": true,
+    "requester_may_approve": false,
+    "approval_means_send_authorized": false
+  },
+  "prohibited_authority": [
+    "send_customer_message",
+    "change_consent",
+    "set_do_not_call",
+    "approve_refund",
+    "finalize_disposition",
+    "execute_provider_action",
+    "change_customer_record"
+  ]
+}

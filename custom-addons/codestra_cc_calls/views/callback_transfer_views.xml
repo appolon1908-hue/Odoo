@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_cc_callback_list" model="ir.ui.view">
+    <field name="name">cc.callback.list</field>
+    <field name="model">cc.callback</field>
+    <field name="arch" type="xml">
+      <list decoration-danger="state in ('missed','blocked')" decoration-warning="priority in ('high','urgent')">
+        <field name="scheduled_at"/>
+        <field name="name"/>
+        <field name="customer_profile_id"/>
+        <field name="campaign_id"/>
+        <field name="assigned_membership_id"/>
+        <field name="queue_code"/>
+        <field name="callback_type" widget="badge"/>
+        <field name="priority" widget="badge"/>
+        <field name="state" widget="badge"/>
+        <field name="publication_state" widget="badge"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_cc_callback_calendar" model="ir.ui.view">
+    <field name="name">cc.callback.calendar</field>
+    <field name="model">cc.callback</field>
+    <field name="arch" type="xml">
+      <calendar string="Callback Scheduler" date_start="scheduled_at" color="campaign_id" mode="week" quick_create="false">
+        <field name="name"/><field name="customer_profile_id"/><field name="campaign_id"/><field name="assigned_membership_id"/><field name="state"/>
+      </calendar>
+    </field>
+  </record>
+  <record id="view_cc_callback_form" model="ir.ui.view">
+    <field name="name">cc.callback.form</field>
+    <field name="model">cc.callback</field>
+    <field name="arch" type="xml">
+      <form>
+        <header>
+          <button name="action_schedule" type="object" string="Schedule" class="btn-primary" invisible="state != 'draft'"/>
+          <button name="action_ready" type="object" string="Ready" class="btn-primary" invisible="state != 'scheduled'"/>
+          <button name="action_start" type="object" string="Start" class="btn-primary" invisible="state not in ('ready','missed','recovery')"/>
+          <button name="action_complete" type="object" string="Complete" class="btn-primary" invisible="state != 'in_progress'"/>
+          <button name="action_mark_missed" type="object" string="Missed" invisible="state not in ('scheduled','ready','in_progress')"/>
+          <button name="action_recover" type="object" string="Recovery Queue" invisible="state != 'missed'"/>
+          <button name="action_cancel" type="object" string="Cancel" invisible="state in ('completed','cancelled')"/>
+          <field name="state" widget="statusbar"/>
+        </header>
+        <sheet>
+          <group>
+            <group>
+              <field name="operation_uuid" readonly="1"/>
+              <field name="name"/>
+              <field name="callback_type"/>
+              <field name="customer_profile_id"/>
+              <field name="lead_id"/>
+              <field name="source_call_unique_id"/>
+            </group>
+            <group>
+              <field name="scheduled_at"/>
+              <field name="customer_timezone"/>
+              <field name="priority"/>
+              <field name="preferred_channel"/>
+              <field name="consent_state"/>
+              <field name="policy_id"/>
+            </group>
+          </group>
+          <group string="Immutable campaign assignment">
+            <field name="campaign_id"/>
+            <field name="assigned_membership_id"/>
+            <field name="queue_code"/>
+            <field name="supervisor_membership_id"/>
+            <field name="appointment_id" readonly="1"/>
+          </group>
+          <group string="Staging integration gate">
+            <field name="middleware_idempotency_key" readonly="1"/>
+            <field name="correlation_id" readonly="1"/>
+            <field name="publication_state" readonly="1"/>
+            <field name="vicidial_readback_reference" readonly="1"/>
+            <field name="version" readonly="1"/>
+          </group>
+          <field name="reason"/>
+          <notebook>
+            <page string="History"><field name="history_ids" readonly="1"><list><field name="occurred_at"/><field name="event_type"/><field name="from_state"/><field name="to_state"/><field name="actor_id"/></list></field></page>
+            <page string="Reminders"><field name="reminder_ids" readonly="1"><list><field name="scheduled_at"/><field name="event_type"/><field name="recipient_membership_id"/><field name="state"/></list></field></page>
+          </notebook>
+        </sheet>
+        <chatter/>
+      </form>
+    </field>
+  </record>
+  <record id="action_cc_callback_scheduler" model="ir.actions.act_window">
+    <field name="name">Callback Scheduler</field>
+    <field name="res_model">cc.callback</field>
+    <field name="view_mode">calendar,list,form</field>
+    <field name="domain">[('state','not in',('completed','cancelled'))]</field>
+  </record>
+
+  <record id="view_cc_appointment_list" model="ir.ui.view">
+    <field name="name">cc.appointment.list</field><field name="model">cc.appointment</field>
+    <field name="arch" type="xml"><list decoration-danger="state == 'missed'"><field name="scheduled_start"/><field name="scheduled_end"/><field name="name"/><field name="customer_profile_id"/><field name="campaign_id"/><field name="assigned_membership_id"/><field name="priority" widget="badge"/><field name="state" widget="badge"/></list></field>
+  </record>
+  <record id="view_cc_appointment_calendar" model="ir.ui.view">
+    <field name="name">cc.appointment.calendar</field><field name="model">cc.appointment</field>
+    <field name="arch" type="xml"><calendar string="Appointment Calendar" date_start="scheduled_start" date_stop="scheduled_end" color="campaign_id" mode="week" quick_create="false"><field name="name"/><field name="customer_profile_id"/><field name="campaign_id"/><field name="assigned_membership_id"/><field name="state"/></calendar></field>
+  </record>
+  <record id="view_cc_appointment_form" model="ir.ui.view">
+    <field name="name">cc.appointment.form</field><field name="model">cc.appointment</field>
+    <field name="arch" type="xml">
+      <form><header><button name="action_schedule" type="object" string="Schedule Appointment" class="btn-primary" invisible="state != 'draft'"/><field name="state" widget="statusbar"/></header><sheet>
+        <group><group><field name="operation_uuid" readonly="1"/><field name="name"/><field name="customer_profile_id"/><field name="lead_id"/><field name="reason"/><field name="consent_state"/></group><group><field name="scheduled_start"/><field name="scheduled_end"/><field name="customer_timezone"/><field name="priority"/><field name="policy_id"/></group></group>
+        <group string="Immutable campaign assignment"><field name="campaign_id"/><field name="assigned_membership_id"/><field name="supervisor_membership_id"/><field name="callback_id" readonly="1"/><field name="correlation_id" readonly="1"/></group>
+        <field name="preparation_notes" placeholder="Campaign-approved preparation notes..."/>
+        <field name="reminder_ids" readonly="1"><list><field name="scheduled_at"/><field name="event_type"/><field name="recipient_membership_id"/><field name="state"/></list></field>
+      </sheet><chatter/></form>
+    </field>
+  </record>
+  <record id="action_cc_appointment_calendar" model="ir.actions.act_window">
+    <field name="name">Appointment Calendar</field><field name="res_model">cc.appointment</field><field name="view_mode">calendar,list,form</field><field name="domain">[('state','not in',('completed','cancelled'))]</field>
+  </record>
+
+  <record id="view_cc_reminder_list" model="ir.ui.view">
+    <field name="name">cc.reminder.list</field><field name="model">cc.reminder</field>
+    <field name="arch" type="xml"><list><field name="scheduled_at"/><field name="event_type"/><field name="appointment_id"/><field name="callback_id"/><field name="recipient_membership_id"/><field name="state" widget="badge"/><field name="hold_reason"/></list></field>
+  </record>
+  <record id="view_cc_reminder_form" model="ir.ui.view">
+    <field name="name">cc.reminder.form</field><field name="model">cc.reminder</field>
+    <field name="arch" type="xml"><form><header><button name="action_acknowledge" type="object" string="Acknowledge" class="btn-primary" invisible="state != 'held'"/><field name="state" widget="statusbar"/></header><sheet><group><field name="operation_uuid"/><field name="campaign_id"/><field name="appointment_id"/><field name="callback_id"/><field name="recipient_membership_id"/><field name="event_type"/><field name="scheduled_at"/><field name="hold_reason"/><field name="idempotency_key"/></group></sheet></form></field>
+  </record>
+  <record id="action_cc_reminder_center" model="ir.actions.act_window">
+    <field name="name">Reminder Center</field><field name="res_model">cc.reminder</field><field name="view_mode">list,form</field><field name="domain">[('state','=','held')]</field>
+  </record>
+
+  <record id="view_cc_transfer_list" model="ir.ui.view">
+    <field name="name">cc.transfer.list</field><field name="model">cc.transfer</field>
+    <field name="arch" type="xml"><list decoration-danger="state in ('rejected','failed')"><field name="requested_at"/><field name="source_call_unique_id"/><field name="customer_profile_id"/><field name="campaign_id"/><field name="route_id"/><field name="transfer_type"/><field name="state" widget="badge"/><field name="safe_status"/></list></field>
+  </record>
+  <record id="view_cc_transfer_form" model="ir.ui.view">
+    <field name="name">cc.transfer.form</field><field name="model">cc.transfer</field>
+    <field name="arch" type="xml"><form><header><button name="action_live_transfer" type="object" string="Start Live Transfer" invisible="state != 'validated'"/><field name="state" widget="statusbar"/></header><sheet><group><field name="operation_uuid"/><field name="campaign_id"/><field name="source_call_unique_id"/><field name="customer_profile_id"/><field name="script_version_id"/><field name="source_membership_id"/><field name="route_id"/><field name="destination_membership_id"/><field name="transfer_type"/><field name="compliance_state"/><field name="safe_status"/><field name="rejection_code"/><field name="idempotency_key"/><field name="correlation_id"/></group><field name="event_ids" readonly="1"><list><field name="occurred_at"/><field name="event_type"/><field name="actor_id"/></list></field></sheet></form></field>
+  </record>
+  <record id="action_cc_transfers" model="ir.actions.act_window">
+    <field name="name">Transfers</field><field name="res_model">cc.transfer</field><field name="view_mode">list,form</field>
+  </record>
+
+  <record id="view_cc_referral_list" model="ir.ui.view">
+    <field name="name">cc.referral.list</field><field name="model">cc.referral</field>
+    <field name="arch" type="xml"><list><field name="requested_at"/><field name="customer_profile_id"/><field name="campaign_id"/><field name="destination_service_label"/><field name="request_summary"/><field name="state" widget="badge"/><field name="safe_status"/></list></field>
+  </record>
+  <record id="view_cc_referral_form" model="ir.ui.view">
+    <field name="name">cc.referral.form</field><field name="model">cc.referral</field>
+    <field name="arch" type="xml"><form><header><field name="state" widget="statusbar"/></header><sheet><group><field name="operation_uuid"/><field name="campaign_id"/><field name="requester_membership_id"/><field name="customer_profile_id"/><field name="destination_service_code"/><field name="destination_service_label"/><field name="request_summary"/><field name="safe_status"/><field name="consent_reference_hash"/><field name="payload_hash"/><field name="idempotency_key"/><field name="correlation_id"/></group></sheet></form></field>
+  </record>
+  <record id="action_cc_referrals" model="ir.actions.act_window">
+    <field name="name">Referrals</field><field name="res_model">cc.referral</field><field name="view_mode">list,form</field>
+  </record>
+
+  <record id="view_cc_callback_policy_list" model="ir.ui.view">
+    <field name="name">cc.callback.policy.list</field><field name="model">cc.callback.policy</field>
+    <field name="arch" type="xml"><list><field name="campaign_id"/><field name="name"/><field name="timezone"/><field name="calling_hour_start"/><field name="calling_hour_end"/><field name="max_attempts"/><field name="active"/><field name="publication_enabled"/></list></field>
+  </record>
+  <record id="action_cc_callback_policies" model="ir.actions.act_window"><field name="name">Callback Policies</field><field name="res_model">cc.callback.policy</field><field name="view_mode">list,form</field></record>
+  <record id="view_cc_transfer_route_list" model="ir.ui.view">
+    <field name="name">cc.transfer.route.list</field><field name="model">cc.transfer.route</field>
+    <field name="arch" type="xml"><list><field name="campaign_id"/><field name="route_code"/><field name="name"/><field name="destination_type"/><field name="destination_code"/><field name="transfer_type"/><field name="active"/><field name="live_control_enabled"/></list></field>
+  </record>
+  <record id="action_cc_transfer_routes" model="ir.actions.act_window"><field name="name">Transfer Routes</field><field name="res_model">cc.transfer.route</field><field name="view_mode">list,form</field></record>
+  <record id="view_cc_referral_route_list" model="ir.ui.view">
+    <field name="name">cc.referral.route.list</field><field name="model">cc.referral.route</field>
+    <field name="arch" type="xml"><list><field name="campaign_id"/><field name="service_code"/><field name="service_label"/><field name="destination_campaign_id"/><field name="active"/><field name="delivery_enabled"/></list></field>
+  </record>
+  <record id="action_cc_referral_routes" model="ir.actions.act_window"><field name="name">Referral Routes</field><field name="res_model">cc.referral.route</field><field name="view_mode">list,form</field></record>
+
+  <menuitem id="menu_cc_call_operations" name="Calls and Scheduling" parent="codestra_cc_crm.menu_cc_workspace_root" sequence="30" groups="codestra_cc_security.group_cc_scoped_user"/>
+  <menuitem id="menu_cc_callbacks" name="Callbacks" parent="menu_cc_call_operations" action="action_cc_callback_scheduler" sequence="10"/>
+  <menuitem id="menu_cc_appointments" name="Appointments" parent="menu_cc_call_operations" action="action_cc_appointment_calendar" sequence="20"/>
+  <menuitem id="menu_cc_reminders" name="Reminders" parent="menu_cc_call_operations" action="action_cc_reminder_center" sequence="30"/>
+  <menuitem id="menu_cc_transfers" name="Transfers" parent="menu_cc_call_operations" action="action_cc_transfers" sequence="40"/>
+  <menuitem id="menu_cc_referrals" name="Referrals" parent="menu_cc_call_operations" action="action_cc_referrals" sequence="50"/>
+
+  <menuitem id="menu_cc_call_configuration" name="Call Operations" parent="call_center_core.menu_call_center_configuration" sequence="18" groups="codestra_cc_security.group_cc_campaign_configuration_manager,codestra_cc_security.group_cc_auditor,codestra_cc_security.group_cc_global_administrator"/>
+  <menuitem id="menu_cc_callback_policies" name="Callback Policies" parent="menu_cc_call_configuration" action="action_cc_callback_policies" sequence="10"/>
+  <menuitem id="menu_cc_transfer_routes" name="Transfer Routes" parent="menu_cc_call_configuration" action="action_cc_transfer_routes" sequence="20"/>
+  <menuitem id="menu_cc_referral_routes" name="Referral Routes" parent="menu_cc_call_configuration" action="action_cc_referral_routes" sequence="30"/>
+</odoo>

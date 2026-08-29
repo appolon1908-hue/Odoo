@@ -1,0 +1,244 @@
+{
+  "schema_version": 1,
+  "mission": "Codestra Odoo 19 Corporate Call Center",
+  "source_document": "Codestra_Odoo_Corporate_Call_Center_Full_Codex_Mission.md",
+  "public_repository_safety": {
+    "raw_mission_committed": false,
+    "host_addresses_allowed": false,
+    "credentials_allowed": false,
+    "customer_data_allowed": false
+  },
+  "canonical_contracts": {
+    "api_base_path": "/v1/contact-center/",
+    "identity_issuer": "https://auth.codestra.co/realms/codestra",
+    "cross_system_writer": "codestra-middleware",
+    "odoo_core_modification_allowed": false,
+    "vicidial_database_writes_allowed": false,
+    "n8n_system_of_record_allowed": false
+  },
+  "default_capabilities": {
+    "live_odoo_write": false,
+    "external_delivery": false,
+    "email_delivery": false,
+    "sms_delivery": false,
+    "pstn_dialing": false,
+    "callback_dispatch": false,
+    "n8n_activation": false
+  },
+  "workstreams": [
+    {
+      "order": 0,
+      "branch": "feature/cc-00-mission-foundation",
+      "title": "Mission foundation and governed repository contract",
+      "depends_on": [
+        "feature/codestra-login-admin-readiness"
+      ],
+      "modules": [],
+      "deliverables": [
+        "sanitized mission contract",
+        "branch dependency map",
+        "OpenAPI contract skeleton",
+        "workstream validation"
+      ]
+    },
+    {
+      "order": 1,
+      "branch": "feature/cc-01-core-reliability",
+      "title": "Core schema, audit, reliability and migration foundation",
+      "depends_on": [
+        "feature/cc-00-mission-foundation"
+      ],
+      "modules": [
+        "codestra_cc_core",
+        "codestra_cc_reliability",
+        "codestra_cc_audit"
+      ],
+      "deliverables": [
+        "canonical interaction and call-leg models",
+        "transactional inbox and outbox",
+        "append-only audit model",
+        "restartable migrations and ORM tests"
+      ]
+    },
+    {
+      "order": 2,
+      "branch": "feature/cc-02-vicidial-api",
+      "title": "VICIdial event ingestion, screen-pop and versioned API",
+      "depends_on": [
+        "feature/cc-01-core-reliability"
+      ],
+      "modules": [
+        "codestra_cc_vicidial"
+      ],
+      "deliverables": [
+        "idempotent VICIdial events",
+        "screen-pop resolution",
+        "controlled click-to-call and transfer requests",
+        "API controllers and contract tests"
+      ]
+    },
+    {
+      "order": 3,
+      "branch": "feature/cc-03-agent-campaign-experience",
+      "title": "Agent desktop, campaigns, dispositions and customer 360",
+      "depends_on": [
+        "feature/cc-01-core-reliability",
+        "feature/cc-02-vicidial-api"
+      ],
+      "modules": [
+        "codestra_cc_agent_desktop",
+        "codestra_cc_campaign",
+        "codestra_cc_disposition",
+        "codestra_cc_customer_360",
+        "codestra_campaign_publishing"
+      ],
+      "deliverables": [
+        "responsive agent workspace",
+        "versioned campaign configuration",
+        "mandatory wrap-up",
+        "customer interaction timeline",
+        "publish and rollback workflow"
+      ]
+    },
+    {
+      "order": 4,
+      "branch": "feature/cc-04-supervisor-quality-compliance",
+      "title": "Supervisor controls, QA, compliance and case management",
+      "depends_on": [
+        "feature/cc-03-agent-campaign-experience"
+      ],
+      "modules": [
+        "codestra_cc_supervisor",
+        "codestra_cc_quality",
+        "codestra_cc_compliance",
+        "codestra_case_management"
+      ],
+      "deliverables": [
+        "audited supervisor console",
+        "versioned QA scorecards and disputes",
+        "consent and suppression enforcement",
+        "complaints and escalation cases"
+      ]
+    },
+    {
+      "order": 5,
+      "branch": "feature/cc-05-workforce-identity-onboarding",
+      "title": "Workforce, identity lifecycle, onboarding and training",
+      "depends_on": [
+        "feature/cc-01-core-reliability",
+        "feature/cc-04-supervisor-quality-compliance"
+      ],
+      "modules": [
+        "codestra_cc_workforce",
+        "codestra_cc_identity",
+        "codestra_agent_onboarding",
+        "codestra_training_academy"
+      ],
+      "deliverables": [
+        "schedules and adherence",
+        "idempotent multi-system provisioning jobs",
+        "offboarding controls",
+        "training and certification"
+      ]
+    },
+    {
+      "order": 6,
+      "branch": "feature/cc-06-omnichannel-client-operations",
+      "title": "Omnichannel, mailboxes, automation and client operations",
+      "depends_on": [
+        "feature/cc-03-agent-campaign-experience",
+        "feature/cc-05-workforce-identity-onboarding"
+      ],
+      "modules": [
+        "codestra_cc_omnichannel",
+        "codestra_cc_mailbox",
+        "codestra_cc_automation",
+        "codestra_client_operations"
+      ],
+      "deliverables": [
+        "email and SMS timeline projections",
+        "fail-closed mailbox provisioning",
+        "allowlisted n8n mappings",
+        "client contracts and SLA onboarding"
+      ]
+    },
+    {
+      "order": 7,
+      "branch": "feature/cc-07-revenue-analytics-portal",
+      "title": "Revenue assurance, analytics, data quality and client portal",
+      "depends_on": [
+        "feature/cc-03-agent-campaign-experience",
+        "feature/cc-04-supervisor-quality-compliance",
+        "feature/cc-06-omnichannel-client-operations"
+      ],
+      "modules": [
+        "codestra_revenue_assurance",
+        "codestra_cc_analytics",
+        "codestra_data_quality",
+        "codestra_client_portal"
+      ],
+      "deliverables": [
+        "billable usage and margin",
+        "tested operational KPI definitions",
+        "duplicate review queues",
+        "record-rule-safe client portal"
+      ]
+    },
+    {
+      "order": 8,
+      "branch": "feature/cc-08-ai-agent-assistant",
+      "title": "Governed AI agent assistance",
+      "depends_on": [
+        "feature/cc-03-agent-campaign-experience",
+        "feature/cc-04-supervisor-quality-compliance",
+        "feature/cc-06-omnichannel-client-operations"
+      ],
+      "modules": [
+        "codestra_ai_agent_assistant"
+      ],
+      "deliverables": [
+        "reviewed summaries",
+        "knowledge suggestions",
+        "draft-only responses",
+        "hard prohibitions on consent, DNC, refunds and sending"
+      ]
+    },
+    {
+      "order": 9,
+      "branch": "test/cc-09-security-load-migrations",
+      "title": "Cross-cutting security, migration, browser and load assurance",
+      "depends_on": [
+        "feature/cc-01-core-reliability",
+        "feature/cc-02-vicidial-api",
+        "feature/cc-03-agent-campaign-experience",
+        "feature/cc-04-supervisor-quality-compliance",
+        "feature/cc-05-workforce-identity-onboarding",
+        "feature/cc-06-omnichannel-client-operations",
+        "feature/cc-07-revenue-analytics-portal",
+        "feature/cc-08-ai-agent-assistant"
+      ],
+      "modules": [],
+      "deliverables": [
+        "negative authorization suite",
+        "migration and rollback tests",
+        "browser screen-pop certification",
+        "150-session and 50-event-per-second tests"
+      ]
+    },
+    {
+      "order": 10,
+      "branch": "release/cc-10-staging-certification",
+      "title": "Immutable release and isolated staging certification",
+      "depends_on": [
+        "test/cc-09-security-load-migrations"
+      ],
+      "modules": [],
+      "deliverables": [
+        "signed immutable artifact evidence",
+        "SBOM and provenance",
+        "sanitized staging migration",
+        "rollback rehearsal and bounded canary plan"
+      ]
+    }
+  ]
+}

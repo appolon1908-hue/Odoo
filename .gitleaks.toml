@@ -1,0 +1,24 @@
+title = "Codestra Odoo precise false-positive policy"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Synthetic compliance-test idempotency identifiers"
+regexTarget = "match"
+regexes = [
+  '''idempotency_key="(?:consent-revocation-001|eligibility-after-revocation-001)"''',
+]
+paths = [
+  '''custom-addons/codestra_cc_compliance/tests/test_compliance_workflow\.py''',
+]
+
+[[allowlists]]
+description = "Pinned SHA-256 of a generated certification CSV, not a credential"
+regexTarget = "match"
+regexes = [
+  '''odoo_campaign_access_control_matrix\.csv": "[0-9a-f]{64}"''',
+]
+paths = [
+  '''scripts/generate_certification_reports\.py''',
+]

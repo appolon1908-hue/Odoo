@@ -1,0 +1,9 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_cc_business_unit_manager,cc.business.unit manager,model_cc_business_unit,call_center_core.group_call_center_manager,1,1,1,0
+access_cc_business_unit_system,cc.business.unit system,model_cc_business_unit,base.group_system,1,1,1,1
+access_cc_campaign_manager,cc.campaign manager,model_cc_campaign,call_center_core.group_call_center_manager,1,1,1,0
+access_cc_campaign_system,cc.campaign system,model_cc_campaign,base.group_system,1,1,1,1
+access_cc_campaign_channel_manager,cc.campaign.channel manager,model_cc_campaign_channel,call_center_core.group_call_center_manager,1,1,1,0
+access_cc_campaign_channel_system,cc.campaign.channel system,model_cc_campaign_channel,base.group_system,1,1,1,1
+access_cc_campaign_policy_manager,cc.campaign.policy manager,model_cc_campaign_policy,call_center_core.group_call_center_manager,1,1,1,0
+access_cc_campaign_policy_system,cc.campaign.policy system,model_cc_campaign_policy,base.group_system,1,1,1,1

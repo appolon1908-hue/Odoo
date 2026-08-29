@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="rule_codestra_cc_shift_company" model="ir.rule">
+    <field name="name">Contact-center shifts by allowed company</field>
+    <field name="model_id" ref="model_codestra_cc_shift"/>
+    <field name="groups" eval="[(4, ref('call_center_core.group_call_center_user'))]"/>
+    <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+  </record>
+</odoo>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_cc_quality_program_list" model="ir.ui.view">
+    <field name="name">cc.quality.program.list</field>
+    <field name="model">cc.quality.program</field>
+    <field name="arch" type="xml">
+      <list delete="0">
+        <field name="name"/><field name="campaign_id"/><field name="version"/>
+        <field name="state"/><field name="passing_score"/><field name="critical_fail_score"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_cc_quality_sample_list" model="ir.ui.view">
+    <field name="name">cc.quality.sample.list</field>
+    <field name="model">cc.quality.sample</field>
+    <field name="arch" type="xml">
+      <list create="0" delete="0">
+        <field name="reference"/><field name="campaign_id"/><field name="sample_reason"/>
+        <field name="agent_membership_id"/><field name="assigned_qa_membership_id"/>
+        <field name="state"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_cc_quality_evaluation_list" model="ir.ui.view">
+    <field name="name">cc.quality.evaluation.list</field>
+    <field name="model">cc.quality.evaluation</field>
+    <field name="arch" type="xml">
+      <list create="0" delete="0" edit="0">
+        <field name="reference"/><field name="campaign_id"/><field name="version"/>
+        <field name="state"/><field name="score"/><field name="critical_failed"/>
+      </list>
+    </field>
+  </record>
+  <record id="action_cc_quality_programs" model="ir.actions.act_window">
+    <field name="name">Quality Programs</field>
+    <field name="res_model">cc.quality.program</field>
+    <field name="view_mode">list,form</field>
+  </record>
+  <record id="action_cc_quality_samples" model="ir.actions.act_window">
+    <field name="name">Quality Samples</field>
+    <field name="res_model">cc.quality.sample</field>
+    <field name="view_mode">list,form</field>
+  </record>
+  <record id="action_cc_quality_evaluations" model="ir.actions.act_window">
+    <field name="name">Quality Evaluations</field>
+    <field name="res_model">cc.quality.evaluation</field>
+    <field name="view_mode">list,form</field>
+  </record>
+</odoo>

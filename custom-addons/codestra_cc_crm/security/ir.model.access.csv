@@ -1,0 +1,15 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_cc_customer_profile_agent,cc.customer.profile agent,model_cc_customer_profile,codestra_cc_security.group_cc_campaign_agent,1,1,0,0
+access_cc_customer_profile_supervisor,cc.customer.profile supervisor,model_cc_customer_profile,codestra_cc_security.group_cc_campaign_supervisor,1,1,0,0
+access_cc_customer_profile_config,cc.customer.profile config,model_cc_customer_profile,codestra_cc_security.group_cc_campaign_configuration_manager,1,1,0,0
+access_cc_customer_profile_auditor,cc.customer.profile auditor,model_cc_customer_profile,codestra_cc_security.group_cc_auditor,1,0,0,0
+access_cc_customer_profile_admin,cc.customer.profile admin,model_cc_customer_profile,codestra_cc_security.group_cc_global_administrator,1,1,1,0
+access_cc_customer_profile_service,cc.customer.profile service,model_cc_customer_profile,group_cc_crm_service,1,1,1,0
+access_cc_crm_lead_agent,crm.lead campaign agent,crm.model_crm_lead,codestra_cc_security.group_cc_campaign_agent,1,1,1,0
+access_cc_crm_lead_supervisor,crm.lead campaign supervisor,crm.model_crm_lead,codestra_cc_security.group_cc_campaign_supervisor,1,1,1,0
+access_cc_crm_lead_config,crm.lead campaign config,crm.model_crm_lead,codestra_cc_security.group_cc_campaign_configuration_manager,1,1,1,0
+access_cc_crm_lead_auditor,crm.lead campaign auditor,crm.model_crm_lead,codestra_cc_security.group_cc_auditor,1,0,0,0
+access_cc_crm_lead_admin,crm.lead campaign admin,crm.model_crm_lead,codestra_cc_security.group_cc_global_administrator,1,1,1,1
+access_cc_crm_lead_service,crm.lead campaign service,crm.model_crm_lead,group_cc_crm_service,1,1,1,0
+access_cc_crm_unit_service,cc.business.unit CRM service,codestra_cc_core.model_cc_business_unit,group_cc_crm_service,1,0,0,0
+access_cc_crm_campaign_service,cc.campaign CRM service,codestra_cc_core.model_cc_campaign,group_cc_crm_service,1,0,0,0

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_cc_kpi_snapshot_list" model="ir.ui.view">
+    <field name="name">cc.kpi.snapshot.list</field>
+    <field name="model">cc.kpi.snapshot</field>
+    <field name="arch" type="xml">
+      <list create="0" edit="0" delete="0" export_xlsx="0">
+        <field name="campaign_id"/>
+        <field name="period_reference"/>
+        <field name="family"/>
+        <field name="metric_code"/>
+        <field name="agent_membership_id"/>
+        <field name="value"/>
+        <field name="unit"/>
+        <field name="target_value"/>
+        <field name="result_state"/>
+        <field name="reconciliation_state"/>
+        <field name="data_cutoff_at"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_cc_kpi_snapshot_pivot" model="ir.ui.view">
+    <field name="name">cc.kpi.snapshot.pivot</field>
+    <field name="model">cc.kpi.snapshot</field>
+    <field name="arch" type="xml">
+      <pivot disable_linking="1">
+        <field name="campaign_id" type="row"/>
+        <field name="family" type="row"/>
+        <field name="metric_code" type="row"/>
+        <field name="value" type="measure"/>
+      </pivot>
+    </field>
+  </record>
+  <record id="view_cc_kpi_snapshot_graph" model="ir.ui.view">
+    <field name="name">cc.kpi.snapshot.graph</field>
+    <field name="model">cc.kpi.snapshot</field>
+    <field name="arch" type="xml">
+      <graph type="line" disable_linking="1">
+        <field name="data_cutoff_at" interval="day"/>
+        <field name="value" type="measure"/>
+      </graph>
+    </field>
+  </record>
+  <record id="action_cc_kpi_snapshot" model="ir.actions.act_window">
+    <field name="name">Contact Center KPIs</field>
+    <field name="res_model">cc.kpi.snapshot</field>
+    <field name="view_mode">list,pivot,graph</field>
+  </record>
+  <menuitem id="menu_cc_reporting" name="Reporting" parent="call_center_core.menu_call_center_root" sequence="77" groups="codestra_cc_security.group_cc_campaign_agent,codestra_cc_security.group_cc_campaign_supervisor,codestra_cc_security.group_cc_workforce_analyst,codestra_cc_security.group_cc_global_administrator,codestra_cc_security.group_cc_auditor"/>
+  <menuitem id="menu_cc_kpi_snapshot" name="KPI Snapshots" parent="menu_cc_reporting" action="action_cc_kpi_snapshot" sequence="10"/>
+</odoo>

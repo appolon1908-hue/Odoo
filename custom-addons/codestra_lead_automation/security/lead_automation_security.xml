@@ -1,0 +1,38 @@
+<odoo>
+  <record id="group_lead_automation_agent" model="res.groups">
+    <field name="name">Lead Automation Agent</field>
+    <field name="privilege_id" ref="call_center_core.privilege_call_center"/>
+    <field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_agent'))]"/>
+  </record>
+  <record id="group_lead_automation_team_leader" model="res.groups">
+    <field name="name">Lead Automation Team Leader</field>
+    <field name="privilege_id" ref="call_center_core.privilege_call_center"/>
+    <field name="implied_ids" eval="[(4, ref('group_lead_automation_agent')), (4, ref('call_center_core.group_call_center_team_leader'))]"/>
+  </record>
+  <record id="group_lead_automation_supervisor" model="res.groups">
+    <field name="name">Lead Automation Supervisor</field>
+    <field name="privilege_id" ref="call_center_core.privilege_call_center"/>
+    <field name="implied_ids" eval="[(4, ref('group_lead_automation_team_leader')), (4, ref('call_center_core.group_call_center_supervisor'))]"/>
+  </record>
+  <record id="group_lead_automation_campaign_manager" model="res.groups">
+    <field name="name">Lead Automation Campaign Manager</field>
+    <field name="privilege_id" ref="call_center_core.privilege_call_center"/>
+    <field name="implied_ids" eval="[(4, ref('group_lead_automation_supervisor')), (4, ref('call_center_core.group_call_center_manager'))]"/>
+  </record>
+  <record id="group_lead_automation_bu_director" model="res.groups">
+    <field name="name">Lead Automation Business Unit Director</field>
+    <field name="privilege_id" ref="call_center_core.privilege_call_center"/>
+    <field name="implied_ids" eval="[(4, ref('group_lead_automation_campaign_manager'))]"/>
+  </record>
+  <record id="group_lead_automation_integration_admin" model="res.groups">
+    <field name="name">Lead Automation Integration Administrator</field>
+    <field name="privilege_id" ref="call_center_core.privilege_call_center"/>
+    <field name="implied_ids" eval="[(4, ref('group_lead_automation_bu_director'))]"/>
+  </record>
+  <record id="group_lead_automation_admin" model="res.groups">
+    <field name="name">Lead Automation Administrator</field>
+    <field name="privilege_id" ref="call_center_core.privilege_call_center"/>
+    <field name="sequence">95</field>
+    <field name="implied_ids" eval="[(4, ref('group_lead_automation_integration_admin')), (4, ref('call_center_core.group_call_center_admin'))]"/>
+  </record>
+</odoo>

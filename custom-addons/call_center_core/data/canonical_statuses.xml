@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+  <record id="status_journey_new" model="call.center.canonical.status"><field name="name">New</field><field name="code">NEW</field><field name="layer">journey</field><field name="category">new</field><field name="sequence">10</field></record>
+  <record id="status_journey_validation" model="call.center.canonical.status"><field name="name">Validation</field><field name="code">VALIDATION</field><field name="layer">journey</field><field name="category">qualification</field><field name="sequence">20</field></record>
+  <record id="status_journey_qualification" model="call.center.canonical.status"><field name="name">Qualification</field><field name="code">QUALIFICATION</field><field name="layer">journey</field><field name="category">qualification</field><field name="sequence">30</field></record>
+  <record id="status_journey_engaged" model="call.center.canonical.status"><field name="name">Engaged</field><field name="code">ENGAGED</field><field name="layer">journey</field><field name="category">progress</field><field name="sequence">40</field></record>
+  <record id="status_journey_converted" model="call.center.canonical.status"><field name="name">Converted</field><field name="code">CONVERTED</field><field name="layer">journey</field><field name="category">success</field><field name="sequence">50</field><field name="terminal" eval="True"/></record>
+  <record id="status_journey_retention" model="call.center.canonical.status"><field name="name">Retention</field><field name="code">RETENTION</field><field name="layer">journey</field><field name="category">retention</field><field name="sequence">60</field></record>
+  <record id="status_journey_blocked" model="call.center.canonical.status"><field name="name">Blocked / Do Not Contact</field><field name="code">BLOCKED</field><field name="layer">journey</field><field name="category">compliance</field><field name="sequence">90</field><field name="terminal" eval="True"/></record>
+
+  <record id="status_disposition_pending" model="call.center.canonical.status"><field name="name">Pending Attempt</field><field name="code">PENDING</field><field name="layer">disposition</field><field name="category">system</field></record>
+  <record id="status_disposition_no_contact" model="call.center.canonical.status"><field name="name">No Contact</field><field name="code">NO_CONTACT</field><field name="layer">disposition</field><field name="category">no_contact</field></record>
+  <record id="status_disposition_contact" model="call.center.canonical.status"><field name="name">Human Contact</field><field name="code">CONTACT</field><field name="layer">disposition</field><field name="category">human_contact</field></record>
+  <record id="status_disposition_success" model="call.center.canonical.status"><field name="name">Successful Attempt</field><field name="code">SUCCESS</field><field name="layer">disposition</field><field name="category">success</field><field name="terminal" eval="True"/></record>
+
+  <record id="status_callback_pending" model="call.center.canonical.status"><field name="name">Callback Pending</field><field name="code">PENDING</field><field name="layer">callback</field><field name="category">pending</field></record>
+  <record id="status_callback_scheduled" model="call.center.canonical.status"><field name="name">Callback Scheduled</field><field name="code">SCHEDULED</field><field name="layer">callback</field><field name="category">scheduled</field></record>
+  <record id="status_callback_completed" model="call.center.canonical.status"><field name="name">Callback Completed</field><field name="code">COMPLETED</field><field name="layer">callback</field><field name="category">completed</field><field name="terminal" eval="True"/></record>
+  <record id="status_callback_cancelled" model="call.center.canonical.status"><field name="name">Callback Cancelled</field><field name="code">CANCELLED</field><field name="layer">callback</field><field name="category">cancelled</field><field name="terminal" eval="True"/></record>
+
+  <record id="status_appointment_draft" model="call.center.canonical.status"><field name="name">Appointment Draft</field><field name="code">DRAFT</field><field name="layer">appointment</field><field name="category">draft</field></record>
+  <record id="status_appointment_confirmed" model="call.center.canonical.status"><field name="name">Appointment Confirmed</field><field name="code">CONFIRMED</field><field name="layer">appointment</field><field name="category">confirmed</field></record>
+  <record id="status_appointment_completed" model="call.center.canonical.status"><field name="name">Appointment Completed</field><field name="code">COMPLETED</field><field name="layer">appointment</field><field name="category">completed</field><field name="terminal" eval="True"/></record>
+  <record id="status_appointment_cancelled" model="call.center.canonical.status"><field name="name">Appointment Cancelled</field><field name="code">CANCELLED</field><field name="layer">appointment</field><field name="category">cancelled</field><field name="terminal" eval="True"/></record>
+
+  <record id="status_agent_offline" model="call.center.canonical.status"><field name="name">Offline</field><field name="code">OFFLINE</field><field name="layer">agent</field><field name="category">offline</field></record>
+  <record id="status_agent_available" model="call.center.canonical.status"><field name="name">Available</field><field name="code">AVAILABLE</field><field name="layer">agent</field><field name="category">available</field></record>
+  <record id="status_agent_busy" model="call.center.canonical.status"><field name="name">Busy</field><field name="code">BUSY</field><field name="layer">agent</field><field name="category">busy</field></record>
+  <record id="status_agent_break" model="call.center.canonical.status"><field name="name">Break</field><field name="code">BREAK</field><field name="layer">agent</field><field name="category">break</field></record>
+
+  <record id="status_consent_unknown" model="call.center.canonical.status"><field name="name">Consent Unknown</field><field name="code">UNKNOWN</field><field name="layer">consent</field><field name="category">unknown</field></record>
+  <record id="status_consent_granted" model="call.center.canonical.status"><field name="name">Consent Granted</field><field name="code">GRANTED</field><field name="layer">consent</field><field name="category">granted</field></record>
+  <record id="status_consent_revoked" model="call.center.canonical.status"><field name="name">Consent Revoked</field><field name="code">REVOKED</field><field name="layer">consent</field><field name="category">blocked</field><field name="terminal" eval="True"/></record>
+  <record id="status_consent_dnc" model="call.center.canonical.status"><field name="name">Do Not Call</field><field name="code">DNC</field><field name="layer">consent</field><field name="category">blocked</field><field name="terminal" eval="True"/></record>
+
+  <record id="transition_journey_new_validation" model="call.center.status.transition"><field name="from_status_id" ref="status_journey_new"/><field name="to_status_id" ref="status_journey_validation"/></record>
+  <record id="transition_journey_validation_qualification" model="call.center.status.transition"><field name="from_status_id" ref="status_journey_validation"/><field name="to_status_id" ref="status_journey_qualification"/></record>
+  <record id="transition_journey_qualification_engaged" model="call.center.status.transition"><field name="from_status_id" ref="status_journey_qualification"/><field name="to_status_id" ref="status_journey_engaged"/></record>
+  <record id="transition_journey_engaged_converted" model="call.center.status.transition"><field name="from_status_id" ref="status_journey_engaged"/><field name="to_status_id" ref="status_journey_converted"/></record>
+  <record id="transition_journey_engaged_retention" model="call.center.status.transition"><field name="from_status_id" ref="status_journey_engaged"/><field name="to_status_id" ref="status_journey_retention"/></record>
+  <record id="transition_journey_new_blocked" model="call.center.status.transition"><field name="from_status_id" ref="status_journey_new"/><field name="to_status_id" ref="status_journey_blocked"/><field name="requires_reason" eval="True"/></record>
+  <record id="transition_consent_unknown_granted" model="call.center.status.transition"><field name="from_status_id" ref="status_consent_unknown"/><field name="to_status_id" ref="status_consent_granted"/></record>
+  <record id="transition_consent_granted_revoked" model="call.center.status.transition"><field name="from_status_id" ref="status_consent_granted"/><field name="to_status_id" ref="status_consent_revoked"/><field name="requires_reason" eval="True"/></record>
+</odoo>

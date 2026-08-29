@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_connector_profile_admin,connector.profile.admin,model_codestra_vicidial_connector_profile,codestra_base.group_codestra_integration_admin,1,1,1,0
+access_connector_batch_admin,connector.batch.admin,model_codestra_vicidial_connector_import_batch,codestra_base.group_codestra_integration_admin,1,1,1,0
+access_connector_line_admin,connector.line.admin,model_codestra_vicidial_connector_import_line,codestra_base.group_codestra_integration_admin,1,0,0,0

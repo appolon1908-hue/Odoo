@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_codestra_agent_onboarding_user,codestra.agent.onboarding user,model_codestra_agent_onboarding,call_center_core.group_call_center_user,1,0,0,0
+access_codestra_agent_onboarding_manager,codestra.agent.onboarding manager,model_codestra_agent_onboarding,call_center_core.group_call_center_manager,1,1,1,1
+access_codestra_agent_onboarding_admin,codestra.agent.onboarding admin,model_codestra_agent_onboarding,call_center_core.group_call_center_admin,1,1,1,1

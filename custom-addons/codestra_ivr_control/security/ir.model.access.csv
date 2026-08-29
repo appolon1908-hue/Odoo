@@ -1,0 +1,16 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+ivr_session_agent,ivr.session.agent,model_codestra_ivr_session,codestra.group_agent,1,1,1,0
+ivr_menu_manager,ivr.menu.manager,model_codestra_ivr_menu,codestra.group_campaign_manager,1,1,1,0
+ivr_option_manager,ivr.option.manager,model_codestra_ivr_option,codestra.group_campaign_manager,1,1,1,0
+ivr_did_manager,ivr.did.manager,model_codestra_ivr_did_mapping,codestra.group_campaign_manager,1,1,1,0
+ivr_destination_manager,ivr.destination.manager,model_codestra_ivr_destination,codestra.group_campaign_manager,1,1,1,0
+ivr_queue_manager,ivr.queue.manager,model_codestra_ivr_queue_policy,codestra.group_campaign_manager,1,1,1,0
+ivr_schedule_manager,ivr.schedule.manager,model_codestra_ivr_schedule,codestra.group_campaign_manager,1,1,1,0
+ivr_holiday_manager,ivr.holiday.manager,model_codestra_ivr_holiday,codestra.group_campaign_manager,1,1,1,0
+ivr_language_manager,ivr.language.manager,model_codestra_ivr_language,codestra.group_campaign_manager,1,1,1,0
+ivr_customer_lookup,ivr.customer.lookup,model_codestra_ivr_customer_lookup,codestra.group_agent,1,1,1,0
+ivr_appointment_lookup,ivr.appointment.lookup,model_codestra_ivr_appointment_lookup,codestra.group_agent,1,1,1,0
+ivr_callback,ivr.callback,model_codestra_ivr_callback_request,codestra.group_agent,1,1,1,0
+ivr_reclassify,ivr.reclassify,model_codestra_ivr_reclassification,codestra.group_supervisor,1,1,1,0
+ivr_audit,ivr.audit,model_codestra_ivr_audit_event,codestra.group_supervisor,1,0,1,0
+ivr_metric,ivr.metric,model_codestra_ivr_metric_snapshot,codestra.group_supervisor,1,0,1,0

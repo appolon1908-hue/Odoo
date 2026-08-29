@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="group_codestra_client_operations_manager" model="res.groups">
+    <field name="name">Client Operations Manager</field>
+    <field name="privilege_id" ref="call_center_core.privilege_call_center"/>
+    <field name="implied_ids" eval="[(4, ref('call_center_core.group_call_center_user'))]"/>
+    <field name="sequence">65</field>
+  </record>
+</odoo>

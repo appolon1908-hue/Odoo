@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+  <record id="param_cc_enable_recording_playback" model="ir.config_parameter">
+    <field name="key">CC_ENABLE_RECORDING_PLAYBACK</field>
+    <field name="value">false</field>
+  </record>
+  <record id="param_cc_enable_ai_assist" model="ir.config_parameter">
+    <field name="key">CC_ENABLE_AI_ASSIST</field>
+    <field name="value">false</field>
+  </record>
+</odoo>

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "public_base": "https://api.codestra.co/v1/contact-center",
+  "identity_issuer": "https://auth.codestra.co/realms/codestra",
+  "certification_status": "blocked-runtime-evidence",
+  "endpoints": [
+    {"method":"GET","path":"/healthz","permission":"private-monitor","implementation_status":"implemented-in-canonical-addon","certification_status":"blocked-runtime-evidence"},
+    {"method":"GET","path":"/readyz","permission":"private-monitor","implementation_status":"adapter-required","certification_status":"blocked-runtime-evidence"},
+    {"method":"POST","path":"/events/vicidial","permission":"vicidial-service","implementation_status":"implemented-in-canonical-addon","certification_status":"blocked-runtime-evidence"},
+    {"method":"POST","path":"/events/provider","permission":"provider-service","implementation_status":"adapter-required","certification_status":"blocked-runtime-evidence"},
+    {"method":"POST","path":"/screen-pop/resolve","permission":"agent-service-or-browser","implementation_status":"implemented-in-canonical-addon","certification_status":"blocked-runtime-evidence"},
+    {"method":"GET","path":"/interactions/{uuid}","permission":"agent-or-supervisor","implementation_status":"adapter-required","certification_status":"blocked-runtime-evidence"},
+    {"method":"POST","path":"/interactions/{uuid}/disposition","permission":"assigned-agent","implementation_status":"implemented-in-canonical-addon","certification_status":"blocked-runtime-evidence"},
+    {"method":"POST","path":"/interactions/{uuid}/callback","permission":"agent-or-supervisor","implementation_status":"implemented-in-canonical-addon","certification_status":"blocked-runtime-evidence"},
+    {"method":"POST","path":"/interactions/{uuid}/transfer","permission":"assigned-agent","implementation_status":"implemented-in-canonical-addon","certification_status":"blocked-runtime-evidence"},
+    {"method":"GET","path":"/agents/me/state","permission":"agent","implementation_status":"adapter-required","certification_status":"blocked-runtime-evidence"},
+    {"method":"POST","path":"/agents/me/state","permission":"agent","implementation_status":"adapter-required","certification_status":"blocked-runtime-evidence"},
+    {"method":"GET","path":"/supervisor/queues","permission":"supervisor","implementation_status":"adapter-required","certification_status":"blocked-runtime-evidence"},
+    {"method":"POST","path":"/supervisor/actions","permission":"authorized-supervisor","implementation_status":"adapter-required","certification_status":"blocked-runtime-evidence"},
+    {"method":"GET","path":"/campaigns/{id}/configuration","permission":"assigned-role","implementation_status":"contract-only","certification_status":"blocked-runtime-evidence"},
+    {"method":"POST","path":"/campaigns/{id}/publish","permission":"campaign-approver","implementation_status":"contract-only","certification_status":"blocked-runtime-evidence"},
+    {"method":"POST","path":"/provisioning/agents","permission":"authorized-manager","implementation_status":"adapter-required","certification_status":"blocked-runtime-evidence"},
+    {"method":"GET","path":"/provisioning/jobs/{uuid}","permission":"authorized-manager","implementation_status":"adapter-required","certification_status":"blocked-runtime-evidence"},
+    {"method":"POST","path":"/reconciliation/runs","permission":"integration-operator","implementation_status":"adapter-required","certification_status":"blocked-runtime-evidence"},
+    {"method":"GET","path":"/reconciliation/runs/{uuid}","permission":"operator-or-auditor","implementation_status":"adapter-required","certification_status":"blocked-runtime-evidence"},
+    {"method":"GET","path":"/reports/operations","permission":"reporting-role","implementation_status":"adapter-required","certification_status":"blocked-runtime-evidence"},
+    {"method":"GET","path":"/audit/events","permission":"auditor-or-admin","implementation_status":"adapter-required","certification_status":"blocked-runtime-evidence"}
+  ]
+}

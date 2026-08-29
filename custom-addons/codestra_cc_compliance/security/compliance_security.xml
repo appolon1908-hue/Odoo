@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="codestra_cc_security.rule_cc_business_unit_global_scope" model="ir.rule">
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_mail.group_cc_mail_ingestion_service') or user.has_group('codestra_cc_crm.group_cc_crm_service') or user.has_group('codestra_cc_calls.group_cc_call_service') or user.has_group('codestra_cc_recordings.group_cc_recording_service') or user.has_group('codestra_cc_wfm.group_cc_workforce_event_service') or user.has_group('codestra_cc_audit.group_cc_audit_service') or user.has_group('codestra_cc_compliance.group_cc_compliance_event_service') or user.cc_has_active_break_glass else [('id', 'in', user.cc_allowed_business_unit_ids.ids)]</field>
+  </record>
+  <record id="codestra_cc_security.rule_cc_campaign_global_scope" model="ir.rule">
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_mail.group_cc_mail_ingestion_service') or user.has_group('codestra_cc_crm.group_cc_crm_service') or user.has_group('codestra_cc_calls.group_cc_call_service') or user.has_group('codestra_cc_recordings.group_cc_recording_service') or user.has_group('codestra_cc_wfm.group_cc_workforce_event_service') or user.has_group('codestra_cc_audit.group_cc_audit_service') or user.has_group('codestra_cc_compliance.group_cc_compliance_event_service') or user.cc_has_active_break_glass else [('id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="codestra_cc_security.rule_cc_membership_global_scope" model="ir.rule">
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_calls.group_cc_call_service') or user.has_group('codestra_cc_recordings.group_cc_recording_service') or user.has_group('codestra_cc_wfm.group_cc_workforce_event_service') or user.has_group('codestra_cc_compliance.group_cc_compliance_event_service') or user.cc_has_active_break_glass else ([('campaign_id', 'in', user.cc_allowed_campaign_ids.ids), ('role', '=', 'qa')] if user.has_group('codestra_cc_security.group_cc_quality_analyst') else ([('campaign_id', 'in', user.cc_allowed_campaign_ids.ids), ('role', 'in', ['agent', 'senior_agent', 'supervisor', 'workforce'])] if user.has_group('codestra_cc_security.group_cc_workforce_analyst') else ['&amp;', ('campaign_id', 'in', user.cc_allowed_campaign_ids.ids), '|', ('user_id', '=', user.id), ('campaign_id', 'in', user.cc_supervised_campaign_ids.ids)]))</field>
+  </record>
+  <record id="codestra_cc_crm.rule_cc_customer_profile_global_scope" model="ir.rule">
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_crm.group_cc_crm_service') or user.has_group('codestra_cc_recordings.group_cc_recording_service') or user.has_group('codestra_cc_compliance.group_cc_compliance_event_service') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+
+  <record id="rule_cc_compliance_policy_scope" model="ir.rule">
+    <field name="name">Compliance policy campaign scope</field>
+    <field name="model_id" ref="model_cc_compliance_policy"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_security.group_cc_auditor') or user.has_group('codestra_cc_compliance.group_cc_compliance_event_service') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_consent_scope" model="ir.rule">
+    <field name="name">Consent evidence campaign scope</field>
+    <field name="model_id" ref="model_cc_consent_evidence"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_security.group_cc_auditor') or user.has_group('codestra_cc_compliance.group_cc_compliance_event_service') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_consent_agent_own" model="ir.rule">
+    <field name="name">Agents see assigned-customer consent evidence</field>
+    <field name="model_id" ref="model_cc_consent_evidence"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_agent'))]"/>
+    <field name="domain_force">[('customer_profile_id.assigned_user_id', 'in', [False, user.id])]</field>
+  </record>
+  <record id="rule_cc_consent_supervisor_campaign" model="ir.rule">
+    <field name="name">Supervisors see campaign consent evidence</field>
+    <field name="model_id" ref="model_cc_consent_evidence"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_supervisor'))]"/>
+    <field name="domain_force">[('campaign_id', 'in', user.cc_supervised_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_suppression_scope" model="ir.rule">
+    <field name="name">Suppression campaign scope</field>
+    <field name="model_id" ref="model_cc_suppression_entry"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_security.group_cc_auditor') or user.has_group('codestra_cc_compliance.group_cc_compliance_event_service') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_suppression_agent_own" model="ir.rule">
+    <field name="name">Agents see assigned-customer suppression</field>
+    <field name="model_id" ref="model_cc_suppression_entry"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_agent'))]"/>
+    <field name="domain_force">[('customer_profile_id.assigned_user_id', 'in', [False, user.id])]</field>
+  </record>
+  <record id="rule_cc_suppression_supervisor_campaign" model="ir.rule">
+    <field name="name">Supervisors see campaign suppression</field>
+    <field name="model_id" ref="model_cc_suppression_entry"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_supervisor'))]"/>
+    <field name="domain_force">[('campaign_id', 'in', user.cc_supervised_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_eligibility_scope" model="ir.rule">
+    <field name="name">Eligibility evidence campaign scope</field>
+    <field name="model_id" ref="model_cc_contact_eligibility_evidence"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_security.group_cc_auditor') or user.has_group('codestra_cc_compliance.group_cc_compliance_event_service') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_eligibility_agent_own" model="ir.rule">
+    <field name="name">Agents see assigned-customer eligibility evidence</field>
+    <field name="model_id" ref="model_cc_contact_eligibility_evidence"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_agent'))]"/>
+    <field name="domain_force">[('customer_profile_id.assigned_user_id', 'in', [False, user.id])]</field>
+  </record>
+  <record id="rule_cc_eligibility_supervisor_campaign" model="ir.rule">
+    <field name="name">Supervisors see campaign eligibility evidence</field>
+    <field name="model_id" ref="model_cc_contact_eligibility_evidence"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_supervisor'))]"/>
+    <field name="domain_force">[('campaign_id', 'in', user.cc_supervised_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_payment_session_scope" model="ir.rule">
+    <field name="name">Payment safety campaign scope</field>
+    <field name="model_id" ref="model_cc_payment_safety_session"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_security.group_cc_auditor') or user.has_group('codestra_cc_recordings.group_cc_recording_service') or user.has_group('codestra_cc_compliance.group_cc_compliance_event_service') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_payment_session_agent_own" model="ir.rule">
+    <field name="name">Agents see their payment workflow</field>
+    <field name="model_id" ref="model_cc_payment_safety_session"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_agent'))]"/>
+    <field name="domain_force">[('agent_membership_id.user_id', '=', user.id)]</field>
+  </record>
+  <record id="rule_cc_payment_session_supervisor_campaign" model="ir.rule">
+    <field name="name">Supervisors see campaign payment workflow</field>
+    <field name="model_id" ref="model_cc_payment_safety_session"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_supervisor'))]"/>
+    <field name="domain_force">[('campaign_id', 'in', user.cc_supervised_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_payment_event_scope" model="ir.rule">
+    <field name="name">Payment safety timeline campaign scope</field>
+    <field name="model_id" ref="model_cc_payment_safety_event"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_security.group_cc_auditor') or user.has_group('codestra_cc_recordings.group_cc_recording_service') or user.has_group('codestra_cc_compliance.group_cc_compliance_event_service') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_payment_event_agent_own" model="ir.rule">
+    <field name="name">Agents see their payment timeline</field>
+    <field name="model_id" ref="model_cc_payment_safety_event"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_agent'))]"/>
+    <field name="domain_force">[('payment_session_id.agent_membership_id.user_id', '=', user.id)]</field>
+  </record>
+  <record id="rule_cc_payment_event_supervisor_campaign" model="ir.rule">
+    <field name="name">Supervisors see campaign payment timeline</field>
+    <field name="model_id" ref="model_cc_payment_safety_event"/>
+    <field name="groups" eval="[(4, ref('codestra_cc_security.group_cc_campaign_supervisor'))]"/>
+    <field name="domain_force">[('campaign_id', 'in', user.cc_supervised_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_legal_hold_scope" model="ir.rule">
+    <field name="name">Legal hold campaign scope</field>
+    <field name="model_id" ref="model_cc_legal_hold"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_security.group_cc_auditor') or user.has_group('codestra_cc_compliance.group_cc_compliance_event_service') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+  <record id="rule_cc_retention_scope" model="ir.rule">
+    <field name="name">Retention decision campaign scope</field>
+    <field name="model_id" ref="model_cc_retention_decision"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_cc_security.group_cc_auditor') or user.has_group('codestra_cc_compliance.group_cc_compliance_event_service') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+</odoo>

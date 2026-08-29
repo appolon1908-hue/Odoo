@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_codestra_client_contract_user,codestra.client.contract user,model_codestra_client_contract,call_center_core.group_call_center_user,1,0,0,0
+access_codestra_client_contract_ops,codestra.client.contract client operations,model_codestra_client_contract,codestra_client_operations.group_codestra_client_operations_manager,1,1,1,1
+access_codestra_client_contract_admin,codestra.client.contract admin,model_codestra_client_contract,call_center_core.group_call_center_admin,1,1,1,1
+access_codestra_client_sla_user,codestra.client.sla user,model_codestra_client_sla,call_center_core.group_call_center_user,1,0,0,0
+access_codestra_client_sla_ops,codestra.client.sla client operations,model_codestra_client_sla,codestra_client_operations.group_codestra_client_operations_manager,1,1,1,1
+access_codestra_client_sla_admin,codestra.client.sla admin,model_codestra_client_sla,call_center_core.group_call_center_admin,1,1,1,1

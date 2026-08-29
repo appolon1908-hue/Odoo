@@ -1,0 +1,5 @@
+<odoo noupdate="1">
+ <record id="cron_campaign_sla" model="ir.cron"><field name="name">Campaign SLA Escalation</field><field name="model_id" ref="model_codestra_campaign_sla_service"/><field name="state">code</field><field name="code">model.run()</field><field name="interval_number">5</field><field name="interval_type">minutes</field><field name="active" eval="False"/></record>
+ <record id="cron_appointment_reminders" model="ir.cron"><field name="name">Campaign Appointment Reminders</field><field name="model_id" ref="model_codestra_crm_appointment"/><field name="state">code</field><field name="code">model.run_reminders()</field><field name="interval_number">5</field><field name="interval_type">minutes</field><field name="active" eval="False"/></record>
+ <record id="cron_daily_operations_report" model="ir.cron"><field name="name">Campaign Daily Operations Report</field><field name="model_id" ref="model_codestra_daily_operations_report"/><field name="state">code</field><field name="code">model.generate()</field><field name="interval_number">1</field><field name="interval_type">days</field><field name="active" eval="False"/></record>
+</odoo>

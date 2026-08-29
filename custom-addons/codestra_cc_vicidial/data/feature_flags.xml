@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+  <record id="param_cc_enable_campaign_provisioning" model="ir.config_parameter">
+    <field name="key">CC_ENABLE_CAMPAIGN_PROVISIONING</field>
+    <field name="value">false</field>
+  </record>
+  <record id="param_cc_enable_agent_sync" model="ir.config_parameter">
+    <field name="key">CC_ENABLE_AGENT_SYNC</field>
+    <field name="value">false</field>
+  </record>
+  <record id="param_cc_enable_vicidial_writes" model="ir.config_parameter">
+    <field name="key">CC_ENABLE_VICIDIAL_WRITES</field>
+    <field name="value">false</field>
+  </record>
+  <record id="param_cc_enable_live_call_control" model="ir.config_parameter">
+    <field name="key">CC_ENABLE_LIVE_CALL_CONTROL</field>
+    <field name="value">false</field>
+  </record>
+</odoo>
