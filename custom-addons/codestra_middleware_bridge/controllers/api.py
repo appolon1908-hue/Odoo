@@ -559,13 +559,16 @@ class CodestraMiddlewareBridge(http.Controller):
         # Nested values are optional, but when present they must be non-empty
         # bounded strings. Without this a malformed value reaches the ORM and
         # becomes a server error instead of a deterministic 422.
-        for container, container_name, limit, names in (
-            (contact, "contact", 256, ("name", "email", "phone", "preferred_language")),
-            (company, "company", 256, ("name", "domain", "industry")),
-            (lead, "lead", 256, ("name", "campaign_code")),
-            (lead, "lead", 4096, ("description",)),
+        # Limits mirror odoo-lead-command.schema.json exactly. A narrower cap here
+        # would reject payloads the published contract accepts.
+        for container, container_name, limits in (
+            (contact, "contact", {
+                "name": 255, "email": 320, "phone": 64, "preferred_language": 16,
+            }),
+            (company, "company", {"name": 255, "domain": 255, "industry": 255}),
+            (lead, "lead", {"name": 255, "campaign_code": 128, "description": 10000}),
         ):
-            for field_name in names:
+            for field_name, limit in limits.items():
                 value = container.get(field_name)
                 if value is None:
                     continue

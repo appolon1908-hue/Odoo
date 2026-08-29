@@ -421,3 +421,26 @@ class TestMiddlewareCrmIntakeHttp(HttpCase):
         )
         self.assertEqual(status.status_code, 404, status.text)
         self.assertEqual(status.json()["error"], "command_not_found")
+
+    def test_contract_maximum_lengths_are_accepted(self):
+        command = self.command()
+        local_part = "a" * (320 - len("@example.invalid"))
+        command["payload"]["lead"]["contact"]["email"] = (
+            f"{local_part}@example.invalid"
+        )
+        command["payload"]["lead"]["description"] = "d" * 10000
+        response = self.post(command)
+        self.assertEqual(response.status_code, 201, response.text)
+        lead = self.lead_for(command)
+        self.assertEqual(len(lead.email_from), 320)
+        self.assertEqual(len(lead.description), 10000)
+
+    def test_value_beyond_the_contract_maximum_is_rejected(self):
+        command = self.command()
+        command["payload"]["lead"]["contact"]["preferred_language"] = "e" * 17
+        response = self.post(command)
+        self.assertEqual(response.status_code, 422, response.text)
+        body = response.json()
+        self.assertEqual(body["error"], "invalid_lead_subject_value")
+        self.assertEqual(body["field"], "preferred_language")
+        self.assertFalse(self.lead_for(command))
