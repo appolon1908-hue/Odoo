@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from odoo.tests import HttpCase, tagged
+from odoo.tools import html2plaintext
 
 
 @tagged("post_install", "-at_install")
@@ -436,7 +437,7 @@ class TestMiddlewareCrmIntakeHttp(HttpCase):
         self.assertEqual(response.status_code, 201, response.text)
         lead = self.lead_for(command)
         self.assertEqual(len(lead.email_from), 320)
-        self.assertEqual(len(lead.description), 10000)
+        self.assertEqual(len(html2plaintext(lead.description)), 10000)
 
     def test_value_beyond_the_contract_maximum_is_rejected(self):
         command = self.command()
