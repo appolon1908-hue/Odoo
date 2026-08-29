@@ -779,10 +779,9 @@ class CodestraIntegrationApiController(http.Controller):
                 body.get("phone_number") or body.get("from_number") or ""
             ).strip()
             partners = request.env["res.partner"].sudo().search([
-                "|", "|",
+                "|",
                 ("phone_sanitized", "=", phone),
                 ("phone", "=", phone),
-                ("mobile", "=", phone),
             ], limit=2)
             if not partners:
                 raise IntegrationNotFound("contact not found")
