@@ -5,12 +5,22 @@ def migrate(cr, version):
     deliveries must be investigated and reconciled instead of being deleted or
     silently rewritten by a migration.
     """
+    cr.execute("SELECT to_regclass('codestra_runtime_integration_outbox')")
+    if cr.fetchone()[0] is None:
+        # The table is introduced by this module version.  Freshly upgrading
+        # older databases must let the ORM create it before any backfill runs.
+        return
+
     cr.execute(
         """
         ALTER TABLE codestra_runtime_integration_outbox
         ADD COLUMN IF NOT EXISTS idempotency_key varchar
         """
     )
+    cr.execute("SELECT to_regclass('codestra_integration_result_inbox')")
+    if cr.fetchone()[0] is None:
+        return
+
     cr.execute(
         """
         UPDATE codestra_runtime_integration_outbox
