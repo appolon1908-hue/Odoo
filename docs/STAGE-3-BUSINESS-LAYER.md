@@ -66,11 +66,13 @@ production module upgrade.
 
 | Gate | Required evidence | Current state |
 | --- | --- | --- |
-| Odoo source/security | 67 manifests, strict boundary and mission validators | PASS locally |
-| Odoo intake runtime | Authenticated command creates one real lead with correct consent/suppression and replay safety | PENDING CI |
-| Paired recovery | Database plus filestore restore and attachment checksum | PENDING CI |
+| Odoo source/security | 67 manifests, strict boundary and mission validators | **PASS** — [Security gates run 33229491822](https://github.com/appolon1908-hue/Odoo/actions/runs/33229491822) |
+| Odoo intake runtime | Authenticated command creates one real lead with correct consent/suppression and replay safety | **PASS** — 463 tests, 0 failures and 0 errors in [runtime job 99039629302](https://github.com/appolon1908-hue/Odoo/actions/runs/33229491755/job/99039629302) |
+| Paired recovery | Database plus filestore restore and attachment checksum | **PASS** — database and filestore restored together; restored bytes matched SHA-256 in [runtime job 99039629302](https://github.com/appolon1908-hue/Odoo/actions/runs/33229491755/job/99039629302) |
 | Middleware-to-Odoo end-to-end | Stage 2 adapter sends the canonical command to this endpoint and reconciles read-back | BLOCKED — Middleware repository still marks the Odoo adapter source as missing |
 | Staging certification | Exact merged SHA deployed to staging with external capabilities closed | PENDING protected merge |
 
-Stage 3 is not complete until every row is PASS. Source implementation alone is
-not production certification.
+The Odoo repository portion of Stage 3 is implemented and runtime-certified at
+commit `9f31f30eb71cd1d1365aaa1864eae20a5296533f`. The full cross-repository Stage 3
+exit condition remains blocked until the Stage 2 Middleware adapter exists and
+the resulting merged SHA is certified in staging. Production was not touched.
