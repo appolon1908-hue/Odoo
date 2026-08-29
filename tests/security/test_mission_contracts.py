@@ -1,3 +1,4 @@
+import csv
 import json
 import unittest
 from pathlib import Path
@@ -34,6 +35,30 @@ class MissionContractTests(unittest.TestCase):
                 for item in payload["endpoints"]
             )
         )
+
+    def test_controller_inventory_rejects_no_authenticated_service_route(self):
+        with (ROOT / "docs/reconciliation/ODOO-ENDPOINT-INVENTORY.csv").open(
+            newline="", encoding="utf-8"
+        ) as handle:
+            rows = list(csv.DictReader(handle))
+
+        self.assertEqual(len(rows), 71)
+        self.assertFalse(
+            [row for row in rows if row["status"].startswith("REJECT")]
+        )
+        self.assertEqual(
+            [row["path"] for row in rows if row["status"] == "RETIRED"],
+            ["/codestra/integration/v1/results"],
+        )
+        unauthenticated_mutations = [
+            row
+            for row in rows
+            if row["auth"] in {"none", "public"}
+            and set(row["method"].split(";"))
+            & {"POST", "PUT", "PATCH", "DELETE", "ANY"}
+            and row["status"] != "RETIRED"
+        ]
+        self.assertFalse(unauthenticated_mutations)
 
 
 if __name__ == "__main__":

@@ -259,6 +259,61 @@ def literal(node: ast.AST) -> Any:
         return None
 
 
+def reachable_function_source(
+    source: str,
+    tree: ast.Module,
+    cls: ast.ClassDef,
+    entrypoint: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> str:
+    """Return an entrypoint plus local helpers it can call.
+
+    Odoo service controllers intentionally use ``auth="none"`` because their
+    JWT/HMAC service identity is verified by the controller itself.  Looking at
+    only the decorated function misclassifies handlers that delegate that
+    verification to a private helper.
+    """
+    functions: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    functions.update({
+        node.name: node
+        for node in cls.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    })
+    pending = [entrypoint]
+    visited: set[str] = set()
+    segments: list[str] = []
+    while pending:
+        node = pending.pop()
+        if node.name in visited:
+            continue
+        visited.add(node.name)
+        segments.append(ast.get_source_segment(source, node) or "")
+        for call in (item for item in ast.walk(node) if isinstance(item, ast.Call)):
+            name = None
+            if isinstance(call.func, ast.Name):
+                name = call.func.id
+            elif isinstance(call.func, ast.Attribute):
+                name = call.func.attr
+            if name in functions and name not in visited:
+                pending.append(functions[name])
+    return "\n".join(segments)
+
+
+def service_authentication(reachable_source: str, module_source: str) -> bool:
+    """Identify the reviewed JWT/HMAC gateways used by service routes."""
+    direct_gateway = re.search(
+        r"\b(?:_authenticate|_body|_begin)\s*\(|hmac\.compare_digest\s*\(",
+        reachable_source,
+    )
+    imported_gateway = re.search(r"\bverify\s*\(", reachable_source) and re.search(
+        r"from\s+\.service_auth\s+import\s+", module_source
+    )
+    return bool(direct_gateway or imported_gateway)
+
+
 def generate_endpoint_inventory() -> None:
     rows: list[dict[str, Any]] = []
     for path in sorted(ADDONS.glob("*/controllers/*.py")):
@@ -275,25 +330,51 @@ def generate_endpoint_inventory() -> None:
                     paths = route_value if isinstance(route_value, list) else [route_value]
                     kwargs = {kw.arg: literal(kw.value) for kw in decorator.keywords if kw.arg}
                     methods = kwargs.get("methods") or ["ANY"]
-                    auth = kwargs.get("auth", "user")
+                    framework_auth = kwargs.get("auth", "user")
                     fn_source = ast.get_source_segment(source, fn) or ""
+                    reachable_source = reachable_function_source(source, tree, cls, fn)
                     for route in paths:
                         if not isinstance(route, str):
                             route = "DYNAMIC_ROUTE"
                         generic = bool(re.search(r"<.*model|<.*method|execute", route, re.I))
                         mutation = any(method in {"POST", "PUT", "PATCH", "DELETE", "ANY"} for method in methods)
-                        public_mutation = auth in {"none", "public"} and mutation
-                        sudo = ".sudo(" in fn_source
-                        status = "REJECT" if generic or public_mutation else "REVIEW_SUDO" if sudo else "CANDIDATE"
+                        service_authenticated = service_authentication(
+                            reachable_source, source
+                        )
+                        public_mutation = (
+                            framework_auth in {"none", "public"}
+                            and mutation
+                            and not service_authenticated
+                        )
+                        sudo = ".sudo(" in reachable_source
+                        retired = "retired" in fn.name.lower() and "410" in fn_source
+                        if generic:
+                            status = "REJECT_GENERIC_PROXY"
+                        elif retired:
+                            status = "RETIRED"
+                        elif public_mutation:
+                            status = "REJECT_UNAUTHENTICATED_MUTATION"
+                        elif sudo:
+                            status = "REVIEW_SUDO"
+                        else:
+                            status = "CANDIDATE"
+                        middleware_audience = service_authenticated or bool(
+                            re.search(r"middleware|service", reachable_source, re.I)
+                        )
+                        effective_auth = (
+                            f"{framework_auth}+controller_service_identity"
+                            if service_authenticated
+                            else framework_auth
+                        )
                         rows.append({
                             "method": ";".join(methods), "path": route, "module": path.parents[1].name,
-                            "controller": f"{cls.name}.{fn.name}", "auth": auth, "audience": "MIDDLEWARE" if "middleware" in fn_source.lower() or "service" in fn_source.lower() else "INTERNAL_OR_BROWSER",
-                            "scope": "DECLARED" if "scope" in fn_source else "NOT_DETECTED", "request_model": "INLINE", "response_model": "INLINE",
-                            "tenant_company_binding": "YES" if re.search(r"tenant|company", fn_source, re.I) else "NO",
-                            "campaign_binding": "YES" if "campaign" in fn_source.lower() else "NO",
-                            "idempotency": "YES" if re.search(r"idempot|request_id|event_id", fn_source, re.I) else "NO",
-                            "rate_limit_expectation": "KONG/MIDDLEWARE", "middleware_only": "YES" if "middleware" in fn_source.lower() or "service" in fn_source.lower() else "NO",
-                            "browser_allowed": "YES" if auth == "user" else "NO", "provider_callback": "YES" if "callback" in route.lower() or "webhook" in route.lower() else "NO", "status": status,
+                            "controller": f"{cls.name}.{fn.name}", "auth": effective_auth, "audience": "MIDDLEWARE" if middleware_audience else "INTERNAL_OR_BROWSER",
+                            "scope": "DECLARED" if "scope" in reachable_source else "NOT_DETECTED", "request_model": "INLINE", "response_model": "INLINE",
+                            "tenant_company_binding": "YES" if re.search(r"tenant|company", reachable_source, re.I) else "NO",
+                            "campaign_binding": "YES" if "campaign" in reachable_source.lower() else "NO",
+                            "idempotency": "YES" if re.search(r"idempot|request_id|event_id", reachable_source, re.I) else "NO",
+                            "rate_limit_expectation": "KONG/MIDDLEWARE", "middleware_only": "YES" if middleware_audience else "NO",
+                            "browser_allowed": "YES" if framework_auth == "user" else "NO", "provider_callback": "YES" if "callback" in route.lower() or "webhook" in route.lower() else "NO", "status": status,
                         })
     write_csv(OUT / "ODOO-ENDPOINT-INVENTORY.csv", list(rows[0]) if rows else ["method", "path"], rows)
 
@@ -320,8 +401,21 @@ def generate_boundary_report() -> None:
         "embedded FastAPI": re.compile(r"\bFastAPI\s*\("),
         "Celery platform": re.compile(r"\bCelery\s*\("),
         "RabbitMQ client": re.compile(r"\b(?:pika|aio_pika)\b"),
-        "external PostgreSQL client": re.compile(r"\b(?:psycopg2?|asyncpg|postgresql://)\b"),
-        "direct VICIdial database write": re.compile(r"(?is)vicidial.{0,120}(?:insert|update|delete)"),
+        "external PostgreSQL connection": re.compile(
+            r"(?i)\b(?:psycopg2?|asyncpg|pg8000)\s*\.\s*(?:connect|create_pool)\s*\(|"
+            r"from\s+(?:psycopg2?|asyncpg|pg8000)\s+import\s+[^\n]*\b(?:connect|create_pool)\b|"
+            r"postgres(?:ql)?://"
+        ),
+        "direct VICIdial database write": re.compile(
+            r"(?is)\b(?:insert\s+into|update|delete\s+from)\s+"
+            r"(?:vicidial|vicidial_[a-z0-9_]+)\b"
+        ),
+        "direct provider HTTP write": re.compile(
+            r"(?is)(?:\b(?:postal|telnexa|scraper)\b.{0,240}"
+            r"(?:requests|httpx)\s*\.\s*(?:post|put|patch|delete)\s*\(|"
+            r"(?:requests|httpx)\s*\.\s*(?:post|put|patch|delete)\s*\("
+            r".{0,240}\b(?:postal|telnexa|scraper)\b)"
+        ),
     }
     findings: list[tuple[str, str, int]] = []
     for path in ADDONS.rglob("*"):
@@ -336,8 +430,15 @@ def generate_boundary_report() -> None:
         for label, path, line in findings:
             lines.append(f"- `REVIEW`: {label} at `{path}:{line}`")
     else:
-        lines.append("No embedded FastAPI/Celery/RabbitMQ platform, external PostgreSQL client, or obvious direct VICIdial database write was detected.")
-    lines.extend(["", "Provider-effect and controller findings remain subject to semantic review; absence from this pattern scan is not certification.", ""])
+        lines.extend([
+            "No competing Middleware platform, external PostgreSQL connection, direct VICIdial database write, or named provider HTTP write was detected.",
+            "",
+            "- `EMBEDDED_MIDDLEWARE_PLATFORMS=0`",
+            "- `DIRECT_EXTERNAL_POSTGRESQL_CONNECTIONS=0`",
+            "- `DIRECT_VICIDIAL_DATABASE_WRITES=0`",
+            "- `DIRECT_NAMED_PROVIDER_HTTP_WRITES=0`",
+        ])
+    lines.extend(["", "This inventory is a deterministic source scan. Certification additionally requires the strict integration-boundary and mission-security CI gates.", ""])
     (OUT / "MIDDLEWARE-BOUNDARY-REPORT.md").write_text("\n".join(lines), encoding="utf-8")
 
 
