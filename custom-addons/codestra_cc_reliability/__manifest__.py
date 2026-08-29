@@ -7,7 +7,6 @@
     "depends": [
         "codestra_cc_core",
         "codestra_integration_hub",
-        "codestra_middleware_bridge",
         "call_center_orchestration",
     ],
     "data": [],

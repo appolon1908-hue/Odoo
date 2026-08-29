@@ -47,12 +47,15 @@ class TestMiddlewareCrmIntakeHttp(HttpCase):
             active_test=False
         ).search([("legacy_business_unit_id", "=", cls.unit.id)], limit=1)
         cls.campaign_code = f"MWCAMP-{uuid.uuid4().hex[:8].upper()}"
-        cls.campaign = cls.env["cc.campaign"].with_context(active_test=False).create({
+        legacy_campaign = cls.env["call.center.campaign"].create({
             "name": "Synthetic Middleware Campaign",
             "code": cls.campaign_code,
-            "cc_business_unit_id": cls.canonical_unit.id,
             "business_unit_id": cls.unit.id,
+            "active": False,
         })
+        cls.campaign = cls.env["cc.campaign"].with_context(
+            active_test=False
+        ).search([("legacy_campaign_id", "=", legacy_campaign.id)], limit=1)
         # The service identity must stay narrow: it carries the internal-user
         # baseline and its own explicit ACLs, never the broad call centre or
         # all-leads sales roles.
