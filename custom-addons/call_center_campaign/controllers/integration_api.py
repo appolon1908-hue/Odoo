@@ -303,7 +303,7 @@ def _provider_activity_service_scope(body):
         not service_user
         or not service_user.active
         or not service_user.has_group(
-            "call_center_core.group_call_center_integration_service"
+            "call_center_campaign.group_provider_activity_service"
         )
     ):
         raise IntegrationRejected("provider activity service identity rejected")
