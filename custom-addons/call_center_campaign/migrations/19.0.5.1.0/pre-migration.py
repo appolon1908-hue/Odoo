@@ -6,34 +6,65 @@ def migrate(cr, version):
     silently rewritten by a migration.
     """
     cr.execute("SELECT to_regclass('codestra_runtime_integration_outbox')")
-    if cr.fetchone()[0] is None:
-        # The table is introduced by this module version.  Freshly upgrading
-        # older databases must let the ORM create it before any backfill runs.
-        return
-
-    cr.execute(
-        """
-        ALTER TABLE codestra_runtime_integration_outbox
-        ADD COLUMN IF NOT EXISTS idempotency_key varchar
-        """
-    )
+    outbox_exists = cr.fetchone()[0] is not None
     cr.execute("SELECT to_regclass('codestra_integration_result_inbox')")
-    if cr.fetchone()[0] is None:
+    result_inbox_exists = cr.fetchone()[0] is not None
+
+    if outbox_exists:
+        cr.execute(
+            """
+            ALTER TABLE codestra_runtime_integration_outbox
+            ADD COLUMN IF NOT EXISTS idempotency_key varchar
+            """
+        )
+        cr.execute(
+            """
+            UPDATE codestra_runtime_integration_outbox
+               SET idempotency_key = deterministic_event_key
+             WHERE idempotency_key IS NULL
+            """
+        )
+        cr.execute(
+            """
+            ALTER TABLE codestra_runtime_integration_outbox
+            ALTER COLUMN idempotency_key SET NOT NULL
+            """
+        )
+
+    if not result_inbox_exists:
         return
 
+    # Preserve legacy evidence whose original outbox table/row is absent, but
+    # quarantine the stale integer before Odoo adds the new foreign key.
     cr.execute(
         """
-        UPDATE codestra_runtime_integration_outbox
-           SET idempotency_key = deterministic_event_key
-         WHERE idempotency_key IS NULL
+        ALTER TABLE codestra_integration_result_inbox
+        ADD COLUMN IF NOT EXISTS originating_outbox_legacy_id integer
         """
     )
-    cr.execute(
-        """
-        ALTER TABLE codestra_runtime_integration_outbox
-        ALTER COLUMN idempotency_key SET NOT NULL
-        """
-    )
+    if outbox_exists:
+        cr.execute(
+            """
+            UPDATE codestra_integration_result_inbox AS result
+               SET originating_outbox_legacy_id = result.originating_outbox_id,
+                   originating_outbox_id = NULL
+             WHERE result.originating_outbox_id IS NOT NULL
+               AND NOT EXISTS (
+                   SELECT 1
+                     FROM codestra_runtime_integration_outbox AS outbox
+                    WHERE outbox.id = result.originating_outbox_id
+               )
+            """
+        )
+    else:
+        cr.execute(
+            """
+            UPDATE codestra_integration_result_inbox
+               SET originating_outbox_legacy_id = originating_outbox_id,
+                   originating_outbox_id = NULL
+             WHERE originating_outbox_id IS NOT NULL
+            """
+        )
     cr.execute(
         """
         SELECT delivery_id, count(*)
