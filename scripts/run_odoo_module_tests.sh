@@ -407,7 +407,7 @@ sentinel_output="$(docker run --rm \
   "$ODOO_IMAGE" \
   -- \
   shell -d "$DATABASE" --no-http \
-  < "$ROOT_DIR/scripts/create_filestore_restore_sentinel.py")"
+  < "$ROOT_DIR/scripts/create_filestore_restore_sentinel.py" 2>&1)"
 printf '%s\n' "$sentinel_output"
 FILESTORE_DATABASE_DIR="$(
   printf '%s\n' "$sentinel_output" \

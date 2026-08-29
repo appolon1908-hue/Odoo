@@ -5,6 +5,7 @@ Executed through ``odoo shell`` against the disposable restored CI database.
 
 import base64
 import hashlib
+import sys
 from pathlib import Path
 
 
@@ -34,6 +35,14 @@ full_path = Path(attachment._full_path(attachment.store_fname))
 if not full_path.is_file():
     raise RuntimeError(f"Restored filestore object is missing: {full_path}")
 
-print(f"RESTORED_FILESTORE_SENTINEL_ID={attachment.id}")
-print(f"RESTORED_FILESTORE_SENTINEL_SHA256={actual_sha256}")
-print("RESTORED_FILESTORE_OBJECT=PASS")
+print(
+    f"RESTORED_FILESTORE_SENTINEL_ID={attachment.id}",
+    file=sys.stderr,
+    flush=True,
+)
+print(
+    f"RESTORED_FILESTORE_SENTINEL_SHA256={actual_sha256}",
+    file=sys.stderr,
+    flush=True,
+)
+print("RESTORED_FILESTORE_OBJECT=PASS", file=sys.stderr, flush=True)

@@ -5,6 +5,7 @@ Executed through ``odoo shell`` against a disposable CI database only.
 
 import base64
 import hashlib
+import sys
 from pathlib import Path
 
 
@@ -33,7 +34,10 @@ if hashlib.sha256(base64.b64decode(attachment.datas)).hexdigest() != SENTINEL_SH
 
 env.cr.commit()
 filestore_database_dir = Path(attachment._full_path(attachment.store_fname)).parents[1]
-print(f"FILESTORE_SENTINEL_ID={attachment.id}")
-print(f"FILESTORE_SENTINEL_SHA256={SENTINEL_SHA256}")
-print(f"FILESTORE_DATABASE_DIR={filestore_database_dir}")
-print("FILESTORE_SENTINEL_CREATE=PASS")
+# Odoo 19's non-interactive shell does not reliably forward normal stdout.
+# Emit machine-readable recovery evidence on stderr, which is preserved by
+# both the official container entrypoint and GitHub Actions.
+print(f"FILESTORE_SENTINEL_ID={attachment.id}", file=sys.stderr, flush=True)
+print(f"FILESTORE_SENTINEL_SHA256={SENTINEL_SHA256}", file=sys.stderr, flush=True)
+print(f"FILESTORE_DATABASE_DIR={filestore_database_dir}", file=sys.stderr, flush=True)
+print("FILESTORE_SENTINEL_CREATE=PASS", file=sys.stderr, flush=True)
