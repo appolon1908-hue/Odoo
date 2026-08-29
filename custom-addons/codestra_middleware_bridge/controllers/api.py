@@ -12,6 +12,9 @@ from odoo import fields, http
 from odoo.http import request
 
 PREFIX = "CODESTRA-INTEGRATION-TEST-"
+# PostgreSQL unique_violation. Matched on the driver's SQLSTATE so the
+# controller does not import a database driver of its own.
+UNIQUE_VIOLATION = "23505"
 
 
 class CodestraMiddlewareBridge(http.Controller):
@@ -25,6 +28,7 @@ class CodestraMiddlewareBridge(http.Controller):
         "consent_source", "consent_evidence_reference", "review_required",
         "initial_stage", "requested_by", "provenance_method",
         "provenance_reference", "provenance_legal_basis", "provenance_digest",
+        "preferred_language", "company_domain", "company_industry",
         "tags",
     }
     CRM_LEAD_PATCH_FIELDS: ClassVar[set[str]] = {
@@ -178,6 +182,32 @@ class CodestraMiddlewareBridge(http.Controller):
         })
         return self._json(status, value)
 
+    def _serialized(self, auth, run):
+        """Run a write path so a concurrent duplicate cannot double-write.
+
+        The tenant/idempotency uniqueness constraint is the serialization
+        point. If a concurrent request records its evidence first, this one
+        rolls back to the savepoint and returns the recorded outcome rather
+        than surfacing an unhandled server error.
+        """
+        try:
+            with request.env.cr.savepoint():
+                return run()
+        except Exception as error:
+            causes = (error, getattr(error, "__cause__", None))
+            if not any(getattr(cause, "pgcode", None) == UNIQUE_VIOLATION for cause in causes):
+                raise
+        request.env.invalidate_all()
+        prior = request.env["codestra.middleware.request"].with_user(auth["user"]).search([
+            ("tenant_id", "=", auth["tenant_id"]),
+            ("idempotency_key", "=", auth["idempotency_key"]),
+        ], limit=1)
+        if not prior:
+            return self._json(409, {"error": "idempotency_conflict"})
+        value = json.loads(prior.response_json)
+        value["duplicate"] = True
+        return self._json(200, value)
+
     def _partner(self, auth, partner_id):
         partner = request.env["res.partner"].with_user(auth["user"]).browse(partner_id).exists()
         if not partner or not (partner.name or "").startswith(PREFIX):
@@ -216,6 +246,9 @@ class CodestraMiddlewareBridge(http.Controller):
             "email_marketing_consent": lead.codestra_email_marketing_consent,
             "phone_consent": lead.codestra_phone_consent,
             "consent_correlation_id": lead.codestra_consent_correlation_id,
+            "preferred_language": lead.codestra_preferred_language,
+            "company_domain": lead.codestra_company_domain,
+            "company_industry": lead.codestra_company_industry,
             "consent_status": lead.consent_status,
             "allow_external_contact": lead.codestra_allow_external_contact,
             "review_required": lead.codestra_review_required,
@@ -292,6 +325,9 @@ class CodestraMiddlewareBridge(http.Controller):
             "provenance_reference": "codestra_provenance_reference",
             "provenance_legal_basis": "codestra_provenance_legal_basis",
             "provenance_digest": "codestra_provenance_digest",
+            "preferred_language": "codestra_preferred_language",
+            "company_domain": "codestra_company_domain",
+            "company_industry": "codestra_company_industry",
         }
         for source, target in consent_mapping.items():
             if source in payload:
@@ -520,6 +556,25 @@ class CodestraMiddlewareBridge(http.Controller):
             or not {"name", "domain", "industry"}.issuperset(company)
         ):
             return None, self._json(422, {"error": "invalid_lead_subject"})
+        # Nested values are optional, but when present they must be non-empty
+        # bounded strings. Without this a malformed value reaches the ORM and
+        # becomes a server error instead of a deterministic 422.
+        for container, container_name, limit, names in (
+            (contact, "contact", 256, ("name", "email", "phone", "preferred_language")),
+            (company, "company", 256, ("name", "domain", "industry")),
+            (lead, "lead", 256, ("name", "campaign_code")),
+            (lead, "lead", 4096, ("description",)),
+        ):
+            for field_name in names:
+                value = container.get(field_name)
+                if value is None:
+                    continue
+                if not isinstance(value, str) or not value.strip() or len(value) > limit:
+                    return None, self._json(422, {
+                        "error": "invalid_lead_subject_value",
+                        "section": container_name,
+                        "field": field_name,
+                    })
         if (
             payload.get("review_required") is True
             and (
@@ -560,6 +615,9 @@ class CodestraMiddlewareBridge(http.Controller):
             "email": contact.get("email"),
             "phone": contact.get("phone"),
             "company_name": company.get("name"),
+            "preferred_language": contact.get("preferred_language"),
+            "company_domain": company.get("domain"),
+            "company_industry": company.get("industry"),
             "source": payload["lead_source"],
             "campaign": lead.get("campaign_code"),
             "external_id": payload["source_record_id"],
@@ -640,9 +698,15 @@ class CodestraMiddlewareBridge(http.Controller):
         if error: return error
         unit = self._crm_scope(auth)
         if not unit: return self._json(403, {"error": "crm_service_scope_rejected"})
-        lead, mapping, error = self._create_crm_lead(auth, payload, unit)
-        if error: return error
-        return self._complete(auth, "crm.lead.create", self._crm_lead_value(lead, mapping), status=201)
+        def run():
+            lead, mapping, error = self._create_crm_lead(auth, payload, unit)
+            if error:
+                return error
+            return self._complete(
+                auth, "crm.lead.create", self._crm_lead_value(lead, mapping), status=201
+            )
+
+        return self._serialized(auth, run)
 
     @http.route(
         "/codestra/middleware/v1/commands/crm.lead.upsert",
@@ -666,35 +730,87 @@ class CodestraMiddlewareBridge(http.Controller):
         payload, error = self._command_to_crm_payload(command, auth)
         if error:
             return error
-        mapping = self._crm_mapping(auth, payload["external_id"])
-        status = 200
-        outcome = "updated"
-        if mapping:
-            lead = request.env["crm.lead"].with_user(auth["user"]).browse(mapping.record_id).exists()
-            if not lead or lead.company_id != unit.company_id or lead.business_unit_id != unit:
-                return self._json(409, {"error": "external_mapping_scope_conflict"})
-            values, error = self._crm_values(
-                payload, self.CRM_LEAD_CREATE_FIELDS, unit, auth["user"]
-            )
-            if error:
-                return error
-            error = self._reject_stale_update(lead, payload)
-            if error:
-                return error
-            error = self._prepare_update_values(lead, values)
-            if error:
-                return error
-            lead.write(values)
-            self._apply_crm_compliance(auth, lead, payload, unit)
-        else:
-            lead, mapping, error = self._create_crm_lead(auth, payload, unit)
-            if error:
-                return error
-            status = 201
-            outcome = "created"
-        result = self._crm_lead_value(lead, mapping)
-        result.update({"command_id": command["command_id"], "outcome": outcome})
-        return self._complete(auth, "crm.lead.upsert", result, status=status)
+
+        def run():
+            mapping = self._crm_mapping(auth, payload["external_id"])
+            status = 200
+            outcome = "updated"
+            if mapping:
+                lead = request.env["crm.lead"].with_user(auth["user"]).browse(
+                    mapping.record_id
+                ).exists()
+                if not lead:
+                    # The mapping outlived its lead. Say so distinctly so the
+                    # Middleware can reconcile instead of retrying forever
+                    # against a generic scope conflict.
+                    return self._json(409, {
+                        "error": "mapping_target_missing",
+                        "external_id": mapping.external_id,
+                        "middleware_id": mapping.middleware_id,
+                    })
+                if lead.company_id != unit.company_id or lead.business_unit_id != unit:
+                    return self._json(409, {"error": "external_mapping_scope_conflict"})
+                values, error = self._crm_values(
+                    payload, self.CRM_LEAD_CREATE_FIELDS, unit, auth["user"]
+                )
+                if error:
+                    return error
+                error = self._reject_stale_update(lead, payload)
+                if error:
+                    return error
+                error = self._prepare_update_values(lead, values)
+                if error:
+                    return error
+                lead.write(values)
+                self._apply_crm_compliance(auth, lead, payload, unit)
+            else:
+                lead, mapping, error = self._create_crm_lead(auth, payload, unit)
+                if error:
+                    return error
+                status = 201
+                outcome = "created"
+            result = self._crm_lead_value(lead, mapping)
+            result.update({"command_id": command["command_id"], "outcome": outcome})
+            return self._complete(auth, "crm.lead.upsert", result, status=status)
+
+        return self._serialized(auth, run)
+
+    @http.route(
+        "/codestra/middleware/v1/commands/<string:command_id>/status",
+        type="http",
+        auth="none",
+        methods=["GET"],
+        csrf=False,
+    )
+    def crm_command_status(self, command_id):
+        """Report the recorded outcome of an earlier command.
+
+        Reconciliation needs a way to ask what actually happened to a command
+        whose response was never observed, rather than replaying a write.
+        """
+        auth, _payload, error = self._begin(
+            "crm.command.status",
+            allow_event_replay=True,
+            tenant_allowlist_parameter="codestra.crm.tenant_ids",
+            service_user_parameter="codestra.crm.service_user_id",
+        )
+        if error:
+            return error
+        unit = self._crm_scope(auth)
+        if not unit:
+            return self._json(403, {"error": "crm_service_scope_rejected"})
+        record = request.env["codestra.middleware.request"].with_user(auth["user"]).search([
+            ("tenant_id", "=", auth["tenant_id"]),
+            ("event_id", "=", command_id),
+        ], limit=1)
+        if not record:
+            return self._json(404, {"error": "command_not_found"})
+        return self._complete(auth, "crm.command.status", {
+            "command_id": command_id,
+            "operation": record.operation,
+            "recorded_at": record.created_at.isoformat(),
+            "result": json.loads(record.response_json),
+        })
 
     @http.route("/codestra/middleware/v1/crm/leads/<string:external_id>", type="http", auth="none", methods=["GET", "PATCH"], csrf=False)
     def crm_lead(self, external_id):

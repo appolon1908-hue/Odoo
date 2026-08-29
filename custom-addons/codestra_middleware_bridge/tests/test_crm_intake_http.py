@@ -335,3 +335,89 @@ class TestMiddlewareCrmIntakeHttp(HttpCase):
         self.assertEqual(response.status_code, 403, response.text)
         self.assertEqual(response.json()["error"], "tenant_rejected")
         self.assertFalse(self.lead_for(command))
+
+    def get(self, path):
+        timestamp = str(int(time.time()))
+        event_id = str(uuid.uuid4())
+        correlation = f"correlation-{event_id}"
+        idempotency = f"idempotency-{event_id}"
+        canonical = b"\n".join((
+            timestamp.encode(),
+            event_id.encode(),
+            b"GET",
+            path.encode(),
+            self.tenant.encode(),
+            correlation.encode(),
+            idempotency.encode(),
+            b"",
+        ))
+        signature = hmac.new(
+            self.secret.encode(), canonical, hashlib.sha256
+        ).hexdigest()
+        return self.url_open(
+            path,
+            headers={
+                "X-Codestra-Timestamp": timestamp,
+                "X-Codestra-Event-ID": event_id,
+                "X-Codestra-Signature": f"sha256={signature}",
+                "X-Tenant-ID": self.tenant,
+                "X-Correlation-ID": correlation,
+                "Idempotency-Key": idempotency,
+            },
+            timeout=20,
+        )
+
+    def test_contract_subject_fields_are_persisted_not_discarded(self):
+        command = self.command()
+        response = self.post(command)
+        self.assertEqual(response.status_code, 201, response.text)
+        lead = self.lead_for(command)
+        self.assertEqual(lead.codestra_preferred_language, "en")
+        self.assertEqual(lead.codestra_company_domain, "example.invalid")
+        self.assertEqual(lead.codestra_company_industry, "Testing")
+        body = response.json()
+        self.assertEqual(body["preferred_language"], "en")
+        self.assertEqual(body["company_domain"], "example.invalid")
+        self.assertEqual(body["company_industry"], "Testing")
+
+    def test_malformed_nested_value_is_rejected_deterministically(self):
+        command = self.command()
+        command["payload"]["lead"]["contact"]["email"] = {"unexpected": "object"}
+        response = self.post(command)
+        self.assertEqual(response.status_code, 422, response.text)
+        body = response.json()
+        self.assertEqual(body["error"], "invalid_lead_subject_value")
+        self.assertEqual(body["section"], "contact")
+        self.assertEqual(body["field"], "email")
+        self.assertFalse(self.lead_for(command))
+
+    def test_oversized_nested_value_is_rejected_deterministically(self):
+        command = self.command()
+        command["payload"]["lead"]["company"]["domain"] = "d" * 257
+        response = self.post(command)
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assertEqual(response.json()["error"], "invalid_lead_subject_value")
+        self.assertFalse(self.lead_for(command))
+
+    def test_command_status_reports_the_recorded_outcome(self):
+        command = self.command()
+        created = self.post(command)
+        self.assertEqual(created.status_code, 201, created.text)
+        status = self.get(
+            f"/codestra/middleware/v1/commands/{command['command_id']}/status"
+        )
+        self.assertEqual(status.status_code, 200, status.text)
+        body = status.json()
+        self.assertEqual(body["command_id"], command["command_id"])
+        self.assertEqual(body["operation"], "crm.lead.upsert")
+        self.assertEqual(body["result"]["outcome"], "created")
+        self.assertEqual(
+            body["result"]["external_id"], command["payload"]["source_record_id"]
+        )
+
+    def test_unknown_command_status_is_not_found(self):
+        status = self.get(
+            f"/codestra/middleware/v1/commands/{uuid.uuid4()}/status"
+        )
+        self.assertEqual(status.status_code, 404, status.text)
+        self.assertEqual(status.json()["error"], "command_not_found")

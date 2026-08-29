@@ -69,6 +69,10 @@ class CrmLead(models.Model):
         copy=False,
     )
     codestra_provenance_digest = fields.Char(readonly=True, copy=False)
+    # Accepted by the Middleware contract; previously parsed and discarded.
+    codestra_preferred_language = fields.Char(readonly=True, copy=False)
+    codestra_company_domain = fields.Char(index=True, readonly=True, copy=False)
+    codestra_company_industry = fields.Char(readonly=True, copy=False)
 
     consent_status = fields.Selection(
         selection_add=[
