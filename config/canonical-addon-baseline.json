@@ -65,7 +65,7 @@
     },
     "call_center_core": {
       "base_tree": "35a16bc1b7e107c3ba7f7087054ee86a7b26c326",
-      "current_tree": "4b407fe72f9b4be0f999b6fcd5e7fffcefbe79d3",
+      "current_tree": "4cf836a47dd6bb068b0fe38645b045ba892e528e",
       "reason": "Add a non-interactive Integration Service authorization group that inherits ordinary call-center scoping but no manager or administrator role, allowing resource-specific service ACLs and business-unit record rules to remain explicit.",
       "pull_request": 39
     },
