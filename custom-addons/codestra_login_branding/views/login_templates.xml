@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template
+        id="codestra_login_layout"
+        inherit_id="web.login_layout"
+        name="Codestra Login Layout"
+        priority="50"
+    >
+        <xpath expr="//t[@t-set='body_classname']" position="attributes">
+            <attribute name="t-value">'codestra-auth-body'</attribute>
+        </xpath>
+
+        <xpath expr="//t[@t-set='body_classname']" position="after">
+            <t t-set="title">Codestra CRM</t>
+            <t
+                t-set="x_icon"
+                t-value="'/codestra_login_branding/static/src/img/codestra-mark.svg'"
+            />
+        </xpath>
+
+        <xpath
+            expr="//div[
+                contains(concat(' ', normalize-space(@class), ' '), ' container ')
+                and contains(concat(' ', normalize-space(@class), ' '), ' py-5 ')
+            ]"
+            position="replace"
+        >
+            <div class="codestra-login-shell">
+                <section
+                    class="codestra-login-brand"
+                    aria-labelledby="codestra-brand-title"
+                >
+                    <div class="codestra-login-brand__inner">
+                        <div
+                            class="codestra-wordmark"
+                            role="img"
+                            aria-label="Codestra"
+                        >
+                            <span
+                                class="codestra-wordmark__mark"
+                                aria-hidden="true"
+                            >C</span>
+                            <span class="codestra-wordmark__name">CODESTRA</span>
+                        </div>
+
+                        <div class="codestra-login-brand__copy">
+                            <p class="codestra-eyebrow">Codestra Business Suite</p>
+                            <h1 id="codestra-brand-title">
+                                One secure workspace for customer operations.
+                            </h1>
+                            <p>
+                                Manage conversations, callbacks, campaigns, and service
+                                activity from one controlled business system.
+                            </p>
+                        </div>
+
+                        <ul
+                            class="codestra-capabilities"
+                            aria-label="Platform capabilities"
+                        >
+                            <li>CRM</li>
+                            <li>Communications</li>
+                            <li>Operations</li>
+                        </ul>
+
+                        <div class="codestra-access-notice">
+                            <span
+                                class="codestra-access-notice__indicator"
+                                aria-hidden="true"
+                            ></span>
+                            <span>Authorized access only</span>
+                        </div>
+                    </div>
+                </section>
+
+                <section
+                    class="codestra-login-stage"
+                    aria-labelledby="codestra-login-title"
+                >
+                    <div class="codestra-login-card o_database_list">
+                        <div class="codestra-login-card__header">
+                            <div
+                                class="codestra-login-card__mobile-brand"
+                                role="img"
+                                aria-label="Codestra"
+                            >
+                                <span
+                                    class="codestra-wordmark__mark"
+                                    aria-hidden="true"
+                                >C</span>
+                                <span class="codestra-wordmark__name">CODESTRA</span>
+                            </div>
+                            <p class="codestra-eyebrow">Codestra CRM</p>
+                            <h2 id="codestra-login-title">Secure access</h2>
+                            <p>Sign in with your authorized company account.</p>
+                        </div>
+
+                        <t t-out="0" />
+
+                        <div
+                            class="codestra-login-card__footer"
+                            t-if="not disable_footer"
+                        >
+                            <span>Protected business workspace</span>
+                            <span aria-hidden="true">•</span>
+                            <span>Codestra</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </xpath>
+    </template>
+
+    <template
+        id="codestra_login_form"
+        inherit_id="web.login"
+        name="Codestra Login Form"
+        priority="50"
+    >
+        <xpath expr="//label[@for='login']" position="replace">
+            <label for="login" class="form-label">Work email</label>
+        </xpath>
+
+        <xpath expr="//input[@id='login']" position="attributes">
+            <attribute name="placeholder">name@company.com</attribute>
+            <attribute name="inputmode">email</attribute>
+            <attribute name="aria-describedby">codestra-login-help</attribute>
+        </xpath>
+
+        <xpath expr="//label[@for='password']" position="replace">
+            <label for="password" class="form-label">Password</label>
+        </xpath>
+
+        <xpath
+            expr="//div[
+                contains(
+                    concat(' ', normalize-space(@class), ' '),
+                    ' oe_login_buttons '
+                )
+            ]/button[@type='submit'][1]"
+            position="replace"
+        >
+            <button type="submit" class="btn codestra-login-button">
+                Continue securely
+            </button>
+        </xpath>
+
+        <xpath
+            expr="//form[
+                contains(@t-attf-class, 'oe_login_form')
+            ]/input[@name='redirect']"
+            position="after"
+        >
+            <p id="codestra-login-help" class="codestra-login-help">
+                Use your authorized company account. Contact your administrator
+                if access has not been provisioned.
+            </p>
+        </xpath>
+    </template>
+</odoo>

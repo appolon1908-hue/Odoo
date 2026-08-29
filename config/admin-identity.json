@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "human_administrator": {
+    "login": "appolon1908@gmail.com",
+    "email": "appolon1908@gmail.com",
+    "display_name_default": "Ralph Appolon",
+    "required_odoo_group": "base.group_system",
+    "must_be_active": true
+  },
+  "technical_superuser": {
+    "odoo_record": "base.user_root",
+    "odoo_user_id": 1,
+    "interactive_login_required": false,
+    "must_not_be_repurposed": true
+  },
+  "password_policy": {
+    "source": "external_secret_file",
+    "minimum_characters": 24,
+    "committed_to_git": false,
+    "dry_run_by_default": true,
+    "explicit_apply_gate": "ODOO_ADMIN_BOOTSTRAP_APPLY=YES"
+  },
+  "database_role_policy": {
+    "odoo_human_administrator_is_postgresql_superuser": false,
+    "application_role_must_use_least_privilege": true
+  }
+}

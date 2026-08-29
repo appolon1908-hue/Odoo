@@ -8,7 +8,9 @@ printf '==> Checking Git whitespace errors\n'
 git diff --check
 
 printf '==> Checking shell syntax\n'
-bash -n scripts/run_ci.sh
+while IFS= read -r -d '' script; do
+  bash -n "$script"
+done < <(find scripts -type f -name '*.sh' -print0 | sort -z)
 
 printf '==> Compiling Python files\n'
 python3 -m compileall -q custom-addons scripts
@@ -18,3 +20,9 @@ python3 scripts/validate_manifests.py
 
 printf '==> Validating the Middleware and Odoo write boundary\n'
 python3 scripts/validate_integration_boundary.py
+
+printf '==> Reviewing every custom Odoo module\n'
+python3 scripts/review_modules.py --strict
+
+printf '==> Validating Codestra login, administrator, and database controls\n'
+python3 scripts/validate_codestra_readiness.py
