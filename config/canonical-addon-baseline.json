@@ -32,9 +32,9 @@
   "strict_mission_overrides": {
     "call_center_campaign": {
       "base_tree": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
-      "current_tree": "a798878baebf1bbe64cc203e45d6646ef6afcb2a",
-      "reason": "Preserve the reviewed campaign integration controls and add a Keycloak-authenticated, scope-bound, idempotent provider activity endpoint for VICIdial call results and inbound SMS contact chatter delivery.",
-      "pull_request": 41,
+      "current_tree": "c40335d97366e3bf22f09c35defd8efd5372aab6",
+      "reason": "Preserve the reviewed provider activity endpoint and make its Stage 3 compatibility backfills safe for legacy staging databases where the new outbox and result-inbox tables do not exist before ORM initialization.",
+      "pull_request": 42,
       "integration_boundary_exceptions": [
         {
           "path": "controllers/integration_api.py",
