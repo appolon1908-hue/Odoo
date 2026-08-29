@@ -330,7 +330,7 @@ if ((${#odoo_ids[@]} != 2)); then
 fi
 sudo chown "${odoo_ids[0]}:${odoo_ids[1]}" "$ADMIN_SECRET"
 
-docker run --rm \
+docker run --rm -i \
   --network "$NETWORK" \
   -e HOST=db \
   -e PORT=5432 \
@@ -355,7 +355,7 @@ run_database_audits() {
   local schema_ok
 
   printf '==> Auditing database, administrator, and module state in %s\n' "$target_database"
-  docker run --rm \
+  docker run --rm -i \
     --network "$NETWORK" \
     -e HOST=db \
     -e PORT=5432 \
@@ -395,7 +395,7 @@ run_database_audits() {
 run_database_audits "$DATABASE"
 
 printf '==> Creating a synthetic filestore object for paired restore verification\n'
-sentinel_output="$(docker run --rm \
+sentinel_output="$(docker run --rm -i \
   --network "$NETWORK" \
   -e HOST=db \
   -e PORT=5432 \
@@ -466,7 +466,7 @@ docker run --rm \
   -c 'set -eu; test ! -e "$RESTORE_FILESTORE_DATABASE_DIR"; mkdir -p "$RESTORE_FILESTORE_DATABASE_DIR"; tar -C "$RESTORE_FILESTORE_DATABASE_DIR" -xf /tmp/codestra-filestore-backup.tar; chown -R odoo:odoo "$RESTORE_FILESTORE_DATABASE_DIR"'
 
 run_database_audits "$RESTORE_DATABASE"
-docker run --rm \
+docker run --rm -i \
   --network "$NETWORK" \
   -e HOST=db \
   -e PORT=5432 \
