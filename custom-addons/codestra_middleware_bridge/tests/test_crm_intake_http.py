@@ -57,7 +57,6 @@ class TestMiddlewareCrmIntakeHttp(HttpCase):
         # baseline and its own explicit ACLs, never the broad call centre or
         # all-leads sales roles.
         for forbidden in (
-            "call_center_core.group_call_center_integration_service",
             "call_center_core.group_call_center_user",
             "sales_team.group_sale_salesman_all_leads",
             "call_center_core.group_call_center_manager",
@@ -69,6 +68,10 @@ class TestMiddlewareCrmIntakeHttp(HttpCase):
                 )
         if not cls.service_user.has_group("base.group_user"):
             raise AssertionError("CRM service user must remain an internal user")
+        if not cls.service_user.has_group(
+            "call_center_core.group_call_center_integration_service"
+        ):
+            raise AssertionError("CRM service user is missing integration scope")
 
     def command(
         self,
