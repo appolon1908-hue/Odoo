@@ -1,6 +1,6 @@
 {
     "name": "Codestra Middleware Bridge",
-    "version": "19.0.2.0.2",
+    "version": "19.0.2.1.0",
     "summary": "Authenticated, idempotent Odoo middleware service API",
     "author": "Codestra",
     "license": "LGPL-3",
@@ -8,7 +8,11 @@
         "contacts",
         "crm",
         "mail",
+        "utm",
+        "call_center_core",
         "call_center_compliance",
+        "codestra_cc_core",
+        "codestra_cc_crm",
         "codestra_integration_hub",
     ],
     "data": [

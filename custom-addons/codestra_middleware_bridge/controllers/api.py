@@ -75,7 +75,6 @@ class CodestraMiddlewareBridge(http.Controller):
         idempotency = headers.get("Idempotency-Key", "")
         params = request.env["ir.config_parameter"].sudo()
         expected_tenant = params.get_param("codestra.middleware.tenant_id")
-        secret = params.get_param("codestra.middleware.inbound_hmac_secret")
         try:
             fresh = abs(int(time.time()) - int(timestamp)) <= 300
         except (TypeError, ValueError):
@@ -89,14 +88,29 @@ class CodestraMiddlewareBridge(http.Controller):
             allowed_tenants.update(item.strip() for item in (params.get_param(tenant_allowlist_parameter) or "").split(",") if item.strip())
         if not any(hmac.compare_digest(tenant, item) for item in allowed_tenants):
             return None, self._json(403, {"error": "tenant_rejected"})
+        # Each tenant is bound to its own secret and its own service identity,
+        # so one tenant's credential cannot authenticate another. A global value
+        # remains the fallback for single-tenant installations.
+        tenant_scope = "codestra.middleware.tenant." + tenant + "."
+        secret = (
+            params.get_param(tenant_scope + "inbound_hmac_secret")
+            or params.get_param("codestra.middleware.inbound_hmac_secret")
+        )
+        # The security headers are covered by the signature; otherwise they can
+        # be swapped freely on an otherwise valid signed body.
         canonical = b"\n".join((
             timestamp.encode(), event_id.encode(), request.httprequest.method.encode(),
-            request.httprequest.path.encode(), body,
+            request.httprequest.path.encode(),
+            tenant.encode(), correlation.encode(), idempotency.encode(),
+            body,
         ))
         expected = hmac.new((secret or "").encode(), canonical, hashlib.sha256).hexdigest()
         if not secret or not hmac.compare_digest(expected, supplied):
             return None, self._json(401, {"error": "invalid_signature"})
-        user_id = int(params.get_param(service_user_parameter, "0"))
+        user_id = int(
+            params.get_param(tenant_scope + service_user_parameter)
+            or params.get_param(service_user_parameter, "0")
+        )
         user = request.env["res.users"].sudo().browse(user_id).exists()
         group_xmlid = "codestra_middleware_bridge.group_codestra_crm_api" if service_user_parameter == "codestra.crm.service_user_id" else "codestra_middleware_bridge.group_codestra_middleware_bridge"
         group = request.env.ref(group_xmlid)
@@ -139,9 +153,14 @@ class CodestraMiddlewareBridge(http.Controller):
 
     def _complete(self, auth, operation, value, partner=None, status=200):
         event_model = request.env["codestra.integration.event"].with_user(auth["user"])
+        # Only a deliberately configured synthetic environment records synthetic
+        # evidence; a real command must not be audited as a test.
+        synthetic = bool(request.env["ir.config_parameter"].sudo().get_param(
+            "codestra.middleware.synthetic_test"
+        ))
         event = event_model.register_event(
             "middleware.odoo." + operation, "middleware", "odoo",
-            {"synthetic_test": True, "partner_id": partner.id if partner else None},
+            {"synthetic_test": synthetic, "partner_id": partner.id if partner else None},
             correlation_id=auth["correlation_id"],
             idempotency_key=f'middleware:{operation}:{auth["idempotency_key"]}',
         )
@@ -236,6 +255,18 @@ class CodestraMiddlewareBridge(http.Controller):
             return None, self._json(422, {"error": "unsafe_review_state"})
         if payload.get("do_not_call") and payload.get("phone_consent"):
             return None, self._json(422, {"error": "conflicting_phone_consent"})
+        # External contact is only representable when consent was granted for at
+        # least one channel. This rejects the "unknown consent, contact allowed"
+        # and "granted with every channel false" combinations the contract
+        # otherwise permits.
+        if payload.get("allow_external_contact") and (
+            payload.get("consent_status") != "granted"
+            or not any(
+                payload.get(name)
+                for name in ("phone_consent", "email_marketing_consent", "sms_consent")
+            )
+        ):
+            return None, self._json(422, {"error": "consent_does_not_permit_contact"})
         values = {}
         mapping = {
             "name": "name", "contact_name": "contact_name", "email": "email_from",
@@ -265,12 +296,31 @@ class CodestraMiddlewareBridge(http.Controller):
         for source, target in consent_mapping.items():
             if source in payload:
                 values[target] = payload[source]
-        for source, model in (("source", "utm.source"), ("campaign", "utm.campaign")):
-            if source in payload and payload[source]:
-                record = request.env[model].with_user(user).search([("name", "=", payload[source])], limit=1)
-                if not record:
-                    return None, self._json(422, {"error": "unknown_" + source})
-                values[source + "_id"] = record.id
+        if payload.get("source"):
+            record = request.env["utm.source"].with_user(user).search(
+                [("name", "=", payload["source"])], limit=1
+            )
+            if not record:
+                return None, self._json(422, {"error": "unknown_source"})
+            values["source_id"] = record.id
+        # crm.lead.campaign_id is redefined by codestra_cc_crm as cc.campaign, so
+        # the campaign code resolves against the governed workspace scoped to the
+        # authorized business unit, never against utm.campaign.
+        if payload.get("campaign"):
+            campaign = request.env["cc.campaign"].with_user(user).search([
+                ("code", "=", payload["campaign"]),
+                ("cc_business_unit_id.legacy_business_unit_id", "=", unit.id),
+            ], limit=1)
+            if not campaign:
+                return None, self._json(422, {"error": "unknown_campaign"})
+            values["campaign_id"] = campaign.id
+            # Governed campaign records require an explicit source-list key.
+            values["cc_source_list_key"] = (
+                payload.get("customer_reference")
+                or payload.get("external_id")
+                or payload.get("source")
+                or "codestra-middleware"
+            )
         if "tags" in payload:
             tags = payload["tags"]
             if (
@@ -304,15 +354,18 @@ class CodestraMiddlewareBridge(http.Controller):
             "email": bool(payload.get("email_marketing_consent")),
             "sms": bool(payload.get("sms_consent")),
         }
-        if do_not_call:
+        # Fail closed: a channel is only preferred when consent was actually
+        # granted for it. No fallback to whatever contact detail happens to
+        # exist on the lead.
+        consent_permits_contact = (
+            consent_status == "granted" and any(channel_values.values())
+        )
+        if do_not_call or not allow_external_contact or not consent_permits_contact:
             preferred = "none"
-        elif allow_external_contact:
-            preferred = next(
-                (channel for channel in ("phone", "email", "sms") if channel_values[channel]),
-                "phone" if lead.phone else "email" if lead.email_from else "none",
-            )
         else:
-            preferred = "none"
+            preferred = next(
+                channel for channel in ("phone", "email", "sms") if channel_values[channel]
+            )
         reason = payload.get("suppression_reason", "optout")
         lead.write({
             "consent_status": consent_status,
@@ -535,6 +588,33 @@ class CodestraMiddlewareBridge(http.Controller):
             "tags": lead["tags"],
         }, None
 
+    def _prepare_update_values(self, lead, values):
+        """Strip immutable campaign ownership from an update.
+
+        codestra_cc_crm treats campaign_id and cc_source_list_key as immutable,
+        so an unchanged binding is dropped and a changed one is a conflict
+        rather than an AccessError surfaced as a 500.
+        """
+        incoming = values.pop("campaign_id", None)
+        values.pop("cc_source_list_key", None)
+        if incoming is not None and incoming != lead.campaign_id.id:
+            return self._json(409, {"error": "campaign_binding_immutable"})
+        return None
+
+    def _reject_stale_update(self, lead, payload):
+        """Reject a command that carries older consent than the stored record."""
+        incoming = payload.get("consent_timestamp")
+        existing = lead.codestra_consent_timestamp
+        if not incoming or not existing:
+            return None
+        parsed = fields.Datetime.to_datetime(incoming)
+        if parsed and parsed < existing:
+            return self._json(409, {
+                "error": "stale_command",
+                "stored_consent_timestamp": existing.isoformat(),
+            })
+        return None
+
     def _create_crm_lead(self, auth, payload, unit):
         values, error = self._crm_values(
             payload, self.CRM_LEAD_CREATE_FIELDS, unit, auth["user"]
@@ -598,6 +678,12 @@ class CodestraMiddlewareBridge(http.Controller):
             )
             if error:
                 return error
+            error = self._reject_stale_update(lead, payload)
+            if error:
+                return error
+            error = self._prepare_update_values(lead, values)
+            if error:
+                return error
             lead.write(values)
             self._apply_crm_compliance(auth, lead, payload, unit)
         else:
@@ -623,6 +709,8 @@ class CodestraMiddlewareBridge(http.Controller):
             return self._json(404, {"error": "lead_not_found"})
         if operation.endswith("update"):
             values, error = self._crm_values(payload, self.CRM_LEAD_PATCH_FIELDS, unit, auth["user"])
+            if error: return error
+            error = self._prepare_update_values(lead, values)
             if error: return error
             lead.write(values)
         return self._complete(auth, operation, self._crm_lead_value(lead, mapping))

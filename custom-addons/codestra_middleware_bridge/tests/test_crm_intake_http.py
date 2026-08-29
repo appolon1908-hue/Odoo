@@ -3,7 +3,7 @@ import hmac
 import json
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from odoo.tests import HttpCase, tagged
 
@@ -42,16 +42,44 @@ class TestMiddlewareCrmIntakeHttp(HttpCase):
         params.set_param("codestra.middleware.inbound_hmac_secret", cls.secret)
         params.set_param("codestra.crm.tenant_ids", cls.tenant)
         params.set_param("codestra.crm.service_user_id", cls.service_user.id)
-        if not cls.service_user.has_group(
-            "call_center_core.group_call_center_integration_service"
+        cls.env["cc.business.unit"]._adopt_legacy_records()
+        cls.canonical_unit = cls.env["cc.business.unit"].with_context(
+            active_test=False
+        ).search([("legacy_business_unit_id", "=", cls.unit.id)], limit=1)
+        cls.campaign_code = f"MWCAMP-{uuid.uuid4().hex[:8].upper()}"
+        cls.campaign = cls.env["cc.campaign"].with_context(active_test=False).create({
+            "name": "Synthetic Middleware Campaign",
+            "code": cls.campaign_code,
+            "cc_business_unit_id": cls.canonical_unit.id,
+            "business_unit_id": cls.unit.id,
+        })
+        # The service identity must stay narrow: it carries the internal-user
+        # baseline and its own explicit ACLs, never the broad call centre or
+        # all-leads sales roles.
+        for forbidden in (
+            "call_center_core.group_call_center_integration_service",
+            "call_center_core.group_call_center_user",
+            "sales_team.group_sale_salesman_all_leads",
+            "call_center_core.group_call_center_manager",
+            "call_center_core.group_call_center_admin",
         ):
-            raise AssertionError("CRM service user is missing integration authorization")
-        if cls.service_user.has_group("call_center_core.group_call_center_manager"):
-            raise AssertionError("CRM service user must not receive manager authorization")
-        if cls.service_user.has_group("call_center_core.group_call_center_admin"):
-            raise AssertionError("CRM service user must not receive administrator authorization")
+            if cls.service_user.has_group(forbidden):
+                raise AssertionError(
+                    f"CRM service user must not hold {forbidden}"
+                )
+        if not cls.service_user.has_group("base.group_user"):
+            raise AssertionError("CRM service user must remain an internal user")
 
-    def command(self, *, consent_status="granted", allow_contact=True, review=False):
+    def command(
+        self,
+        *,
+        consent_status="granted",
+        allow_contact=True,
+        review=False,
+        campaign_code=None,
+        source_record_id=None,
+        captured_at=None,
+    ):
         command_id = str(uuid.uuid4())
         return {
             "command_id": command_id,
@@ -65,7 +93,7 @@ class TestMiddlewareCrmIntakeHttp(HttpCase):
             "capability": "ODOO_WRITE",
             "payload": {
                 "lead_source": self.source.name,
-                "source_record_id": f"source-{command_id}",
+                "source_record_id": source_record_id or f"source-{command_id}",
                 "initial_stage": "review_pending" if review else "new",
                 "review_required": review,
                 "allow_external_contact": allow_contact,
@@ -78,7 +106,9 @@ class TestMiddlewareCrmIntakeHttp(HttpCase):
                 },
                 "consent": {
                     "status": consent_status,
-                    "captured_at": datetime.now(timezone.utc).isoformat(),
+                    "captured_at": (
+                        captured_at or datetime.now(timezone.utc)
+                    ).isoformat(),
                     "policy_version": "synthetic-v1",
                     "channels": {
                         "email": consent_status == "granted",
@@ -100,25 +130,31 @@ class TestMiddlewareCrmIntakeHttp(HttpCase):
                         "domain": "example.invalid",
                         "industry": "Testing",
                     },
-                    "campaign_code": None,
+                    "campaign_code": campaign_code,
                     "tags": [self.tag.name],
                 },
             },
         }
 
-    def post(self, command, *, correlation_id=None):
+    def post(self, command, *, correlation_id=None, secret=None, tenant=None):
         raw = json.dumps(command, separators=(",", ":")).encode()
         timestamp = str(int(time.time()))
         event_id = command["command_id"]
+        header_tenant = tenant or command["tenant_id"]
+        header_correlation = correlation_id or command["correlation_id"]
+        header_idempotency = command["idempotency_key"]
         canonical = b"\n".join((
             timestamp.encode(),
             event_id.encode(),
             b"POST",
             self.route.encode(),
+            header_tenant.encode(),
+            header_correlation.encode(),
+            header_idempotency.encode(),
             raw,
         ))
         signature = hmac.new(
-            self.secret.encode(), canonical, hashlib.sha256
+            (secret or self.secret).encode(), canonical, hashlib.sha256
         ).hexdigest()
         return self.url_open(
             self.route,
@@ -128,9 +164,9 @@ class TestMiddlewareCrmIntakeHttp(HttpCase):
                 "X-Codestra-Timestamp": timestamp,
                 "X-Codestra-Event-ID": event_id,
                 "X-Codestra-Signature": f"sha256={signature}",
-                "X-Tenant-ID": command["tenant_id"],
-                "X-Correlation-ID": correlation_id or command["correlation_id"],
-                "Idempotency-Key": command["idempotency_key"],
+                "X-Tenant-ID": header_tenant,
+                "X-Correlation-ID": header_correlation,
+                "Idempotency-Key": header_idempotency,
             },
             timeout=20,
         )
@@ -203,4 +239,96 @@ class TestMiddlewareCrmIntakeHttp(HttpCase):
         response = self.post(command, correlation_id="different-correlation")
         self.assertEqual(response.status_code, 422, response.text)
         self.assertEqual(response.json()["error"], "command_header_mismatch")
+        self.assertFalse(self.lead_for(command))
+
+    def test_campaign_code_binds_the_governed_campaign_workspace(self):
+        command = self.command(campaign_code=self.campaign_code)
+        response = self.post(command)
+        self.assertEqual(response.status_code, 201, response.text)
+        lead = self.lead_for(command)
+        self.assertEqual(lead.campaign_id, self.campaign)
+        self.assertEqual(lead.business_unit_id, self.unit)
+        self.assertTrue(lead.cc_contact_center_record)
+        self.assertTrue((lead.cc_source_list_key or "").strip())
+        self.assertEqual(response.json()["campaign"], self.campaign.name)
+
+    def test_unknown_campaign_code_is_rejected_deterministically(self):
+        command = self.command(campaign_code="MWCAMP-DOESNOTEXIST")
+        response = self.post(command)
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assertEqual(response.json()["error"], "unknown_campaign")
+        self.assertFalse(self.lead_for(command))
+
+    def test_campaign_rebinding_is_a_conflict_not_a_server_error(self):
+        first = self.command()
+        self.assertEqual(self.post(first).status_code, 201)
+        rebind = self.command(
+            source_record_id=first["payload"]["source_record_id"],
+            campaign_code=self.campaign_code,
+        )
+        response = self.post(rebind)
+        self.assertEqual(response.status_code, 409, response.text)
+        self.assertEqual(response.json()["error"], "campaign_binding_immutable")
+
+    def test_unknown_consent_cannot_authorize_external_contact(self):
+        command = self.command(consent_status="unknown", allow_contact=True)
+        response = self.post(command)
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assertEqual(
+            response.json()["error"], "consent_does_not_permit_contact"
+        )
+        self.assertFalse(self.lead_for(command))
+
+    def test_granted_consent_without_channels_cannot_authorize_contact(self):
+        command = self.command(consent_status="granted", allow_contact=True)
+        command["payload"]["consent"]["channels"] = {
+            "email": False, "sms": False, "phone": False,
+        }
+        response = self.post(command)
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assertEqual(
+            response.json()["error"], "consent_does_not_permit_contact"
+        )
+        self.assertFalse(self.lead_for(command))
+
+    def test_older_command_cannot_overwrite_newer_consent(self):
+        now = datetime.now(timezone.utc)
+        first = self.command(captured_at=now)
+        self.assertEqual(self.post(first).status_code, 201)
+        stale = self.command(
+            source_record_id=first["payload"]["source_record_id"],
+            captured_at=now - timedelta(hours=1),
+            consent_status="denied",
+            allow_contact=False,
+        )
+        response = self.post(stale)
+        self.assertEqual(response.status_code, 409, response.text)
+        self.assertEqual(response.json()["error"], "stale_command")
+        lead = self.lead_for(first)
+        self.assertEqual(lead.consent_status, "granted")
+        self.assertFalse(lead.do_not_call)
+
+    def test_tenant_secret_is_not_shared_between_tenants(self):
+        params = self.env["ir.config_parameter"].sudo()
+        other_tenant = "synthetic-tenant-b"
+        params.set_param(
+            "codestra.crm.tenant_ids", f"{self.tenant},{other_tenant}"
+        )
+        params.set_param(
+            f"codestra.middleware.tenant.{other_tenant}.inbound_hmac_secret",
+            "synthetic-tenant-b-secret",
+        )
+        command = self.command()
+        command["tenant_id"] = other_tenant
+        borrowed = self.post(command, tenant=other_tenant)
+        self.assertEqual(borrowed.status_code, 401, borrowed.text)
+        self.assertEqual(borrowed.json()["error"], "invalid_signature")
+        self.assertFalse(self.lead_for(command))
+
+    def test_unlisted_tenant_is_rejected(self):
+        command = self.command()
+        command["tenant_id"] = "rogue-tenant"
+        response = self.post(command, tenant="rogue-tenant")
+        self.assertEqual(response.status_code, 403, response.text)
+        self.assertEqual(response.json()["error"], "tenant_rejected")
         self.assertFalse(self.lead_for(command))
