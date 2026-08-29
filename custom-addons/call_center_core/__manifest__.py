@@ -1,6 +1,6 @@
 {
     "name": "Call Center Core",
-    "version": "19.0.2.0.2",
+    "version": "19.0.2.1.0",
     "category": "Sales/CRM",
     "summary": "Business units, security roles, and audit foundations",
     "author": "Codestra",

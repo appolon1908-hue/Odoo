@@ -42,6 +42,14 @@ class TestMiddlewareCrmIntakeHttp(HttpCase):
         params.set_param("codestra.middleware.inbound_hmac_secret", cls.secret)
         params.set_param("codestra.crm.tenant_ids", cls.tenant)
         params.set_param("codestra.crm.service_user_id", cls.service_user.id)
+        if not cls.service_user.has_group(
+            "call_center_core.group_call_center_integration_service"
+        ):
+            raise AssertionError("CRM service user is missing integration authorization")
+        if cls.service_user.has_group("call_center_core.group_call_center_manager"):
+            raise AssertionError("CRM service user must not receive manager authorization")
+        if cls.service_user.has_group("call_center_core.group_call_center_admin"):
+            raise AssertionError("CRM service user must not receive administrator authorization")
 
     def command(self, *, consent_status="granted", allow_contact=True, review=False):
         command_id = str(uuid.uuid4())
