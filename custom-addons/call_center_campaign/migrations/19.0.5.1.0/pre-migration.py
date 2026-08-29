@@ -42,12 +42,24 @@ def migrate(cr, version):
         ADD COLUMN IF NOT EXISTS originating_outbox_legacy_id integer
         """
     )
+    cr.execute(
+        """
+        ALTER TABLE codestra_integration_result_inbox
+        ALTER COLUMN originating_outbox_id DROP NOT NULL
+        """
+    )
     if outbox_exists:
         cr.execute(
             """
             UPDATE codestra_integration_result_inbox AS result
                SET originating_outbox_legacy_id = result.originating_outbox_id,
-                   originating_outbox_id = NULL
+                   originating_outbox_id = NULL,
+                   reconciliation_status = 'REVIEW_REQUIRED',
+                   error_class = COALESCE(result.error_class, 'LEGACY_OUTBOX_MISSING'),
+                   error_summary = COALESCE(
+                       result.error_summary,
+                       'Historical originating outbox record is unavailable; numeric reference preserved.'
+                   )
              WHERE result.originating_outbox_id IS NOT NULL
                AND NOT EXISTS (
                    SELECT 1
@@ -61,7 +73,13 @@ def migrate(cr, version):
             """
             UPDATE codestra_integration_result_inbox
                SET originating_outbox_legacy_id = originating_outbox_id,
-                   originating_outbox_id = NULL
+                   originating_outbox_id = NULL,
+                   reconciliation_status = 'REVIEW_REQUIRED',
+                   error_class = COALESCE(error_class, 'LEGACY_OUTBOX_MISSING'),
+                   error_summary = COALESCE(
+                       error_summary,
+                       'Historical originating outbox record is unavailable; numeric reference preserved.'
+                   )
              WHERE originating_outbox_id IS NOT NULL
             """
         )
