@@ -343,7 +343,11 @@ class CodestraMiddlewareBridge(http.Controller):
         # the campaign code resolves against the governed workspace scoped to the
         # authorized business unit, never against utm.campaign.
         if payload.get("campaign"):
-            campaign = request.env["cc.campaign"].with_user(user).search([
+            # The service identity is scoped by the already-authorized legacy
+            # business unit, but it deliberately has no human campaign
+            # membership. Resolve that governed workspace under the explicit
+            # unit boundary instead of granting a synthetic operator role.
+            campaign = request.env["cc.campaign"].sudo().search([
                 ("code", "=", payload["campaign"]),
                 ("cc_business_unit_id.legacy_business_unit_id", "=", unit.id),
             ], limit=1)
