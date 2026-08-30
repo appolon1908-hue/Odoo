@@ -1,0 +1,188 @@
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from scripts import validate_integration_boundary_hardening as hardening
+
+
+class IntegrationBoundaryHardeningTests(unittest.TestCase):
+    def write(self, root: Path, relative: str, content: str) -> Path:
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+        return path
+
+    def test_shell_psql_and_database_credentials_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = self.write(
+                root,
+                "custom-addons/example/hooks/apply.sh",
+                "#!/bin/sh\nPGPASSWORD=secret psql postgresql://db/write\n",
+            )
+            findings = hardening.config_findings(path)
+            self.assertIn("shell/config psql invocation is prohibited", findings)
+            self.assertIn(
+                "shell/config database credential or PostgreSQL DSN is prohibited",
+                findings,
+            )
+
+    def test_python_process_psql_invocation_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/job.py",
+                "import subprocess\nsubprocess.run(['psql', '-c', 'DELETE FROM x'])\n",
+            )
+            findings = hardening.python_findings(path, allow_cursor_sql=False)
+            self.assertIn("Python process invocation of psql is prohibited", findings)
+
+    def test_odoo_sql_db_helpers_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/job.py",
+                "from odoo.sql_db import db_connect\nconnection = db_connect('postgresql://db')\n",
+            )
+            findings = hardening.python_findings(path, allow_cursor_sql=False)
+            self.assertTrue(
+                any("sql_db" in finding for finding in findings), findings
+            )
+
+    def test_all_common_odoo_cursor_aliases_are_rejected(self) -> None:
+        source = """
+def apply(self, env, cr):
+    self._cr.execute('DELETE FROM a')
+    env.cr.execute('DELETE FROM b')
+    cr.execute('DELETE FROM c')
+"""
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/job.py",
+                source,
+            )
+            findings = hardening.python_findings(path, allow_cursor_sql=False)
+            cursor_findings = [
+                finding for finding in findings if "cursor execution" in finding
+            ]
+            self.assertEqual(3, len(cursor_findings), cursor_findings)
+            self.assertFalse(
+                any(
+                    "cursor execution" in finding
+                    for finding in hardening.python_findings(
+                        path,
+                        allow_cursor_sql=True,
+                    )
+                )
+            )
+
+    def test_dynamic_controller_model_proxy_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dynamic = self.write(
+                root,
+                "custom-addons/example/controllers/api.py",
+                "def route(request, payload):\n    return request.env[payload['model']].sudo().create(payload['values'])\n",
+            )
+            static = self.write(
+                root,
+                "custom-addons/example/controllers/static.py",
+                "def route(request, payload):\n    return request.env['crm.lead'].create({'name': payload['name']})\n",
+            )
+            self.assertIn(
+                "controller uses a caller-selected Odoo model; only static model names are allowed",
+                hardening.python_findings(dynamic, allow_cursor_sql=False),
+            )
+            self.assertNotIn(
+                "controller uses a caller-selected Odoo model; only static model names are allowed",
+                hardening.python_findings(static, allow_cursor_sql=False),
+            )
+
+    def test_bridge_manifest_must_load_acl_and_tests_must_be_real(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write(
+                root,
+                "custom-addons/codestra_middleware_bridge/__manifest__.py",
+                "{'name': 'Bridge', 'data': []}",
+            )
+            self.write(
+                root,
+                "custom-addons/codestra_middleware_bridge/tests/__init__.py",
+                "from . import test_placeholder\n",
+            )
+            self.write(
+                root,
+                "custom-addons/codestra_middleware_bridge/tests/test_placeholder.py",
+                "# no test case\n",
+            )
+            findings = hardening.bridge_scaffold_findings(root)
+            self.assertIn(
+                "bridge manifest does not load security/security.xml",
+                findings,
+            )
+            self.assertIn(
+                "bridge manifest does not load security/ir.model.access.csv",
+                findings,
+            )
+            self.assertIn(
+                "bridge tests contain no discoverable Odoo test case methods",
+                findings,
+            )
+
+    def test_valid_bridge_scaffold_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write(
+                root,
+                "custom-addons/codestra_middleware_bridge/__manifest__.py",
+                "{'name': 'Bridge', 'data': ['security/security.xml', 'security/ir.model.access.csv']}",
+            )
+            self.write(
+                root,
+                "custom-addons/codestra_middleware_bridge/tests/__init__.py",
+                "from . import test_bridge\n",
+            )
+            self.write(
+                root,
+                "custom-addons/codestra_middleware_bridge/tests/test_bridge.py",
+                """
+from odoo.tests.common import TransactionCase
+
+class TestBridge(TransactionCase):
+    def test_signature_tenant_idempotency(self):
+        self.assertTrue(True)
+""",
+            )
+            self.assertEqual([], hardening.bridge_scaffold_findings(root))
+
+    def test_unreviewed_sql_is_not_exempted_by_a_directory_name(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write(
+                root,
+                "config/canonical-addon-baseline.json",
+                json.dumps({"modules": {}, "strict_mission_overrides": {}}),
+            )
+            path = self.write(
+                root,
+                "custom-addons/example/migrations/controllers.py",
+                "def route(request):\n    request.env.cr.execute('DELETE FROM x')\n",
+            )
+            self.assertTrue(
+                any(
+                    "cursor execution" in finding
+                    for finding in hardening.python_findings(
+                        path,
+                        allow_cursor_sql=False,
+                    )
+                )
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()
