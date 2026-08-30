@@ -21,7 +21,7 @@ Odoo is the authoritative CRM/business system of record for leads, contacts, opp
 - Generic cross-system integration transport
 
 ## Canonical Lead Flow
-Ad/social/form source -> Kong -> Middleware -> Codestra Marketing attribution -> Odoo lead/opportunity -> n8n workflow -> Codestra Communication/AI -> sales activity -> Odoo outcome -> Marketing attribution feedback.
+Ad/social/form source -> Kong -> Middleware -> Codestra Marketing attribution -> Odoo lead/opportunity -> Odoo transactional outbox -> Middleware authorization/allowlisted workflow invocation -> n8n workflow -> governed Middleware commands -> Codestra Communication/AI -> sales activity -> Odoo outcome -> Odoo transactional outbox -> Middleware -> Marketing attribution feedback.
 
 ## Required Data Contract
 Each marketing-originated lead should preserve tenant/business, campaign ID, external campaign/ad identifiers, source, medium, landing context, consent metadata, correlation ID, first-touch timestamp, latest-touch timestamp and attribution version where available.
@@ -33,8 +33,8 @@ Odoo access must respect the existing campaign/business isolation model. Marketi
 - Lead upsert by stable external identity
 - Campaign/source mapping
 - Activity/appointment creation
-- Opportunity stage/outcome event publication
-- Revenue/conversion feedback
+- Opportunity stage/outcome event publication through the Odoo outbox and Middleware
+- Revenue/conversion feedback through Middleware
 - Communication history references
 - Audit/correlation metadata
 
