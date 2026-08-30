@@ -1,0 +1,216 @@
+name: Sync Codestra Odoo addons upstream
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: Branch, tag, or exact commit in Codestra-SRL/codestra-odoo-addons
+        required: true
+        default: main
+        type: string
+      operation:
+        description: Plan only, or push a protected review branch and open a PR
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - pull-request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: odoo-upstream-source-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Import exact upstream source into a review PR
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      SOURCE_REPOSITORY: Codestra-SRL/codestra-odoo-addons
+      SOURCE_REF: ${{ inputs.upstream_ref }}
+      OPERATION: ${{ inputs.operation }}
+
+    steps:
+      - name: Check out protected destination main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify private upstream credential is bound
+        env:
+          UPSTREAM_TOKEN: ${{ secrets.CODESTRA_ODOO_UPSTREAM_READ_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          if [[ -z "$UPSTREAM_TOKEN" ]]; then
+            printf '%s\n' \
+              'CODESTRA_ODOO_UPSTREAM_READ_TOKEN is required.' \
+              'Use a fine-grained token limited to Codestra-SRL/codestra-odoo-addons with Contents: read-only.' \
+              'Do not paste the token into a workflow input, issue, pull request, commit, or log.' >&2
+            exit 1
+          fi
+
+      - name: Check out exact private upstream source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: Codestra-SRL/codestra-odoo-addons
+          ref: ${{ env.SOURCE_REF }}
+          token: ${{ secrets.CODESTRA_ODOO_UPSTREAM_READ_TOKEN }}
+          path: .upstream/codestra-odoo-addons
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Record immutable source and destination identities
+        id: identity
+        run: |
+          set -Eeuo pipefail
+          source_sha="$(git -C .upstream/codestra-odoo-addons rev-parse HEAD)"
+          source_tree="$(git -C .upstream/codestra-odoo-addons rev-parse 'HEAD^{tree}')"
+          target_sha="$(git rev-parse HEAD)"
+          printf 'source_sha=%s\n' "$source_sha" >> "$GITHUB_OUTPUT"
+          printf 'source_tree=%s\n' "$source_tree" >> "$GITHUB_OUTPUT"
+          printf 'target_sha=%s\n' "$target_sha" >> "$GITHUB_OUTPUT"
+          printf 'UPSTREAM_SOURCE_SHA=%s\n' "$source_sha"
+          printf 'UPSTREAM_SOURCE_TREE=%s\n' "$source_tree"
+          printf 'DESTINATION_BASE_SHA=%s\n' "$target_sha"
+
+      - name: Synchronize the complete source and promote every addon
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/sync_codestra_odoo_addons.py \
+            --upstream .upstream/codestra-odoo-addons \
+            --destination . \
+            --source-ref "$SOURCE_REF"
+          rm -rf .upstream
+
+      - name: Validate synchronized repository state
+        run: |
+          set -Eeuo pipefail
+          git diff --check
+          python3 -m compileall -q scripts custom-addons tests/security
+          python3 scripts/sync_codestra_odoo_addons.py --verify-state
+          if [[ -x scripts/run_ci.sh ]]; then
+            scripts/run_ci.sh
+          fi
+
+      - name: Determine whether the exact upstream produces a change
+        id: changes
+        env:
+          SOURCE_SHA: ${{ steps.identity.outputs.source_sha }}
+          SOURCE_TREE: ${{ steps.identity.outputs.source_tree }}
+          TARGET_SHA: ${{ steps.identity.outputs.target_sha }}
+        run: |
+          set -Eeuo pipefail
+          changed=false
+          if [[ -n "$(git status --porcelain)" ]]; then
+            changed=true
+          fi
+          printf 'changed=%s\n' "$changed" >> "$GITHUB_OUTPUT"
+          {
+            printf '## Codestra Odoo upstream synchronization\n\n'
+            printf -- '- Source repository: `%s`\n' "$SOURCE_REPOSITORY"
+            printf -- '- Requested ref: `%s`\n' "$SOURCE_REF"
+            printf -- '- Exact source SHA: `%s`\n' "$SOURCE_SHA"
+            printf -- '- Exact source tree: `%s`\n' "$SOURCE_TREE"
+            printf -- '- Destination base SHA: `%s`\n' "$TARGET_SHA"
+            printf -- '- Changes detected: `%s`\n' "$changed"
+            printf -- '- Runtime/deployment/live-write changes: `NONE`\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stop after the read-only plan
+        if: inputs.operation == 'plan' || steps.changes.outputs.changed != 'true'
+        run: |
+          set -Eeuo pipefail
+          if [[ '${{ steps.changes.outputs.changed }}' == 'true' ]]; then
+            git status --short
+            printf '%s\n' 'PLAN_ONLY=YES no branch or pull request was created'
+          else
+            printf '%s\n' 'UPSTREAM_ALREADY_SYNCHRONIZED=YES'
+          fi
+
+      - name: Commit and push an immutable review branch
+        id: push
+        if: inputs.operation == 'pull-request' && steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.identity.outputs.source_sha }}
+          TARGET_SHA: ${{ steps.identity.outputs.target_sha }}
+        run: |
+          set -Eeuo pipefail
+          branch="sync/codestra-odoo-${SOURCE_SHA:0:12}-${TARGET_SHA:0:8}"
+          git config user.name 'codestra-upstream-sync[bot]'
+          git config user.email 'codestra-upstream-sync[bot]@users.noreply.github.com'
+          git checkout -b "$branch"
+          git add -A
+          git commit -m "sync: import Codestra Odoo addons at ${SOURCE_SHA}"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin "HEAD:refs/heads/${branch}"
+          printf 'branch=%s\n' "$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Open the protected upstream import pull request
+        if: inputs.operation == 'pull-request' && steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.identity.outputs.source_sha }}
+          SOURCE_TREE: ${{ steps.identity.outputs.source_tree }}
+          TARGET_SHA: ${{ steps.identity.outputs.target_sha }}
+          BRANCH: ${{ steps.push.outputs.branch }}
+        run: |
+          set -Eeuo pipefail
+          body_file="$(mktemp)"
+          cat > "$body_file" <<'EOF'
+          ## Exact upstream import
+
+          Import the complete source tree from `Codestra-SRL/codestra-odoo-addons` into `appolon1908-hue/Odoo` through the reviewed sync policy.
+          EOF
+          {
+            printf '\n```text\n'
+            printf 'source_ref=%s\n' "$SOURCE_REF"
+            printf 'source_sha=%s\n' "$SOURCE_SHA"
+            printf 'source_tree=%s\n' "$SOURCE_TREE"
+            printf 'destination_base=%s\n' "$TARGET_SHA"
+            printf '```\n'
+          } >> "$body_file"
+          cat >> "$body_file" <<'EOF'
+
+          ### Import behavior
+
+          - stores the complete source snapshot under `upstream/codestra-odoo-addons`;
+          - overlays every non-governance source file into the destination repository;
+          - promotes every discovered Odoo addon into `custom-addons/<module>`;
+          - source wins when the same non-governance path exists in both repositories;
+          - preserves destination branch protection, workflows, CODEOWNERS, README, secret scanning, and sync controller;
+          - removes only paths previously recorded as managed by this upstream;
+          - preserves target-only addons until a separate disposition is reviewed.
+
+          ### Safety
+
+          ```text
+          ODOO_WRITE=false
+          LIVE_WRITE=false
+          EXTERNAL_DELIVERY=false
+          RUNTIME_ACTIVATION=NO
+          DATABASE_MIGRATION=NO
+          DEPLOYMENT=NO
+          ```
+
+          Merge only after exact-head and merge-result CI, secret/source security, module tests, and review-thread resolution pass. This PR imports source; it does not install modules or change a running Odoo environment.
+          EOF
+
+          existing="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json url --jq '.[0].url // empty')"
+          if [[ -n "$existing" ]]; then
+            printf 'EXISTING_PULL_REQUEST=%s\n' "$existing"
+          else
+            gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --head "$BRANCH" \
+              --title "sync: import Codestra Odoo addons at ${SOURCE_SHA:0:12}" \
+              --body-file "$body_file"
+          fi
