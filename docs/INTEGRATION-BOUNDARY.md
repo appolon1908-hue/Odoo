@@ -62,8 +62,7 @@ Middleware may write through only one of these approved interfaces:
 1. a narrow Odoo service API implemented by a reviewed custom module; or
 2. a reviewed ORM bridge that executes resource-specific commands inside Odoo.
 
-Both interfaces are Odoo application interfaces. Neither is a generic database
-proxy or unrestricted RPC-to-model adapter.
+Both interfaces are Odoo application interfaces. Neither is a generic database proxy or unrestricted RPC-to-model adapter.
 
 ## Canonical bridge contract
 
@@ -82,7 +81,7 @@ The command body, signed headers, and durable Middleware identity must agree on:
 
 - command ID / `X-Codestra-Event-ID`;
 - tenant ID / `X-Tenant-ID`;
-- correlation ID / `X-Correlation-ID`;
+- correlation ID / `X-Codestra-Correlation-ID`;
 - idempotency key / `Idempotency-Key`.
 
 The canonical HMAC-SHA256 input joins the following byte sequences with one
@@ -100,10 +99,13 @@ raw request body
 ```
 
 The tenant is authorized from the verified Middleware principal and configured
-Odoo tenant/service mapping. A header alone never grants tenant authority.
-Each tenant uses its own signing secret and dedicated service identity, with the
-global secret and service identity allowed only as an explicit single-tenant
-fallback.
+Odoo tenant/service mapping. A header alone never grants tenant authority. The
+bridge first resolves a tenant-specific signing secret and service identity.
+For backward compatibility, current source falls back to global values for an
+allowlisted tenant when tenant-specific values are absent. That fallback is not
+tenant-isolated and must not be used in multi-tenant production. Multi-tenant
+promotion requires tenant-specific secret and service-identity bindings for
+every allowed tenant and removal of the global fallback values.
 
 ## Unknown-outcome rule
 
