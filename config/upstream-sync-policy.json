@@ -17,11 +17,10 @@
     ".gitignore",
     ".gitleaks.toml",
     "README.md",
-    "config/upstream-sync-policy.json",
-    "config/upstream-sync-state.json",
-    "docs/UPSTREAM-SYNC.md",
-    "scripts/sync_codestra_odoo_addons.py",
-    "tests/security/test_upstream_sync.py"
+    "config",
+    "scripts",
+    "tests/security",
+    "docs/UPSTREAM-SYNC.md"
   ],
   "excluded_source_paths": [
     ".git"
