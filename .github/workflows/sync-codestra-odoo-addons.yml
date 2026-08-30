@@ -84,15 +84,19 @@ jobs:
           set -Eeuo pipefail
           test -f scripts/run_ci.sh
           test -f scripts/sync_codestra_odoo_addons.py
+          test -f scripts/validate_upstream_git_tree.py
           test -f .gitleaks.toml
           run_ci_sha="$(sha256sum scripts/run_ci.sh | awk '{print $1}')"
           sync_sha="$(sha256sum scripts/sync_codestra_odoo_addons.py | awk '{print $1}')"
+          upstream_tree_validator_sha="$(sha256sum scripts/validate_upstream_git_tree.py | awk '{print $1}')"
           gitleaks_sha="$(sha256sum .gitleaks.toml | awk '{print $1}')"
           printf 'run_ci_sha=%s\n' "$run_ci_sha" >> "$GITHUB_OUTPUT"
           printf 'sync_sha=%s\n' "$sync_sha" >> "$GITHUB_OUTPUT"
+          printf 'upstream_tree_validator_sha=%s\n' "$upstream_tree_validator_sha" >> "$GITHUB_OUTPUT"
           printf 'gitleaks_sha=%s\n' "$gitleaks_sha" >> "$GITHUB_OUTPUT"
           printf 'DESTINATION_RUN_CI_SHA256=%s\n' "$run_ci_sha"
           printf 'DESTINATION_SYNC_CONTROLLER_SHA256=%s\n' "$sync_sha"
+          printf 'DESTINATION_UPSTREAM_TREE_VALIDATOR_SHA256=%s\n' "$upstream_tree_validator_sha"
           printf 'DESTINATION_GITLEAKS_POLICY_SHA256=%s\n' "$gitleaks_sha"
 
       - name: Verify protected-environment upstream credential is bound
@@ -108,7 +112,7 @@ jobs:
             exit 1
           fi
 
-      - name: Check out exact inaccessible upstream source
+      - name: Check out exact inaccessible upstream source and materialize Git LFS
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Codestra-SRL/codestra-odoo-addons
@@ -116,9 +120,17 @@ jobs:
           token: ${{ secrets.CODESTRA_ODOO_UPSTREAM_READ_TOKEN }}
           path: .upstream/codestra-odoo-addons
           fetch-depth: 0
+          lfs: true
+          submodules: false
           persist-credentials: false
 
-      - name: Scan complete upstream history with the destination policy
+      - name: Reject incomplete upstream Git trees
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/validate_upstream_git_tree.py \
+            --repository .upstream/codestra-odoo-addons
+
+      - name: Scan upstream history and materialized files with destination policy
         env:
           GITLEAKS_VERSION: v8.28.0
           DESTINATION_GITLEAKS_CONFIG: ${{ github.workspace }}/.gitleaks.toml
@@ -132,8 +144,15 @@ jobs:
               --redact \
               --no-banner \
               --exit-code 1
+            "$(go env GOPATH)/bin/gitleaks" dir \
+              --config "$DESTINATION_GITLEAKS_CONFIG" \
+              --redact \
+              --no-banner \
+              --exit-code 1 \
+              .
           )
           printf 'UPSTREAM_FULL_HISTORY_SECRET_SCAN=PASS\n'
+          printf 'UPSTREAM_MATERIALIZED_FILE_SECRET_SCAN=PASS\n'
 
       - name: Record immutable source and destination identities
         id: identity
@@ -162,11 +181,13 @@ jobs:
         env:
           EXPECTED_RUN_CI_SHA: ${{ steps.validator.outputs.run_ci_sha }}
           EXPECTED_SYNC_SHA: ${{ steps.validator.outputs.sync_sha }}
+          EXPECTED_UPSTREAM_TREE_VALIDATOR_SHA: ${{ steps.validator.outputs.upstream_tree_validator_sha }}
           EXPECTED_GITLEAKS_SHA: ${{ steps.validator.outputs.gitleaks_sha }}
         run: |
           set -Eeuo pipefail
           test "$(sha256sum scripts/run_ci.sh | awk '{print $1}')" = "$EXPECTED_RUN_CI_SHA"
           test "$(sha256sum scripts/sync_codestra_odoo_addons.py | awk '{print $1}')" = "$EXPECTED_SYNC_SHA"
+          test "$(sha256sum scripts/validate_upstream_git_tree.py | awk '{print $1}')" = "$EXPECTED_UPSTREAM_TREE_VALIDATOR_SHA"
           test "$(sha256sum .gitleaks.toml | awk '{print $1}')" = "$EXPECTED_GITLEAKS_SHA"
           git diff --check
           python3 -m compileall -q scripts custom-addons tests/security
@@ -292,6 +313,8 @@ jobs:
               'destination_base_sha': os.environ['TARGET_SHA'],
               'candidate_tree': os.environ['CANDIDATE_TREE'],
               'artifact_name': os.environ['ARTIFACT_NAME'],
+              'upstream_gitlinks': 0,
+              'upstream_lfs_materialized': True,
               'runtime_activation': False,
               'deployment_authorized': False,
               'live_write_authorized': False,
@@ -354,7 +377,9 @@ jobs:
             printf -- '- Candidate Git tree: `%s`\n' "$candidate_tree"
             printf -- '- Destination visibility: `private`\n'
             printf -- '- Protected environment: `odoo-upstream-source-sync`\n'
-            printf -- '- Upstream full-history secret scan: `PASS`\n'
+            printf -- '- Upstream Git submodules: `0`\n'
+            printf -- '- Git LFS objects materialized: `YES`\n'
+            printf -- '- Upstream history and file secret scans: `PASS`\n'
             printf -- '- Destination validation authority unchanged: `YES`\n'
             printf -- '- Ignored synchronized files force-staged and verified: `YES`\n'
             printf -- '- Changes detected: `%s`\n' "$changed"
@@ -445,6 +470,8 @@ jobs:
               'destination_base_sha': os.environ['TARGET_SHA'],
               'candidate_tree': os.environ['CANDIDATE_TREE'],
               'artifact_name': os.environ['ARTIFACT_NAME'],
+              'upstream_gitlinks': 0,
+              'upstream_lfs_materialized': True,
           }
           for key, value in expected.items():
               if identity.get(key) != value:
@@ -526,9 +553,10 @@ jobs:
           ### Import behavior
 
           - built by a repository-read-only plan job using a protected main-only source credential;
-          - scanned with the destination-pinned full-history secret policy;
-          - force-staged and verified every synchronized path, including destination-ignored files;
-          - materialized from the checksum-verified private plan artifact;
+          - rejects uninitialized Git submodules and imports materialized Git LFS objects;
+          - scans both upstream history and materialized files with the destination-pinned secret policy;
+          - force-stages and verifies every synchronized path, including destination-ignored files;
+          - materializes from the checksum-verified private plan artifact;
           - stores the complete source snapshot under `upstream/codestra-odoo-addons`;
           - promotes every discovered Odoo addon into `custom-addons/<module>`;
           - preserves destination governance and validation authorities;
@@ -541,7 +569,9 @@ jobs:
           ```text
           DESTINATION_VISIBILITY=private
           PROTECTED_ENVIRONMENT=odoo-upstream-source-sync
-          UPSTREAM_SECRET_SCAN=PASS
+          UPSTREAM_GITLINKS=0
+          UPSTREAM_LFS_MATERIALIZED=YES
+          UPSTREAM_SECRET_SCANS=PASS
           CANDIDATE_TREE_VERIFIED=YES
           DESTINATION_VALIDATION_AUTHORITY_UNCHANGED=YES
           ODOO_WRITE=false
