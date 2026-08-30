@@ -46,8 +46,6 @@ class CrmLead(models.Model):
         if payload_tenant != tenant_id:
             raise ValidationError("Codestra intake tenant mismatch")
 
-        # Receipt rows intentionally have no user-facing ACL. The trusted Middleware
-        # entrypoint elevates only this internal dedupe/audit table, not the CRM lead.
         receipt_model = self.env["codestra.intake.receipt"].sudo()
         receipt = receipt_model.search(
             [
@@ -85,16 +83,18 @@ class CrmLead(models.Model):
 
     @api.model
     def _codestra_find_open_lead(self, tenant_id, email, phone):
-        domain = [("codestra_tenant_id", "=", tenant_id), ("active", "=", True)]
-        identity = []
+        base_domain = [("codestra_tenant_id", "=", tenant_id), ("active", "=", True)]
         if email:
-            identity.append(("email_from", "=ilike", email))
+            lead = self.search(base_domain + [("email_from", "=ilike", email)], order="id desc", limit=1)
+            if lead:
+                return lead
         if phone:
-            identity.append(("phone_sanitized", "=", self._codestra_phone_digits(phone)))
-        if not identity:
-            return self.browse()
-        domain.extend(["|", identity[0], identity[1]] if len(identity) == 2 else [identity[0]])
-        return self.search(domain, order="id desc", limit=1)
+            expected_digits = self._codestra_phone_digits(phone)
+            candidates = self.search(base_domain + [("phone", "!=", False)], order="id desc")
+            for candidate in candidates:
+                if self._codestra_phone_digits(candidate.phone) == expected_digits:
+                    return candidate
+        return self.browse()
 
     @api.model
     def _codestra_values(self, *, payload, email, phone, tenant_id):
