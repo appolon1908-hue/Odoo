@@ -9,7 +9,7 @@ on:
         default: main
         type: string
       operation:
-        description: Plan only, or push a protected review branch and open a PR
+        description: Plan only, or publish the exact reviewed candidate as a PR
         required: true
         default: plan
         type: choice
@@ -17,33 +17,40 @@ on:
           - plan
           - pull-request
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 concurrency:
   group: odoo-upstream-source-sync
   cancel-in-progress: false
 
 jobs:
-  sync:
+  plan:
     if: >-
       github.repository == 'appolon1908-hue/Odoo' &&
       github.ref == 'refs/heads/main'
-    name: Import exact upstream source into a review PR
+    name: Build and validate the exact private-source candidate
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment: odoo-upstream-source-sync
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.stage.outputs.changed }}
+      candidate_tree: ${{ steps.stage.outputs.candidate_tree }}
+      artifact_name: ${{ steps.stage.outputs.artifact_name }}
+      source_sha: ${{ steps.identity.outputs.source_sha }}
+      source_tree: ${{ steps.identity.outputs.source_tree }}
+      target_sha: ${{ steps.identity.outputs.target_sha }}
     env:
       SOURCE_REPOSITORY: Codestra-SRL/codestra-odoo-addons
       SOURCE_REF: ${{ inputs.upstream_ref }}
       OPERATION: ${{ inputs.operation }}
 
     steps:
-      - name: Check out protected destination main
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Check out the exact trusted destination main SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: main
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -52,7 +59,8 @@ jobs:
           set -Eeuo pipefail
           test "$GITHUB_REPOSITORY" = 'appolon1908-hue/Odoo'
           test "$GITHUB_REF" = 'refs/heads/main'
-          test "$(git rev-parse --abbrev-ref HEAD)" = 'main'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
           printf 'SYNC_WORKFLOW_CONTEXT=TRUSTED_MAIN\n'
 
       - name: Refuse private-source publication into a public destination
@@ -64,8 +72,8 @@ jobs:
           if [[ "$visibility" != "private" ]]; then
             printf '%s\n' \
               "PRIVATE_UPSTREAM_IMPORT=BLOCKED destination_visibility=${visibility}" \
-              'Make appolon1908-hue/Odoo private before importing the private Codestra-SRL source.' \
-              'Do not copy private organization source into a public repository.' >&2
+              'Make appolon1908-hue/Odoo private before importing the inaccessible Codestra-SRL source.' \
+              'Do not copy organization source into a public repository.' >&2
             exit 1
           fi
           printf 'DESTINATION_VISIBILITY=private\n'
@@ -100,8 +108,8 @@ jobs:
             exit 1
           fi
 
-      - name: Check out exact private upstream source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Check out exact inaccessible upstream source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Codestra-SRL/codestra-odoo-addons
           ref: ${{ env.SOURCE_REF }}
@@ -166,71 +174,318 @@ jobs:
           bash scripts/run_ci.sh
           printf 'DESTINATION_VALIDATION_AUTHORITY_UNCHANGED=YES\n'
 
-      - name: Determine whether exact upstream produces a change
-        id: changes
+      - name: Force-stage the complete candidate and build private plan evidence
+        id: stage
         env:
           SOURCE_SHA: ${{ steps.identity.outputs.source_sha }}
           SOURCE_TREE: ${{ steps.identity.outputs.source_tree }}
           TARGET_SHA: ${{ steps.identity.outputs.target_sha }}
+          PATHSPEC_FILE: ${{ runner.temp }}/upstream-sync-pathspecs.zlist
+          EVIDENCE_DIR: ${{ runner.temp }}/upstream-sync-evidence
         run: |
           set -Eeuo pipefail
-          changed=false
-          if [[ -n "$(git status --porcelain)" ]]; then
-            changed=true
+          rm -rf "$EVIDENCE_DIR"
+          mkdir -p "$EVIDENCE_DIR"
+
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          state_path = Path('config/upstream-sync-state.json')
+          state = json.loads(state_path.read_text(encoding='utf-8'))
+          runtime = Path(state['runtime_addons_path'])
+          paths = [Path(state['snapshot_path']), state_path]
+          paths.extend(Path(value) for value in state['managed_overlay_files'])
+          paths.extend(runtime / name for name in sorted(state['modules']))
+
+          unique: list[Path] = []
+          seen: set[str] = set()
+          for path in paths:
+              if path.is_absolute() or '..' in path.parts or not path.parts:
+                  raise SystemExit(f'unsafe candidate path: {path}')
+              rendered = path.as_posix()
+              if rendered == '.git' or rendered.startswith('.git/'):
+                  raise SystemExit(f'Git metadata path is prohibited: {path}')
+              if not (path.exists() or path.is_symlink()):
+                  raise SystemExit(f'candidate path is missing: {path}')
+              if rendered not in seen:
+                  seen.add(rendered)
+                  unique.append(path)
+
+          payload = b''.join(os.fsencode(path.as_posix()) + b'\0' for path in unique)
+          Path(os.environ['PATHSPEC_FILE']).write_bytes(payload)
+          PY
+
+          git add -A -- .
+          git --literal-pathspecs add -f \
+            --pathspec-from-file="$PATHSPEC_FILE" \
+            --pathspec-file-nul
+          git diff --cached --check
+
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          state_path = Path('config/upstream-sync-state.json')
+          state = json.loads(state_path.read_text(encoding='utf-8'))
+          tracked = {
+              os.fsdecode(value)
+              for value in subprocess.check_output(
+                  ['git', 'ls-files', '-z', '--cached']
+              ).split(b'\0')
+              if value
+          }
+          required: set[str] = {state_path.as_posix()}
+          snapshot = Path(state['snapshot_path'])
+          required.update(
+              path.as_posix()
+              for path in snapshot.rglob('*')
+              if path.is_file() or path.is_symlink()
+          )
+          required.update(state['managed_overlay_files'])
+          runtime = Path(state['runtime_addons_path'])
+          for name in state['modules']:
+              module = runtime / name
+              required.update(
+                  path.as_posix()
+                  for path in module.rglob('*')
+                  if path.is_file() or path.is_symlink()
+              )
+          missing = sorted(required - tracked)
+          if missing:
+              raise SystemExit(
+                  'candidate index omitted synchronized paths:\n' + '\n'.join(missing)
+              )
+          print(f'CANDIDATE_TRACKED_PATHS_VERIFIED={len(required)}')
+          PY
+
+          candidate_tree="$(git write-tree)"
+          changed=true
+          if git diff --cached --quiet; then
+            changed=false
           fi
+          artifact_name="odoo-upstream-plan-${SOURCE_SHA:0:12}-${TARGET_SHA:0:8}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          git diff --cached --binary --full-index --no-ext-diff > "$EVIDENCE_DIR/candidate.patch"
+          git diff --cached --name-status > "$EVIDENCE_DIR/files.tsv"
+          git diff --cached --stat > "$EVIDENCE_DIR/diff-stat.txt"
+          cp config/upstream-sync-state.json "$EVIDENCE_DIR/upstream-sync-state.json"
+
+          CANDIDATE_TREE="$candidate_tree" ARTIFACT_NAME="$artifact_name" python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          evidence = Path(os.environ['EVIDENCE_DIR'])
+          state = json.loads(
+              Path('config/upstream-sync-state.json').read_text(encoding='utf-8')
+          )
+          identity = {
+              'schema_version': '1.0',
+              'source_repository': state['source_repository'],
+              'source_ref': state['source_ref'],
+              'source_sha': os.environ['SOURCE_SHA'],
+              'source_tree': os.environ['SOURCE_TREE'],
+              'destination_base_sha': os.environ['TARGET_SHA'],
+              'candidate_tree': os.environ['CANDIDATE_TREE'],
+              'artifact_name': os.environ['ARTIFACT_NAME'],
+              'runtime_activation': False,
+              'deployment_authorized': False,
+              'live_write_authorized': False,
+          }
+          (evidence / 'source-identity.json').write_text(
+              json.dumps(identity, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          inventory = {
+              'modules': state['modules'],
+              'target_only_modules': state['target_only_modules'],
+              'managed_overlay_file_count': len(state['managed_overlay_files']),
+          }
+          (evidence / 'module-inventory.json').write_text(
+              json.dumps(inventory, indent=2, sort_keys=True) + '\n',
+              encoding='utf-8',
+          )
+          lines = [
+              '# Codestra Odoo upstream module inventory',
+              '',
+              f"- Source SHA: `{os.environ['SOURCE_SHA']}`",
+              f"- Candidate tree: `{os.environ['CANDIDATE_TREE']}`",
+              f"- Imported modules: `{len(state['modules'])}`",
+              f"- Target-only modules: `{len(state['target_only_modules'])}`",
+              f"- Managed overlay files: `{len(state['managed_overlay_files'])}`",
+              '',
+              '## Imported modules',
+              '',
+          ]
+          lines.extend(f"- `{name}`" for name in sorted(state['modules']))
+          lines.extend(['', '## Target-only modules', ''])
+          lines.extend(
+              f"- `{name}`" for name in sorted(state['target_only_modules'])
+          )
+          (evidence / 'module-inventory.md').write_text(
+              '\n'.join(lines) + '\n', encoding='utf-8'
+          )
+          PY
+
+          (
+            cd "$EVIDENCE_DIR"
+            find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\0' \
+              | sort -z \
+              | xargs -0 sha256sum > SHA256SUMS
+          )
+
           printf 'changed=%s\n' "$changed" >> "$GITHUB_OUTPUT"
+          printf 'candidate_tree=%s\n' "$candidate_tree" >> "$GITHUB_OUTPUT"
+          printf 'artifact_name=%s\n' "$artifact_name" >> "$GITHUB_OUTPUT"
+          printf 'CANDIDATE_GIT_TREE=%s\n' "$candidate_tree"
+          printf 'PLAN_EVIDENCE_ARTIFACT=%s\n' "$artifact_name"
+
           {
-            printf '## Codestra Odoo upstream synchronization\n\n'
+            printf '## Codestra Odoo upstream synchronization plan\n\n'
             printf -- '- Source repository: `%s`\n' "$SOURCE_REPOSITORY"
             printf -- '- Requested ref: `%s`\n' "$SOURCE_REF"
             printf -- '- Exact source SHA: `%s`\n' "$SOURCE_SHA"
             printf -- '- Exact source tree: `%s`\n' "$SOURCE_TREE"
             printf -- '- Destination base SHA: `%s`\n' "$TARGET_SHA"
+            printf -- '- Candidate Git tree: `%s`\n' "$candidate_tree"
             printf -- '- Destination visibility: `private`\n'
             printf -- '- Protected environment: `odoo-upstream-source-sync`\n'
             printf -- '- Upstream full-history secret scan: `PASS`\n'
             printf -- '- Destination validation authority unchanged: `YES`\n'
+            printf -- '- Ignored synchronized files force-staged and verified: `YES`\n'
             printf -- '- Changes detected: `%s`\n' "$changed"
-            printf -- '- Runtime/deployment/live-write changes: `NONE`\n'
+            printf -- '- Private plan artifact: `%s`\n' "$artifact_name"
+            printf -- '- Artifact retention: `3 days`\n'
+            printf -- '- Runtime/deployment/live-write changes: `NONE`\n\n'
+            cat "$EVIDENCE_DIR/module-inventory.md"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Stop after read-only plan
-        if: inputs.operation == 'plan' || steps.changes.outputs.changed != 'true'
+      - name: Upload the restricted exact plan, diff, and module inventory
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ steps.stage.outputs.artifact_name }}
+          path: ${{ runner.temp }}/upstream-sync-evidence
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 9
+          include-hidden-files: false
+          overwrite: false
+
+      - name: Stop after the read-only plan
+        if: inputs.operation == 'plan'
         run: |
           set -Eeuo pipefail
-          if [[ '${{ steps.changes.outputs.changed }}' == 'true' ]]; then
-            git status --short
-            printf '%s\n' 'PLAN_ONLY=YES no branch or pull request was created'
-          else
-            printf '%s\n' 'UPSTREAM_ALREADY_SYNCHRONIZED=YES'
-          fi
+          printf '%s\n' \
+            'PLAN_ONLY=YES' \
+            'REPOSITORY_WRITE_PERMISSION=NO' \
+            'BRANCH_CREATED=NO' \
+            'PULL_REQUEST_CREATED=NO' \
+            'Inspect the private plan artifact before selecting pull-request mode.'
 
-      - name: Commit or reuse immutable review branch
+  publish:
+    if: >-
+      inputs.operation == 'pull-request' &&
+      needs.plan.result == 'success' &&
+      needs.plan.outputs.changed == 'true'
+    needs: plan
+    name: Publish the exact validated candidate as a protected PR
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+    env:
+      SOURCE_REF: ${{ inputs.upstream_ref }}
+      SOURCE_SHA: ${{ needs.plan.outputs.source_sha }}
+      SOURCE_TREE: ${{ needs.plan.outputs.source_tree }}
+      TARGET_SHA: ${{ needs.plan.outputs.target_sha }}
+      CANDIDATE_TREE: ${{ needs.plan.outputs.candidate_tree }}
+      ARTIFACT_NAME: ${{ needs.plan.outputs.artifact_name }}
+      EVIDENCE_DIR: ${{ runner.temp }}/upstream-sync-evidence
+
+    steps:
+      - name: Check out the exact destination base from the accepted plan
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download the exact private plan artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ${{ env.EVIDENCE_DIR }}
+
+      - name: Verify and materialize the exact accepted candidate tree
+        run: |
+          set -Eeuo pipefail
+          (
+            cd "$EVIDENCE_DIR"
+            sha256sum -c SHA256SUMS
+          )
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          identity = json.loads(
+              (Path(os.environ['EVIDENCE_DIR']) / 'source-identity.json').read_text(
+                  encoding='utf-8'
+              )
+          )
+          expected = {
+              'source_sha': os.environ['SOURCE_SHA'],
+              'source_tree': os.environ['SOURCE_TREE'],
+              'destination_base_sha': os.environ['TARGET_SHA'],
+              'candidate_tree': os.environ['CANDIDATE_TREE'],
+              'artifact_name': os.environ['ARTIFACT_NAME'],
+          }
+          for key, value in expected.items():
+              if identity.get(key) != value:
+                  raise SystemExit(f'plan artifact identity mismatch: {key}')
+          if any(
+              identity.get(flag) is not False
+              for flag in (
+                  'runtime_activation',
+                  'deployment_authorized',
+                  'live_write_authorized',
+              )
+          ):
+              raise SystemExit('plan artifact claims a live effect')
+          PY
+          git apply --index --binary --whitespace=nowarn "$EVIDENCE_DIR/candidate.patch"
+          git diff --cached --check
+          actual_tree="$(git write-tree)"
+          test "$actual_tree" = "$CANDIDATE_TREE"
+          printf 'MATERIALIZED_CANDIDATE_TREE=%s\n' "$actual_tree"
+
+      - name: Commit or reuse the immutable review branch
         id: push
-        if: inputs.operation == 'pull-request' && steps.changes.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_SHA: ${{ steps.identity.outputs.source_sha }}
-          TARGET_SHA: ${{ steps.identity.outputs.target_sha }}
         run: |
           set -Eeuo pipefail
           branch="sync/codestra-odoo-${SOURCE_SHA:0:12}-${TARGET_SHA:0:8}"
           git config user.name 'codestra-upstream-sync[bot]'
           git config user.email 'codestra-upstream-sync[bot]@users.noreply.github.com'
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git add -A
-          candidate_tree="$(git write-tree)"
 
           if git ls-remote --exit-code --heads origin "refs/heads/${branch}" >/dev/null 2>&1; then
             git fetch --no-tags origin "refs/heads/${branch}:refs/remotes/origin/${branch}"
             existing_sha="$(git rev-parse "refs/remotes/origin/${branch}")"
             existing_tree="$(git rev-parse "${existing_sha}^{tree}")"
-            if [[ "$existing_tree" != "$candidate_tree" ]]; then
+            if [[ "$existing_tree" != "$CANDIDATE_TREE" ]]; then
               printf '%s\n' \
                 'IMMUTABLE_SYNC_BRANCH=CONFLICT' \
                 "branch=${branch}" \
                 "existing_tree=${existing_tree}" \
-                "candidate_tree=${candidate_tree}" \
+                "candidate_tree=${CANDIDATE_TREE}" \
                 'The same source/base identity produced different content; investigate determinism instead of force-pushing.' >&2
               exit 1
             fi
@@ -238,18 +493,15 @@ jobs:
           else
             git checkout -b "$branch"
             git commit -m "sync: import Codestra Odoo addons at ${SOURCE_SHA}"
+            test "$(git rev-parse 'HEAD^{tree}')" = "$CANDIDATE_TREE"
             git push origin "HEAD:refs/heads/${branch}"
             printf 'IMMUTABLE_SYNC_BRANCH=CREATED sha=%s\n' "$(git rev-parse HEAD)"
           fi
           printf 'branch=%s\n' "$branch" >> "$GITHUB_OUTPUT"
 
-      - name: Open protected upstream import pull request
-        if: inputs.operation == 'pull-request' && steps.changes.outputs.changed == 'true'
+      - name: Open the protected upstream import pull request
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_SHA: ${{ steps.identity.outputs.source_sha }}
-          SOURCE_TREE: ${{ steps.identity.outputs.source_tree }}
-          TARGET_SHA: ${{ steps.identity.outputs.target_sha }}
           BRANCH: ${{ steps.push.outputs.branch }}
         run: |
           set -Eeuo pipefail
@@ -265,23 +517,24 @@ jobs:
             printf 'source_sha=%s\n' "$SOURCE_SHA"
             printf 'source_tree=%s\n' "$SOURCE_TREE"
             printf 'destination_base=%s\n' "$TARGET_SHA"
+            printf 'candidate_tree=%s\n' "$CANDIDATE_TREE"
+            printf 'plan_artifact=%s\n' "$ARTIFACT_NAME"
             printf '```\n'
           } >> "$body_file"
           cat >> "$body_file" <<'EOF'
 
           ### Import behavior
 
-          - runs only from trusted destination `main` with a protected environment credential;
-          - imports only after a destination-policy full-history secret scan passes;
+          - built by a repository-read-only plan job using a protected main-only source credential;
+          - scanned with the destination-pinned full-history secret policy;
+          - force-staged and verified every synchronized path, including destination-ignored files;
+          - materialized from the checksum-verified private plan artifact;
           - stores the complete source snapshot under `upstream/codestra-odoo-addons`;
-          - overlays every non-governance source file into the destination repository;
           - promotes every discovered Odoo addon into `custom-addons/<module>`;
-          - source wins when the same non-governance path exists in both repositories;
-          - preserves destination branch protection, workflows, CODEOWNERS, configuration, validation scripts, security tests, README, and sync controller;
-          - removes only paths previously recorded as managed by this upstream;
-          - preserves target-only addons until a separate disposition is reviewed;
-          - rejects addon symlinks that would change meaning when promoted;
-          - reuses an identical immutable branch and refuses nondeterministic updates.
+          - preserves destination governance and validation authorities;
+          - removes only previously recorded upstream-managed paths;
+          - preserves target-only addons pending separate disposition;
+          - rejects ambiguous addon names, unsafe symlinks, and nondeterministic branch updates.
 
           ### Safety
 
@@ -289,6 +542,7 @@ jobs:
           DESTINATION_VISIBILITY=private
           PROTECTED_ENVIRONMENT=odoo-upstream-source-sync
           UPSTREAM_SECRET_SCAN=PASS
+          CANDIDATE_TREE_VERIFIED=YES
           DESTINATION_VALIDATION_AUTHORITY_UNCHANGED=YES
           ODOO_WRITE=false
           LIVE_WRITE=false
@@ -312,3 +566,15 @@ jobs:
               --title "sync: import Codestra Odoo addons at ${SOURCE_SHA:0:12}" \
               --body-file "$body_file"
           fi
+
+      - name: Record source-only publication result
+        run: |
+          set -Eeuo pipefail
+          {
+            printf '## Exact upstream candidate published for review\n\n'
+            printf -- '- Source SHA: `%s`\n' "$SOURCE_SHA"
+            printf -- '- Destination base SHA: `%s`\n' "$TARGET_SHA"
+            printf -- '- Candidate Git tree: `%s`\n' "$CANDIDATE_TREE"
+            printf -- '- Review branch: `%s`\n' '${{ steps.push.outputs.branch }}'
+            printf -- '- Runtime/deployment/live-write changes: `NONE`\n'
+          } >> "$GITHUB_STEP_SUMMARY"
