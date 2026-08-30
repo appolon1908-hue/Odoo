@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 1,
   "system": "odoo-19",
   "system_role": "business_system_of_record",
   "authorized_cross_system_writer": "codestra-middleware",
