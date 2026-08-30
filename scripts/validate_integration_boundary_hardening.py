@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Reject bypasses not safely covered by the original Odoo boundary validator.
+"""Reject unsafe Odoo integration-boundary bypasses.
 
-This companion gate closes the historical review gaps for shell/config database
-access, Odoo ``sql_db`` connection helpers, cursor aliases, environment aliases,
-generic model proxy controllers, unloaded bridge ACLs and placeholder-only
-bridge tests.
+The scanner is deliberately conservative but deterministic. It protects the
+custom-addon tree from direct PostgreSQL clients, standalone ``odoo.sql_db``
+connections, undeclared raw-cursor writes, caller-selected ORM model proxies,
+unloaded bridge ACLs, and placeholder-only bridge tests.
 """
 
 from __future__ import annotations
@@ -15,8 +15,8 @@ import os
 import re
 import subprocess
 import sys
+from collections import defaultdict
 from pathlib import Path
-from typing import Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 ADDONS = ROOT / "custom-addons"
@@ -34,15 +34,14 @@ ODOO_SQL_DB_HELPERS = {
     "Connection",
     "connection_info_for",
 }
-PROCESS_CALLS = {
+SUBPROCESS_FUNCTIONS = {
     "run",
     "Popen",
     "call",
     "check_call",
     "check_output",
-    "system",
-    "popen",
 }
+OS_PROCESS_FUNCTIONS = {"system", "popen"}
 CONFIG_SUFFIXES = {
     "",
     ".sh",
@@ -85,30 +84,34 @@ def attribute_chain(node: ast.AST) -> list[str]:
     return []
 
 
-def literal_strings(node: ast.AST) -> Iterable[str]:
-    for child in ast.walk(node):
-        if isinstance(child, ast.Constant) and isinstance(child.value, str):
-            yield child.value
+def assigned_names(node: ast.AST) -> set[str]:
+    if isinstance(node, ast.Name):
+        return {node.id}
+    if isinstance(node, (ast.Tuple, ast.List)):
+        return {name for item in node.elts for name in assigned_names(item)}
+    return set()
 
 
 def static_string(node: ast.AST) -> str | None:
-    if isinstance(node, ast.Constant) and isinstance(node.value, str):
-        return node.value
-    return None
+    return (
+        node.value
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        else None
+    )
 
 
-def assigned_name(node: ast.AST) -> str | None:
-    return node.id if isinstance(node, ast.Name) else None
-
-
-def static_text(node: ast.AST, constants: dict[str, str]) -> str | None:
+def static_text(node: ast.AST | None, constants: dict[str, str]) -> str | None:
+    if node is None:
+        return None
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return node.value
     if isinstance(node, ast.Name):
         return constants.get(node.id)
     if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
         values = [static_text(item, constants) for item in node.elts]
-        return None if any(value is None for value in values) else " ".join(values)  # type: ignore[arg-type]
+        if any(value is None for value in values):
+            return None
+        return " ".join(value for value in values if value is not None)
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
         left = static_text(node.left, constants)
         right = static_text(node.right, constants)
@@ -129,46 +132,70 @@ def static_text(node: ast.AST, constants: dict[str, str]) -> str | None:
     return None
 
 
+def simple_assignments(tree: ast.AST) -> dict[str, list[ast.AST]]:
+    definitions: dict[str, list[ast.AST]] = defaultdict(list)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            names = assigned_names(node.targets[0])
+            if len(names) == 1:
+                definitions[next(iter(names))].append(node.value)
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            names = assigned_names(node.target)
+            if len(names) == 1:
+                definitions[next(iter(names))].append(node.value)
+    return dict(definitions)
+
+
 def static_assignments(tree: ast.AST) -> dict[str, str]:
+    """Resolve only unambiguous static assignments and always terminate.
+
+    Multiple definitions are accepted only when every definition resolves to
+    the same text. Cycles, branch-dependent values, and conflicting values
+    remain unresolved, which makes process execution fail closed.
+    """
+
+    definitions = simple_assignments(tree)
     constants: dict[str, str] = {}
-    changed = True
-    while changed:
-        changed = False
-        for node in ast.walk(tree):
-            target: ast.AST | None = None
-            value: ast.AST | None = None
-            if isinstance(node, ast.Assign) and len(node.targets) == 1:
-                target, value = node.targets[0], node.value
-            elif isinstance(node, ast.AnnAssign):
-                target, value = node.target, node.value
-            if target is None or value is None:
+    unresolved = set(definitions)
+
+    # Every successful pass removes at least one name. The explicit bound is a
+    # second guarantee against a future regression reintroducing a toggle loop.
+    for _ in range(len(definitions) + 1):
+        progress = False
+        for name in tuple(unresolved):
+            values = [static_text(value, constants) for value in definitions[name]]
+            if any(value is None for value in values):
                 continue
-            name = assigned_name(target)
-            resolved = static_text(value, constants)
-            if name and resolved is not None and constants.get(name) != resolved:
-                constants[name] = resolved
-                changed = True
+            unresolved.remove(name)
+            unique = {value for value in values if value is not None}
+            if len(unique) == 1:
+                constants[name] = unique.pop()
+            progress = True
+        if not progress:
+            break
     return constants
 
 
-def git_tree_sha(root: Path, module_name: str) -> str | None:
+def git_module_trees(root: Path) -> dict[str, str]:
     result = subprocess.run(
-        ["git", "rev-parse", f"HEAD:custom-addons/{module_name}"],
+        ["git", "ls-tree", "HEAD:custom-addons"],
         cwd=root,
         check=False,
         capture_output=True,
         text=True,
     )
-    return result.stdout.strip() if result.returncode == 0 else None
+    if result.returncode != 0:
+        return {}
+    trees: dict[str, str] = {}
+    for line in result.stdout.splitlines():
+        match = re.fullmatch(r"\d+\s+tree\s+([0-9a-f]{40})\t(.+)", line)
+        if match:
+            trees[match.group(2)] = match.group(1)
+    return trees
 
 
 def reviewed_sql_policy(root: Path) -> tuple[set[str], set[str], set[str]]:
-    """Return exact reviewed module trees and path-specific SQL exceptions.
-
-    A pinned or strict-override module is exempt only while its complete subtree
-    equals the reviewed tree SHA. Any future source change invalidates that
-    exemption automatically and the scanner evaluates every cursor call again.
-    """
+    """Return exact reviewed module trees and path-specific SQL exceptions."""
 
     baseline_path = root / "config" / "canonical-addon-baseline.json"
     try:
@@ -176,14 +203,14 @@ def reviewed_sql_policy(root: Path) -> tuple[set[str], set[str], set[str]]:
     except (OSError, UnicodeError, json.JSONDecodeError):
         return set(), set(), set()
 
-    pinned: set[str] = set()
-    for module_name, expected_tree in payload.get("modules", {}).items():
-        if (
-            isinstance(module_name, str)
-            and isinstance(expected_tree, str)
-            and git_tree_sha(root, module_name) == expected_tree
-        ):
-            pinned.add(module_name)
+    current_trees = git_module_trees(root)
+    pinned = {
+        module_name
+        for module_name, expected_tree in payload.get("modules", {}).items()
+        if isinstance(module_name, str)
+        and isinstance(expected_tree, str)
+        and current_trees.get(module_name) == expected_tree
+    }
 
     exact_overrides: set[str] = set()
     exceptions: set[str] = set()
@@ -191,47 +218,51 @@ def reviewed_sql_policy(root: Path) -> tuple[set[str], set[str], set[str]]:
         if not isinstance(module_name, str) or not isinstance(declaration, dict):
             continue
         current_tree = declaration.get("current_tree")
-        if not isinstance(current_tree, str) or git_tree_sha(root, module_name) != current_tree:
+        if not isinstance(current_tree, str) or current_trees.get(module_name) != current_tree:
             continue
         exact_overrides.add(module_name)
         for entry in declaration.get("integration_boundary_exceptions", []):
             if not isinstance(entry, dict) or entry.get("kind") not in SQL_EXCEPTION_KINDS:
                 continue
-            path = entry.get("path")
-            if isinstance(path, str) and path and ".." not in Path(path).parts:
-                exceptions.add(f"{module_name}/{Path(path).as_posix()}")
+            relative = entry.get("path")
+            if (
+                isinstance(relative, str)
+                and relative
+                and ".." not in Path(relative).parts
+            ):
+                exceptions.add(f"{module_name}/{Path(relative).as_posix()}")
     return pinned, exact_overrides, exceptions
 
 
-def is_direct_cursor_expression(node: ast.AST, aliases: set[str]) -> bool:
+def expression_chain(node: ast.AST, aliases: set[str], terminal: str) -> bool:
     if isinstance(node, ast.Name):
         return node.id in aliases
     chain = attribute_chain(node)
     if not chain:
         return False
-    if chain[-1] == "_cr" and chain[0] == "self":
-        return True
-    return chain[-1] == "cr" and ("env" in chain or len(chain) == 1)
+    if terminal == "cursor":
+        if chain[-1] == "_cr" and chain[0] == "self":
+            return True
+        return chain[-1] == "cr" and ("env" in chain or len(chain) == 1)
+    if terminal == "environment":
+        return chain[-2:] in (["request", "env"], ["self", "env"])
+    return False
 
 
-def cursor_aliases(tree: ast.AST) -> set[str]:
-    aliases = {"cr", "_cr"}
-    changed = True
-    while changed:
-        changed = False
-        for node in ast.walk(tree):
-            target: ast.AST | None = None
-            value: ast.AST | None = None
-            if isinstance(node, ast.Assign) and len(node.targets) == 1:
-                target, value = node.targets[0], node.value
-            elif isinstance(node, ast.AnnAssign):
-                target, value = node.target, node.value
-            if target is None or value is None:
-                continue
-            name = assigned_name(target)
-            if name and name not in aliases and is_direct_cursor_expression(value, aliases):
-                aliases.add(name)
-                changed = True
+def transitive_aliases(tree: ast.AST, *, terminal: str) -> set[str]:
+    aliases = {"cr", "_cr"} if terminal == "cursor" else set()
+    definitions = simple_assignments(tree)
+    for _ in range(len(definitions) + 1):
+        added = {
+            name
+            for name, values in definitions.items()
+            if name not in aliases
+            and values
+            and all(expression_chain(value, aliases, terminal) for value in values)
+        }
+        if not added:
+            break
+        aliases.update(added)
     return aliases
 
 
@@ -239,53 +270,24 @@ def is_cursor_execute(call: ast.Call, aliases: set[str]) -> bool:
     return (
         isinstance(call.func, ast.Attribute)
         and call.func.attr == "execute"
-        and is_direct_cursor_expression(call.func.value, aliases)
+        and expression_chain(call.func.value, aliases, "cursor")
     )
 
 
-def is_environment_expression(node: ast.AST, aliases: set[str]) -> bool:
-    if isinstance(node, ast.Name):
-        return node.id in aliases
-    chain = attribute_chain(node)
-    return chain[-2:] in (["request", "env"], ["self", "env"])
-
-
-def environment_aliases(tree: ast.AST) -> set[str]:
-    aliases: set[str] = set()
-    changed = True
-    while changed:
-        changed = False
-        for node in ast.walk(tree):
-            target: ast.AST | None = None
-            value: ast.AST | None = None
-            if isinstance(node, ast.Assign) and len(node.targets) == 1:
-                target, value = node.targets[0], node.value
-            elif isinstance(node, ast.AnnAssign):
-                target, value = node.target, node.value
-            if target is None or value is None:
-                continue
-            name = assigned_name(target)
-            if name and name not in aliases and is_environment_expression(value, aliases):
-                aliases.add(name)
-                changed = True
-    return aliases
-
-
-def dynamic_model_parameter(node: ast.AST, env_aliases: set[str]) -> str | None:
-    selector: ast.AST | None = None
-    if isinstance(node, ast.Subscript) and is_environment_expression(node.value, env_aliases):
-        selector = node.slice
-    elif (
+def dynamic_model_selector(node: ast.AST, env_aliases: set[str]) -> ast.AST | None:
+    if isinstance(node, ast.Subscript) and expression_chain(
+        node.value, env_aliases, "environment"
+    ):
+        return node.slice
+    if (
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)
         and node.func.attr == "__getitem__"
-        and is_environment_expression(node.func.value, env_aliases)
+        and expression_chain(node.func.value, env_aliases, "environment")
         and node.args
     ):
-        selector = node.args[0]
-    if selector is None or static_string(selector) is not None:
-        return None
-    return selector.id if isinstance(selector, ast.Name) else ""
+        return node.args[0]
+    return None
 
 
 def function_parameters(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
@@ -299,37 +301,48 @@ def function_parameters(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[st
     ]
 
 
+def function_call_arguments(tree: ast.AST) -> dict[str, list[ast.Call]]:
+    calls: dict[str, list[ast.Call]] = defaultdict(list)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        chain = attribute_chain(node.func)
+        if chain:
+            calls[chain[-1]].append(node)
+    return dict(calls)
+
+
 def static_model_wrapper_parameters(
     tree: ast.AST,
     env_aliases: set[str],
 ) -> set[tuple[str, str]]:
-    """Recognize private wrappers whose every in-file caller passes literals."""
+    """Permit a private wrapper only when all in-file callers use literals."""
 
     functions = {
         node.name: node
         for node in ast.walk(tree)
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
+    calls = function_call_arguments(tree)
     safe: set[tuple[str, str]] = set()
+
     for name, function in functions.items():
+        if not name.startswith("_"):
+            continue
         parameters = function_parameters(function)
-        candidates = {
-            parameter
-            for child in ast.walk(function)
-            for parameter in [dynamic_model_parameter(child, env_aliases)]
-            if parameter and parameter in parameters
-        }
+        candidates: set[str] = set()
+        for child in ast.walk(function):
+            selector = dynamic_model_selector(child, env_aliases)
+            if isinstance(selector, ast.Name) and selector.id in parameters:
+                candidates.add(selector.id)
+
         for parameter in candidates:
+            observed = calls.get(name, [])
+            if not observed:
+                continue
             parameter_index = parameters.index(parameter)
-            observed = 0
-            unsafe = False
-            for call in ast.walk(tree):
-                if not isinstance(call, ast.Call):
-                    continue
-                chain = attribute_chain(call.func)
-                if not chain or chain[-1] != name:
-                    continue
-                observed += 1
+            all_literal = True
+            for call in observed:
                 value = next(
                     (
                         keyword.value
@@ -347,31 +360,91 @@ def static_model_wrapper_parameters(
                     ):
                         positional_index -= 1
                     if positional_index < 0 or positional_index >= len(call.args):
-                        unsafe = True
+                        all_literal = False
                         break
                     value = call.args[positional_index]
                 if static_string(value) is None:
-                    unsafe = True
+                    all_literal = False
                     break
-            if observed and not unsafe:
+            if all_literal:
                 safe.add((name, parameter))
     return safe
 
 
-def parent_functions(tree: ast.AST) -> dict[ast.AST, ast.FunctionDef | ast.AsyncFunctionDef]:
-    parents: dict[ast.AST, ast.AST] = {}
-    for parent in ast.walk(tree):
-        for child in ast.iter_child_nodes(parent):
-            parents[child] = parent
+def enclosing_functions(
+    tree: ast.AST,
+) -> dict[ast.AST, ast.FunctionDef | ast.AsyncFunctionDef]:
     result: dict[ast.AST, ast.FunctionDef | ast.AsyncFunctionDef] = {}
-    for node in ast.walk(tree):
-        current = parents.get(node)
-        while current is not None:
-            if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                result[node] = current
-                break
-            current = parents.get(current)
+
+    class Visitor(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self.stack: list[ast.FunctionDef | ast.AsyncFunctionDef] = []
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self.stack.append(node)
+            for child in ast.iter_child_nodes(node):
+                if self.stack:
+                    result[child] = self.stack[-1]
+                self.visit(child)
+            self.stack.pop()
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            self.stack.append(node)
+            for child in ast.iter_child_nodes(node):
+                if self.stack:
+                    result[child] = self.stack[-1]
+                self.visit(child)
+            self.stack.pop()
+
+        def generic_visit(self, node: ast.AST) -> None:
+            for child in ast.iter_child_nodes(node):
+                if self.stack:
+                    result[child] = self.stack[-1]
+                self.visit(child)
+
+    Visitor().visit(tree)
     return result
+
+
+def imported_process_functions(tree: ast.AST) -> tuple[set[str], set[str], set[str]]:
+    subprocess_modules = {"subprocess"}
+    os_modules = {"os"}
+    bare_functions: set[str] = set()
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "subprocess":
+                    subprocess_modules.add(alias.asname or alias.name)
+                elif alias.name == "os":
+                    os_modules.add(alias.asname or alias.name)
+        elif isinstance(node, ast.ImportFrom):
+            if node.module == "subprocess":
+                for alias in node.names:
+                    if alias.name in SUBPROCESS_FUNCTIONS or alias.name == "*":
+                        bare_functions.add(alias.asname or alias.name)
+            elif node.module == "os":
+                for alias in node.names:
+                    if alias.name in OS_PROCESS_FUNCTIONS or alias.name == "*":
+                        bare_functions.add(alias.asname or alias.name)
+    return subprocess_modules, os_modules, bare_functions
+
+
+def is_process_call(
+    call: ast.Call,
+    subprocess_modules: set[str],
+    os_modules: set[str],
+    bare_functions: set[str],
+) -> bool:
+    chain = attribute_chain(call.func)
+    if not chain:
+        return False
+    if len(chain) == 1:
+        return chain[0] in bare_functions
+    root, name = chain[0], chain[-1]
+    return (root in subprocess_modules and name in SUBPROCESS_FUNCTIONS) or (
+        root in os_modules and name in OS_PROCESS_FUNCTIONS
+    )
 
 
 def process_command_node(call: ast.Call) -> ast.AST | None:
@@ -387,6 +460,20 @@ def process_command_node(call: ast.Call) -> ast.AST | None:
     )
 
 
+def odoo_sql_db_aliases(tree: ast.AST) -> tuple[set[str], set[str]]:
+    modules = {"sql_db"}
+    functions: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "odoo.sql_db":
+                    modules.add(alias.asname or alias.name.split(".")[-1])
+        elif isinstance(node, ast.ImportFrom) and node.module == "odoo.sql_db":
+            for alias in node.names:
+                functions.add(alias.asname or alias.name)
+    return modules, functions
+
+
 def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
     findings: list[str] = []
     try:
@@ -396,51 +483,39 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
         return [f"cannot parse Python source: {exc}"]
 
     constants = static_assignments(tree)
-    cursor_names = cursor_aliases(tree)
-    env_names = environment_aliases(tree)
+    cursor_names = transitive_aliases(tree, terminal="cursor")
+    env_names = transitive_aliases(tree, terminal="environment")
     safe_wrappers = static_model_wrapper_parameters(tree, env_names)
-    enclosing = parent_functions(tree)
-    sql_db_aliases: set[str] = set()
+    enclosing = enclosing_functions(tree)
+    subprocess_modules, os_modules, bare_process = imported_process_functions(tree)
+    sql_db_modules, sql_db_functions = odoo_sql_db_aliases(tree)
 
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "odoo.sql_db":
-            for alias in node.names:
-                if alias.name in ODOO_SQL_DB_HELPERS or alias.name == "*":
-                    findings.append(
-                        f"Odoo sql_db helper import is prohibited: {alias.name}"
-                    )
-                sql_db_aliases.add(alias.asname or alias.name)
-        elif isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.name == "odoo.sql_db":
-                    sql_db_aliases.add(alias.asname or alias.name)
+    for imported in sorted(sql_db_functions):
+        findings.append(f"Odoo sql_db helper import is prohibited: {imported}")
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
             chain = attribute_chain(node.func)
-            if (
-                chain
-                and chain[-1] in ODOO_SQL_DB_HELPERS
+            if chain and (
+                chain[-1] in ODOO_SQL_DB_HELPERS
                 and (
-                    chain[-1] in sql_db_aliases
-                    or "sql_db" in chain
-                    or chain[0] in sql_db_aliases
+                    chain[-1] in sql_db_functions
+                    or any(part in sql_db_modules for part in chain)
                 )
             ):
                 findings.append(
-                    f"separate Odoo sql_db connection helper is prohibited: {'.'.join(chain)}"
+                    "separate Odoo sql_db connection helper is prohibited: "
+                    + ".".join(chain)
                 )
+
             if is_cursor_execute(node, cursor_names) and not allow_cursor_sql:
                 findings.append(
-                    f"undeclared Odoo cursor execution is prohibited: {'.'.join(chain)}"
+                    "undeclared Odoo cursor execution is prohibited: "
+                    + ".".join(chain)
                 )
-            if chain and chain[-1] in PROCESS_CALLS:
-                command_node = process_command_node(node)
-                command_text = (
-                    static_text(command_node, constants)
-                    if command_node is not None
-                    else None
-                )
+
+            if is_process_call(node, subprocess_modules, os_modules, bare_process):
+                command_text = static_text(process_command_node(node), constants)
                 if command_text is None:
                     findings.append(
                         "unanalyzable process invocation is prohibited in Odoo addons"
@@ -453,20 +528,22 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
                             "Python process invocation contains database credentials"
                         )
 
-        if "controllers" in path.parts:
-            parameter = dynamic_model_parameter(node, env_names)
-            if parameter is None:
-                continue
-            function = enclosing.get(node)
-            if (
-                parameter
-                and function is not None
-                and (function.name, parameter) in safe_wrappers
-            ):
-                continue
-            findings.append(
-                "controller uses a caller-selected Odoo model; only static model names are allowed"
-            )
+        if "controllers" not in path.parts:
+            continue
+        selector = dynamic_model_selector(node, env_names)
+        if selector is None or static_string(selector) is not None:
+            continue
+
+        current_function = enclosing.get(node)
+        if (
+            isinstance(selector, ast.Name)
+            and current_function is not None
+            and (current_function.name, selector.id) in safe_wrappers
+        ):
+            continue
+        findings.append(
+            "controller uses a caller-selected Odoo model; only static model names are allowed"
+        )
 
     return sorted(set(findings))
 
@@ -483,7 +560,9 @@ def config_findings(path: Path) -> list[str]:
     if PSQL_TOKEN.search(active_lines):
         findings.append("shell/config psql invocation is prohibited")
     if DB_CREDENTIAL.search(active_lines):
-        findings.append("shell/config database credential or PostgreSQL DSN is prohibited")
+        findings.append(
+            "shell/config database credential or PostgreSQL DSN is prohibited"
+        )
     return findings
 
 
@@ -491,8 +570,7 @@ def meaningful_test_method(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool
     for child in ast.walk(node):
         if isinstance(child, ast.Assert):
             if not (
-                isinstance(child.test, ast.Constant)
-                and child.test.value is True
+                isinstance(child.test, ast.Constant) and child.test.value is True
             ):
                 return True
         if not isinstance(child, ast.Call):
@@ -542,6 +620,7 @@ def bridge_scaffold_findings(root: Path) -> list[str]:
         manifest = ast.literal_eval(manifest_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, SyntaxError, ValueError) as exc:
         return [f"cannot parse bridge manifest: {exc}"]
+
     data = manifest.get("data") if isinstance(manifest, dict) else None
     if not isinstance(data, list):
         findings.append("bridge manifest data must be a list")
@@ -557,6 +636,7 @@ def bridge_scaffold_findings(root: Path) -> list[str]:
     except (OSError, UnicodeError) as exc:
         findings.append(f"bridge tests are not discoverable: {exc}")
         return findings
+
     imported = set(
         re.findall(r"from\s+\.\s+import\s+(test_[A-Za-z0-9_]+)", init_text)
     )
@@ -573,19 +653,21 @@ def bridge_scaffold_findings(root: Path) -> list[str]:
             findings.append(f"bridge test import has no file: {module_name}.py")
             continue
         try:
-            text = test_path.read_text(encoding="utf-8")
-            tree = ast.parse(text, filename=str(test_path))
+            tree = ast.parse(
+                test_path.read_text(encoding="utf-8"), filename=str(test_path)
+            )
         except (OSError, UnicodeError, SyntaxError) as exc:
             findings.append(f"cannot parse bridge test {module_name}: {exc}")
             continue
+
         tokens.update(semantic_test_tokens(tree))
         for node in ast.walk(tree):
             if not isinstance(node, ast.ClassDef):
                 continue
             bases = {
-                attribute_chain(base)[-1]
+                chain[-1]
                 for base in node.bases
-                if attribute_chain(base)
+                if (chain := attribute_chain(base))
             }
             if not bases & ODOO_TEST_BASES:
                 continue
@@ -596,6 +678,7 @@ def bridge_scaffold_findings(root: Path) -> list[str]:
                 and meaningful_test_method(item)
                 for item in node.body
             )
+
     if test_classes == 0 or meaningful_methods == 0:
         findings.append(
             "bridge tests contain no meaningful discoverable Odoo test case methods"
@@ -622,6 +705,7 @@ def scan_repository(root: Path = ROOT) -> list[str]:
             relative = path.relative_to(addons)
         except ValueError:
             continue
+
         module_name = relative.parts[0] if relative.parts else ""
         display = f"custom-addons/{relative.as_posix()}"
         if path.suffix == ".py":
