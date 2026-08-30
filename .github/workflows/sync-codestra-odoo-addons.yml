@@ -43,6 +43,21 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Refuse private-source publication into a public destination
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          visibility="$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.visibility')"
+          if [[ "$visibility" != "private" ]]; then
+            printf '%s\n' \
+              "PRIVATE_UPSTREAM_IMPORT=BLOCKED destination_visibility=${visibility}" \
+              'Make appolon1908-hue/Odoo private before importing the private Codestra-SRL source.' \
+              'Do not copy private organization source into a public repository.' >&2
+            exit 1
+          fi
+          printf 'DESTINATION_VISIBILITY=private\n'
+
       - name: Verify private upstream credential is bound
         env:
           UPSTREAM_TOKEN: ${{ secrets.CODESTRA_ODOO_UPSTREAM_READ_TOKEN }}
@@ -65,6 +80,18 @@ jobs:
           path: .upstream/codestra-odoo-addons
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Scan the complete upstream history before copying any source
+        env:
+          GITLEAKS_VERSION: v8.28.0
+        run: |
+          set -Eeuo pipefail
+          go install "github.com/zricethezav/gitleaks/v8@${GITLEAKS_VERSION}"
+          (
+            cd .upstream/codestra-odoo-addons
+            "$(go env GOPATH)/bin/gitleaks" git --redact --no-banner --exit-code 1
+          )
+          printf 'UPSTREAM_FULL_HISTORY_SECRET_SCAN=PASS\n'
 
       - name: Record immutable source and destination identities
         id: identity
@@ -119,6 +146,8 @@ jobs:
             printf -- '- Exact source SHA: `%s`\n' "$SOURCE_SHA"
             printf -- '- Exact source tree: `%s`\n' "$SOURCE_TREE"
             printf -- '- Destination base SHA: `%s`\n' "$TARGET_SHA"
+            printf -- '- Destination visibility: `private`\n'
+            printf -- '- Upstream full-history secret scan: `PASS`\n'
             printf -- '- Changes detected: `%s`\n' "$changed"
             printf -- '- Runtime/deployment/live-write changes: `NONE`\n'
           } >> "$GITHUB_STEP_SUMMARY"
@@ -167,7 +196,7 @@ jobs:
           cat > "$body_file" <<'EOF'
           ## Exact upstream import
 
-          Import the complete source tree from `Codestra-SRL/codestra-odoo-addons` into `appolon1908-hue/Odoo` through the reviewed sync policy.
+          Import the complete source tree from `Codestra-SRL/codestra-odoo-addons` into the private `appolon1908-hue/Odoo` repository through the reviewed sync policy.
           EOF
           {
             printf '\n```text\n'
@@ -181,6 +210,7 @@ jobs:
 
           ### Import behavior
 
+          - imports only after a complete upstream-history secret scan passes;
           - stores the complete source snapshot under `upstream/codestra-odoo-addons`;
           - overlays every non-governance source file into the destination repository;
           - promotes every discovered Odoo addon into `custom-addons/<module>`;
@@ -192,6 +222,8 @@ jobs:
           ### Safety
 
           ```text
+          DESTINATION_VISIBILITY=private
+          UPSTREAM_SECRET_SCAN=PASS
           ODOO_WRITE=false
           LIVE_WRITE=false
           EXTERNAL_DELIVERY=false
