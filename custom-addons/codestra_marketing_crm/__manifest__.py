@@ -1,6 +1,6 @@
 {
     "name": "Codestra Marketing CRM",
-    "version": "1.0.0",
+    "version": "19.0.1.0.0",
     "summary": "Marketing attribution and conversion feedback for Codestra CRM",
     "category": "Sales/CRM",
     "license": "LGPL-3",
