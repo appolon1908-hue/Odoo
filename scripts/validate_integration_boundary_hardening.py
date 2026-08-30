@@ -19,8 +19,6 @@ from typing import Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 ADDONS = ROOT / "custom-addons"
-BASELINE = ROOT / "config" / "canonical-addon-baseline.json"
-BRIDGE = ADDONS / "codestra_middleware_bridge"
 
 SQL_EXCEPTION_KINDS = {
     "odoo_cursor_readiness_probe",
@@ -107,13 +105,19 @@ def git_tree_sha(root: Path, module_name: str) -> str | None:
     return result.stdout.strip() if result.returncode == 0 else None
 
 
-def reviewed_sql_policy(root: Path) -> tuple[set[str], set[str]]:
-    """Return exact pinned modules and exact path-specific SQL exceptions."""
+def reviewed_sql_policy(root: Path) -> tuple[set[str], set[str], set[str]]:
+    """Return exact reviewed module trees and path-specific SQL exceptions.
+
+    A pinned or strict-override module is exempt only while its complete subtree
+    equals the reviewed tree SHA. Any future source change invalidates that
+    exemption automatically and the scanner evaluates every cursor call again.
+    """
+
     baseline_path = root / "config" / "canonical-addon-baseline.json"
     try:
         payload = json.loads(baseline_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
-        return set(), set()
+        return set(), set(), set()
 
     pinned: set[str] = set()
     for module_name, expected_tree in payload.get("modules", {}).items():
@@ -124,6 +128,7 @@ def reviewed_sql_policy(root: Path) -> tuple[set[str], set[str]]:
         ):
             pinned.add(module_name)
 
+    exact_overrides: set[str] = set()
     exceptions: set[str] = set()
     for module_name, declaration in payload.get("strict_mission_overrides", {}).items():
         if not isinstance(module_name, str) or not isinstance(declaration, dict):
@@ -131,13 +136,14 @@ def reviewed_sql_policy(root: Path) -> tuple[set[str], set[str]]:
         current_tree = declaration.get("current_tree")
         if not isinstance(current_tree, str) or git_tree_sha(root, module_name) != current_tree:
             continue
+        exact_overrides.add(module_name)
         for entry in declaration.get("integration_boundary_exceptions", []):
             if not isinstance(entry, dict) or entry.get("kind") not in SQL_EXCEPTION_KINDS:
                 continue
             path = entry.get("path")
             if isinstance(path, str) and path and ".." not in Path(path).parts:
                 exceptions.add(f"{module_name}/{Path(path).as_posix()}")
-    return pinned, exceptions
+    return pinned, exact_overrides, exceptions
 
 
 def is_cursor_execute(call: ast.Call) -> bool:
@@ -145,11 +151,95 @@ def is_cursor_execute(call: ast.Call) -> bool:
     return len(chain) >= 2 and chain[-1] == "execute" and chain[-2] in {"cr", "_cr"}
 
 
-def is_dynamic_env_subscript(node: ast.Subscript) -> bool:
+def dynamic_env_parameter(node: ast.Subscript) -> str | None:
     chain = attribute_chain(node.value)
     if chain[-2:] not in (["request", "env"], ["self", "env"]):
-        return False
-    return static_string(node.slice) is None
+        return None
+    if static_string(node.slice) is not None:
+        return None
+    return node.slice.id if isinstance(node.slice, ast.Name) else ""
+
+
+def function_parameters(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
+    return [
+        argument.arg
+        for argument in (
+            *node.args.posonlyargs,
+            *node.args.args,
+            *node.args.kwonlyargs,
+        )
+    ]
+
+
+def static_model_wrapper_parameters(tree: ast.AST) -> set[tuple[str, str]]:
+    """Recognize private wrappers whose every in-file caller passes literals.
+
+    This permits a helper such as ``_read_reconciliation(model_name, ...)`` only
+    when all call sites in the module bind ``model_name`` to a string literal.
+    A route parameter, request payload value, missing call argument, or any
+    computed expression keeps the helper blocked.
+    """
+
+    functions = {
+        node.name: node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    safe: set[tuple[str, str]] = set()
+    for name, function in functions.items():
+        parameters = function_parameters(function)
+        candidates = {
+            parameter
+            for child in ast.walk(function)
+            if isinstance(child, ast.Subscript)
+            for parameter in [dynamic_env_parameter(child)]
+            if parameter and parameter in parameters
+        }
+        for parameter in candidates:
+            index = parameters.index(parameter)
+            observed = 0
+            unsafe = False
+            for call in ast.walk(tree):
+                if not isinstance(call, ast.Call):
+                    continue
+                chain = attribute_chain(call.func)
+                if not chain or chain[-1] != name:
+                    continue
+                observed += 1
+                value: ast.AST | None = None
+                if index < len(call.args):
+                    value = call.args[index]
+                else:
+                    value = next(
+                        (
+                            keyword.value
+                            for keyword in call.keywords
+                            if keyword.arg == parameter
+                        ),
+                        None,
+                    )
+                if value is None or static_string(value) is None:
+                    unsafe = True
+                    break
+            if observed and not unsafe:
+                safe.add((name, parameter))
+    return safe
+
+
+def parent_functions(tree: ast.AST) -> dict[ast.AST, ast.FunctionDef | ast.AsyncFunctionDef]:
+    parents: dict[ast.AST, ast.AST] = {}
+    for parent in ast.walk(tree):
+        for child in ast.iter_child_nodes(parent):
+            parents[child] = parent
+    result: dict[ast.AST, ast.FunctionDef | ast.AsyncFunctionDef] = {}
+    for node in ast.walk(tree):
+        current = parents.get(node)
+        while current is not None:
+            if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                result[node] = current
+                break
+            current = parents.get(current)
+    return result
 
 
 def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
@@ -160,6 +250,8 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
     except (OSError, UnicodeError, SyntaxError) as exc:
         return [f"cannot parse Python source: {exc}"]
 
+    safe_wrappers = static_model_wrapper_parameters(tree)
+    enclosing = parent_functions(tree)
     aliases: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module == "odoo.sql_db":
@@ -196,10 +288,19 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
                 if DB_CREDENTIAL.search(command_text):
                     findings.append("Python process invocation contains database credentials")
         elif isinstance(node, ast.Subscript) and "controllers" in path.parts:
-            if is_dynamic_env_subscript(node):
-                findings.append(
-                    "controller uses a caller-selected Odoo model; only static model names are allowed"
-                )
+            parameter = dynamic_env_parameter(node)
+            if parameter is None:
+                continue
+            function = enclosing.get(node)
+            if (
+                parameter
+                and function is not None
+                and (function.name, parameter) in safe_wrappers
+            ):
+                continue
+            findings.append(
+                "controller uses a caller-selected Odoo model; only static model names are allowed"
+            )
 
     return sorted(set(findings))
 
@@ -284,7 +385,7 @@ def bridge_scaffold_findings(root: Path) -> list[str]:
 
 def scan_repository(root: Path = ROOT) -> list[str]:
     addons = root / "custom-addons"
-    pinned, sql_exceptions = reviewed_sql_policy(root)
+    pinned, exact_overrides, sql_exceptions = reviewed_sql_policy(root)
     findings: list[str] = []
     if not addons.is_dir():
         return ["custom-addons directory is missing"]
@@ -299,7 +400,11 @@ def scan_repository(root: Path = ROOT) -> list[str]:
         module_name = relative.parts[0] if relative.parts else ""
         display = f"custom-addons/{relative.as_posix()}"
         if path.suffix == ".py":
-            allow_sql = module_name in pinned or relative.as_posix() in sql_exceptions
+            allow_sql = (
+                module_name in pinned
+                or module_name in exact_overrides
+                or relative.as_posix() in sql_exceptions
+            )
             for finding in python_findings(path, allow_cursor_sql=allow_sql):
                 findings.append(f"{display}: {finding}")
         elif path.suffix.lower() in CONFIG_SUFFIXES or os.access(path, os.X_OK):
