@@ -40,6 +40,32 @@ class IntegrationBoundaryHardeningTests(unittest.TestCase):
             findings = hardening.python_findings(path, allow_cursor_sql=False)
             self.assertIn("Python process invocation of psql is prohibited", findings)
 
+    def test_python_process_command_variable_is_resolved(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/job.py",
+                "import subprocess\ncommand = 'psql postgresql://db/write'\nsubprocess.run(command, shell=True)\n",
+            )
+            findings = hardening.python_findings(path, allow_cursor_sql=False)
+            self.assertIn("Python process invocation of psql is prohibited", findings)
+            self.assertIn(
+                "Python process invocation contains database credentials",
+                findings,
+            )
+
+    def test_unanalyzable_process_invocation_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/job.py",
+                "import subprocess\ndef run(command):\n    subprocess.run(command)\n",
+            )
+            self.assertIn(
+                "unanalyzable process invocation is prohibited in Odoo addons",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
     def test_odoo_sql_db_helpers_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = self.write(
@@ -48,9 +74,7 @@ class IntegrationBoundaryHardeningTests(unittest.TestCase):
                 "from odoo.sql_db import db_connect\nconnection = db_connect('postgresql://db')\n",
             )
             findings = hardening.python_findings(path, allow_cursor_sql=False)
-            self.assertTrue(
-                any("sql_db" in finding for finding in findings), findings
-            )
+            self.assertTrue(any("sql_db" in finding for finding in findings), findings)
 
     def test_all_common_odoo_cursor_aliases_are_rejected(self) -> None:
         source = """
@@ -58,6 +82,9 @@ def apply(self, env, cr):
     self._cr.execute('DELETE FROM a')
     env.cr.execute('DELETE FROM b')
     cr.execute('DELETE FROM c')
+    cursor = env.cr
+    another_cursor = cursor
+    another_cursor.execute('DELETE FROM d')
 """
         with tempfile.TemporaryDirectory() as directory:
             path = self.write(
@@ -69,7 +96,7 @@ def apply(self, env, cr):
             cursor_findings = [
                 finding for finding in findings if "cursor execution" in finding
             ]
-            self.assertEqual(3, len(cursor_findings), cursor_findings)
+            self.assertEqual(4, len(cursor_findings), cursor_findings)
             self.assertFalse(
                 any(
                     "cursor execution" in finding
@@ -88,17 +115,38 @@ def apply(self, env, cr):
                 "custom-addons/example/controllers/api.py",
                 "def route(request, payload):\n    return request.env[payload['model']].sudo().create(payload['values'])\n",
             )
+            alias = self.write(
+                root,
+                "custom-addons/example/controllers/alias.py",
+                "def route(request, payload):\n    env = request.env\n    return env[payload['model']].sudo().create(payload['values'])\n",
+            )
+            getitem = self.write(
+                root,
+                "custom-addons/example/controllers/getitem.py",
+                "def route(request, payload):\n    return request.env.__getitem__(payload['model']).sudo().create(payload['values'])\n",
+            )
             static = self.write(
                 root,
                 "custom-addons/example/controllers/static.py",
                 "def route(request, payload):\n    return request.env['crm.lead'].create({'name': payload['name']})\n",
             )
+            marker = (
+                "controller uses a caller-selected Odoo model; only static model names are allowed"
+            )
             self.assertIn(
-                "controller uses a caller-selected Odoo model; only static model names are allowed",
+                marker,
                 hardening.python_findings(dynamic, allow_cursor_sql=False),
             )
+            self.assertIn(
+                marker,
+                hardening.python_findings(alias, allow_cursor_sql=False),
+            )
+            self.assertIn(
+                marker,
+                hardening.python_findings(getitem, allow_cursor_sql=False),
+            )
             self.assertNotIn(
-                "controller uses a caller-selected Odoo model; only static model names are allowed",
+                marker,
                 hardening.python_findings(static, allow_cursor_sql=False),
             )
 
@@ -160,7 +208,13 @@ class Controller:
             self.write(
                 root,
                 "custom-addons/codestra_middleware_bridge/tests/test_placeholder.py",
-                "# no test case\n",
+                """
+from odoo.tests.common import TransactionCase
+
+class TestPlaceholder(TransactionCase):
+    def test_signature_tenant_idempotency(self):
+        self.assertTrue(True)
+""",
             )
             findings = hardening.bridge_scaffold_findings(root)
             self.assertIn(
@@ -172,7 +226,7 @@ class Controller:
                 findings,
             )
             self.assertIn(
-                "bridge tests contain no discoverable Odoo test case methods",
+                "bridge tests contain no meaningful discoverable Odoo test case methods",
                 findings,
             )
 
@@ -193,11 +247,12 @@ class Controller:
                 root,
                 "custom-addons/codestra_middleware_bridge/tests/test_bridge.py",
                 """
-from odoo.tests.common import TransactionCase
+from odoo.tests.common import HttpCase
 
-class TestBridge(TransactionCase):
-    def test_signature_tenant_idempotency(self):
-        self.assertTrue(True)
+class TestBridge(HttpCase):
+    def test_signed_header_tenant_and_idempotency_replay(self):
+        response = self.url_open('/synthetic')
+        self.assertEqual(response.status_code, 401)
 """,
             )
             self.assertEqual([], hardening.bridge_scaffold_findings(root))
