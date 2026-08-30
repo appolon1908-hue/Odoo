@@ -86,7 +86,9 @@
   },
   "message_authentication": {
     "algorithm": "hmac-sha256",
-    "secret_scope": "per_tenant_with_single_tenant_fallback",
+    "secret_scope": "per_tenant_preferred_with_global_allowlisted_tenant_fallback",
+    "global_fallback_is_tenant_isolated": false,
+    "multi_tenant_production_requires_tenant_specific_secret_and_service_identity": true,
     "maximum_clock_skew_seconds": 300,
     "canonical_fields_in_order": [
       "X-Codestra-Timestamp",
