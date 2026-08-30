@@ -1,0 +1,32 @@
+name: Marketing CRM Stage 5
+
+on:
+  pull_request:
+    paths:
+      - 'custom-addons/codestra_marketing_crm/**'
+      - 'scripts/validate_marketing_crm_addon.py'
+      - '.github/workflows/marketing-crm-stage5.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  source-certification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python scripts/validate_marketing_crm_addon.py
+      - run: python -m compileall -q custom-addons/codestra_marketing_crm scripts/validate_marketing_crm_addon.py
+      - run: python - <<'PY'
+        from pathlib import Path
+        manifest = (Path('custom-addons/codestra_marketing_crm/__manifest__.py')).read_text(encoding='utf-8')
+        model = Path('custom-addons/codestra_marketing_crm/models/crm_lead.py').read_text(encoding='utf-8').lower()
+        assert 'crm' in manifest.lower()
+        assert 'tenant' in model and 'campaign' in model and 'provider' in model
+        assert 'requests.' not in model and 'httpx.' not in model
+        print('MARKETING_CRM_SOURCE_CERTIFICATION=PASS')
+        PY
