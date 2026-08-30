@@ -46,7 +46,10 @@ class CrmLead(models.Model):
         if payload_tenant != tenant_id:
             raise ValidationError("Codestra intake tenant mismatch")
 
-        receipt = self.env["codestra.intake.receipt"].search(
+        # Receipt rows intentionally have no user-facing ACL. The trusted Middleware
+        # entrypoint elevates only this internal dedupe/audit table, not the CRM lead.
+        receipt_model = self.env["codestra.intake.receipt"].sudo()
+        receipt = receipt_model.search(
             [
                 ("tenant_id", "=", tenant_id),
                 "|",
@@ -69,7 +72,7 @@ class CrmLead(models.Model):
             lead = self.create(values)
             action = "created"
 
-        self.env["codestra.intake.receipt"].create(
+        receipt_model.create(
             {
                 "tenant_id": tenant_id,
                 "event_id": event_id,
