@@ -2,8 +2,9 @@
 """Reject bypasses not safely covered by the original Odoo boundary validator.
 
 This companion gate closes the historical review gaps for shell/config database
-access, Odoo ``sql_db`` connection helpers, cursor aliases, generic model proxy
-controllers, unloaded bridge ACLs and placeholder-only bridge tests.
+access, Odoo ``sql_db`` connection helpers, cursor aliases, environment aliases,
+generic model proxy controllers, unloaded bridge ACLs and placeholder-only
+bridge tests.
 """
 
 from __future__ import annotations
@@ -57,14 +58,16 @@ CONFIG_SUFFIXES = {
     ".service",
     ".env",
 }
-PSQL_TOKEN = re.compile(r"(?i)(?:^|[\s;&|`(])(?:[A-Za-z0-9_./-]+/)?psql(?:[\s;&|`)]|$)")
+PSQL_TOKEN = re.compile(
+    r"(?i)(?:^|[\s;&|`(])(?:[A-Za-z0-9_./-]+/)?psql(?:[\s;&|`)]|$)"
+)
 DB_CREDENTIAL = re.compile(
     r"(?i)(?:\bPGPASSWORD\s*=|\bDATABASE_URL\s*=|postgres(?:ql)?://)"
 )
 REQUIRED_BRIDGE_TEST_MARKERS = {
-    "signature",
-    "tenant",
-    "idempotency",
+    "signature": {"signature", "signed"},
+    "tenant": {"tenant"},
+    "idempotency": {"idempotency", "duplicate", "replay"},
 }
 ODOO_TEST_BASES = {
     "TransactionCase",
@@ -92,6 +95,60 @@ def static_string(node: ast.AST) -> str | None:
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return node.value
     return None
+
+
+def assigned_name(node: ast.AST) -> str | None:
+    return node.id if isinstance(node, ast.Name) else None
+
+
+def static_text(node: ast.AST, constants: dict[str, str]) -> str | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.Name):
+        return constants.get(node.id)
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        values = [static_text(item, constants) for item in node.elts]
+        return None if any(value is None for value in values) else " ".join(values)  # type: ignore[arg-type]
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left = static_text(node.left, constants)
+        right = static_text(node.right, constants)
+        return None if left is None or right is None else left + right
+    if isinstance(node, ast.JoinedStr):
+        parts: list[str] = []
+        for value in node.values:
+            if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                parts.append(value.value)
+            elif isinstance(value, ast.FormattedValue):
+                resolved = static_text(value.value, constants)
+                if resolved is None:
+                    return None
+                parts.append(resolved)
+            else:
+                return None
+        return "".join(parts)
+    return None
+
+
+def static_assignments(tree: ast.AST) -> dict[str, str]:
+    constants: dict[str, str] = {}
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            target: ast.AST | None = None
+            value: ast.AST | None = None
+            if isinstance(node, ast.Assign) and len(node.targets) == 1:
+                target, value = node.targets[0], node.value
+            elif isinstance(node, ast.AnnAssign):
+                target, value = node.target, node.value
+            if target is None or value is None:
+                continue
+            name = assigned_name(target)
+            resolved = static_text(value, constants)
+            if name and resolved is not None and constants.get(name) != resolved:
+                constants[name] = resolved
+                changed = True
+    return constants
 
 
 def git_tree_sha(root: Path, module_name: str) -> str | None:
@@ -146,18 +203,89 @@ def reviewed_sql_policy(root: Path) -> tuple[set[str], set[str], set[str]]:
     return pinned, exact_overrides, exceptions
 
 
-def is_cursor_execute(call: ast.Call) -> bool:
-    chain = attribute_chain(call.func)
-    return len(chain) >= 2 and chain[-1] == "execute" and chain[-2] in {"cr", "_cr"}
+def is_direct_cursor_expression(node: ast.AST, aliases: set[str]) -> bool:
+    if isinstance(node, ast.Name):
+        return node.id in aliases
+    chain = attribute_chain(node)
+    if not chain:
+        return False
+    if chain[-1] == "_cr" and chain[0] == "self":
+        return True
+    return chain[-1] == "cr" and ("env" in chain or len(chain) == 1)
 
 
-def dynamic_env_parameter(node: ast.Subscript) -> str | None:
-    chain = attribute_chain(node.value)
-    if chain[-2:] not in (["request", "env"], ["self", "env"]):
+def cursor_aliases(tree: ast.AST) -> set[str]:
+    aliases = {"cr", "_cr"}
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            target: ast.AST | None = None
+            value: ast.AST | None = None
+            if isinstance(node, ast.Assign) and len(node.targets) == 1:
+                target, value = node.targets[0], node.value
+            elif isinstance(node, ast.AnnAssign):
+                target, value = node.target, node.value
+            if target is None or value is None:
+                continue
+            name = assigned_name(target)
+            if name and name not in aliases and is_direct_cursor_expression(value, aliases):
+                aliases.add(name)
+                changed = True
+    return aliases
+
+
+def is_cursor_execute(call: ast.Call, aliases: set[str]) -> bool:
+    return (
+        isinstance(call.func, ast.Attribute)
+        and call.func.attr == "execute"
+        and is_direct_cursor_expression(call.func.value, aliases)
+    )
+
+
+def is_environment_expression(node: ast.AST, aliases: set[str]) -> bool:
+    if isinstance(node, ast.Name):
+        return node.id in aliases
+    chain = attribute_chain(node)
+    return chain[-2:] in (["request", "env"], ["self", "env"])
+
+
+def environment_aliases(tree: ast.AST) -> set[str]:
+    aliases: set[str] = set()
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            target: ast.AST | None = None
+            value: ast.AST | None = None
+            if isinstance(node, ast.Assign) and len(node.targets) == 1:
+                target, value = node.targets[0], node.value
+            elif isinstance(node, ast.AnnAssign):
+                target, value = node.target, node.value
+            if target is None or value is None:
+                continue
+            name = assigned_name(target)
+            if name and name not in aliases and is_environment_expression(value, aliases):
+                aliases.add(name)
+                changed = True
+    return aliases
+
+
+def dynamic_model_parameter(node: ast.AST, env_aliases: set[str]) -> str | None:
+    selector: ast.AST | None = None
+    if isinstance(node, ast.Subscript) and is_environment_expression(node.value, env_aliases):
+        selector = node.slice
+    elif (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "__getitem__"
+        and is_environment_expression(node.func.value, env_aliases)
+        and node.args
+    ):
+        selector = node.args[0]
+    if selector is None or static_string(selector) is not None:
         return None
-    if static_string(node.slice) is not None:
-        return None
-    return node.slice.id if isinstance(node.slice, ast.Name) else ""
+    return selector.id if isinstance(selector, ast.Name) else ""
 
 
 def function_parameters(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
@@ -171,14 +299,11 @@ def function_parameters(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[st
     ]
 
 
-def static_model_wrapper_parameters(tree: ast.AST) -> set[tuple[str, str]]:
-    """Recognize private wrappers whose every in-file caller passes literals.
-
-    This permits a helper such as ``_read_reconciliation(model_name, ...)`` only
-    when all call sites in the module bind ``model_name`` to a string literal.
-    A route parameter, request payload value, missing call argument, or any
-    computed expression keeps the helper blocked.
-    """
+def static_model_wrapper_parameters(
+    tree: ast.AST,
+    env_aliases: set[str],
+) -> set[tuple[str, str]]:
+    """Recognize private wrappers whose every in-file caller passes literals."""
 
     functions = {
         node.name: node
@@ -191,8 +316,7 @@ def static_model_wrapper_parameters(tree: ast.AST) -> set[tuple[str, str]]:
         candidates = {
             parameter
             for child in ast.walk(function)
-            if isinstance(child, ast.Subscript)
-            for parameter in [dynamic_env_parameter(child)]
+            for parameter in [dynamic_model_parameter(child, env_aliases)]
             if parameter and parameter in parameters
         }
         for parameter in candidates:
@@ -250,6 +374,19 @@ def parent_functions(tree: ast.AST) -> dict[ast.AST, ast.FunctionDef | ast.Async
     return result
 
 
+def process_command_node(call: ast.Call) -> ast.AST | None:
+    if call.args:
+        return call.args[0]
+    return next(
+        (
+            keyword.value
+            for keyword in call.keywords
+            if keyword.arg in {"args", "command"}
+        ),
+        None,
+    )
+
+
 def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
     findings: list[str] = []
     try:
@@ -258,9 +395,13 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
     except (OSError, UnicodeError, SyntaxError) as exc:
         return [f"cannot parse Python source: {exc}"]
 
-    safe_wrappers = static_model_wrapper_parameters(tree)
+    constants = static_assignments(tree)
+    cursor_names = cursor_aliases(tree)
+    env_names = environment_aliases(tree)
+    safe_wrappers = static_model_wrapper_parameters(tree, env_names)
     enclosing = parent_functions(tree)
-    aliases: set[str] = set()
+    sql_db_aliases: set[str] = set()
+
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module == "odoo.sql_db":
             for alias in node.names:
@@ -268,11 +409,11 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
                     findings.append(
                         f"Odoo sql_db helper import is prohibited: {alias.name}"
                     )
-                aliases.add(alias.asname or alias.name)
+                sql_db_aliases.add(alias.asname or alias.name)
         elif isinstance(node, ast.Import):
             for alias in node.names:
                 if alias.name == "odoo.sql_db":
-                    aliases.add(alias.asname or alias.name)
+                    sql_db_aliases.add(alias.asname or alias.name)
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
@@ -280,23 +421,40 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
             if (
                 chain
                 and chain[-1] in ODOO_SQL_DB_HELPERS
-                and (chain[-1] in aliases or "sql_db" in chain or chain[0] in aliases)
+                and (
+                    chain[-1] in sql_db_aliases
+                    or "sql_db" in chain
+                    or chain[0] in sql_db_aliases
+                )
             ):
                 findings.append(
                     f"separate Odoo sql_db connection helper is prohibited: {'.'.join(chain)}"
                 )
-            if is_cursor_execute(node) and not allow_cursor_sql:
+            if is_cursor_execute(node, cursor_names) and not allow_cursor_sql:
                 findings.append(
                     f"undeclared Odoo cursor execution is prohibited: {'.'.join(chain)}"
                 )
             if chain and chain[-1] in PROCESS_CALLS:
-                command_text = "\n".join(literal_strings(node))
-                if PSQL_TOKEN.search(command_text):
-                    findings.append("Python process invocation of psql is prohibited")
-                if DB_CREDENTIAL.search(command_text):
-                    findings.append("Python process invocation contains database credentials")
-        elif isinstance(node, ast.Subscript) and "controllers" in path.parts:
-            parameter = dynamic_env_parameter(node)
+                command_node = process_command_node(node)
+                command_text = (
+                    static_text(command_node, constants)
+                    if command_node is not None
+                    else None
+                )
+                if command_text is None:
+                    findings.append(
+                        "unanalyzable process invocation is prohibited in Odoo addons"
+                    )
+                else:
+                    if PSQL_TOKEN.search(command_text):
+                        findings.append("Python process invocation of psql is prohibited")
+                    if DB_CREDENTIAL.search(command_text):
+                        findings.append(
+                            "Python process invocation contains database credentials"
+                        )
+
+        if "controllers" in path.parts:
+            parameter = dynamic_model_parameter(node, env_names)
             if parameter is None:
                 continue
             function = enclosing.get(node)
@@ -329,6 +487,53 @@ def config_findings(path: Path) -> list[str]:
     return findings
 
 
+def meaningful_test_method(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    for child in ast.walk(node):
+        if isinstance(child, ast.Assert):
+            if not (
+                isinstance(child.test, ast.Constant)
+                and child.test.value is True
+            ):
+                return True
+        if not isinstance(child, ast.Call):
+            continue
+        chain = attribute_chain(child.func)
+        name = chain[-1] if chain else ""
+        if name in {"assertRaises", "assertRaisesRegex", "assertWarns"}:
+            return True
+        if not name.startswith("assert"):
+            continue
+        if name == "assertTrue" and child.args:
+            if isinstance(child.args[0], ast.Constant) and child.args[0].value is True:
+                continue
+        if name == "assertFalse" and child.args:
+            if isinstance(child.args[0], ast.Constant) and child.args[0].value is False:
+                continue
+        if name in {"assertEqual", "assertIs"} and len(child.args) >= 2:
+            if (
+                isinstance(child.args[0], ast.Constant)
+                and isinstance(child.args[1], ast.Constant)
+                and child.args[0].value == child.args[1].value
+            ):
+                continue
+        return True
+    return False
+
+
+def semantic_test_tokens(tree: ast.AST) -> set[str]:
+    tokens: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            tokens.add(node.id.lower())
+        elif isinstance(node, ast.Attribute):
+            tokens.add(node.attr.lower())
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            tokens.add(node.name.lower())
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            tokens.update(re.findall(r"[a-z0-9_]+", node.value.lower()))
+    return tokens
+
+
 def bridge_scaffold_findings(root: Path) -> list[str]:
     bridge = root / "custom-addons" / "codestra_middleware_bridge"
     findings: list[str] = []
@@ -352,14 +557,16 @@ def bridge_scaffold_findings(root: Path) -> list[str]:
     except (OSError, UnicodeError) as exc:
         findings.append(f"bridge tests are not discoverable: {exc}")
         return findings
-    imported = set(re.findall(r"from\s+\.\s+import\s+(test_[A-Za-z0-9_]+)", init_text))
+    imported = set(
+        re.findall(r"from\s+\.\s+import\s+(test_[A-Za-z0-9_]+)", init_text)
+    )
     if not imported:
         findings.append("bridge tests/__init__.py imports no test modules")
         return findings
 
-    combined = ""
-    test_methods = 0
+    meaningful_methods = 0
     test_classes = 0
+    tokens: set[str] = set()
     for module_name in sorted(imported):
         test_path = tests_dir / f"{module_name}.py"
         if not test_path.is_file():
@@ -371,23 +578,33 @@ def bridge_scaffold_findings(root: Path) -> list[str]:
         except (OSError, UnicodeError, SyntaxError) as exc:
             findings.append(f"cannot parse bridge test {module_name}: {exc}")
             continue
-        combined += "\n" + text.lower()
+        tokens.update(semantic_test_tokens(tree))
         for node in ast.walk(tree):
             if not isinstance(node, ast.ClassDef):
                 continue
-            bases = {attribute_chain(base)[-1] for base in node.bases if attribute_chain(base)}
-            if bases & ODOO_TEST_BASES:
-                test_classes += 1
-                test_methods += sum(
-                    isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
-                    and item.name.startswith("test_")
-                    for item in node.body
-                )
-    if test_classes == 0 or test_methods == 0:
-        findings.append("bridge tests contain no discoverable Odoo test case methods")
-    for marker in REQUIRED_BRIDGE_TEST_MARKERS:
-        if marker not in combined:
-            findings.append(f"bridge tests do not cover required control marker: {marker}")
+            bases = {
+                attribute_chain(base)[-1]
+                for base in node.bases
+                if attribute_chain(base)
+            }
+            if not bases & ODOO_TEST_BASES:
+                continue
+            test_classes += 1
+            meaningful_methods += sum(
+                isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and item.name.startswith("test_")
+                and meaningful_test_method(item)
+                for item in node.body
+            )
+    if test_classes == 0 or meaningful_methods == 0:
+        findings.append(
+            "bridge tests contain no meaningful discoverable Odoo test case methods"
+        )
+    for label, alternatives in REQUIRED_BRIDGE_TEST_MARKERS.items():
+        if not tokens & alternatives:
+            findings.append(
+                f"bridge tests do not cover required control marker: {label}"
+            )
     return findings
 
 
