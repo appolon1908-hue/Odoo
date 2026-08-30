@@ -60,6 +60,7 @@ def main() -> int:
     if document.get("capability") != "ODOO_WRITE":
         fail("command capability drifted")
     for header_key, document_key in (
+        ("event_id", "command_id"),
         ("tenant_id", "tenant_id"),
         ("correlation_id", "correlation_id"),
         ("idempotency_key", "idempotency_key"),
