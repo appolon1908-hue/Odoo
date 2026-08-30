@@ -21,13 +21,13 @@ Odoo is the authoritative CRM/business system of record for leads, contacts, opp
 - Generic cross-system integration transport
 
 ## Canonical Lead Flow
-Ad/social/form source -> Kong -> Middleware -> Codestra Marketing attribution -> Odoo lead/opportunity -> Odoo transactional outbox -> Middleware authorization/allowlisted workflow invocation -> n8n workflow -> governed Middleware commands -> Codestra Communication/AI -> sales activity -> Odoo outcome -> Odoo transactional outbox -> Middleware -> Marketing attribution feedback.
+Ad/social/form source -> Kong -> Middleware -> Codestra Marketing attribution -> Middleware validated, idempotent CRM command -> Odoo lead/opportunity -> Odoo transactional outbox -> Middleware authorization/allowlisted workflow invocation -> n8n workflow -> governed Middleware commands -> Codestra Communication/AI -> sales activity -> Odoo outcome -> Odoo transactional outbox -> Middleware -> Marketing attribution feedback.
 
 ## Required Data Contract
-Each marketing-originated lead should preserve tenant/business, campaign ID, external campaign/ad identifiers, source, medium, landing context, consent metadata, correlation ID, first-touch timestamp, latest-touch timestamp and attribution version where available.
+Each marketing-originated lead must carry a stable `source_record_id` for idempotent upsert and should preserve tenant/business, campaign ID, external campaign/ad identifiers, source, medium, landing context, consent metadata, correlation ID, first-touch timestamp, latest-touch timestamp and attribution version where available. A correlation ID identifies a request or trace and must not substitute for `source_record_id`.
 
 ## Isolation and Authorization
-Odoo access must respect the existing campaign/business isolation model. Marketing integration may create/update only the records and fields authorized by its service identity and must never broaden agent visibility across campaigns.
+Odoo access must respect the existing campaign/business isolation model. Middleware is the sole authorized cross-system writer and uses the validated, idempotent Odoo bridge. Marketing submits commands through Middleware and has no direct Odoo writer identity. Those commands may create or update only the authorized records and fields and must never broaden agent visibility across campaigns.
 
 ## Required Integration APIs/Module Surface
 - Lead upsert by stable external identity
