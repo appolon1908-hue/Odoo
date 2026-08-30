@@ -102,6 +102,48 @@ def apply(self, env, cr):
                 hardening.python_findings(static, allow_cursor_sql=False),
             )
 
+    def test_private_model_wrapper_is_allowed_only_for_literal_callers(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            safe = self.write(
+                root,
+                "custom-addons/example/controllers/safe.py",
+                """
+class Controller:
+    def _read(self, model_name, public_id):
+        return request.env[model_name].search([('public_id', '=', public_id)])
+
+    def read_lead(self, public_id):
+        return self._read('crm.lead', public_id)
+
+    def read_partner(self, public_id):
+        return self._read('res.partner', public_id)
+""",
+            )
+            unsafe = self.write(
+                root,
+                "custom-addons/example/controllers/unsafe.py",
+                """
+class Controller:
+    def _read(self, model_name, public_id):
+        return request.env[model_name].search([('public_id', '=', public_id)])
+
+    def route(self, model_name, public_id):
+        return self._read(model_name, public_id)
+""",
+            )
+            marker = (
+                "controller uses a caller-selected Odoo model; only static model names are allowed"
+            )
+            self.assertNotIn(
+                marker,
+                hardening.python_findings(safe, allow_cursor_sql=False),
+            )
+            self.assertIn(
+                marker,
+                hardening.python_findings(unsafe, allow_cursor_sql=False),
+            )
+
     def test_bridge_manifest_must_load_acl_and_tests_must_be_real(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
