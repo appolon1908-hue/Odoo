@@ -81,7 +81,7 @@ The command body, signed headers, and durable Middleware identity must agree on:
 
 - command ID / `X-Codestra-Event-ID`;
 - tenant ID / `X-Tenant-ID`;
-- correlation ID / `X-Codestra-Correlation-ID`;
+- correlation ID / `X-Correlation-ID`;
 - idempotency key / `Idempotency-Key`.
 
 The canonical HMAC-SHA256 input joins the following byte sequences with one
