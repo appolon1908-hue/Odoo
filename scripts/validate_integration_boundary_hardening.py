@@ -196,7 +196,7 @@ def static_model_wrapper_parameters(tree: ast.AST) -> set[tuple[str, str]]:
             if parameter and parameter in parameters
         }
         for parameter in candidates:
-            index = parameters.index(parameter)
+            parameter_index = parameters.index(parameter)
             observed = 0
             unsafe = False
             for call in ast.walk(tree):
@@ -206,19 +206,27 @@ def static_model_wrapper_parameters(tree: ast.AST) -> set[tuple[str, str]]:
                 if not chain or chain[-1] != name:
                     continue
                 observed += 1
-                value: ast.AST | None = None
-                if index < len(call.args):
-                    value = call.args[index]
-                else:
-                    value = next(
-                        (
-                            keyword.value
-                            for keyword in call.keywords
-                            if keyword.arg == parameter
-                        ),
-                        None,
-                    )
-                if value is None or static_string(value) is None:
+                value = next(
+                    (
+                        keyword.value
+                        for keyword in call.keywords
+                        if keyword.arg == parameter
+                    ),
+                    None,
+                )
+                if value is None:
+                    positional_index = parameter_index
+                    if (
+                        isinstance(call.func, ast.Attribute)
+                        and parameters
+                        and parameters[0] in {"self", "cls"}
+                    ):
+                        positional_index -= 1
+                    if positional_index < 0 or positional_index >= len(call.args):
+                        unsafe = True
+                        break
+                    value = call.args[positional_index]
+                if static_string(value) is None:
                     unsafe = True
                     break
             if observed and not unsafe:
