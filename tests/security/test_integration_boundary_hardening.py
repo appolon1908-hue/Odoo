@@ -250,9 +250,12 @@ class TestPlaceholder(TransactionCase):
 from odoo.tests.common import HttpCase
 
 class TestBridge(HttpCase):
-    def test_signed_header_tenant_and_idempotency_replay(self):
+    def test_controls(self):
         response = self.url_open('/synthetic')
         self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json().get('signature'), 'signature')
+        self.assertEqual(response.json().get('tenant'), 'tenant')
+        self.assertEqual(response.json().get('idempotency'), 'idempotency')
 """,
             )
             self.assertEqual([], hardening.bridge_scaffold_findings(root))
