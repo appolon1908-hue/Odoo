@@ -5,7 +5,10 @@
     "category": "Sales/CRM",
     "license": "LGPL-3",
     "depends": ["crm", "utm"],
-    "data": ["views/crm_lead_views.xml"],
+    "data": [
+        "security/ir.model.access.csv",
+        "views/crm_lead_views.xml"
+    ],
     "installable": True,
     "application": False,
 }
