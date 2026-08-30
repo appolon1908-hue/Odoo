@@ -27,9 +27,13 @@ concurrency:
 
 jobs:
   sync:
+    if: >-
+      github.repository == 'appolon1908-hue/Odoo' &&
+      github.ref == 'refs/heads/main'
     name: Import exact upstream source into a review PR
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    environment: odoo-upstream-source-sync
     env:
       SOURCE_REPOSITORY: Codestra-SRL/codestra-odoo-addons
       SOURCE_REF: ${{ inputs.upstream_ref }}
@@ -42,6 +46,14 @@ jobs:
           ref: main
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Verify exact trusted workflow context
+        run: |
+          set -Eeuo pipefail
+          test "$GITHUB_REPOSITORY" = 'appolon1908-hue/Odoo'
+          test "$GITHUB_REF" = 'refs/heads/main'
+          test "$(git rev-parse --abbrev-ref HEAD)" = 'main'
+          printf 'SYNC_WORKFLOW_CONTEXT=TRUSTED_MAIN\n'
 
       - name: Refuse private-source publication into a public destination
         env:
@@ -64,23 +76,27 @@ jobs:
           set -Eeuo pipefail
           test -f scripts/run_ci.sh
           test -f scripts/sync_codestra_odoo_addons.py
+          test -f .gitleaks.toml
           run_ci_sha="$(sha256sum scripts/run_ci.sh | awk '{print $1}')"
           sync_sha="$(sha256sum scripts/sync_codestra_odoo_addons.py | awk '{print $1}')"
+          gitleaks_sha="$(sha256sum .gitleaks.toml | awk '{print $1}')"
           printf 'run_ci_sha=%s\n' "$run_ci_sha" >> "$GITHUB_OUTPUT"
           printf 'sync_sha=%s\n' "$sync_sha" >> "$GITHUB_OUTPUT"
+          printf 'gitleaks_sha=%s\n' "$gitleaks_sha" >> "$GITHUB_OUTPUT"
           printf 'DESTINATION_RUN_CI_SHA256=%s\n' "$run_ci_sha"
           printf 'DESTINATION_SYNC_CONTROLLER_SHA256=%s\n' "$sync_sha"
+          printf 'DESTINATION_GITLEAKS_POLICY_SHA256=%s\n' "$gitleaks_sha"
 
-      - name: Verify private upstream credential is bound
+      - name: Verify protected-environment upstream credential is bound
         env:
           UPSTREAM_TOKEN: ${{ secrets.CODESTRA_ODOO_UPSTREAM_READ_TOKEN }}
         run: |
           set -Eeuo pipefail
           if [[ -z "$UPSTREAM_TOKEN" ]]; then
             printf '%s\n' \
-              'CODESTRA_ODOO_UPSTREAM_READ_TOKEN is required.' \
+              'Protected environment secret CODESTRA_ODOO_UPSTREAM_READ_TOKEN is required.' \
               'Use a fine-grained token limited to Codestra-SRL/codestra-odoo-addons with Contents: read-only.' \
-              'Do not paste the token into a workflow input, issue, pull request, commit, or log.' >&2
+              'Do not store this token as an ordinary repository secret or paste it into a workflow input, issue, PR, commit, or log.' >&2
             exit 1
           fi
 
@@ -94,15 +110,20 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Scan the complete upstream history before copying any source
+      - name: Scan complete upstream history with the destination policy
         env:
           GITLEAKS_VERSION: v8.28.0
+          DESTINATION_GITLEAKS_CONFIG: ${{ github.workspace }}/.gitleaks.toml
         run: |
           set -Eeuo pipefail
           go install "github.com/zricethezav/gitleaks/v8@${GITLEAKS_VERSION}"
           (
             cd .upstream/codestra-odoo-addons
-            "$(go env GOPATH)/bin/gitleaks" git --redact --no-banner --exit-code 1
+            "$(go env GOPATH)/bin/gitleaks" git \
+              --config "$DESTINATION_GITLEAKS_CONFIG" \
+              --redact \
+              --no-banner \
+              --exit-code 1
           )
           printf 'UPSTREAM_FULL_HISTORY_SECRET_SCAN=PASS\n'
 
@@ -120,7 +141,7 @@ jobs:
           printf 'UPSTREAM_SOURCE_TREE=%s\n' "$source_tree"
           printf 'DESTINATION_BASE_SHA=%s\n' "$target_sha"
 
-      - name: Synchronize the complete source and promote every addon
+      - name: Synchronize complete source and promote every addon
         run: |
           set -Eeuo pipefail
           python3 scripts/sync_codestra_odoo_addons.py \
@@ -129,21 +150,23 @@ jobs:
             --source-ref "$SOURCE_REF"
           rm -rf .upstream
 
-      - name: Validate synchronized repository with the preserved destination authority
+      - name: Validate with the preserved destination authority
         env:
           EXPECTED_RUN_CI_SHA: ${{ steps.validator.outputs.run_ci_sha }}
           EXPECTED_SYNC_SHA: ${{ steps.validator.outputs.sync_sha }}
+          EXPECTED_GITLEAKS_SHA: ${{ steps.validator.outputs.gitleaks_sha }}
         run: |
           set -Eeuo pipefail
           test "$(sha256sum scripts/run_ci.sh | awk '{print $1}')" = "$EXPECTED_RUN_CI_SHA"
           test "$(sha256sum scripts/sync_codestra_odoo_addons.py | awk '{print $1}')" = "$EXPECTED_SYNC_SHA"
+          test "$(sha256sum .gitleaks.toml | awk '{print $1}')" = "$EXPECTED_GITLEAKS_SHA"
           git diff --check
           python3 -m compileall -q scripts custom-addons tests/security
           python3 scripts/sync_codestra_odoo_addons.py --verify-state
           bash scripts/run_ci.sh
           printf 'DESTINATION_VALIDATION_AUTHORITY_UNCHANGED=YES\n'
 
-      - name: Determine whether the exact upstream produces a change
+      - name: Determine whether exact upstream produces a change
         id: changes
         env:
           SOURCE_SHA: ${{ steps.identity.outputs.source_sha }}
@@ -164,13 +187,14 @@ jobs:
             printf -- '- Exact source tree: `%s`\n' "$SOURCE_TREE"
             printf -- '- Destination base SHA: `%s`\n' "$TARGET_SHA"
             printf -- '- Destination visibility: `private`\n'
+            printf -- '- Protected environment: `odoo-upstream-source-sync`\n'
             printf -- '- Upstream full-history secret scan: `PASS`\n'
             printf -- '- Destination validation authority unchanged: `YES`\n'
             printf -- '- Changes detected: `%s`\n' "$changed"
             printf -- '- Runtime/deployment/live-write changes: `NONE`\n'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Stop after the read-only plan
+      - name: Stop after read-only plan
         if: inputs.operation == 'plan' || steps.changes.outputs.changed != 'true'
         run: |
           set -Eeuo pipefail
@@ -181,7 +205,7 @@ jobs:
             printf '%s\n' 'UPSTREAM_ALREADY_SYNCHRONIZED=YES'
           fi
 
-      - name: Commit and push an immutable review branch
+      - name: Commit or reuse immutable review branch
         id: push
         if: inputs.operation == 'pull-request' && steps.changes.outputs.changed == 'true'
         env:
@@ -193,14 +217,33 @@ jobs:
           branch="sync/codestra-odoo-${SOURCE_SHA:0:12}-${TARGET_SHA:0:8}"
           git config user.name 'codestra-upstream-sync[bot]'
           git config user.email 'codestra-upstream-sync[bot]@users.noreply.github.com'
-          git checkout -b "$branch"
-          git add -A
-          git commit -m "sync: import Codestra Odoo addons at ${SOURCE_SHA}"
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push origin "HEAD:refs/heads/${branch}"
+          git add -A
+          candidate_tree="$(git write-tree)"
+
+          if git ls-remote --exit-code --heads origin "refs/heads/${branch}" >/dev/null 2>&1; then
+            git fetch --no-tags origin "refs/heads/${branch}:refs/remotes/origin/${branch}"
+            existing_sha="$(git rev-parse "refs/remotes/origin/${branch}")"
+            existing_tree="$(git rev-parse "${existing_sha}^{tree}")"
+            if [[ "$existing_tree" != "$candidate_tree" ]]; then
+              printf '%s\n' \
+                'IMMUTABLE_SYNC_BRANCH=CONFLICT' \
+                "branch=${branch}" \
+                "existing_tree=${existing_tree}" \
+                "candidate_tree=${candidate_tree}" \
+                'The same source/base identity produced different content; investigate determinism instead of force-pushing.' >&2
+              exit 1
+            fi
+            printf 'IMMUTABLE_SYNC_BRANCH=REUSED sha=%s\n' "$existing_sha"
+          else
+            git checkout -b "$branch"
+            git commit -m "sync: import Codestra Odoo addons at ${SOURCE_SHA}"
+            git push origin "HEAD:refs/heads/${branch}"
+            printf 'IMMUTABLE_SYNC_BRANCH=CREATED sha=%s\n' "$(git rev-parse HEAD)"
+          fi
           printf 'branch=%s\n' "$branch" >> "$GITHUB_OUTPUT"
 
-      - name: Open the protected upstream import pull request
+      - name: Open protected upstream import pull request
         if: inputs.operation == 'pull-request' && steps.changes.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -228,7 +271,8 @@ jobs:
 
           ### Import behavior
 
-          - imports only after a complete upstream-history secret scan passes;
+          - runs only from trusted destination `main` with a protected environment credential;
+          - imports only after a destination-policy full-history secret scan passes;
           - stores the complete source snapshot under `upstream/codestra-odoo-addons`;
           - overlays every non-governance source file into the destination repository;
           - promotes every discovered Odoo addon into `custom-addons/<module>`;
@@ -236,12 +280,14 @@ jobs:
           - preserves destination branch protection, workflows, CODEOWNERS, configuration, validation scripts, security tests, README, and sync controller;
           - removes only paths previously recorded as managed by this upstream;
           - preserves target-only addons until a separate disposition is reviewed;
-          - rejects addon symlinks that would change meaning when promoted.
+          - rejects addon symlinks that would change meaning when promoted;
+          - reuses an identical immutable branch and refuses nondeterministic updates.
 
           ### Safety
 
           ```text
           DESTINATION_VISIBILITY=private
+          PROTECTED_ENVIRONMENT=odoo-upstream-source-sync
           UPSTREAM_SECRET_SCAN=PASS
           DESTINATION_VALIDATION_AUTHORITY_UNCHANGED=YES
           ODOO_WRITE=false
