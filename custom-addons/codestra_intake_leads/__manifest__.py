@@ -5,7 +5,7 @@
     "category": "CRM",
     "license": "LGPL-3",
     "depends": ["crm"],
-    "data": ["security/ir.model.access.csv"],
+    "data": [],
     "installable": True,
     "application": False,
 }
