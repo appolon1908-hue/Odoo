@@ -1,16 +1,10 @@
 #!/usr/bin/env python3
 """Synchronize the private Codestra Odoo addon authority into this repository.
 
-The source repository is copied in two forms:
-
-1. a complete, provenance-marked snapshot under ``upstream/``; and
-2. a source-wins overlay at the repository root, with every discovered Odoo
-   addon also promoted into ``custom-addons`` so the destination can use one
-   stable runtime addons path.
-
-Destination governance files are preserved by policy. Deletion is limited to
-paths recorded as managed by an earlier successful sync. The script never
-activates a workflow, deploys Odoo, changes a database, or enables live writes.
+The source is copied as a complete provenance snapshot and as a controlled
+source overlay. Every discovered Odoo addon is also promoted into the stable
+``custom-addons`` runtime path. Destination governance code is immutable during
+the operation and every mutation remains subject to a normal protected PR.
 """
 
 from __future__ import annotations
@@ -31,10 +25,18 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_POLICY = ROOT / "config" / "upstream-sync-policy.json"
 MODULE_MANIFESTS = ("__manifest__.py", "__openerp__.py")
 MODULE_NAME = re.compile(r"^[A-Za-z0-9_]+$")
+REQUIRED_PRESERVED_ROOTS = (
+    Path(".github"),
+    Path("config"),
+    Path("scripts"),
+    Path("tests/security"),
+    Path("README.md"),
+    Path(".gitleaks.toml"),
+)
 
 
 class SyncError(RuntimeError):
-    """The upstream tree or sync policy is unsafe or internally inconsistent."""
+    """The upstream tree or synchronization policy is unsafe."""
 
 
 def require(condition: bool, message: str) -> None:
@@ -61,6 +63,17 @@ def normalize_relative(value: str, *, field: str) -> Path:
     return normalized
 
 
+def path_is_within(relative: Path, configured: Path) -> bool:
+    return (
+        relative == configured
+        or relative.parts[: len(configured.parts)] == configured.parts
+    )
+
+
+def matches_any(relative: Path, configured: Iterable[Path]) -> bool:
+    return any(path_is_within(relative, item) for item in configured)
+
+
 def load_policy(path: Path = DEFAULT_POLICY) -> dict[str, Any]:
     policy = load_json(path)
     require(policy.get("schema_version") == "1.0", "unsupported sync policy")
@@ -84,14 +97,14 @@ def load_policy(path: Path = DEFAULT_POLICY) -> dict[str, Any]:
         "live_write_authorized",
     ):
         require(policy.get(flag) is False, f"{flag} must remain false")
-    require(
-        policy.get("source_wins_on_non_governance_collisions") is True,
-        "source collision policy must remain source-wins",
-    )
-    require(
-        policy.get("delete_only_previously_managed_paths") is True,
-        "sync must not delete unmanaged destination paths",
-    )
+    for flag in (
+        "source_wins_on_non_governance_collisions",
+        "delete_only_previously_managed_paths",
+        "require_private_destination",
+        "pre_import_full_history_secret_scan",
+    ):
+        require(policy.get(flag) is True, f"{flag} must remain true")
+
     for field in ("snapshot_path", "runtime_addons_path", "state_path"):
         normalize_relative(policy.get(field, ""), field=field)
     for field in ("preserve_destination_paths", "excluded_source_paths"):
@@ -99,15 +112,17 @@ def load_policy(path: Path = DEFAULT_POLICY) -> dict[str, Any]:
         require(isinstance(values, list) and values, f"{field} must be a list")
         for index, value in enumerate(values):
             normalize_relative(value, field=f"{field}[{index}]")
+
+    preserved = [
+        normalize_relative(value, field="preserve_destination_paths")
+        for value in policy["preserve_destination_paths"]
+    ]
+    for required in REQUIRED_PRESERVED_ROOTS:
+        require(
+            matches_any(required, preserved),
+            f"destination governance path is not preserved: {required}",
+        )
     return policy
-
-
-def path_is_within(relative: Path, configured: Path) -> bool:
-    return relative == configured or relative.parts[: len(configured.parts)] == configured.parts
-
-
-def matches_any(relative: Path, configured: Iterable[Path]) -> bool:
-    return any(path_is_within(relative, item) for item in configured)
 
 
 def git_value(repository: Path, *arguments: str) -> str:
@@ -119,7 +134,8 @@ def git_value(repository: Path, *arguments: str) -> str:
             text=True,
         )
     except (OSError, subprocess.CalledProcessError) as exc:
-        raise SyncError(f"cannot read upstream Git identity: {' '.join(arguments)}") from exc
+        joined = " ".join(arguments)
+        raise SyncError(f"cannot read upstream Git identity: {joined}") from exc
     value = result.stdout.strip()
     require(bool(value), f"upstream Git identity is empty: {' '.join(arguments)}")
     return value
@@ -129,7 +145,9 @@ def source_identity(upstream: Path) -> dict[str, str]:
     return {
         "source_sha": git_value(upstream, "rev-parse", "HEAD"),
         "source_tree": git_value(upstream, "rev-parse", "HEAD^{tree}"),
-        "source_committed_at": git_value(upstream, "show", "-s", "--format=%cI", "HEAD"),
+        "source_committed_at": git_value(
+            upstream, "show", "-s", "--format=%cI", "HEAD"
+        ),
     }
 
 
@@ -141,9 +159,13 @@ def validate_symlinks(upstream: Path, excluded: Sequence[Path]) -> None:
             continue
         try:
             target = (path.parent / os.readlink(path)).resolve(strict=True)
-            target.relative_to(root)
+            target_relative = target.relative_to(root)
         except (OSError, ValueError) as exc:
             raise SyncError(f"unsafe or broken upstream symlink: {relative}") from exc
+        require(
+            not matches_any(target_relative, excluded),
+            f"upstream symlink targets an excluded path: {relative}",
+        )
 
 
 def remove_path(path: Path) -> None:
@@ -153,12 +175,28 @@ def remove_path(path: Path) -> None:
         shutil.rmtree(path)
 
 
+def ensure_parent_directory(path: Path) -> None:
+    parents: list[Path] = []
+    current = path.parent
+    while current != current.parent and not current.exists():
+        parents.append(current)
+        current = current.parent
+    if current.exists() and not current.is_dir():
+        remove_path(current)
+    for parent in reversed(parents):
+        parent.mkdir(exist_ok=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+
 def copy_node(source: Path, destination: Path) -> None:
     if destination.exists() or destination.is_symlink():
         remove_path(destination)
-    destination.parent.mkdir(parents=True, exist_ok=True)
+    ensure_parent_directory(destination)
     if source.is_symlink():
-        destination.symlink_to(os.readlink(source), target_is_directory=source.is_dir())
+        destination.symlink_to(
+            os.readlink(source),
+            target_is_directory=source.resolve().is_dir(),
+        )
     else:
         shutil.copy2(source, destination)
 
@@ -166,11 +204,14 @@ def copy_node(source: Path, destination: Path) -> None:
 def copy_directory(source: Path, destination: Path) -> None:
     if destination.exists() or destination.is_symlink():
         remove_path(destination)
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(source, destination, symlinks=True, copy_function=shutil.copy2)
+    ensure_parent_directory(destination)
+    shutil.copytree(source, destination, symlinks=False, copy_function=shutil.copy2)
 
 
-def iter_source_nodes(upstream: Path, excluded: Sequence[Path]) -> Iterable[tuple[Path, Path]]:
+def iter_source_nodes(
+    upstream: Path,
+    excluded: Sequence[Path],
+) -> Iterable[tuple[Path, Path]]:
     for source in sorted(upstream.rglob("*")):
         relative = source.relative_to(upstream)
         if matches_any(relative, excluded):
@@ -206,7 +247,18 @@ def tree_digest(root: Path) -> str:
     return digest.hexdigest()
 
 
-def discover_modules(upstream: Path, excluded: Sequence[Path]) -> dict[str, Path]:
+def module_symlinks(module: Path) -> list[Path]:
+    links: list[Path] = []
+    if module.is_symlink():
+        links.append(module)
+    links.extend(path for path in module.rglob("*") if path.is_symlink())
+    return links
+
+
+def discover_modules(
+    upstream: Path,
+    excluded: Sequence[Path],
+) -> dict[str, Path]:
     found: dict[str, Path] = {}
     duplicates: dict[str, list[Path]] = {}
     for manifest_name in MODULE_MANIFESTS:
@@ -216,17 +268,36 @@ def discover_modules(upstream: Path, excluded: Sequence[Path]) -> dict[str, Path
                 continue
             module = manifest.parent
             name = module.name
-            require(MODULE_NAME.fullmatch(name) is not None, f"invalid addon name: {name}")
+            require(
+                MODULE_NAME.fullmatch(name) is not None,
+                f"invalid addon name: {name}",
+            )
             if name in found and found[name] != module:
                 duplicates.setdefault(name, [found[name]]).append(module)
             else:
                 found[name] = module
     if duplicates:
         details = "; ".join(
-            f"{name}=" + ",".join(path.relative_to(upstream).as_posix() for path in paths)
+            f"{name}="
+            + ",".join(
+                path.relative_to(upstream).as_posix() for path in paths
+            )
             for name, paths in sorted(duplicates.items())
         )
-        raise SyncError(f"duplicate addon names require an explicit disposition: {details}")
+        raise SyncError(
+            f"duplicate addon names require an explicit disposition: {details}"
+        )
+
+    for name, module in sorted(found.items()):
+        links = module_symlinks(module)
+        if links:
+            rendered = ",".join(
+                path.relative_to(upstream).as_posix() for path in links
+            )
+            raise SyncError(
+                "symlinked addon content requires an explicit disposition: "
+                f"{name}={rendered}"
+            )
     return found
 
 
@@ -251,12 +322,11 @@ def mirror_snapshot(
             relative = current.relative_to(upstream.resolve())
         except ValueError:
             return set()
-        ignored: set[str] = set()
-        for name in names:
-            candidate = relative / name
-            if matches_any(candidate, excluded):
-                ignored.add(name)
-        return ignored
+        return {
+            name
+            for name in names
+            if matches_any(relative / name, excluded)
+        }
 
     shutil.copytree(
         upstream,
@@ -279,18 +349,25 @@ def overlay_source(
     preserved: Sequence[Path],
     previous_managed: set[str],
 ) -> set[str]:
-    managed: set[str] = set()
-    for relative, source in iter_source_nodes(upstream, excluded):
-        if matches_any(relative, preserved):
-            continue
-        copy_node(source, destination / relative)
-        managed.add(relative.as_posix())
+    entries = [
+        (relative, source)
+        for relative, source in iter_source_nodes(upstream, excluded)
+        if not matches_any(relative, preserved)
+    ]
+    managed = {relative.as_posix() for relative, _source in entries}
 
-    for raw in sorted(previous_managed - managed, reverse=True):
+    stale = previous_managed - managed
+    for raw in sorted(
+        stale,
+        key=lambda value: (len(Path(value).parts), value),
+        reverse=True,
+    ):
         relative = normalize_relative(raw, field="previous managed path")
-        if matches_any(relative, preserved):
-            continue
-        remove_path(destination / relative)
+        if not matches_any(relative, preserved):
+            remove_path(destination / relative)
+
+    for relative, source in entries:
+        copy_node(source, destination / relative)
     return managed
 
 
@@ -305,16 +382,23 @@ def promote_modules(
     runtime_root.mkdir(parents=True, exist_ok=True)
     current = set(modules)
     for name in sorted(previous_modules - current):
-        require(MODULE_NAME.fullmatch(name) is not None, f"invalid prior addon name: {name}")
+        require(
+            MODULE_NAME.fullmatch(name) is not None,
+            f"invalid prior addon name: {name}",
+        )
         remove_path(runtime_root / name)
 
     result: dict[str, dict[str, str]] = {}
     for name, source in sorted(modules.items()):
+        require(
+            not module_symlinks(source),
+            f"symlinked addon content is prohibited during promotion: {name}",
+        )
         target = runtime_root / name
         copy_directory(source, target)
         result[name] = {
             "source_path": source.relative_to(upstream).as_posix(),
-            "tree_sha256": tree_digest(source),
+            "tree_sha256": tree_digest(target),
         }
     return result
 
@@ -331,7 +415,10 @@ def destination_modules(runtime_root: Path) -> set[str]:
 
 def write_state(path: Path, state: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(state, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def synchronize(
@@ -346,7 +433,10 @@ def synchronize(
     destination = destination.resolve()
     require(upstream.is_dir(), f"upstream checkout is missing: {upstream}")
     require(destination.is_dir(), f"destination checkout is missing: {destination}")
-    require((upstream / ".git").exists(), "upstream checkout is not a Git repository")
+    require(
+        (upstream / ".git").exists(),
+        "upstream checkout is not a Git repository",
+    )
 
     excluded = [
         normalize_relative(value, field="excluded_source_paths")
@@ -356,11 +446,16 @@ def synchronize(
         normalize_relative(value, field="preserve_destination_paths")
         for value in policy["preserve_destination_paths"]
     ]
-    snapshot_relative = normalize_relative(policy["snapshot_path"], field="snapshot_path")
+    snapshot_relative = normalize_relative(
+        policy["snapshot_path"], field="snapshot_path"
+    )
     runtime_relative = normalize_relative(
         policy["runtime_addons_path"], field="runtime_addons_path"
     )
-    state_relative = normalize_relative(policy["state_path"], field="state_path")
+    state_relative = normalize_relative(
+        policy["state_path"], field="state_path"
+    )
+    preserved.append(snapshot_relative)
     require(
         matches_any(policy_path.resolve().relative_to(destination), preserved),
         "sync policy must preserve itself",
@@ -378,11 +473,12 @@ def synchronize(
         for value in old.get("managed_overlay_files", [])
         if isinstance(value, str) and value
     }
+    old_modules = old.get("modules", {})
     previous_modules = {
         name
-        for name in old.get("modules", {})
+        for name in old_modules
         if isinstance(name, str) and MODULE_NAME.fullmatch(name)
-    }
+    } if isinstance(old_modules, dict) else set()
     modules = discover_modules(upstream, excluded)
 
     marker = {
@@ -441,7 +537,9 @@ def verify_state(*, destination: Path, policy_path: Path) -> dict[str, Any]:
     policy = load_policy(policy_path)
     destination = destination.resolve()
     state_relative = normalize_relative(policy["state_path"], field="state_path")
-    snapshot_relative = normalize_relative(policy["snapshot_path"], field="snapshot_path")
+    snapshot_relative = normalize_relative(
+        policy["snapshot_path"], field="snapshot_path"
+    )
     runtime_relative = normalize_relative(
         policy["runtime_addons_path"], field="runtime_addons_path"
     )
@@ -457,7 +555,8 @@ def verify_state(*, destination: Path, policy_path: Path) -> dict[str, Any]:
     )
     source_sha = state.get("source_sha")
     require(
-        isinstance(source_sha, str) and re.fullmatch(r"[0-9a-f]{40}", source_sha),
+        isinstance(source_sha, str)
+        and re.fullmatch(r"[0-9a-f]{40}", source_sha) is not None,
         "sync state source SHA is invalid",
     )
     marker = load_json(destination / snapshot_relative / ".source.json")
@@ -469,10 +568,17 @@ def verify_state(*, destination: Path, policy_path: Path) -> dict[str, Any]:
     modules = state.get("modules")
     require(isinstance(modules, dict) and modules, "sync imported no Odoo addons")
     for name, details in modules.items():
-        require(MODULE_NAME.fullmatch(name) is not None, f"invalid synced addon: {name}")
+        require(
+            isinstance(name, str) and MODULE_NAME.fullmatch(name) is not None,
+            f"invalid synced addon: {name}",
+        )
         require(isinstance(details, dict), f"invalid addon state: {name}")
         module = destination / runtime_relative / name
         require(module.is_dir(), f"promoted addon is missing: {name}")
+        require(
+            not module_symlinks(module),
+            f"promoted addon contains a symlink: {name}",
+        )
         require(
             any((module / manifest).is_file() for manifest in MODULE_MANIFESTS),
             f"promoted addon manifest is missing: {name}",
@@ -495,9 +601,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         if args.verify_state:
-            state = verify_state(destination=args.destination, policy_path=args.policy)
+            state = verify_state(
+                destination=args.destination,
+                policy_path=args.policy,
+            )
         else:
-            require(args.upstream is not None, "--upstream is required for synchronization")
+            require(
+                args.upstream is not None,
+                "--upstream is required for synchronization",
+            )
             state = synchronize(
                 upstream=args.upstream,
                 destination=args.destination,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -36,43 +37,43 @@ class UpstreamSyncTests(unittest.TestCase):
         self.git(source, "commit", "-q", "-m", message)
         return self.git(source, "rev-parse", "HEAD")
 
+    def policy_document(self) -> dict[str, object]:
+        return {
+            "schema_version": "1.0",
+            "source_repository": "Codestra-SRL/codestra-odoo-addons",
+            "source_ref": "main",
+            "destination_repository": "appolon1908-hue/Odoo",
+            "sync_strategy": "full_source_overlay_with_runtime_addon_promotion",
+            "snapshot_path": "upstream/codestra-odoo-addons",
+            "runtime_addons_path": "custom-addons",
+            "state_path": "config/upstream-sync-state.json",
+            "source_wins_on_non_governance_collisions": True,
+            "delete_only_previously_managed_paths": True,
+            "require_private_destination": True,
+            "pre_import_full_history_secret_scan": True,
+            "activate_source_workflows": False,
+            "preserve_destination_paths": [
+                ".github",
+                ".gitignore",
+                ".gitleaks.toml",
+                "README.md",
+                "config",
+                "scripts",
+                "tests/security",
+                "docs/UPSTREAM-SYNC.md",
+            ],
+            "excluded_source_paths": [".git"],
+            "runtime_activation": False,
+            "deployment_authorized": False,
+            "live_write_authorized": False,
+        }
+
     def policy(self, destination: Path) -> Path:
         path = destination / "config" / "upstream-sync-policy.json"
         self.write(
             destination,
             "config/upstream-sync-policy.json",
-            json.dumps(
-                {
-                    "schema_version": "1.0",
-                    "source_repository": "Codestra-SRL/codestra-odoo-addons",
-                    "source_ref": "main",
-                    "destination_repository": "appolon1908-hue/Odoo",
-                    "sync_strategy": "full_source_overlay_with_runtime_addon_promotion",
-                    "snapshot_path": "upstream/codestra-odoo-addons",
-                    "runtime_addons_path": "custom-addons",
-                    "state_path": "config/upstream-sync-state.json",
-                    "source_wins_on_non_governance_collisions": True,
-                    "delete_only_previously_managed_paths": True,
-                    "activate_source_workflows": False,
-                    "preserve_destination_paths": [
-                        ".github",
-                        ".gitignore",
-                        ".gitleaks.toml",
-                        "README.md",
-                        "config/upstream-sync-policy.json",
-                        "config/upstream-sync-state.json",
-                        "docs/UPSTREAM-SYNC.md",
-                        "scripts/sync_codestra_odoo_addons.py",
-                        "tests/security/test_upstream_sync.py",
-                    ],
-                    "excluded_source_paths": [".git"],
-                    "runtime_activation": False,
-                    "deployment_authorized": False,
-                    "live_write_authorized": False,
-                },
-                indent=2,
-            )
-            + "\n",
+            json.dumps(self.policy_document(), indent=2) + "\n",
         )
         return path
 
@@ -85,6 +86,18 @@ class UpstreamSyncTests(unittest.TestCase):
         )
         self.write(source, f"{root}/{name}/models.py", f"MARKER = {marker!r}\n")
 
+    def prepare_destination(self, destination: Path) -> Path:
+        self.write(destination, "README.md", "destination readme\n")
+        self.write(destination, ".gitleaks.toml", "[allowlist]\n")
+        self.write(destination, ".github/workflows/target.yml", "name: target\n")
+        self.write(destination, "config/mission.json", "{}\n")
+        self.write(destination, "scripts/run_ci.sh", "#!/bin/sh\necho destination-ci\n")
+        self.write(destination, "scripts/sync_codestra_odoo_addons.py", "# preserved\n")
+        self.write(destination, "tests/security/test_guard.py", "# preserved\n")
+        self.write(destination, "docs/UPSTREAM-SYNC.md", "destination sync docs\n")
+        self.add_module(destination, "custom-addons", "target_only", "target")
+        return self.policy(destination)
+
     def test_complete_snapshot_overlay_and_runtime_promotion(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -96,14 +109,13 @@ class UpstreamSyncTests(unittest.TestCase):
 
             self.write(source, "README.md", "upstream readme\n")
             self.write(source, ".github/workflows/source.yml", "name: source\n")
+            self.write(source, "config/mission.json", '{"source": true}\n')
+            self.write(source, "scripts/run_ci.sh", "#!/bin/sh\necho untrusted\n")
+            self.write(source, "tests/security/test_guard.py", "raise SystemExit(1)\n")
             self.write(source, "docs/source.md", "upstream document\n")
             self.add_module(source, "ci_addons", "module_a", "upstream-a")
             source_sha = self.commit(source, "initial source")
-
-            self.write(destination, "README.md", "destination readme\n")
-            self.write(destination, ".github/workflows/target.yml", "name: target\n")
-            self.add_module(destination, "custom-addons", "target_only", "target")
-            policy = self.policy(destination)
+            policy = self.prepare_destination(destination)
 
             state = sync.synchronize(
                 upstream=source,
@@ -114,25 +126,25 @@ class UpstreamSyncTests(unittest.TestCase):
 
             self.assertEqual(source_sha, state["source_sha"])
             self.assertEqual("destination readme\n", (destination / "README.md").read_text())
+            self.assertEqual("{}\n", (destination / "config/mission.json").read_text())
+            self.assertEqual(
+                "#!/bin/sh\necho destination-ci\n",
+                (destination / "scripts/run_ci.sh").read_text(),
+            )
+            self.assertEqual(
+                "# preserved\n",
+                (destination / "tests/security/test_guard.py").read_text(),
+            )
             self.assertTrue((destination / ".github/workflows/target.yml").is_file())
             self.assertFalse((destination / ".github/workflows/source.yml").exists())
             self.assertEqual(
                 "upstream document\n",
                 (destination / "docs/source.md").read_text(),
             )
-            self.assertEqual(
-                "upstream readme\n",
-                (
-                    destination
-                    / "upstream/codestra-odoo-addons/README.md"
-                ).read_text(),
-            )
-            self.assertTrue(
-                (
-                    destination
-                    / "upstream/codestra-odoo-addons/.github/workflows/source.yml"
-                ).is_file()
-            )
+            snapshot = destination / "upstream/codestra-odoo-addons"
+            self.assertEqual("upstream readme\n", (snapshot / "README.md").read_text())
+            self.assertTrue((snapshot / ".github/workflows/source.yml").is_file())
+            self.assertTrue((snapshot / "scripts/run_ci.sh").is_file())
             self.assertTrue(
                 (destination / "custom-addons/module_a/__manifest__.py").is_file()
             )
@@ -141,6 +153,51 @@ class UpstreamSyncTests(unittest.TestCase):
             )
             self.assertEqual(["target_only"], state["target_only_modules"])
             sync.verify_state(destination=destination, policy_path=policy)
+
+    def test_file_and_directory_transitions_are_supported(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.add_module(source, "addons", "module_a", "first")
+            self.write(source, "docs/item", "first-file\n")
+            self.commit(source, "file form")
+            policy = self.prepare_destination(destination)
+
+            sync.synchronize(
+                upstream=source,
+                destination=destination,
+                policy_path=policy,
+                source_ref="main",
+            )
+            (source / "docs/item").unlink()
+            self.write(source, "docs/item/child.txt", "directory form\n")
+            self.commit(source, "directory form")
+            sync.synchronize(
+                upstream=source,
+                destination=destination,
+                policy_path=policy,
+                source_ref="main",
+            )
+            self.assertEqual(
+                "directory form\n",
+                (destination / "docs/item/child.txt").read_text(),
+            )
+
+            shutil.rmtree(source / "docs/item")
+            self.write(source, "docs/item", "second-file\n")
+            self.commit(source, "file form again")
+            sync.synchronize(
+                upstream=source,
+                destination=destination,
+                policy_path=policy,
+                source_ref="main",
+            )
+            self.assertTrue((destination / "docs/item").is_file())
+            self.assertEqual("second-file\n", (destination / "docs/item").read_text())
 
     def test_later_sync_deletes_only_previously_managed_modules(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -152,9 +209,8 @@ class UpstreamSyncTests(unittest.TestCase):
             self.initialize_source(source)
             self.add_module(source, "addons", "module_a", "first")
             self.commit(source, "module a")
-            self.add_module(destination, "custom-addons", "target_only", "target")
+            policy = self.prepare_destination(destination)
             self.write(destination, "unmanaged.txt", "keep me\n")
-            policy = self.policy(destination)
 
             sync.synchronize(
                 upstream=source,
@@ -162,16 +218,9 @@ class UpstreamSyncTests(unittest.TestCase):
                 policy_path=policy,
                 source_ref="main",
             )
-            shutil_target = source / "addons" / "module_a"
-            for path in sorted(shutil_target.rglob("*"), reverse=True):
-                if path.is_file() or path.is_symlink():
-                    path.unlink()
-                elif path.is_dir():
-                    path.rmdir()
-            shutil_target.rmdir()
+            shutil.rmtree(source / "addons/module_a")
             self.add_module(source, "addons", "module_b", "second")
             self.commit(source, "replace module")
-
             state = sync.synchronize(
                 upstream=source,
                 destination=destination,
@@ -196,7 +245,7 @@ class UpstreamSyncTests(unittest.TestCase):
             self.add_module(source, "addons", "duplicate", "one")
             self.add_module(source, "ci_addons", "duplicate", "two")
             self.commit(source, "duplicates")
-            policy = self.policy(destination)
+            policy = self.prepare_destination(destination)
 
             with self.assertRaisesRegex(sync.SyncError, "duplicate addon names"):
                 sync.synchronize(
@@ -207,7 +256,32 @@ class UpstreamSyncTests(unittest.TestCase):
                 )
 
     @unittest.skipUnless(hasattr(os, "symlink"), "symlink support is required")
-    def test_repository_escaping_symlink_fails_closed(self) -> None:
+    def test_symlinked_module_content_requires_explicit_disposition(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.add_module(source, "nested/addons", "module_a", "first")
+            self.write(source, "shared/common.py", "VALUE = 1\n")
+            (source / "nested/addons/module_a/common.py").symlink_to(
+                Path("../../../shared/common.py")
+            )
+            self.commit(source, "module symlink")
+            policy = self.prepare_destination(destination)
+
+            with self.assertRaisesRegex(sync.SyncError, "symlinked addon content"):
+                sync.synchronize(
+                    upstream=source,
+                    destination=destination,
+                    policy_path=policy,
+                    source_ref="main",
+                )
+
+    @unittest.skipUnless(hasattr(os, "symlink"), "symlink support is required")
+    def test_repository_escaping_or_excluded_symlink_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = root / "source"
@@ -219,7 +293,7 @@ class UpstreamSyncTests(unittest.TestCase):
             outside.write_text("secret\n", encoding="utf-8")
             (source / "escape").symlink_to(outside)
             self.commit(source, "unsafe symlink")
-            policy = self.policy(destination)
+            policy = self.prepare_destination(destination)
 
             with self.assertRaisesRegex(sync.SyncError, "unsafe or broken upstream symlink"):
                 sync.synchronize(
@@ -228,6 +302,26 @@ class UpstreamSyncTests(unittest.TestCase):
                     policy_path=policy,
                     source_ref="main",
                 )
+
+    def test_policy_rejects_replaceable_destination_validation_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory)
+            document = self.policy_document()
+            document["preserve_destination_paths"] = [
+                ".github",
+                ".gitignore",
+                ".gitleaks.toml",
+                "README.md",
+                "config",
+                "tests/security",
+            ]
+            path = self.write(
+                destination,
+                "config/upstream-sync-policy.json",
+                json.dumps(document),
+            )
+            with self.assertRaisesRegex(sync.SyncError, "scripts"):
+                sync.load_policy(path)
 
 
 if __name__ == "__main__":

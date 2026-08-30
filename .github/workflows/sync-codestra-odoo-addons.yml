@@ -58,6 +58,19 @@ jobs:
           fi
           printf 'DESTINATION_VISIBILITY=private\n'
 
+      - name: Record immutable destination validation authority
+        id: validator
+        run: |
+          set -Eeuo pipefail
+          test -f scripts/run_ci.sh
+          test -f scripts/sync_codestra_odoo_addons.py
+          run_ci_sha="$(sha256sum scripts/run_ci.sh | awk '{print $1}')"
+          sync_sha="$(sha256sum scripts/sync_codestra_odoo_addons.py | awk '{print $1}')"
+          printf 'run_ci_sha=%s\n' "$run_ci_sha" >> "$GITHUB_OUTPUT"
+          printf 'sync_sha=%s\n' "$sync_sha" >> "$GITHUB_OUTPUT"
+          printf 'DESTINATION_RUN_CI_SHA256=%s\n' "$run_ci_sha"
+          printf 'DESTINATION_SYNC_CONTROLLER_SHA256=%s\n' "$sync_sha"
+
       - name: Verify private upstream credential is bound
         env:
           UPSTREAM_TOKEN: ${{ secrets.CODESTRA_ODOO_UPSTREAM_READ_TOKEN }}
@@ -116,15 +129,19 @@ jobs:
             --source-ref "$SOURCE_REF"
           rm -rf .upstream
 
-      - name: Validate synchronized repository state
+      - name: Validate synchronized repository with the preserved destination authority
+        env:
+          EXPECTED_RUN_CI_SHA: ${{ steps.validator.outputs.run_ci_sha }}
+          EXPECTED_SYNC_SHA: ${{ steps.validator.outputs.sync_sha }}
         run: |
           set -Eeuo pipefail
+          test "$(sha256sum scripts/run_ci.sh | awk '{print $1}')" = "$EXPECTED_RUN_CI_SHA"
+          test "$(sha256sum scripts/sync_codestra_odoo_addons.py | awk '{print $1}')" = "$EXPECTED_SYNC_SHA"
           git diff --check
           python3 -m compileall -q scripts custom-addons tests/security
           python3 scripts/sync_codestra_odoo_addons.py --verify-state
-          if [[ -x scripts/run_ci.sh ]]; then
-            scripts/run_ci.sh
-          fi
+          bash scripts/run_ci.sh
+          printf 'DESTINATION_VALIDATION_AUTHORITY_UNCHANGED=YES\n'
 
       - name: Determine whether the exact upstream produces a change
         id: changes
@@ -148,6 +165,7 @@ jobs:
             printf -- '- Destination base SHA: `%s`\n' "$TARGET_SHA"
             printf -- '- Destination visibility: `private`\n'
             printf -- '- Upstream full-history secret scan: `PASS`\n'
+            printf -- '- Destination validation authority unchanged: `YES`\n'
             printf -- '- Changes detected: `%s`\n' "$changed"
             printf -- '- Runtime/deployment/live-write changes: `NONE`\n'
           } >> "$GITHUB_STEP_SUMMARY"
@@ -215,15 +233,17 @@ jobs:
           - overlays every non-governance source file into the destination repository;
           - promotes every discovered Odoo addon into `custom-addons/<module>`;
           - source wins when the same non-governance path exists in both repositories;
-          - preserves destination branch protection, workflows, CODEOWNERS, README, secret scanning, and sync controller;
+          - preserves destination branch protection, workflows, CODEOWNERS, configuration, validation scripts, security tests, README, and sync controller;
           - removes only paths previously recorded as managed by this upstream;
-          - preserves target-only addons until a separate disposition is reviewed.
+          - preserves target-only addons until a separate disposition is reviewed;
+          - rejects addon symlinks that would change meaning when promoted.
 
           ### Safety
 
           ```text
           DESTINATION_VISIBILITY=private
           UPSTREAM_SECRET_SCAN=PASS
+          DESTINATION_VALIDATION_AUTHORITY_UNCHANGED=YES
           ODOO_WRITE=false
           LIVE_WRITE=false
           EXTERNAL_DELIVERY=false
