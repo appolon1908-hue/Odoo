@@ -47,7 +47,10 @@ class TestCodestraIntakeLeads(TransactionCase):
         replay = self.env["crm.lead"].codestra_upsert_intake_lead(self._envelope())
         self.assertEqual(replay["action"], "duplicate")
         self.assertEqual(replay["lead_id"], first["lead_id"])
-        self.assertEqual(self.env["codestra.intake.receipt"].search_count([("tenant_id", "=", "tenant-1")]), 2)
+        self.assertEqual(
+            self.env["codestra.intake.receipt"].sudo().search_count([("tenant_id", "=", "tenant-1")]),
+            2,
+        )
 
     def test_omitted_optional_fields_do_not_clear_existing_values(self):
         existing = self.env["crm.lead"].create({
