@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import re
 
-from psycopg2 import IntegrityError
-
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
@@ -63,8 +61,9 @@ class CrmLead(models.Model):
             return self._codestra_duplicate_result(receipt, event_id, idempotency_key)
 
         # Reserve the durable identities before any CRM mutation. PostgreSQL's
-        # unique constraints serialize concurrent inserts. A losing transaction
-        # rolls back only this savepoint, then reads and returns the winning receipt.
+        # unique constraints serialize concurrent ORM inserts. The savepoint
+        # contains only the reservation, so a losing request can roll it back and
+        # safely reload the winner without rolling back unrelated request work.
         try:
             with self.env.cr.savepoint():
                 receipt = receipt_model.create(
@@ -76,7 +75,11 @@ class CrmLead(models.Model):
                     }
                 )
                 self.env.cr.flush()
-        except IntegrityError:
+        except Exception as exc:
+            # SQLSTATE 23505 is PostgreSQL's unique_violation. Do not import or
+            # call a database driver directly; all other errors remain fail-closed.
+            if getattr(exc, "pgcode", None) != "23505":
+                raise
             receipt = receipt_model.search(
                 [
                     ("tenant_id", "=", tenant_id),
