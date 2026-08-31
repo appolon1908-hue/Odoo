@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 
+from psycopg2 import IntegrityError
+
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
@@ -43,15 +45,9 @@ class CrmLead(models.Model):
         payload = envelope.get("payload")
         if not isinstance(payload, dict):
             raise ValidationError("Codestra intake payload must be an object")
-
         payload_tenant = self._codestra_required_text(payload, "tenantId", 128)
         if payload_tenant != tenant_id:
             raise ValidationError("Codestra intake tenant mismatch")
-
-        # Serialize both durable identities before looking for a receipt. Acquiring
-        # both locks in sorted order prevents deadlocks while ensuring requests that
-        # collide on either event_id or idempotency_key cannot mutate CRM twice.
-        self._codestra_lock_receipt_identities(tenant_id, event_id, idempotency_key)
 
         receipt_model = self.env["codestra.intake.receipt"].sudo()
         receipt = receipt_model.search(
@@ -64,17 +60,39 @@ class CrmLead(models.Model):
             limit=1,
         )
         if receipt:
-            return self._codestra_result(
-                receipt.lead_id,
-                "duplicate",
-                event_id,
-                idempotency_key,
-                tenant_id=receipt.tenant_id,
+            return self._codestra_duplicate_result(receipt, event_id, idempotency_key)
+
+        # Reserve the durable identities before any CRM mutation. PostgreSQL's
+        # unique constraints serialize concurrent inserts. A losing transaction
+        # rolls back only this savepoint, then reads and returns the winning receipt.
+        try:
+            with self.env.cr.savepoint():
+                receipt = receipt_model.create(
+                    {
+                        "tenant_id": tenant_id,
+                        "event_id": event_id,
+                        "idempotency_key": idempotency_key,
+                        "correlation_id": (envelope.get("correlation_id") or "")[:180] or False,
+                    }
+                )
+                self.env.cr.flush()
+        except IntegrityError:
+            receipt = receipt_model.search(
+                [
+                    ("tenant_id", "=", tenant_id),
+                    "|",
+                    ("event_id", "=", event_id),
+                    ("idempotency_key", "=", idempotency_key),
+                ],
+                limit=1,
             )
+            if not receipt:
+                raise
+            return self._codestra_duplicate_result(receipt, event_id, idempotency_key)
 
         # The narrow middleware service group is verified above. Use sudo only
-        # after that authorization so record-rule breadth is never granted to an
-        # arbitrary authenticated RPC caller.
+        # after authorization so arbitrary authenticated RPC callers never gain
+        # receipt or cross-record privileges.
         lead_model = self.sudo()
         email = lead_model._codestra_normalize_email(payload.get("email"))
         phone = lead_model._codestra_normalize_phone(payload.get("phone"))
@@ -92,15 +110,7 @@ class CrmLead(models.Model):
             lead = lead_model.create(values)
             action = "created"
 
-        receipt_model.create(
-            {
-                "tenant_id": tenant_id,
-                "event_id": event_id,
-                "idempotency_key": idempotency_key,
-                "correlation_id": (envelope.get("correlation_id") or "")[:180] or False,
-                "lead_id": lead.id,
-            }
-        )
+        receipt._codestra_finalize_lead(lead)
         return self._codestra_result(
             lead,
             action,
@@ -113,7 +123,6 @@ class CrmLead(models.Model):
     def _codestra_require_middleware_identity(self, tenant_id):
         if not self.env.user.has_group("codestra_middleware_bridge.group_codestra_crm_api"):
             raise AccessError("Codestra intake upserts require the Middleware CRM service identity")
-
         params = self.env["ir.config_parameter"].sudo()
         configured = params.get_param("codestra.crm.tenant_ids") or params.get_param(
             "codestra.middleware.tenant_id"
@@ -127,18 +136,14 @@ class CrmLead(models.Model):
             raise AccessError("Codestra intake tenant is not authorized for the Middleware service")
 
     @api.model
-    def _codestra_lock_receipt_identities(self, tenant_id, event_id, idempotency_key):
-        lock_names = sorted(
-            {
-                f"codestra-intake:event:{tenant_id}:{event_id}",
-                f"codestra-intake:idempotency:{tenant_id}:{idempotency_key}",
-            }
+    def _codestra_duplicate_result(self, receipt, event_id, idempotency_key):
+        return self._codestra_result(
+            receipt.lead_id,
+            "duplicate",
+            event_id,
+            idempotency_key,
+            tenant_id=receipt.tenant_id,
         )
-        for lock_name in lock_names:
-            self.env.cr.execute(
-                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
-                [lock_name],
-            )
 
     @api.model
     def _codestra_find_open_lead(self, tenant_id, email, phone):
@@ -212,10 +217,8 @@ class CrmLead(models.Model):
         for field_name, payload_name in optional.items():
             if payload_name not in payload:
                 update.pop(field_name, None)
-
         if "message" not in payload and "transcript" not in payload:
             update.pop("description", None)
-
         if "fields" not in payload and "metadata" not in payload:
             update.pop("codestra_intake_metadata", None)
         else:
@@ -229,7 +232,6 @@ class CrmLead(models.Model):
             if "metadata" in payload:
                 merged["metadata"] = payload.get("metadata") or {}
             update["codestra_intake_metadata"] = merged
-
         return update
 
     @api.model
@@ -310,6 +312,11 @@ class CodestraIntakeReceipt(models.Model):
         "UNIQUE(tenant_id, idempotency_key)",
         "A Codestra intake idempotency key can only be applied once per tenant.",
     )
+
+    def _codestra_finalize_lead(self, lead):
+        if any(receipt.lead_id for receipt in self):
+            raise AccessError("Codestra intake receipt has already been finalized")
+        return super().write({"lead_id": lead.id})
 
     def write(self, values):
         raise AccessError("Codestra intake receipts are immutable")
