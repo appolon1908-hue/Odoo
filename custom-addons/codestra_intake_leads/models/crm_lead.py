@@ -449,7 +449,7 @@ class CodestraIntakeIdentity(models.Model):
         readonly=True,
     )
     identity_value = fields.Char(required=True, index=True, readonly=True)
-    lead_id = fields.Many2one("crm.lead", ondelete="restrict", index=True, readonly=True)
+    lead_id = fields.Many2one("crm.lead", ondelete="set null", index=True, readonly=True)
 
     _identity_unique = models.Constraint(
         "UNIQUE(tenant_id, identity_type, identity_value)",

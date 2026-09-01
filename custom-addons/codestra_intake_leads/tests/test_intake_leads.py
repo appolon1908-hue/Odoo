@@ -193,7 +193,12 @@ class TestCodestraIntakeLeads(TransactionCase):
             "phone": "+1 (809) 555-0100",
             "codestra_tenant_id": "tenant-1",
         })
-        envelope = self._envelope(event_id="lead-event-4", idempotency_key="idem-lead-4", email=None)
+        envelope = self._envelope(
+            event_id="lead-event-4",
+            idempotency_key="idem-lead-4",
+            email=None,
+            consent={"phone": True},
+        )
         result = self.env["crm.lead"].codestra_upsert_intake_lead(envelope)
         self.assertEqual(result["lead_id"], existing.id)
 
