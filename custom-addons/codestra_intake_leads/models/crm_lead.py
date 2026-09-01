@@ -99,8 +99,12 @@ class CrmLead(models.Model):
         lead_model = self.sudo()
         email = lead_model._codestra_normalize_email(payload.get("email"))
         phone = lead_model._codestra_normalize_phone(payload.get("phone"))
-        lead_model._codestra_lock_identity(tenant_id, email, phone)
-        lead = lead_model._codestra_find_open_lead(tenant_id, email, phone)
+        identities, identity_lead = lead_model._codestra_reserve_identities(
+            tenant_id, email, phone
+        )
+        lead = identity_lead or lead_model._codestra_find_open_lead(
+            tenant_id, email, phone
+        )
         values = lead_model._codestra_values(
             payload=payload,
             email=email,
@@ -116,6 +120,7 @@ class CrmLead(models.Model):
 
         lead_model._codestra_apply_consent(lead, payload.get("consent"), event_id)
 
+        identities._codestra_finalize_lead(lead)
         receipt._codestra_finalize_lead(lead)
         return self._codestra_result(
             lead,
@@ -150,17 +155,43 @@ class CrmLead(models.Model):
             raise AccessError("Codestra intake tenant is not bound to this service principal")
 
     @api.model
-    def _codestra_lock_identity(self, tenant_id, email, phone):
-        identity = email or phone
-        if not identity:
-            return
-        # Serialize match/create across distinct events for the same tenant and
-        # normalized identity. The transaction-scoped lock is released by
-        # PostgreSQL automatically and cannot leak into another request.
-        self.env.cr.execute(
-            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
-            [f"codestra-intake:{tenant_id}:{identity}"],
+    def _codestra_reserve_identities(self, tenant_id, email, phone):
+        identity_model = self.env["codestra.intake.identity"].sudo()
+        reservations = identity_model.browse()
+        linked_leads = self.browse()
+        values = sorted(
+            (("email", email), ("phone", phone)),
+            key=lambda item: item[0],
         )
+        for identity_type, identity_value in values:
+            if not identity_value:
+                continue
+            domain = [
+                ("tenant_id", "=", tenant_id),
+                ("identity_type", "=", identity_type),
+                ("identity_value", "=", identity_value),
+            ]
+            reservation = identity_model.search(domain, limit=1)
+            if not reservation:
+                try:
+                    with self.env.cr.savepoint():
+                        reservation = identity_model.create({
+                            "tenant_id": tenant_id,
+                            "identity_type": identity_type,
+                            "identity_value": identity_value,
+                        })
+                        self.env.cr.flush()
+                except Exception as exc:
+                    if getattr(exc, "pgcode", None) != "23505":
+                        raise
+                    reservation = identity_model.search(domain, limit=1)
+                    if not reservation:
+                        raise
+            reservations |= reservation
+            linked_leads |= reservation.lead_id
+        if len(linked_leads) > 1:
+            raise ValidationError("Codestra intake identities resolve to conflicting leads")
+        return reservations, linked_leads[:1]
 
     @api.model
     def _codestra_duplicate_result(self, receipt, event_id, idempotency_key):
@@ -404,3 +435,37 @@ class CodestraIntakeReceipt(models.Model):
 
     def unlink(self):
         raise AccessError("Codestra intake receipts are immutable")
+
+
+class CodestraIntakeIdentity(models.Model):
+    _name = "codestra.intake.identity"
+    _description = "Codestra Intake Normalized Identity"
+
+    tenant_id = fields.Char(required=True, index=True, readonly=True)
+    identity_type = fields.Selection(
+        [("email", "Email"), ("phone", "Phone")],
+        required=True,
+        index=True,
+        readonly=True,
+    )
+    identity_value = fields.Char(required=True, index=True, readonly=True)
+    lead_id = fields.Many2one("crm.lead", ondelete="restrict", index=True, readonly=True)
+
+    _identity_unique = models.Constraint(
+        "UNIQUE(tenant_id, identity_type, identity_value)",
+        "A normalized intake identity can map to only one lead per tenant.",
+    )
+
+    def _codestra_finalize_lead(self, lead):
+        conflicting = self.filtered(lambda identity: identity.lead_id and identity.lead_id != lead)
+        if conflicting:
+            raise AccessError("Codestra intake identity is already mapped to another lead")
+        pending = self.filtered(lambda identity: not identity.lead_id)
+        if pending:
+            super(CodestraIntakeIdentity, pending).write({"lead_id": lead.id})
+
+    def write(self, values):
+        raise AccessError("Codestra intake identities are immutable")
+
+    def unlink(self):
+        raise AccessError("Codestra intake identities are immutable")
