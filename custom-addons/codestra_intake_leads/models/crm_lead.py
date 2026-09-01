@@ -145,13 +145,14 @@ class CrmLead(models.Model):
         }
         if tenant_id not in allowed:
             raise AccessError("Codestra intake tenant is not authorized for the Middleware service")
-        principal_key = f"codestra.crm.service_user.{self.env.user.id}.tenant_ids"
-        principal_tenants = {
-            value.strip()
-            for value in (params.get_param(principal_key) or "").split(",")
-            if value.strip()
-        }
-        if tenant_id not in principal_tenants:
+        tenant_key = (
+            f"codestra.middleware.tenant.{tenant_id}.codestra.crm.service_user_id"
+        )
+        try:
+            bound_user_id = int(params.get_param(tenant_key, "0"))
+        except (TypeError, ValueError):
+            bound_user_id = 0
+        if bound_user_id != self.env.user.id:
             raise AccessError("Codestra intake tenant is not bound to this service principal")
 
     @api.model
@@ -299,52 +300,30 @@ class CrmLead(models.Model):
         if not isinstance(consent_payload, dict):
             raise ValidationError("Codestra intake consent must be an object")
         channel_fields = {"email": "email_from", "sms": "phone", "phone": "phone"}
-        consent_model = self.env["call.center.consent"].sudo()
-        suppression_model = self.env["call.center.suppression"].sudo()
         for channel, granted in consent_payload.items():
             if channel not in channel_fields or not isinstance(granted, bool):
                 raise ValidationError("Codestra intake consent channel/value is invalid")
             destination = lead[channel_fields[channel]]
             if not destination:
                 raise ValidationError(f"Codestra intake {channel} consent requires a destination")
-            evidence = f"codestra-intake:{event_id}:{channel}"
-            prior = consent_model.search(
-                [("lead_id", "=", lead.id), ("channel", "=", channel)],
-                order="id desc",
-                limit=1,
-            )
-            if granted:
-                if not prior or prior.status != "granted":
-                    consent_model.create({
-                        "lead_id": lead.id,
-                        "business_unit_id": lead.business_unit_id.id,
-                        "channel": channel,
-                        "status": "granted",
-                        "source": "codestra_intake",
-                        "evidence_reference": evidence,
-                    })
-                continue
-            if prior and prior.status == "granted":
-                prior.with_context(revocation_reason="Codestra intake opt-out").action_revoke()
-            identifier_type = "email" if channel == "email" else "phone"
-            identifier_hash = suppression_model.hash_identifier(destination)
-            suppression = suppression_model.search([
-                ("business_unit_id", "=", lead.business_unit_id.id),
-                ("identifier_type", "=", identifier_type),
-                ("identifier_hash", "=", identifier_hash),
-            ], limit=1)
-            if suppression:
-                suppression.write({"active": True, "reason": "optout", "source": evidence})
-            else:
-                suppression_model.create({
-                    "business_unit_id": lead.business_unit_id.id,
-                    "identifier_type": identifier_type,
-                    "identifier_hash": identifier_hash,
-                    "reason": "optout",
-                    "source": evidence,
-                })
-            if channel == "phone":
-                lead.write({"do_not_call": True, "do_not_contact_reason": "Codestra intake opt-out"})
+        granted_channels = [channel for channel, granted in consent_payload.items() if granted]
+        denied = any(not granted for granted in consent_payload.values())
+        canonical = {
+            "consent_status": "denied" if denied else "granted",
+            "allow_external_contact": bool(granted_channels) and not denied,
+            "do_not_call": denied and "phone" in consent_payload,
+            "phone_consent": consent_payload.get("phone", False),
+            "email_marketing_consent": consent_payload.get("email", False),
+            "sms_consent": consent_payload.get("sms", False),
+            "consent_source": "codestra_intake",
+            "consent_evidence_reference": f"codestra-intake:{event_id}",
+            "suppression_reason": "optout",
+        }
+        auth = {
+            "user": self.env.user,
+            "correlation_id": f"codestra-intake:{event_id}",
+        }
+        lead._codestra_apply_crm_compliance(auth, canonical, lead.business_unit_id)
 
     @api.model
     def _codestra_required_text(self, mapping, key, maximum):

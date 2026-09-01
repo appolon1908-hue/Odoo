@@ -15,10 +15,11 @@ class TestCodestraIntakeLeads(TransactionCase):
             "codestra.crm.tenant_ids",
             "tenant-1,tenant-2",
         )
-        cls.env["ir.config_parameter"].sudo().set_param(
-            f"codestra.crm.service_user.{cls.env.user.id}.tenant_ids",
-            "tenant-1,tenant-2",
-        )
+        for tenant in ("tenant-1", "tenant-2"):
+            cls.env["ir.config_parameter"].sudo().set_param(
+                f"codestra.middleware.tenant.{tenant}.codestra.crm.service_user_id",
+                str(cls.env.user.id),
+            )
 
     def _envelope(self, *, event_id="lead-event-1", idempotency_key="idem-lead-1", **payload_updates):
         payload = {
@@ -79,13 +80,13 @@ class TestCodestraIntakeLeads(TransactionCase):
 
     def test_tenant_must_be_bound_to_exact_service_principal(self):
         params = self.env["ir.config_parameter"].sudo()
-        key = f"codestra.crm.service_user.{self.env.user.id}.tenant_ids"
-        params.set_param(key, "tenant-2")
+        key = "codestra.middleware.tenant.tenant-1.codestra.crm.service_user_id"
+        params.set_param(key, "0")
         try:
             with self.assertRaises(AccessError):
                 self.env["crm.lead"].codestra_upsert_intake_lead(self._envelope())
         finally:
-            params.set_param(key, "tenant-1,tenant-2")
+            params.set_param(key, str(self.env.user.id))
 
     def test_prior_event_receipt_survives_later_update(self):
         first = self.env["crm.lead"].codestra_upsert_intake_lead(self._envelope())

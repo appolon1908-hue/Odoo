@@ -82,6 +82,87 @@ class CrmLead(models.Model):
         ondelete={"denied": "set default", "not_applicable": "set default"},
     )
 
+    def _codestra_apply_crm_compliance(self, auth, payload, unit):
+        """Apply the single canonical Middleware consent/suppression policy."""
+        self.ensure_one()
+        consent_status = payload.get("consent_status", "unknown")
+        allow_external_contact = payload.get("allow_external_contact", False)
+        do_not_call = bool(payload.get("do_not_call") or consent_status == "denied")
+        channels = {
+            "phone": bool(payload.get("phone_consent")),
+            "email": bool(payload.get("email_marketing_consent")),
+            "sms": bool(payload.get("sms_consent")),
+        }
+        permitted = consent_status == "granted" and any(channels.values())
+        preferred = (
+            next(channel for channel in ("phone", "email", "sms") if channels[channel])
+            if permitted and allow_external_contact and not do_not_call
+            else "none"
+        )
+        reason = payload.get("suppression_reason", "optout")
+        self.write({
+            "consent_status": consent_status,
+            "do_not_call": do_not_call,
+            "do_not_contact_reason": (
+                reason if do_not_call else
+                "middleware_contact_not_allowed" if not allow_external_contact else False
+            ),
+            "preferred_contact_method": preferred,
+        })
+        user = auth["user"]
+        if consent_status in {"granted", "denied"}:
+            consent_model = self.env["call.center.consent"].with_user(user)
+            evidence = (
+                payload.get("consent_evidence_reference")
+                or payload.get("consent_correlation_id")
+                or auth["correlation_id"]
+            )
+            selected = (
+                [channel for channel, granted in channels.items() if granted]
+                if consent_status == "granted" else list(channels)
+            )
+            for channel in selected:
+                consent_model.create({
+                    "lead_id": self.id,
+                    "business_unit_id": unit.id,
+                    "channel": channel,
+                    "status": consent_status,
+                    "consented_at": payload.get("consent_timestamp") or fields.Datetime.now(),
+                    "source": payload.get("consent_source") or "codestra-middleware",
+                    "evidence_reference": evidence,
+                })
+        identifiers = []
+        if do_not_call or consent_status == "denied":
+            identifiers.append(("phone", self.phone))
+        if consent_status == "denied":
+            identifiers.extend((("email", self.email_from), ("external_id", self.external_source_id)))
+        suppression_model = self.env["call.center.suppression"].with_user(user)
+        for identity_type, identity in identifiers:
+            digest = suppression_model.hash_identifier(identity)
+            if not digest:
+                continue
+            domain = [
+                ("business_unit_id", "=", unit.id),
+                ("identifier_type", "=", identity_type),
+                ("identifier_hash", "=", digest),
+            ]
+            suppression = suppression_model.search(domain, limit=1)
+            values = {
+                "reason": reason,
+                "source": payload.get("consent_source") or "codestra-middleware",
+                "active": True,
+            }
+            if suppression:
+                suppression.write(values)
+            else:
+                suppression_model.create({
+                    **values,
+                    "business_unit_id": unit.id,
+                    "identifier_type": identity_type,
+                    "identifier_hash": digest,
+                })
+        self.action_check_contact_eligibility()
+
 
 class CallCenterConsent(models.Model):
     _inherit = "call.center.consent"
