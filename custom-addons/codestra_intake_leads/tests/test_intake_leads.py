@@ -118,6 +118,7 @@ class TestCodestraIntakeLeads(TransactionCase):
                 "metadata": {"existing": "metadata"},
             },
         })
+        normalized_description = existing.description
         envelope = self._envelope(event_id="lead-event-3", idempotency_key="idem-lead-3")
         for key in ("name", "phone", "message", "source", "fields", "metadata"):
             envelope["payload"].pop(key)
@@ -125,7 +126,7 @@ class TestCodestraIntakeLeads(TransactionCase):
         self.assertEqual(result["lead_id"], existing.id)
         self.assertEqual(existing.contact_name, "Existing Person")
         self.assertEqual(existing.phone, "+18095550100")
-        self.assertEqual(existing.description, "Keep me")
+        self.assertEqual(existing.description, normalized_description)
         self.assertEqual(existing.codestra_source_channel, "voice")
         self.assertEqual(
             existing.codestra_intake_metadata,
