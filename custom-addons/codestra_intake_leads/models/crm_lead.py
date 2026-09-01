@@ -99,6 +99,7 @@ class CrmLead(models.Model):
         lead_model = self.sudo()
         email = lead_model._codestra_normalize_email(payload.get("email"))
         phone = lead_model._codestra_normalize_phone(payload.get("phone"))
+        lead_model._codestra_lock_identity(tenant_id, email, phone)
         lead = lead_model._codestra_find_open_lead(tenant_id, email, phone)
         values = lead_model._codestra_values(
             payload=payload,
@@ -112,6 +113,8 @@ class CrmLead(models.Model):
         else:
             lead = lead_model.create(values)
             action = "created"
+
+        lead_model._codestra_apply_consent(lead, payload.get("consent"), event_id)
 
         receipt._codestra_finalize_lead(lead)
         return self._codestra_result(
@@ -137,6 +140,27 @@ class CrmLead(models.Model):
         }
         if tenant_id not in allowed:
             raise AccessError("Codestra intake tenant is not authorized for the Middleware service")
+        principal_key = f"codestra.crm.service_user.{self.env.user.id}.tenant_ids"
+        principal_tenants = {
+            value.strip()
+            for value in (params.get_param(principal_key) or "").split(",")
+            if value.strip()
+        }
+        if tenant_id not in principal_tenants:
+            raise AccessError("Codestra intake tenant is not bound to this service principal")
+
+    @api.model
+    def _codestra_lock_identity(self, tenant_id, email, phone):
+        identity = email or phone
+        if not identity:
+            return
+        # Serialize match/create across distinct events for the same tenant and
+        # normalized identity. The transaction-scoped lock is released by
+        # PostgreSQL automatically and cannot leak into another request.
+        self.env.cr.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+            [f"codestra-intake:{tenant_id}:{identity}"],
+        )
 
     @api.model
     def _codestra_duplicate_result(self, receipt, event_id, idempotency_key):
@@ -160,14 +184,13 @@ class CrmLead(models.Model):
             if lead:
                 return lead
         if phone:
-            expected_digits = self._codestra_phone_digits(phone)
-            candidates = self.search(
-                base_domain + [("phone", "!=", False)],
+            lead = self.search(
+                base_domain + [("normalized_phone", "=", phone)],
                 order="id desc",
+                limit=1,
             )
-            for candidate in candidates:
-                if self._codestra_phone_digits(candidate.phone) == expected_digits:
-                    return candidate
+            if lead:
+                return lead
         return self.browse()
 
     @api.model
@@ -188,6 +211,7 @@ class CrmLead(models.Model):
             "contact_name": (payload.get("name") or "")[:300] or False,
             "email_from": email or False,
             "phone": phone or False,
+            "normalized_phone": phone or False,
             "description": "\n\n".join(description_parts) or False,
             "codestra_tenant_id": tenant_id,
             "codestra_site_id": (payload.get("siteId") or "")[:180] or False,
@@ -236,6 +260,60 @@ class CrmLead(models.Model):
                 merged["metadata"] = payload.get("metadata") or {}
             update["codestra_intake_metadata"] = merged
         return update
+
+    @api.model
+    def _codestra_apply_consent(self, lead, consent_payload, event_id):
+        if consent_payload is None:
+            return
+        if not isinstance(consent_payload, dict):
+            raise ValidationError("Codestra intake consent must be an object")
+        channel_fields = {"email": "email_from", "sms": "phone", "phone": "phone"}
+        consent_model = self.env["call.center.consent"].sudo()
+        suppression_model = self.env["call.center.suppression"].sudo()
+        for channel, granted in consent_payload.items():
+            if channel not in channel_fields or not isinstance(granted, bool):
+                raise ValidationError("Codestra intake consent channel/value is invalid")
+            destination = lead[channel_fields[channel]]
+            if not destination:
+                raise ValidationError(f"Codestra intake {channel} consent requires a destination")
+            evidence = f"codestra-intake:{event_id}:{channel}"
+            prior = consent_model.search(
+                [("lead_id", "=", lead.id), ("channel", "=", channel)],
+                order="id desc",
+                limit=1,
+            )
+            if granted:
+                if not prior or prior.status != "granted":
+                    consent_model.create({
+                        "lead_id": lead.id,
+                        "business_unit_id": lead.business_unit_id.id,
+                        "channel": channel,
+                        "status": "granted",
+                        "source": "codestra_intake",
+                        "evidence_reference": evidence,
+                    })
+                continue
+            if prior and prior.status == "granted":
+                prior.with_context(revocation_reason="Codestra intake opt-out").action_revoke()
+            identifier_type = "email" if channel == "email" else "phone"
+            identifier_hash = suppression_model.hash_identifier(destination)
+            suppression = suppression_model.search([
+                ("business_unit_id", "=", lead.business_unit_id.id),
+                ("identifier_type", "=", identifier_type),
+                ("identifier_hash", "=", identifier_hash),
+            ], limit=1)
+            if suppression:
+                suppression.write({"active": True, "reason": "optout", "source": evidence})
+            else:
+                suppression_model.create({
+                    "business_unit_id": lead.business_unit_id.id,
+                    "identifier_type": identifier_type,
+                    "identifier_hash": identifier_hash,
+                    "reason": "optout",
+                    "source": evidence,
+                })
+            if channel == "phone":
+                lead.write({"do_not_call": True, "do_not_contact_reason": "Codestra intake opt-out"})
 
     @api.model
     def _codestra_required_text(self, mapping, key, maximum):

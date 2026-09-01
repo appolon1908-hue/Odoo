@@ -15,6 +15,10 @@ class TestCodestraIntakeLeads(TransactionCase):
             "codestra.crm.tenant_ids",
             "tenant-1,tenant-2",
         )
+        cls.env["ir.config_parameter"].sudo().set_param(
+            f"codestra.crm.service_user.{cls.env.user.id}.tenant_ids",
+            "tenant-1,tenant-2",
+        )
 
     def _envelope(self, *, event_id="lead-event-1", idempotency_key="idem-lead-1", **payload_updates):
         payload = {
@@ -72,6 +76,16 @@ class TestCodestraIntakeLeads(TransactionCase):
         envelope["payload"]["tenantId"] = "tenant-rogue"
         with self.assertRaises(AccessError):
             self.env["crm.lead"].codestra_upsert_intake_lead(envelope)
+
+    def test_tenant_must_be_bound_to_exact_service_principal(self):
+        params = self.env["ir.config_parameter"].sudo()
+        key = f"codestra.crm.service_user.{self.env.user.id}.tenant_ids"
+        params.set_param(key, "tenant-2")
+        try:
+            with self.assertRaises(AccessError):
+                self.env["crm.lead"].codestra_upsert_intake_lead(self._envelope())
+        finally:
+            params.set_param(key, "tenant-1,tenant-2")
 
     def test_prior_event_receipt_survives_later_update(self):
         first = self.env["crm.lead"].codestra_upsert_intake_lead(self._envelope())
@@ -182,6 +196,24 @@ class TestCodestraIntakeLeads(TransactionCase):
         envelope = self._envelope(event_id="lead-event-4", idempotency_key="idem-lead-4", email=None)
         result = self.env["crm.lead"].codestra_upsert_intake_lead(envelope)
         self.assertEqual(result["lead_id"], existing.id)
+
+    def test_intake_consent_updates_canonical_compliance_state(self):
+        result = self.env["crm.lead"].codestra_upsert_intake_lead(self._envelope())
+        lead = self.env["crm.lead"].browse(result["lead_id"])
+        consent = self.env["call.center.consent"].sudo().search([
+            ("lead_id", "=", lead.id), ("channel", "=", "email")
+        ], limit=1)
+        self.assertEqual(consent.status, "granted")
+        opted_out = self._envelope(
+            event_id="lead-optout-1",
+            idempotency_key="idem-optout-1",
+            consent={"phone": False},
+        )
+        self.env["crm.lead"].codestra_upsert_intake_lead(opted_out)
+        self.assertTrue(lead.do_not_call)
+        self.assertTrue(self.env["call.center.suppression"].sudo().search([
+            ("identifier_type", "=", "phone"), ("active", "=", True)
+        ], limit=1))
 
     def test_identifiers_are_canonicalized_before_receipt_storage(self):
         envelope = self._envelope()
