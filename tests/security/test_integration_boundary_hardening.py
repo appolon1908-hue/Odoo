@@ -398,6 +398,47 @@ class B:
             self.assertTrue(any("cursor execution" in finding for finding in hardening.python_findings(cursor_path, allow_cursor_sql=False)))
             self.assertTrue(any("caller-selected Odoo model" in finding for finding in hardening.python_findings(env_path, allow_cursor_sql=False)))
 
+    def test_environment_identity_propagates_through_helper_arguments(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/controllers/helper_env.py",
+                "def dispatch(env, model):\n    return env[model].sudo().create({})\ndef route(request, payload):\n    return dispatch(request.env, payload['model'])\n",
+            )
+            self.assertIn(
+                "controller uses a caller-selected Odoo model; only static model names are allowed",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
+    def test_acl_guarded_dynamic_browse_is_read_only_and_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            safe = self.write(
+                root,
+                "custom-addons/example/models/safe_browse.py",
+                "def resolve(env, model_name, record_id):\n    model = env[model_name]\n    record = model.browse(record_id).exists()\n    record.check_access('read')\n    return record\ndef caller(request, payload):\n    return resolve(request.env, payload['model'], payload['id'])\n",
+            )
+            unsafe = self.write(
+                root,
+                "custom-addons/example/models/unsafe_browse.py",
+                "def resolve(env, model_name, record_id):\n    model = env[model_name]\n    record = model.browse(record_id).exists()\n    record.check_access('read')\n    record.write({'name': 'changed'})\n    return record\ndef caller(request, payload):\n    return resolve(request.env, payload['model'], payload['id'])\n",
+            )
+            marker = "controller uses a caller-selected Odoo model; only static model names are allowed"
+            self.assertNotIn(marker, hardening.python_findings(safe, allow_cursor_sql=False))
+            self.assertIn(marker, hardening.python_findings(unsafe, allow_cursor_sql=False))
+
+    def test_process_module_aliases_are_lexically_scoped(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/scoped_process.py",
+                "import subprocess\ndef unsafe():\n    launcher = subprocess\n    launcher.run('psql db')\ndef unrelated(value):\n    launcher = value\n    return launcher\n",
+            )
+            self.assertIn(
+                "Python process invocation of psql is prohibited",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
     def test_dynamic_controller_model_proxy_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -451,6 +492,20 @@ class B:
             self.assertIn(
                 "controller uses a caller-selected Odoo model; only static model names are allowed",
                 hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
+    def test_reflective_cursor_execution_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/reflective_cursor.py",
+                "def apply(request):\n    getattr(request.env.cr, 'execute')('DELETE FROM x')\n",
+            )
+            self.assertTrue(
+                any(
+                    "cursor execution" in finding
+                    for finding in hardening.python_findings(path, allow_cursor_sql=False)
+                )
             )
 
     def test_private_model_wrapper_is_allowed_only_for_literal_callers(self) -> None:

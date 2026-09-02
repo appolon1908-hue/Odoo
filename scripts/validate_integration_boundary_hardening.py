@@ -285,32 +285,31 @@ def transitive_aliases(tree: ast.AST, *, terminal: str) -> set[str]:
         if not added:
             break
         aliases.update(added)
-    if terminal == "cursor":
-        functions = [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        ]
-        calls = function_call_arguments(tree)
-        for _ in range(len(functions) + 1):
-            added: set[str] = set()
-            for function in functions:
-                name = function.name
-                parameters = function_parameters(function)
-                for call in calls.get(name, []):
-                    for index, parameter in enumerate(parameters):
-                        positional_index = index
-                        if isinstance(call.func, ast.Attribute) and parameters and parameters[0] in {"self", "cls"}:
-                            positional_index -= 1
-                        value = next((item.value for item in call.keywords if item.arg == parameter), None)
-                        if value is None and 0 <= positional_index < len(call.args):
-                            value = call.args[positional_index]
-                        if value is not None and expression_chain(value, aliases, "cursor"):
-                            added.add(parameter)
-            added -= aliases
-            if not added:
-                break
-            aliases.update(added)
+    functions = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+    calls = function_call_arguments(tree)
+    for _ in range(len(functions) + 1):
+        added: set[str] = set()
+        for function in functions:
+            name = function.name
+            parameters = function_parameters(function)
+            for call in calls.get(name, []):
+                for index, parameter in enumerate(parameters):
+                    positional_index = index
+                    if isinstance(call.func, ast.Attribute) and parameters and parameters[0] in {"self", "cls"}:
+                        positional_index -= 1
+                    value = next((item.value for item in call.keywords if item.arg == parameter), None)
+                    if value is None and 0 <= positional_index < len(call.args):
+                        value = call.args[positional_index]
+                    if value is not None and expression_chain(value, aliases, terminal):
+                        added.add(parameter)
+        added -= aliases
+        if not added:
+            break
+        aliases.update(added)
     return aliases
 
 
@@ -466,6 +465,14 @@ def is_cursor_execute(
             isinstance(call.func, (ast.Name, ast.Attribute))
             and ".".join(attribute_chain(call.func)) in method_aliases
         )
+        or (
+            isinstance(call.func, ast.Call)
+            and isinstance(call.func.func, ast.Name)
+            and call.func.func.id == "getattr"
+            and len(call.func.args) >= 2
+            and expression_chain(call.func.args[0], aliases, "cursor")
+            and static_string(call.func.args[1]) in {"execute", "executemany"}
+        )
     )
 
 
@@ -546,6 +553,93 @@ def dynamic_model_selector(
         ):
             return node.args[1]
     return None
+
+
+def is_acl_guarded_dynamic_browse(
+    selector: ast.AST,
+    function: ast.FunctionDef | ast.AsyncFunctionDef | None,
+) -> bool:
+    """Recognize a narrow dynamic read that preserves Odoo ACL enforcement."""
+
+    if function is None:
+        return False
+    assignments = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Assign)
+        and node.value is selector
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+    ]
+    if len(assignments) != 1:
+        return False
+    model_name = assignments[0].targets[0].id
+
+    def is_guarded_browse_value(value: ast.AST) -> bool:
+        candidate = value
+        if (
+            isinstance(candidate, ast.Call)
+            and isinstance(candidate.func, ast.Attribute)
+            and candidate.func.attr == "exists"
+        ):
+            candidate = candidate.func.value
+        return (
+            isinstance(candidate, ast.Call)
+            and isinstance(candidate.func, ast.Attribute)
+            and isinstance(candidate.func.value, ast.Name)
+            and candidate.func.value.id == model_name
+            and candidate.func.attr == "browse"
+        )
+
+    browse_assignments = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and is_guarded_browse_value(node.value)
+    ]
+    if len(browse_assignments) != 1:
+        return False
+    record_name = browse_assignments[0].targets[0].id
+    model_methods = {
+        node.func.attr
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == model_name
+    }
+    if model_methods != {"browse"}:
+        return False
+    dangerous = {"create", "write", "unlink", "sudo", "with_user", "search", "search_read"}
+    if any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == record_name
+        and node.func.attr in dangerous
+        for node in ast.walk(function)
+    ):
+        return False
+    if any(
+        isinstance(node, ast.Attribute)
+        and isinstance(node.ctx, (ast.Store, ast.Del))
+        and isinstance(node.value, ast.Name)
+        and node.value.id == record_name
+        for node in ast.walk(function)
+    ):
+        return False
+    return any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == record_name
+        and node.func.attr == "check_access"
+        and node.args
+        and static_string(node.args[0]) == "read"
+        for node in ast.walk(function)
+    )
 
 
 def function_parameters(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
@@ -798,6 +892,59 @@ def imported_process_functions(tree: ast.AST) -> tuple[set[str], set[str], set[s
     return subprocess_modules, os_modules, bare_functions
 
 
+def lexical_process_aliases(
+    tree: ast.AST,
+    subprocess_modules: set[str],
+    os_modules: set[str],
+    bare_functions: set[str],
+) -> dict[ast.AST | None, tuple[set[str], set[str], set[str]]]:
+    """Resolve process modules and callables independently per lexical scope."""
+
+    enclosing = enclosing_functions(tree)
+    scopes: list[ast.AST | None] = [None, *[
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]]
+    result: dict[ast.AST | None, tuple[set[str], set[str], set[str]]] = {}
+    for scope in scopes:
+        definitions: dict[str, list[ast.AST]] = defaultdict(list)
+        for node in ast.walk(tree if scope is None else scope):
+            if node is scope or enclosing.get(node) is not scope:
+                continue
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    for name in assigned_aliases(target):
+                        definitions[name].append(node.value)
+            elif isinstance(node, ast.AnnAssign) and node.value is not None:
+                for name in assigned_aliases(node.target):
+                    definitions[name].append(node.value)
+
+        scoped_subprocess = set(subprocess_modules)
+        scoped_os = set(os_modules)
+        scoped_bare = set(bare_functions)
+        for _ in range(len(definitions) + 1):
+            changed = False
+            for name, values in definitions.items():
+                for value in values:
+                    chain = attribute_chain(value)
+                    if not chain:
+                        continue
+                    if len(chain) == 1 and chain[0] in scoped_subprocess and name not in scoped_subprocess:
+                        scoped_subprocess.add(name)
+                        changed = True
+                    if len(chain) == 1 and chain[0] in scoped_os and name not in scoped_os:
+                        scoped_os.add(name)
+                        changed = True
+                    if is_process_reference(value, scoped_subprocess, scoped_os, scoped_bare) and name not in scoped_bare:
+                        scoped_bare.add(name)
+                        changed = True
+            if not changed:
+                break
+        result[scope] = (scoped_subprocess, scoped_os, scoped_bare)
+    return result
+
+
 def is_process_reference(
     node: ast.AST,
     subprocess_modules: set[str],
@@ -897,6 +1044,9 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
     safe_wrappers = static_model_wrapper_parameters(tree, env_names)
     enclosing = enclosing_functions(tree)
     subprocess_modules, os_modules, bare_process = imported_process_functions(tree)
+    scoped_process = lexical_process_aliases(
+        tree, subprocess_modules, os_modules, bare_process
+    )
     sql_db_modules, sql_db_functions = odoo_sql_db_aliases(tree)
     operator_modules, operator_functions = operator_getitem_aliases(tree)
 
@@ -916,6 +1066,9 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
         effective_cursor_names = cursor_names | scoped_cursor_names.get(scope, set())
         effective_env_names = env_names | scoped_env_names.get(scope, set())
         effective_cursor_methods = scoped_cursor_methods.get(scope, set())
+        effective_subprocess, effective_os, effective_process = scoped_process.get(
+            scope, (subprocess_modules, os_modules, bare_process)
+        )
         if isinstance(node, ast.Call):
             chain = attribute_chain(node.func)
             if chain and (
@@ -938,7 +1091,7 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
                     + ".".join(chain)
                 )
 
-            if is_process_call(node, subprocess_modules, os_modules, bare_process):
+            if is_process_call(node, effective_subprocess, effective_os, effective_process):
                 command_node = process_command_node(node)
                 current_function = enclosing.get(node)
                 local_names = set(function_parameters(current_function)) if current_function is not None else set()
@@ -993,6 +1146,9 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
         if not shadowed_selector and static_text(selector, constants) is not None:
             continue
         if "tests" in path.parts:
+            continue
+
+        if is_acl_guarded_dynamic_browse(node, current_function):
             continue
 
         if (

@@ -188,6 +188,8 @@ def main() -> int:
         policy.get("message_authentication", {}).get("canonical_fields_in_order"),
         expected_fields,
     )
+    if policy.get("message_authentication", {}).get("algorithm") != "hmac-sha256":
+        fail("machine integration policy HMAC algorithm drifted")
 
     bridge = policy.get("orm_bridge", {})
     if bridge.get("module_name") != "codestra_middleware_bridge":
