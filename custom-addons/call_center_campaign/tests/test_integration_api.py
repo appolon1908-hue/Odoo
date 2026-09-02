@@ -1,5 +1,6 @@
 import base64
 from datetime import timedelta
+from unittest.mock import patch
 
 from odoo import fields
 from odoo.tests.common import TransactionCase, tagged
@@ -10,12 +11,22 @@ from ..controllers.integration_api import (
     IntegrationRejected,
     _b64url,
     _effective_service_key,
+    _runtime_flag,
     _validated_jwks_url,
 )
 
 
 @tagged("post_install", "-at_install")
 class TestIntegrationApiContract(TransactionCase):
+    def test_runtime_capability_flags_are_exact_and_fail_closed(self):
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertFalse(_runtime_flag("CODESTRA_TEST_FLAG"))
+        for value in ("1", "yes", "enabled", "unknown"):
+            with patch.dict("os.environ", {"CODESTRA_TEST_FLAG": value}, clear=True):
+                self.assertFalse(_runtime_flag("CODESTRA_TEST_FLAG"))
+        with patch.dict("os.environ", {"CODESTRA_TEST_FLAG": "true"}, clear=True):
+            self.assertTrue(_runtime_flag("CODESTRA_TEST_FLAG"))
+
     def test_jwks_url_is_bounded_to_keycloak_certificate_endpoints(self):
         public = "https://auth.example.test/realms/test/protocol/openid-connect/certs"
         private = "http://keycloak:8080/realms/test/protocol/openid-connect/certs"
@@ -72,6 +83,7 @@ class TestIntegrationApiContract(TransactionCase):
             route for method in methods for route in method.original_routing["routes"]
         }
         expected = {
+            "/capabilities",
             "/api/v1/integration/capabilities",
             "/api/v1/integration/outbox/claims",
             "/api/v1/integration/outbox/<string:outbox_id>",
@@ -109,8 +121,11 @@ class TestIntegrationApiContract(TransactionCase):
         self.assertEqual(
             routes,
             {
+                "/health",
                 "/health/live",
+                "/ready",
                 "/health/ready",
+                "/version",
                 "/.well-known/codestra-service",
                 "/metrics",
             },
