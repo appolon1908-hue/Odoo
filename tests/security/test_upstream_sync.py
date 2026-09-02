@@ -492,6 +492,7 @@ class UpstreamSyncTests(unittest.TestCase):
             destination.mkdir()
             self.initialize_source(source)
             self.add_module(source, "addons", "module_a", "first")
+            self.add_module(source, "addons", "module_b", "second")
             self.commit(source, "source module")
             policy = self.prepare_destination(destination)
             sync.synchronize(
@@ -505,6 +506,48 @@ class UpstreamSyncTests(unittest.TestCase):
             state["target_only_modules"] = []
             state_path.write_text(json.dumps(state), encoding="utf-8")
             with self.assertRaisesRegex(sync.SyncError, "target-only addon inventory drift"):
+                sync.verify_state(destination=destination, policy_path=policy)
+
+    def test_verify_state_derives_imported_modules_and_bytes_from_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.add_module(source, "addons", "module_a", "first")
+            self.add_module(source, "addons", "module_b", "second")
+            self.commit(source, "source module")
+            policy = self.prepare_destination(destination)
+            sync.synchronize(
+                upstream=source,
+                destination=destination,
+                policy_path=policy,
+                source_ref="main",
+            )
+            state_path = destination / "config/upstream-sync-state.json"
+            original = json.loads(state_path.read_text(encoding="utf-8"))
+
+            reclassified = json.loads(json.dumps(original))
+            reclassified["modules"].pop("module_a")
+            reclassified["target_only_modules"].append("module_a")
+            reclassified["target_only_modules"].sort()
+            state_path.write_text(json.dumps(reclassified), encoding="utf-8")
+            with self.assertRaisesRegex(sync.SyncError, "imported addon inventory drift"):
+                sync.verify_state(destination=destination, policy_path=policy)
+
+            state_path.write_text(json.dumps(original), encoding="utf-8")
+            promoted = destination / "custom-addons/module_a/models.py"
+            promoted.write_text("MARKER = 'tampered'\n", encoding="utf-8")
+            altered = json.loads(json.dumps(original))
+            altered["modules"]["module_a"]["tree_sha256"] = sync.tree_digest(
+                destination / "custom-addons/module_a"
+            )
+            state_path.write_text(json.dumps(altered), encoding="utf-8")
+            with self.assertRaisesRegex(
+                sync.SyncError, "imported addon source digest drift|promoted addon content drift"
+            ):
                 sync.verify_state(destination=destination, policy_path=policy)
 
     @unittest.skipUnless(hasattr(os, "symlink"), "symlink support is required")

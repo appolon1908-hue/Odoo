@@ -690,12 +690,28 @@ def verify_state(*, destination: Path, policy_path: Path) -> dict[str, Any]:
 
     modules = state.get("modules")
     require(isinstance(modules, dict) and modules, "sync imported no Odoo addons")
+    snapshot_modules = discover_modules(snapshot, [])
+    require(
+        set(modules) == set(snapshot_modules),
+        "imported addon inventory drift",
+    )
     for name, details in modules.items():
         require(
             isinstance(name, str) and MODULE_NAME.fullmatch(name) is not None,
             f"invalid synced addon: {name}",
         )
         require(isinstance(details, dict), f"invalid addon state: {name}")
+        source_module = snapshot_modules[name]
+        expected_source_path = source_module.relative_to(snapshot).as_posix()
+        require(
+            details.get("source_path") == expected_source_path,
+            f"imported addon source path drift: {name}",
+        )
+        source_digest = tree_digest(source_module)
+        require(
+            details.get("tree_sha256") == source_digest,
+            f"imported addon source digest drift: {name}",
+        )
         module = destination / runtime_relative / name
         require(module.is_dir(), f"promoted addon is missing: {name}")
         require(
@@ -707,7 +723,7 @@ def verify_state(*, destination: Path, policy_path: Path) -> dict[str, Any]:
             f"promoted addon manifest is missing: {name}",
         )
         require(
-            tree_digest(module) == details.get("tree_sha256"),
+            tree_digest(module) == source_digest,
             f"promoted addon content drift: {name}",
         )
     target_only_modules = state.get("target_only_modules")
