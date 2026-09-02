@@ -61,6 +61,21 @@ def _runtime_flag(name):
     return os.environ.get(name, "false").strip().lower() == "true"
 
 
+def _capability_state():
+    """Return capability read-back from the governed deployment contract."""
+    writes = _runtime_flag("LIVE_ODOO_WRITE")
+    return {
+        "business_writes_enabled": writes,
+        "external_delivery_enabled": _runtime_flag("ENABLE_EXTERNAL_DELIVERY"),
+        "live_email_enabled": _runtime_flag("EMAIL_DELIVERY"),
+        "live_sms_enabled": _runtime_flag("SMS_DELIVERY"),
+        "live_pstn_enabled": _runtime_flag("PSTN_DIALING"),
+        "live_social_publish_enabled": "NOT_APPLICABLE",
+        "live_advertising_enabled": "NOT_APPLICABLE",
+        "read_only_mode": not writes,
+    }
+
+
 def _canonical_hash(document):
     encoded = json.dumps(
         document, sort_keys=True, separators=(",", ":"), ensure_ascii=False
@@ -467,16 +482,7 @@ class CodestraIntegrationApiController(http.Controller):
                         "CODESTRA_ODOO_MAINTENANCE_MODE"
                     ),
                     "degraded_mode": _runtime_flag("CODESTRA_ODOO_DEGRADED_MODE"),
-                    "business_writes_enabled": _runtime_flag("LIVE_ODOO_WRITE"),
-                    "external_delivery_enabled": _runtime_flag(
-                        "ENABLE_EXTERNAL_DELIVERY"
-                    ),
-                    "live_email_enabled": _runtime_flag("EMAIL_DELIVERY"),
-                    "live_sms_enabled": _runtime_flag("SMS_DELIVERY"),
-                    "live_pstn_enabled": _runtime_flag("PSTN_DIALING"),
-                    "live_social_publish_enabled": "NOT_APPLICABLE",
-                    "live_advertising_enabled": "NOT_APPLICABLE",
-                    "read_only_mode": not _runtime_flag("LIVE_ODOO_WRITE"),
+                    **_capability_state(),
                     "supported_api_versions": ["v1"],
                     "required_compliance_gates": [
                         "business-write-activation",
