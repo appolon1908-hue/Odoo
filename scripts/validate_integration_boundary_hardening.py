@@ -442,6 +442,25 @@ def lexical_cursor_method_aliases(
                         "cursor",
                         {"execute", "executemany"},
                     )
+                    or (
+                        isinstance(value, ast.Call)
+                        and value.args
+                        and (
+                            (
+                                isinstance(value.args[0], ast.Attribute)
+                                and value.args[0].attr in {"execute", "executemany"}
+                                and expression_chain(
+                                    value.args[0].value, effective_cursors, "cursor"
+                                )
+                            )
+                            or reflective_attribute(
+                                value.args[0],
+                                effective_cursors,
+                                "cursor",
+                                {"execute", "executemany"},
+                            )
+                        )
+                    )
                     or (isinstance(value, ast.Name) and value.id in methods)
                     for value in values
                 ):
@@ -601,8 +620,9 @@ def dynamic_model_selector(
     if (
         isinstance(node, ast.Call)
         and node.args
-        and isinstance(node.func, ast.Name)
-        and node.func.id in (environment_selector_functions or set())
+        and isinstance(node.func, (ast.Name, ast.Attribute))
+        and ".".join(attribute_chain(node.func))
+        in (environment_selector_functions or set())
     ):
         return node.args[0]
     return None
@@ -656,6 +676,45 @@ def lexical_environment_selector_aliases(
                 break
             selectors.update(added)
         result[scope] = selectors
+
+    functions = [
+        node for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+    calls = function_call_arguments(tree)
+    all_environments = environment_aliases | set().union(*scoped_environment_aliases.values())
+    for _ in range(len(functions) + 1):
+        changed = False
+        for function in functions:
+            parameters = function_parameters(function)
+            for call in calls.get(function.name, []):
+                caller_selectors = result.get(enclosing.get(call), set())
+                for index, parameter in enumerate(parameters):
+                    positional_index = index - (
+                        1 if isinstance(call.func, ast.Attribute) and parameters and parameters[0] in {"self", "cls"} else 0
+                    )
+                    value = next(
+                        (item.value for item in call.keywords if item.arg == parameter),
+                        None,
+                    )
+                    if value is None and 0 <= positional_index < len(call.args):
+                        value = call.args[positional_index]
+                    is_selector = value is not None and (
+                        (
+                            isinstance(value, ast.Attribute)
+                            and value.attr == "__getitem__"
+                            and expression_chain(value.value, all_environments, "environment")
+                        )
+                        or reflective_attribute(
+                            value, all_environments, "environment", {"__getitem__"}
+                        )
+                        or ".".join(attribute_chain(value)) in caller_selectors
+                    )
+                    if is_selector and parameter not in result[function]:
+                        result[function].add(parameter)
+                        changed = True
+        if not changed:
+            break
     return result
 
 
@@ -1021,6 +1080,7 @@ def lexical_static_values(tree: ast.AST) -> set[str]:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     ]]
     resolved_values: set[str] = set()
+    resolved_by_scope: dict[ast.AST | None, dict[str, str]] = {}
     for scope in scopes:
         definitions: dict[str, list[ast.AST]] = defaultdict(list)
         for node in ast.walk(tree if scope is None else scope):
@@ -1033,7 +1093,12 @@ def lexical_static_values(tree: ast.AST) -> set[str]:
             elif isinstance(node, ast.AnnAssign) and node.value is not None:
                 for name in assigned_aliases(node.target):
                     definitions[name].append(node.value)
-        constants: dict[str, str] = {}
+        parent_scope = enclosing.get(scope) if scope is not None else None
+        constants = dict(resolved_by_scope.get(parent_scope, {}))
+        # A local binding shadows an inherited value even when the local value
+        # cannot itself be resolved statically.
+        for name in definitions:
+            constants.pop(name, None)
         unresolved = set(definitions)
         for _ in range(len(definitions) + 1):
             progress = False
@@ -1049,6 +1114,7 @@ def lexical_static_values(tree: ast.AST) -> set[str]:
             if not progress:
                 break
         resolved_values.update(constants.values())
+        resolved_by_scope[scope] = constants
     return resolved_values
 
 
@@ -1214,7 +1280,6 @@ def is_process_reference(
     if (
         isinstance(node, ast.Call)
         and node.args
-        and (attribute_chain(node.func) or [""])[-1] == "partial"
         and is_process_reference(
             node.args[0], subprocess_modules, os_modules, bare_functions
         )

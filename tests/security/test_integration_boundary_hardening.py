@@ -688,6 +688,21 @@ class B:
                 "controller uses a caller-selected Odoo model; only static model names are allowed",
                 hardening.python_findings(bound_selector, allow_cursor_sql=False),
             )
+            attribute_selector = self.write(
+                root,
+                "custom-addons/example/controllers/attribute_selector.py",
+                "def apply(self, request, payload):\n    self.select = request.env.__getitem__\n    self.select(payload['model']).sudo().create({})\n",
+            )
+            helper_selector = self.write(
+                root,
+                "custom-addons/example/controllers/helper_selector.py",
+                "def dispatch(select, model):\n    select(model).sudo().create({})\ndef apply(request, payload):\n    dispatch(request.env.__getitem__, payload['model'])\n",
+            )
+            for path in (attribute_selector, helper_selector):
+                self.assertIn(
+                    "controller uses a caller-selected Odoo model; only static model names are allowed",
+                    hardening.python_findings(path, allow_cursor_sql=False),
+                )
 
     def test_subprocess_executable_override_is_inspected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -712,6 +727,29 @@ class B:
                 "unanalyzable process invocation is prohibited in Odoo addons",
                 hardening.python_findings(path, allow_cursor_sql=False),
             )
+            aliased = self.write(
+                Path(directory),
+                "custom-addons/example/models/aliased_partial_process.py",
+                "from functools import partial as p\nimport subprocess\nlaunch = p(subprocess.run, ['/usr/bin/psql', 'database'])\nlaunch()\n",
+            )
+            self.assertIn(
+                "unanalyzable process invocation is prohibited in Odoo addons",
+                hardening.python_findings(aliased, allow_cursor_sql=False),
+            )
+
+    def test_partial_wrapped_cursor_method_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/partial_cursor.py",
+                "from functools import partial\ndef apply(request):\n    run_sql = partial(request.env.cr.execute, 'DELETE FROM res_users')\n    run_sql()\n",
+            )
+            self.assertTrue(
+                any(
+                    "cursor execution" in finding
+                    for finding in hardening.python_findings(path, allow_cursor_sql=False)
+                )
+            )
 
     def test_database_credentials_are_resolved_per_lexical_scope(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -723,6 +761,15 @@ class B:
             self.assertIn(
                 "Python source contains database credentials or PostgreSQL DSN",
                 hardening.python_findings(path, allow_cursor_sql=False),
+            )
+            inherited = self.write(
+                Path(directory),
+                "custom-addons/example/models/inherited_dsn.py",
+                "SCHEME = 'postgres'\ndef connect():\n    REST = 'ql://odoo:secret@db/odoo'\n    DSN = SCHEME + REST\n    return DSN\n",
+            )
+            self.assertIn(
+                "Python source contains database credentials or PostgreSQL DSN",
+                hardening.python_findings(inherited, allow_cursor_sql=False),
             )
 
     def test_policy_pins_canonical_command_type_and_version(self) -> None:
