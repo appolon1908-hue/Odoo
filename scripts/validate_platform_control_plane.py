@@ -32,6 +32,21 @@ def validate_hmac_field_order(
         fail("machine integration policy HMAC canonical field order drifted")
 
 
+def validate_route_contract(
+    actual_routes: dict[str, tuple[set[str], bool]],
+    expected_routes: dict[str, set[str]],
+) -> None:
+    for path, methods in expected_routes.items():
+        actual = actual_routes.get(path)
+        if actual is None:
+            fail(f"required controller route is missing: {path}")
+        actual_methods, replay_protected = actual
+        if actual_methods != methods:
+            fail(f"route methods drifted for {path}")
+        if not replay_protected:
+            fail(f"route no longer invokes replay-protected _begin: {path}")
+
+
 def function_source(source: str, name: str) -> str:
     tree = ast.parse(source)
     matches = [
@@ -234,23 +249,14 @@ def main() -> int:
         "/codestra/middleware/v1/commands/<string:command_id>/status": {"GET"},
     }
     actual_routes = validated_routes(source)
-    for path, methods in expected_routes.items():
-        actual = actual_routes.get(path)
-        if actual is None:
-            fail(f"required controller route is missing: {path}")
-        actual_methods, replay_protected = actual
-        if actual_methods != methods:
-            fail(f"route methods drifted for {path}")
-        if not replay_protected:
-            fail(f"route no longer invokes replay-protected _begin: {path}")
+    validate_route_contract(actual_routes, expected_routes)
 
     compatibility_routes = {
-        "/codestra/middleware/v1/crm/leads",
-        "/codestra/middleware/v1/crm/leads/<string:external_id>",
-        "/codestra/middleware/v1/crm/activities",
+        "/codestra/middleware/v1/crm/leads": {"POST"},
+        "/codestra/middleware/v1/crm/leads/<string:external_id>": {"GET", "PATCH"},
+        "/codestra/middleware/v1/crm/activities": {"POST"},
     }
-    if not compatibility_routes <= set(actual_routes):
-        fail("declared Odoo compatibility routes are missing")
+    validate_route_contract(actual_routes, compatibility_routes)
 
     safety = contract.get("safety", {})
     for flag in ("ODOO_WRITE", "ENABLE_EXTERNAL_DELIVERY", "LIVE_WRITE"):

@@ -27,6 +27,20 @@ class IntegrationBoundaryHardeningTests(unittest.TestCase):
                 expected, list(reversed(expected)), expected
             )
 
+    def test_platform_compatibility_routes_require_exact_methods_and_replay(self) -> None:
+        expected = {"/compatibility": {"GET", "PATCH"}}
+        platform_control_plane.validate_route_contract(
+            {"/compatibility": ({"GET", "PATCH"}, True)}, expected
+        )
+        with self.assertRaisesRegex(SystemExit, "route methods drifted"):
+            platform_control_plane.validate_route_contract(
+                {"/compatibility": ({"GET"}, True)}, expected
+            )
+        with self.assertRaisesRegex(SystemExit, "replay-protected"):
+            platform_control_plane.validate_route_contract(
+                {"/compatibility": ({"GET", "PATCH"}, False)}, expected
+            )
+
     def test_only_addon_root_migration_paths_receive_migration_treatment(self) -> None:
         self.assertTrue(boundary.is_module_migration_path("migrations/19.0.1.0/pre.py"))
         self.assertTrue(boundary.is_module_migration_path("upgrades/19.0.1.0/post.py"))
@@ -67,6 +81,18 @@ class IntegrationBoundaryHardeningTests(unittest.TestCase):
                 Path(directory),
                 "custom-addons/example/models/job.py",
                 "DSN = 'postgresql://odoo:example-secret@db/odoo'\n",
+            )
+            self.assertIn(
+                "Python source contains database credentials or PostgreSQL DSN",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
+    def test_composed_python_database_credentials_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/composed.py",
+                "DSN = 'postgres' + 'ql://odoo:example-secret@db/odoo'\n",
             )
             self.assertIn(
                 "Python source contains database credentials or PostgreSQL DSN",
@@ -153,6 +179,30 @@ class IntegrationBoundaryHardeningTests(unittest.TestCase):
             self.assertIn(
                 "unanalyzable process invocation is prohibited in Odoo addons",
                 hardening.python_findings(shadow, allow_cursor_sql=False),
+            )
+
+    def test_attribute_bound_process_alias_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/attribute_alias.py",
+                "import subprocess\nclass Job:\n    launch = subprocess.run\n    def apply(self):\n        self.launch('psql db', shell=True)\n",
+            )
+            self.assertIn(
+                "Python process invocation of psql is prohibited",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
+    def test_loop_bound_process_command_is_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/loop_shadow.py",
+                "import subprocess\ncommand = 'echo safe'\ndef apply(values):\n    for command in values:\n        subprocess.run(command, shell=True)\n",
+            )
+            self.assertIn(
+                "unanalyzable process invocation is prohibited in Odoo addons",
+                hardening.python_findings(path, allow_cursor_sql=False),
             )
 
     def test_odoo_sql_db_helpers_are_rejected(self) -> None:
@@ -404,6 +454,29 @@ class Controller:
             self.assertIn(
                 marker,
                 hardening.python_findings(unsafe, allow_cursor_sql=False),
+            )
+
+    def test_same_named_safe_helper_does_not_exempt_routed_lexical_owner(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/controllers/owners.py",
+                """
+class Helper:
+    def _dispatch(self, model):
+        return request.env[model].search([])
+    def safe(self):
+        return self._dispatch('crm.lead')
+
+class Controller:
+    @http.route('/proxy/<model>')
+    def _dispatch(self, model):
+        return request.env[model].sudo().create({})
+""",
+            )
+            self.assertIn(
+                "controller uses a caller-selected Odoo model; only static model names are allowed",
+                hardening.python_findings(path, allow_cursor_sql=False),
             )
 
     def test_routed_private_wrapper_is_never_exempted(self) -> None:

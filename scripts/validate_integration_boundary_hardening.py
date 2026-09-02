@@ -561,7 +561,7 @@ def function_call_arguments(tree: ast.AST) -> dict[str, list[ast.Call]]:
 def static_model_wrapper_parameters(
     tree: ast.AST,
     env_aliases: set[str],
-) -> set[tuple[str, str]]:
+) -> set[tuple[ast.FunctionDef | ast.AsyncFunctionDef, str]]:
     """Permit a private wrapper only when all in-file callers use literals."""
 
     functions = [
@@ -570,7 +570,7 @@ def static_model_wrapper_parameters(
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     ]
     calls = function_call_arguments(tree)
-    safe: set[tuple[str, str]] = set()
+    safe: set[tuple[ast.FunctionDef | ast.AsyncFunctionDef, str]] = set()
     route_aliases = route_decorator_aliases(tree)
 
     for function in functions:
@@ -624,7 +624,7 @@ def static_model_wrapper_parameters(
                     all_literal = False
                     break
             if all_literal:
-                safe.add((name, parameter))
+                safe.add((function, parameter))
     return safe
 
 
@@ -810,6 +810,8 @@ def is_process_call(
     chain = attribute_chain(call.func)
     if not chain:
         return False
+    if ".".join(chain) in bare_functions or chain[-1] in bare_functions:
+        return True
     if len(chain) == 1:
         return chain[0] in bare_functions
     root, name = chain[0], chain[-1]
@@ -886,7 +888,7 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
     sql_db_modules, sql_db_functions = odoo_sql_db_aliases(tree)
     operator_modules, operator_functions = operator_getitem_aliases(tree)
 
-    if any(
+    if any(DB_CREDENTIAL.search(value) for value in constants.values()) or any(
         isinstance(node, ast.Constant)
         and isinstance(node.value, str)
         and DB_CREDENTIAL.search(node.value)
@@ -927,12 +929,20 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
             if is_process_call(node, subprocess_modules, os_modules, bare_process):
                 command_node = process_command_node(node)
                 current_function = enclosing.get(node)
-                shadowed_parameter = current_function is not None and command_node is not None and any(
-                    isinstance(child, ast.Name)
-                    and child.id in function_parameters(current_function)
+                local_names = set(function_parameters(current_function)) if current_function is not None else set()
+                if current_function is not None:
+                    local_names.update(
+                        child.id
+                        for child in ast.walk(current_function)
+                        if isinstance(child, ast.Name)
+                        and isinstance(child.ctx, ast.Store)
+                        and enclosing.get(child) is current_function
+                    )
+                shadowed_local = command_node is not None and any(
+                    isinstance(child, ast.Name) and child.id in local_names
                     for child in ast.walk(command_node)
                 )
-                command_text = None if shadowed_parameter else static_text(command_node, constants)
+                command_text = None if shadowed_local else static_text(command_node, constants)
                 if command_text is None:
                     findings.append(
                         "unanalyzable process invocation is prohibited in Odoo addons"
@@ -976,7 +986,7 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
         if (
             isinstance(selector, ast.Name)
             and current_function is not None
-            and (current_function.name, selector.id) in safe_wrappers
+            and (current_function, selector.id) in safe_wrappers
         ):
             continue
         findings.append(
