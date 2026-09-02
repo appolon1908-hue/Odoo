@@ -577,6 +577,20 @@ class B:
                 )
             )
 
+    def test_cursor_dunder_call_execution_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/cursor_dunder_call.py",
+                "def apply(request):\n    request.env.cr.execute.__call__('DELETE FROM res_users')\n",
+            )
+            self.assertTrue(
+                any(
+                    "cursor execution" in finding
+                    for finding in hardening.python_findings(path, allow_cursor_sql=False)
+                )
+            )
+
     def test_reflectively_acquired_cursor_method_alias_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = self.write(
@@ -609,6 +623,18 @@ class B:
                 Path(directory),
                 "custom-addons/example/models/direct_reflective_process.py",
                 "import subprocess\ngetattr(subprocess, 'run')(['psql', 'database'])\n",
+            )
+            self.assertIn(
+                "Python process invocation of psql is prohibited",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
+    def test_constructed_reflective_process_launcher_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/constructed_process.py",
+                "import subprocess\ngetattr(subprocess, 'r' + 'un')(['psql', 'database'])\n",
             )
             self.assertIn(
                 "Python process invocation of psql is prohibited",

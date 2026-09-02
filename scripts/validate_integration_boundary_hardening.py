@@ -130,11 +130,7 @@ def assignment_bindings(target: ast.AST, value: ast.AST) -> list[tuple[str, ast.
 
 
 def static_string(node: ast.AST) -> str | None:
-    return (
-        node.value
-        if isinstance(node, ast.Constant) and isinstance(node.value, str)
-        else None
-    )
+    return static_text(node, {})
 
 
 def static_text(node: ast.AST | None, constants: dict[str, str]) -> str | None:
@@ -526,6 +522,24 @@ def is_cursor_execute(
             isinstance(call.func, ast.Attribute)
             and call.func.attr in {"execute", "executemany"}
             and expression_chain(call.func.value, aliases, "cursor")
+        )
+        or (
+            isinstance(call.func, ast.Attribute)
+            and call.func.attr == "__call__"
+            and (
+                (
+                    isinstance(call.func.value, ast.Attribute)
+                    and call.func.value.attr in {"execute", "executemany"}
+                    and expression_chain(call.func.value.value, aliases, "cursor")
+                )
+                or reflective_attribute(
+                    call.func.value,
+                    aliases,
+                    "cursor",
+                    {"execute", "executemany"},
+                )
+                or ".".join(attribute_chain(call.func.value)) in method_aliases
+            )
         )
         or (
             isinstance(call.func, (ast.Name, ast.Attribute))
