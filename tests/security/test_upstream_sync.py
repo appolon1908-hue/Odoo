@@ -356,6 +356,42 @@ class UpstreamSyncTests(unittest.TestCase):
             self.assertTrue((destination / "docs/item").is_file())
             self.assertEqual("second-file\n", (destination / "docs/item").read_text())
 
+    def test_nested_directory_replacement_recreates_removed_ancestor(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.add_module(source, "addons", "module_a", "first")
+            self.write(source, "docs/item", "file collision\n")
+            self.commit(source, "file form")
+            policy = self.prepare_destination(destination)
+            sync.synchronize(
+                upstream=source,
+                destination=destination,
+                policy_path=policy,
+                source_ref="main",
+            )
+
+            (source / "docs/item").unlink()
+            self.write(source, "docs/item/sub/child.txt", "nested form\n")
+            self.commit(source, "nested directory form")
+            sync.synchronize(
+                upstream=source,
+                destination=destination,
+                policy_path=policy,
+                source_ref="main",
+            )
+
+            self.assertEqual(
+                "nested form\n",
+                (destination / "docs/item/sub/child.txt").read_text(
+                    encoding="utf-8"
+                ),
+            )
+
     def test_later_sync_deletes_only_previously_managed_modules(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -754,6 +790,37 @@ class UpstreamSyncTests(unittest.TestCase):
                 (destination / "scripts/run_ci.sh").read_text(encoding="utf-8"),
             )
             self.assertFalse((destination / "scripts/validate_manifests.py").exists())
+
+    @unittest.skipUnless(hasattr(os, "symlink"), "symlink support is required")
+    def test_verify_state_rejects_managed_destination_symlink_ancestor(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.add_module(source, "addons", "module_a", "first")
+            self.write(source, "alias/CODEOWNERS", "managed bytes\n")
+            self.commit(source, "managed nested path")
+            policy = self.prepare_destination(destination)
+            sync.synchronize(
+                upstream=source,
+                destination=destination,
+                policy_path=policy,
+                source_ref="main",
+            )
+
+            shutil.rmtree(destination / "alias")
+            self.write(destination, ".github/CODEOWNERS", "managed bytes\n")
+            (destination / "alias").symlink_to(
+                ".github", target_is_directory=True
+            )
+
+            with self.assertRaisesRegex(
+                sync.SyncError, "managed overlay symlink ancestor"
+            ):
+                sync.verify_state(destination=destination, policy_path=policy)
 
     @unittest.skipUnless(hasattr(os, "symlink"), "symlink support is required")
     def test_stale_path_with_destination_symlink_ancestor_is_rejected(self) -> None:

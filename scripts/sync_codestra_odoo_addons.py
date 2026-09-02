@@ -233,15 +233,15 @@ def remove_path(path: Path) -> None:
 
 
 def ensure_parent_directory(path: Path) -> None:
-    parents: list[Path] = []
     current = path.parent
-    while current != current.parent and not current.exists():
-        parents.append(current)
+    while (
+        current != current.parent
+        and not current.exists()
+        and not current.is_symlink()
+    ):
         current = current.parent
-    if current.exists() and not current.is_dir():
+    if current.is_symlink() or (current.exists() and not current.is_dir()):
         remove_path(current)
-    for parent in reversed(parents):
-        parent.mkdir(exist_ok=True)
     path.parent.mkdir(parents=True, exist_ok=True)
 
 
@@ -765,6 +765,13 @@ def verify_state(*, destination: Path, policy_path: Path) -> dict[str, Any]:
     for relative in normalized_managed:
         source = snapshot / relative
         target = destination / relative
+        ancestor = destination
+        for part in relative.parts[:-1]:
+            ancestor /= part
+            require(
+                not ancestor.is_symlink(),
+                f"managed overlay symlink ancestor is prohibited: {relative}",
+            )
         require(
             source.exists() or source.is_symlink(),
             f"managed overlay snapshot node is missing: {relative}",
