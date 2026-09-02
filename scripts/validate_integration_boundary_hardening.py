@@ -559,6 +559,7 @@ def dynamic_model_selector(
     env_aliases: set[str],
     operator_modules: set[str] | None = None,
     operator_functions: set[str] | None = None,
+    environment_selector_functions: set[str] | None = None,
 ) -> ast.AST | None:
     if isinstance(node, ast.Subscript) and expression_chain(
         node.value, env_aliases, "environment"
@@ -597,7 +598,65 @@ def dynamic_model_selector(
             node.args[0], env_aliases, "environment"
         ):
             return node.args[1]
+    if (
+        isinstance(node, ast.Call)
+        and node.args
+        and isinstance(node.func, ast.Name)
+        and node.func.id in (environment_selector_functions or set())
+    ):
+        return node.args[0]
     return None
+
+
+def lexical_environment_selector_aliases(
+    tree: ast.AST,
+    environment_aliases: set[str],
+    scoped_environment_aliases: dict[ast.AST | None, set[str]],
+) -> dict[ast.AST | None, set[str]]:
+    """Resolve bound environment ``__getitem__`` callables per scope."""
+    enclosing = enclosing_functions(tree)
+    scopes: list[ast.AST | None] = [None, *[
+        node for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]]
+    result: dict[ast.AST | None, set[str]] = {}
+    for scope in scopes:
+        definitions: dict[str, list[ast.AST]] = defaultdict(list)
+        for node in ast.walk(tree if scope is None else scope):
+            if node is scope or enclosing.get(node) is not scope:
+                continue
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    for name, value in assignment_bindings(target, node.value):
+                        definitions[name].append(value)
+            elif isinstance(node, ast.AnnAssign) and node.value is not None:
+                for name in assigned_aliases(node.target):
+                    definitions[name].append(node.value)
+        effective_environments = environment_aliases | scoped_environment_aliases.get(scope, set())
+        selectors: set[str] = set()
+        for _ in range(len(definitions) + 1):
+            added = {
+                name
+                for name, values in definitions.items()
+                if name not in selectors
+                and any(
+                    (
+                        isinstance(value, ast.Attribute)
+                        and value.attr == "__getitem__"
+                        and expression_chain(value.value, effective_environments, "environment")
+                    )
+                    or reflective_attribute(
+                        value, effective_environments, "environment", {"__getitem__"}
+                    )
+                    or (isinstance(value, ast.Name) and value.id in selectors)
+                    for value in values
+                )
+            }
+            if not added:
+                break
+            selectors.update(added)
+        result[scope] = selectors
+    return result
 
 
 def is_acl_guarded_dynamic_browse(
@@ -954,6 +1013,45 @@ def enclosing_functions(
     return result
 
 
+def lexical_static_values(tree: ast.AST) -> set[str]:
+    """Resolve static assignment values without merging unrelated scopes."""
+    enclosing = enclosing_functions(tree)
+    scopes: list[ast.AST | None] = [None, *[
+        node for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]]
+    resolved_values: set[str] = set()
+    for scope in scopes:
+        definitions: dict[str, list[ast.AST]] = defaultdict(list)
+        for node in ast.walk(tree if scope is None else scope):
+            if node is scope or enclosing.get(node) is not scope:
+                continue
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    for name, value in assignment_bindings(target, node.value):
+                        definitions[name].append(value)
+            elif isinstance(node, ast.AnnAssign) and node.value is not None:
+                for name in assigned_aliases(node.target):
+                    definitions[name].append(node.value)
+        constants: dict[str, str] = {}
+        unresolved = set(definitions)
+        for _ in range(len(definitions) + 1):
+            progress = False
+            for name in tuple(unresolved):
+                values = [static_text(value, constants) for value in definitions[name]]
+                if any(value is None for value in values):
+                    continue
+                unresolved.remove(name)
+                unique = {value for value in values if value is not None}
+                if len(unique) == 1:
+                    constants[name] = unique.pop()
+                progress = True
+            if not progress:
+                break
+        resolved_values.update(constants.values())
+    return resolved_values
+
+
 def imported_process_functions(tree: ast.AST) -> tuple[set[str], set[str], set[str]]:
     subprocess_modules = {"subprocess", "asyncio"}
     os_modules = {"os"}
@@ -1115,6 +1213,15 @@ def is_process_reference(
 ) -> bool:
     if (
         isinstance(node, ast.Call)
+        and node.args
+        and (attribute_chain(node.func) or [""])[-1] == "partial"
+        and is_process_reference(
+            node.args[0], subprocess_modules, os_modules, bare_functions
+        )
+    ):
+        return True
+    if (
+        isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)
         and node.func.id == "getattr"
         and len(node.args) >= 2
@@ -1216,6 +1323,9 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
     env_names = transitive_aliases(tree, terminal="environment")
     scoped_cursor_names = lexical_aliases(tree, terminal="cursor")
     scoped_env_names = lexical_aliases(tree, terminal="environment")
+    scoped_env_selectors = lexical_environment_selector_aliases(
+        tree, env_names, scoped_env_names
+    )
     scoped_cursor_methods = lexical_cursor_method_aliases(
         tree, cursor_names, scoped_cursor_names
     )
@@ -1228,7 +1338,7 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
     sql_db_modules, sql_db_functions = odoo_sql_db_aliases(tree)
     operator_modules, operator_functions = operator_getitem_aliases(tree)
 
-    if any(DB_CREDENTIAL.search(value) for value in constants.values()) or any(
+    if any(DB_CREDENTIAL.search(value) for value in lexical_static_values(tree)) or any(
         isinstance(node, ast.Constant)
         and isinstance(node.value, str)
         and DB_CREDENTIAL.search(node.value)
@@ -1307,6 +1417,7 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
             effective_env_names,
             operator_modules,
             operator_functions,
+            scoped_env_selectors.get(scope, set()),
         )
         if selector is None:
             continue

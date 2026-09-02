@@ -679,6 +679,16 @@ class B:
                 hardening.python_findings(environment, allow_cursor_sql=False),
             )
 
+            bound_selector = self.write(
+                root,
+                "custom-addons/example/controllers/bound_selector.py",
+                "def apply(request, payload):\n    select = request.env.__getitem__\n    select(payload['model']).sudo().create({})\n",
+            )
+            self.assertIn(
+                "controller uses a caller-selected Odoo model; only static model names are allowed",
+                hardening.python_findings(bound_selector, allow_cursor_sql=False),
+            )
+
     def test_subprocess_executable_override_is_inspected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = self.write(
@@ -688,6 +698,30 @@ class B:
             )
             self.assertIn(
                 "Python process invocation of psql is prohibited",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
+    def test_partial_wrapped_process_callable_is_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/partial_process.py",
+                "from functools import partial\nimport subprocess\nlaunch = partial(subprocess.run, ['/usr/bin/psql', 'database'])\nlaunch()\n",
+            )
+            self.assertIn(
+                "unanalyzable process invocation is prohibited in Odoo addons",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
+    def test_database_credentials_are_resolved_per_lexical_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/scoped_dsn.py",
+                "SCHEME = 'postgres'\nREST = 'ql://odoo:secret@db/odoo'\nDSN = SCHEME + REST\ndef unrelated():\n    SCHEME = 'http'\n    return SCHEME\n",
+            )
+            self.assertIn(
+                "Python source contains database credentials or PostgreSQL DSN",
                 hardening.python_findings(path, allow_cursor_sql=False),
             )
 
