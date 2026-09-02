@@ -391,6 +391,42 @@ def lexical_cursor_method_aliases(
                 break
             methods.update(added)
         result[scope] = methods
+
+    functions = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+    calls = function_call_arguments(tree)
+    all_cursor_aliases = cursor_aliases | set().union(*scoped_cursor_aliases.values())
+    for _ in range(len(functions) + 1):
+        changed = False
+        for function in functions:
+            parameters = function_parameters(function)
+            for call in calls.get(function.name, []):
+                caller_methods = result.get(enclosing.get(call), set())
+                for index, parameter in enumerate(parameters):
+                    positional_index = index
+                    if isinstance(call.func, ast.Attribute) and parameters and parameters[0] in {"self", "cls"}:
+                        positional_index -= 1
+                    value = next(
+                        (item.value for item in call.keywords if item.arg == parameter),
+                        None,
+                    )
+                    if value is None and 0 <= positional_index < len(call.args):
+                        value = call.args[positional_index]
+                    is_bound_execute = (
+                        isinstance(value, ast.Attribute)
+                        and value.attr == "execute"
+                        and expression_chain(value.value, all_cursor_aliases, "cursor")
+                    ) or (
+                        isinstance(value, ast.Name) and value.id in caller_methods
+                    )
+                    if is_bound_execute and parameter not in result[function]:
+                        result[function].add(parameter)
+                        changed = True
+        if not changed:
+            break
     return result
 
 
@@ -635,6 +671,22 @@ def imported_process_functions(tree: ast.AST) -> tuple[set[str], set[str], set[s
                         bare_functions.add(alias.asname or alias.name)
     definitions = simple_assignments(tree)
     for _ in range(len(definitions) + 1):
+        added_subprocess: set[str] = set()
+        added_os: set[str] = set()
+        for name, values in definitions.items():
+            if len(values) != 1 or not isinstance(values[0], ast.Name):
+                continue
+            if values[0].id in subprocess_modules:
+                added_subprocess.add(name)
+            if values[0].id in os_modules:
+                added_os.add(name)
+        added_subprocess -= subprocess_modules
+        added_os -= os_modules
+        if not added_subprocess and not added_os:
+            break
+        subprocess_modules.update(added_subprocess)
+        os_modules.update(added_os)
+    for _ in range(len(definitions) + 1):
         added = set()
         for name, values in definitions.items():
             if name in bare_functions or len(values) != 1:
@@ -753,6 +805,18 @@ def odoo_sql_db_aliases(tree: ast.AST) -> tuple[set[str], set[str]]:
             for alias in node.names:
                 if alias.name == "sql_db":
                     modules.add(alias.asname or alias.name)
+    definitions = simple_assignments(tree)
+    for _ in range(len(definitions) + 1):
+        added = {
+            name
+            for name, values in definitions.items()
+            if len(values) == 1
+            and isinstance(values[0], ast.Name)
+            and values[0].id in modules
+        } - modules
+        if not added:
+            break
+        modules.update(added)
     return modules, functions
 
 

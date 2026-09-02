@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
@@ -451,10 +452,20 @@ def validate_addons(errors: list[str]) -> None:
 
 
 def is_module_migration_path(module_relative: str) -> bool:
-    """Recognize only migration directories rooted directly in an addon."""
+    """Recognize only versioned Odoo migration scripts rooted in an addon."""
 
     parts = PurePosixPath(module_relative).parts
-    return len(parts) >= 2 and parts[0] in {"migrations", "upgrades"}
+    return (
+        len(parts) == 3
+        and parts[0] in {"migrations", "upgrades"}
+        and bool(re.fullmatch(r"\d+(?:\.\d+)+", parts[1]))
+        and bool(
+            re.fullmatch(
+                r"(?:pre|post|end)(?:-(?:migrate|migration))?\.py",
+                parts[2],
+            )
+        )
+    )
 
     print(f"INTEGRATION_BOUNDARY_PINNED_MODULES={len(pinned)}")
     print(f"INTEGRATION_BOUNDARY_STRICT_OVERRIDES={len(overrides)}")

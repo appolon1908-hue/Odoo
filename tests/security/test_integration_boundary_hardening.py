@@ -21,6 +21,9 @@ class IntegrationBoundaryHardeningTests(unittest.TestCase):
         self.assertTrue(boundary.is_module_migration_path("upgrades/19.0.1.0/post.py"))
         self.assertFalse(boundary.is_module_migration_path("models/upgrades/job.py"))
         self.assertFalse(boundary.is_module_migration_path("controllers/migrations/proxy.py"))
+        self.assertFalse(boundary.is_module_migration_path("migrations/runtime.py"))
+        self.assertFalse(boundary.is_module_migration_path("migrations/not-a-version/job.py"))
+        self.assertFalse(boundary.is_module_migration_path("upgrades/models/proxy.py"))
 
     def test_shell_psql_and_database_credentials_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -169,6 +172,54 @@ def apply(self, env, cr):
             self.assertTrue(
                 any(
                     "cursor execution" in finding
+                    for finding in hardening.python_findings(
+                        path, allow_cursor_sql=False
+                    )
+                )
+            )
+
+    def test_bound_execute_forwarded_to_helper_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/job.py",
+                "def raw(execute):\n    execute('DELETE FROM x')\ndef apply(request):\n    raw(request.env.cr.execute)\n",
+            )
+            self.assertTrue(
+                any(
+                    "cursor execution" in finding
+                    for finding in hardening.python_findings(
+                        path, allow_cursor_sql=False
+                    )
+                )
+            )
+
+    def test_process_module_assignment_alias_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/process.py",
+                "import subprocess\nlauncher = subprocess\nlauncher.run('psql database')\n",
+            )
+            self.assertTrue(
+                any(
+                    "psql" in finding
+                    for finding in hardening.python_findings(
+                        path, allow_cursor_sql=False
+                    )
+                )
+            )
+
+    def test_sql_db_module_assignment_alias_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/database.py",
+                "from odoo import sql_db\ndatabase = sql_db\ndatabase.db_connect('database')\n",
+            )
+            self.assertTrue(
+                any(
+                    "sql_db connection helper" in finding
                     for finding in hardening.python_findings(
                         path, allow_cursor_sql=False
                     )
