@@ -19,11 +19,18 @@ CANARY_ENV = (
     ROOT / "deploy" / "environments" / "production-readonly-canary.env.example"
 )
 EVIDENCE_TEMPLATE = ROOT / "release" / "production-evidence-template.json"
-PINNED_ACTION = re.compile(r"uses:\s+[^\s@]+@[0-9a-f]{40}(?:\s+#.*)?$")
+GITHUB_ACTION = re.compile(
+    r"uses:\s+actions/[A-Za-z0-9_.-]+@[0-9a-f]{40}(?:\s+#.*)?$"
+)
 EXPECTED_IMAGE = "ghcr.io/appolon1908-hue/odoo"
 EXPECTED_BASE = (
     "docker.io/library/odoo@"
     "sha256:f54272f31d5f77e4146b887efb3761c98480317daf687e4b4b5e76ed8bcc08c5"
+)
+TRIVY_VERSION_LINE = 'TRIVY_VERSION: "0.74.0"'
+TRIVY_SHA_LINE = (
+    'TRIVY_ARCHIVE_SHA256: '
+    '"41839546f49977c0a26f86d83b0debb6d0d7bfa62b02092a136cd02bec86080d"'
 )
 EXPECTED_FLAGS = {
     "LIVE_ODOO_WRITE",
@@ -86,15 +93,17 @@ def string_set(value: Any, name: str, errors: list[str]) -> set[str]:
     return set(value)
 
 
-def pinned_actions(text: str, name: str, errors: list[str]) -> None:
+def github_owned_pinned_actions(text: str, name: str, errors: list[str]) -> None:
     action_lines = [
         line.strip() for line in text.splitlines() if line.strip().startswith("uses:")
     ]
     if not action_lines:
         errors.append(f"{name} contains no actions")
     for line in action_lines:
-        if not PINNED_ACTION.fullmatch(line):
-            errors.append(f"{name} action is not commit-pinned: {line}")
+        if not GITHUB_ACTION.fullmatch(line):
+            errors.append(
+                f"{name} action must be GitHub-owned and commit-pinned: {line}"
+            )
 
 
 def require_closed_flags(path: Path, errors: list[str]) -> None:
@@ -139,15 +148,13 @@ def validate_policy(policy: dict[str, Any], errors: list[str]) -> None:
         if image.get("base_image") != EXPECTED_BASE:
             errors.append("immutable_image.base_image must be the reviewed digest")
 
-    source_gates = string_set(
+    if string_set(
         policy.get("required_source_gates"), "required_source_gates", errors
-    )
-    runtime_gates = string_set(
-        policy.get("required_runtime_gates"), "required_runtime_gates", errors
-    )
-    if source_gates != EXPECTED_SOURCE_GATES:
+    ) != EXPECTED_SOURCE_GATES:
         errors.append("required_source_gates do not match the production contract")
-    if runtime_gates != EXPECTED_RUNTIME_GATES:
+    if string_set(
+        policy.get("required_runtime_gates"), "required_runtime_gates", errors
+    ) != EXPECTED_RUNTIME_GATES:
         errors.append("required_runtime_gates do not match the production contract")
     if string_set(
         policy.get("governed_runtime_flags"), "governed_runtime_flags", errors
@@ -168,8 +175,25 @@ def validate_policy(policy: dict[str, Any], errors: list[str]) -> None:
             errors.append(f"candidate_artifacts is missing {required!r}")
 
 
+def validate_scanner_install(text: str, name: str, errors: list[str]) -> None:
+    for required in (
+        TRIVY_VERSION_LINE,
+        TRIVY_SHA_LINE,
+        "Install checksum-verified Trivy",
+        "sha256sum --check --strict",
+        "aquasecurity/trivy/releases/download/v${TRIVY_VERSION}",
+        "trivy image",
+    ):
+        if required not in text:
+            errors.append(f"{name} is missing scanner control {required!r}")
+
+
 def validate_release_workflow(errors: list[str]) -> None:
-    text = RELEASE_WORKFLOW.read_text(encoding="utf-8") if RELEASE_WORKFLOW.is_file() else ""
+    text = (
+        RELEASE_WORKFLOW.read_text(encoding="utf-8")
+        if RELEASE_WORKFLOW.is_file()
+        else ""
+    )
     required = (
         "workflow_dispatch:",
         "expected_source_sha:",
@@ -184,17 +208,19 @@ def validate_release_workflow(errors: list[str]) -> None:
         "persist-credentials: false",
         "bash scripts/run_ci.sh",
         "bash scripts/build_release_candidate.sh",
-        "docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e",
-        "docker/login-action@dbcb813823bdd20940b903addbd779551569679f",
-        "docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a",
-        "aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25",
+        "docker login ghcr.io",
+        "docker manifest inspect \"$IMAGE_TAG\"",
+        "docker build \\",
+        "Block fixed critical vulnerabilities",
+        "Block secrets embedded in the image",
+        "Publish immutable SHA tag and resolve registry digest",
+        "docker push \"$IMAGE_TAG\"",
         "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
         "actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e",
         "subject-name:",
         "subject-digest:",
         "sbom-path:",
         "push-to-registry: true",
-        "docker push \"$IMAGE_TAG\"",
         "scripts/generate_container_release_manifest.py",
         "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
         "PRODUCTION_DEPLOYED=NO",
@@ -204,7 +230,9 @@ def validate_release_workflow(errors: list[str]) -> None:
     for item in required:
         if item not in text:
             errors.append(f"release workflow is missing {item!r}")
+    validate_scanner_install(text, RELEASE_WORKFLOW.name, errors)
 
+    lowered = text.lower()
     for forbidden in (
         "pull_request:\n",
         "schedule:\n",
@@ -218,17 +246,21 @@ def validate_release_workflow(errors: list[str]) -> None:
         "--update=",
         "--init=",
         ":latest",
+        "git push",
+        "gh release",
     ):
-        if forbidden in text.lower():
-            errors.append(f"release workflow contains prohibited operation {forbidden.strip()!r}")
+        if forbidden in lowered:
+            errors.append(
+                f"release workflow contains prohibited operation {forbidden.strip()!r}"
+            )
 
     scan_position = text.find("Block fixed critical vulnerabilities")
-    publish_position = text.find("Publish immutable SHA tag")
+    publish_position = text.find(
+        "Publish immutable SHA tag and resolve registry digest"
+    )
     if scan_position < 0 or publish_position < 0 or scan_position > publish_position:
         errors.append("container publication must occur only after the critical gate")
-    if "git push" in text.lower() or "gh release" in text.lower():
-        errors.append("release workflow must not mutate source or publish a GitHub release")
-    pinned_actions(text, RELEASE_WORKFLOW.name, errors)
+    github_owned_pinned_actions(text, RELEASE_WORKFLOW.name, errors)
 
 
 def validate_container_ci(errors: list[str]) -> None:
@@ -236,17 +268,22 @@ def validate_container_ci(errors: list[str]) -> None:
     for required in (
         "permissions:\n  contents: read",
         "persist-credentials: false",
-        "load: true",
+        "docker build \\",
         "deploy/container/Dockerfile",
         "Block fixed critical vulnerabilities",
         "Block secrets embedded in the image",
         "Generate container SPDX SBOM",
+        "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
     ):
         if required not in text:
             errors.append(f"production container CI is missing {required!r}")
+    validate_scanner_install(text, CONTAINER_CI.name, errors)
+
+    lowered = text.lower()
     for forbidden in (
         "packages: write",
         "id-token: write",
+        "docker login",
         "docker push",
         "push: true",
         "ssh ",
@@ -254,9 +291,11 @@ def validate_container_ci(errors: list[str]) -> None:
         "kubectl ",
         ":latest",
     ):
-        if forbidden in text.lower():
-            errors.append(f"production container CI contains prohibited {forbidden!r}")
-    pinned_actions(text, CONTAINER_CI.name, errors)
+        if forbidden in lowered:
+            errors.append(
+                f"production container CI contains prohibited {forbidden!r}"
+            )
+    github_owned_pinned_actions(text, CONTAINER_CI.name, errors)
 
 
 def validate_dockerfile(errors: list[str]) -> None:
@@ -320,7 +359,8 @@ def main() -> int:
 
     print("RELEASE_WORKFLOW_DISPATCH_ONLY=PASS")
     print("RELEASE_SOURCE_IDENTITY=SIGNED_MAIN_ONLY")
-    print("RELEASE_ACTIONS_PINNED=PASS")
+    print("RELEASE_ACTIONS=GITHUB_OWNED_AND_COMMIT_PINNED")
+    print("TRIVY_BINARY=VERSION_AND_SHA256_PINNED")
     print("PRODUCTION_IMAGE_BASE=DIGEST_PINNED")
     print("PRODUCTION_IMAGE_PUBLICATION=SCAN_GATED")
     print("PRODUCTION_ATTESTATIONS=SIGSTORE_REQUIRED")
