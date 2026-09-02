@@ -76,11 +76,15 @@ class MissionContractTests(unittest.TestCase):
         )
         self.assertIn("lfs: false", workflow)
         self.assertIn("git -C ../source lfs ls-files --name-only", workflow)
+        self.assertNotIn("lfs ls-files --name-only | grep -q", workflow)
         self.assertIn("'upstream_lfs_materialized': False", workflow)
         self.assertNotIn("'upstream_lfs_materialized': True", workflow)
         runner = (ROOT / "scripts/run_ci.sh").read_text(encoding="utf-8")
         self.assertIn('CI_PYCACHE_DIR="$(mktemp -d)"', runner)
         self.assertIn('export PYTHONPYCACHEPREFIX="$CI_PYCACHE_DIR"', runner)
+        self.assertIn('git cat-file -e "$treeish:config/upstream-sync-state.json"', runner)
+        self.assertIn("initialized upstream sync state is missing", runner)
+        self.assertIn("initialized upstream source snapshot is missing", runner)
         self.assertIn(
             'python3 -I -X pycache_prefix="$PYTHONPYCACHEPREFIX" -m compileall',
             runner,

@@ -18,7 +18,24 @@ while IFS= read -r -d '' script; do
   bash -n "$script"
 done < <(find scripts -type f -name '*.sh' -print0 | sort -z)
 
-if [[ -f config/upstream-sync-state.json ]]; then
+UPSTREAM_SYNC_INITIALIZED=NO
+if [[ -e config/upstream-sync-state.json || -e upstream/codestra-odoo-addons ]]; then
+  UPSTREAM_SYNC_INITIALIZED=YES
+fi
+for treeish in HEAD^ origin/main; do
+  if git cat-file -e "$treeish:config/upstream-sync-state.json" 2>/dev/null; then
+    UPSTREAM_SYNC_INITIALIZED=YES
+  fi
+done
+if [[ "$UPSTREAM_SYNC_INITIALIZED" == YES ]]; then
+  [[ -f config/upstream-sync-state.json ]] || {
+    printf '%s\n' 'initialized upstream sync state is missing' >&2
+    exit 1
+  }
+  [[ -d upstream/codestra-odoo-addons ]] || {
+    printf '%s\n' 'initialized upstream source snapshot is missing' >&2
+    exit 1
+  }
   printf '==> Verifying recorded upstream synchronization state\n'
   python3 -I scripts/sync_codestra_odoo_addons.py --verify-state
 fi

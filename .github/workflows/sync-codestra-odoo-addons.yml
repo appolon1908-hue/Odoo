@@ -133,7 +133,8 @@ jobs:
           set -Eeuo pipefail
           python3 scripts/validate_upstream_git_tree.py \
             --repository ../source
-          if git -C ../source lfs ls-files --name-only | grep -q .; then
+          lfs_paths="$(git -C ../source lfs ls-files --name-only)"
+          if [[ -n "$lfs_paths" ]]; then
             printf '%s\n' 'Git LFS inputs require a separately reviewed materialization contract.' >&2
             exit 1
           fi
@@ -427,7 +428,7 @@ jobs:
             printf -- '- Destination visibility: `private`\n'
             printf -- '- Protected environment: `odoo-upstream-source-sync`\n'
             printf -- '- Upstream Git submodules: `0`\n'
-            printf -- '- Git LFS objects materialized: `YES`\n'
+            printf -- '- Git LFS inputs: `NONE` (non-empty input is rejected)\n'
             printf -- '- Upstream history and file secret scans: `PASS`\n'
             printf -- '- Destination validation authority unchanged: `YES`\n'
             printf -- '- Ignored synchronized files force-staged and verified: `YES`\n'
@@ -605,7 +606,7 @@ jobs:
           ### Import behavior
 
           - built by a repository-read-only plan job using a protected main-only source credential;
-          - rejects uninitialized Git submodules and imports materialized Git LFS objects;
+          - rejects uninitialized Git submodules and all Git LFS inputs;
           - scans both upstream history and materialized files with the destination-pinned secret policy;
           - force-stages and verifies every synchronized path, including destination-ignored files;
           - materializes from the checksum-verified private plan artifact;
@@ -622,7 +623,7 @@ jobs:
           DESTINATION_VISIBILITY=private
           PROTECTED_ENVIRONMENT=odoo-upstream-source-sync
           UPSTREAM_GITLINKS=0
-          UPSTREAM_LFS_MATERIALIZED=YES
+          UPSTREAM_LFS_MATERIALIZED=NO
           UPSTREAM_SECRET_SCANS=PASS
           CANDIDATE_TREE_VERIFIED=YES
           DESTINATION_VALIDATION_AUTHORITY_UNCHANGED=YES
