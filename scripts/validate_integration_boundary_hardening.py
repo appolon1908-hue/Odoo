@@ -630,6 +630,19 @@ def is_acl_guarded_dynamic_browse(
     if len(browse_assignments) != 1:
         return False
     record_name = browse_assignments[0].targets[0].id
+    # Do not try to prove read-only behavior once the selected record escapes
+    # through another local name.  All uses must remain visibly rooted at the
+    # single guarded binding below.
+    if any(
+        isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr))
+        and any(
+            isinstance(value, ast.Name) and value.id == record_name
+            for value in ([node.value] if getattr(node, "value", None) is not None else [])
+        )
+        and node is not browse_assignments[0]
+        for node in ast.walk(function)
+    ):
+        return False
     model_methods = {
         node.func.attr
         for node in ast.walk(function)
@@ -669,16 +682,46 @@ def is_acl_guarded_dynamic_browse(
         for node in ast.walk(function)
     ):
         return False
-    return any(
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and isinstance(node.func.value, ast.Name)
-        and node.func.value.id == record_name
-        and node.func.attr == "check_access"
-        and node.args
-        and static_string(node.args[0]) == "read"
+    if any(
+        isinstance(node, ast.Subscript)
+        and isinstance(node.ctx, (ast.Store, ast.Del))
+        and isinstance(node.value, ast.Name)
+        and node.value.id == record_name
         for node in ast.walk(function)
-    )
+    ):
+        return False
+
+    # The guard must be an unconditional top-level statement after the browse.
+    # Merely finding it somewhere in the function would accept unreachable or
+    # caller-controlled checks and would not establish dominance.
+    browse_statement = browse_assignments[0]
+    try:
+        browse_index = function.body.index(browse_statement)
+    except ValueError:
+        return False
+    guard_indexes = [
+        index
+        for index, statement in enumerate(function.body)
+        if isinstance(statement, ast.Expr)
+        and isinstance(statement.value, ast.Call)
+        and isinstance(statement.value.func, ast.Attribute)
+        and isinstance(statement.value.func.value, ast.Name)
+        and statement.value.func.value.id == record_name
+        and statement.value.func.attr == "check_access"
+        and statement.value.args
+        and static_string(statement.value.args[0]) == "read"
+    ]
+    if len(guard_indexes) != 1 or guard_indexes[0] <= browse_index:
+        return False
+    for statement in function.body[browse_index + 1 : guard_indexes[0]]:
+        if any(
+            isinstance(child, ast.Name)
+            and child.id == record_name
+            and isinstance(child.ctx, ast.Load)
+            for child in ast.walk(statement)
+        ):
+            return False
+    return True
 
 
 def function_parameters(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
@@ -1009,6 +1052,10 @@ def is_process_call(
     os_modules: set[str],
     bare_functions: set[str],
 ) -> bool:
+    if is_process_reference(
+        call.func, subprocess_modules, os_modules, bare_functions
+    ):
+        return True
     chain = attribute_chain(call.func)
     if not chain:
         return False

@@ -83,14 +83,14 @@ def _resource_campaign(env, model_name, record_id):
     except KeyError:
         return env["cc.campaign"]
     record = model.browse(int(record_id)).exists()
-    if not record:
-        return env["cc.campaign"]
     # Generic mail models must never become an alternate route around the
     # linked business record's own ACLs and record rules.  The global mail
     # rules are intentionally not applied on create so legacy modules can
     # continue posting chatter before canonical memberships are reconciled;
     # this explicit check preserves fail-closed source ownership.
     record.check_access("read")
+    if not record:
+        return env["cc.campaign"]
     if record._name == "cc.campaign":
         return record
     if record._name == "call.center.campaign":

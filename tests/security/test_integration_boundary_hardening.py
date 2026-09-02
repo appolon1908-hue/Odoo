@@ -427,6 +427,29 @@ class B:
             self.assertNotIn(marker, hardening.python_findings(safe, allow_cursor_sql=False))
             self.assertIn(marker, hardening.python_findings(unsafe, allow_cursor_sql=False))
 
+    def test_acl_guarded_dynamic_browse_rejects_aliases_mutations_and_weak_guards(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cases = {
+                "alias.py": "other = record\n    other.write({'name': 'x'})",
+                "subscript.py": "record['name'] = 'x'",
+                "conditional.py": "if False:\n        record.check_access('read')",
+            }
+            marker = "controller uses a caller-selected Odoo model; only static model names are allowed"
+            for name, use in cases.items():
+                path = self.write(
+                    root,
+                    f"custom-addons/example/models/{name}",
+                    "def resolve(env, model_name, record_id):\n"
+                    "    model = env[model_name]\n"
+                    "    record = model.browse(record_id).exists()\n"
+                    f"    {use}\n"
+                    "    return record\n"
+                    "def caller(request, payload):\n"
+                    "    return resolve(request.env, payload['model'], payload['id'])\n",
+                )
+                self.assertIn(marker, hardening.python_findings(path, allow_cursor_sql=False), name)
+
     def test_process_module_aliases_are_lexically_scoped(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = self.write(
@@ -528,6 +551,18 @@ class B:
                 Path(directory),
                 "custom-addons/example/models/reflective_process.py",
                 "import subprocess\nlaunch = getattr(subprocess, 'run')\nlaunch(['psql', 'database'])\n",
+            )
+            self.assertIn(
+                "Python process invocation of psql is prohibited",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
+    def test_immediately_invoked_reflective_process_launcher_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/direct_reflective_process.py",
+                "import subprocess\ngetattr(subprocess, 'run')(['psql', 'database'])\n",
             )
             self.assertIn(
                 "Python process invocation of psql is prohibited",
