@@ -170,11 +170,12 @@ def reflective_attribute(
     aliases: set[str],
     terminal: str,
     names: set[str],
+    lookup_functions: set[str] | None = None,
 ) -> bool:
     return (
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)
-        and node.func.id == "getattr"
+        and node.func.id in ({"getattr"} | (lookup_functions or set()))
         and len(node.args) >= 2
         and expression_chain(node.args[0], aliases, terminal)
         and static_string(node.args[1]) in names
@@ -395,6 +396,7 @@ def lexical_cursor_method_aliases(
     tree: ast.AST,
     cursor_aliases: set[str],
     scoped_cursor_aliases: dict[ast.AST | None, set[str]],
+    lookup_functions: set[str],
 ) -> dict[ast.AST | None, set[str]]:
     """Resolve names bound to a cursor's ``execute`` method per scope."""
 
@@ -437,6 +439,7 @@ def lexical_cursor_method_aliases(
                         effective_cursors,
                         "cursor",
                         {"execute", "executemany"},
+                        lookup_functions,
                     )
                     or (
                         isinstance(value, ast.Call)
@@ -454,6 +457,7 @@ def lexical_cursor_method_aliases(
                                 effective_cursors,
                                 "cursor",
                                 {"execute", "executemany"},
+                                lookup_functions,
                             )
                         )
                     )
@@ -477,6 +481,27 @@ def lexical_cursor_method_aliases(
         changed = False
         for function in functions:
             parameters = function_parameters(function)
+            positional = [*function.args.posonlyargs, *function.args.args]
+            defaults = [None] * (len(positional) - len(function.args.defaults)) + list(function.args.defaults)
+            default_by_name = {
+                argument.arg: value
+                for argument, value in zip(positional, defaults)
+                if value is not None
+            }
+            default_by_name.update({
+                argument.arg: value
+                for argument, value in zip(function.args.kwonlyargs, function.args.kw_defaults)
+                if value is not None
+            })
+            for parameter, value in default_by_name.items():
+                if (
+                    isinstance(value, ast.Attribute)
+                    and value.attr in {"execute", "executemany"}
+                    and expression_chain(value.value, all_cursor_aliases, "cursor")
+                ) or reflective_attribute(
+                    value, all_cursor_aliases, "cursor", {"execute", "executemany"}, lookup_functions
+                ):
+                    result[function].add(parameter)
             for call in calls.get(function.name, []):
                 caller_methods = result.get(enclosing.get(call), set())
                 for index, parameter in enumerate(parameters):
@@ -500,6 +525,7 @@ def lexical_cursor_method_aliases(
                             all_cursor_aliases,
                             "cursor",
                             {"execute", "executemany"},
+                            lookup_functions,
                         )
                     ) or (
                         isinstance(value, ast.Name) and value.id in caller_methods
@@ -516,6 +542,7 @@ def is_cursor_execute(
     call: ast.Call,
     aliases: set[str],
     method_aliases: set[str],
+    lookup_functions: set[str],
 ) -> bool:
     return (
         (
@@ -537,6 +564,7 @@ def is_cursor_execute(
                     aliases,
                     "cursor",
                     {"execute", "executemany"},
+                    lookup_functions,
                 )
                 or ".".join(attribute_chain(call.func.value)) in method_aliases
             )
@@ -548,7 +576,7 @@ def is_cursor_execute(
         or (
             isinstance(call.func, ast.Call)
             and reflective_attribute(
-                call.func, aliases, "cursor", {"execute", "executemany"}
+                call.func, aliases, "cursor", {"execute", "executemany"}, lookup_functions
             )
         )
         or (
@@ -561,7 +589,7 @@ def is_cursor_execute(
                     and expression_chain(call.func.args[0].value, aliases, "cursor")
                 )
                 or reflective_attribute(
-                    call.func.args[0], aliases, "cursor", {"execute", "executemany"}
+                    call.func.args[0], aliases, "cursor", {"execute", "executemany"}, lookup_functions
                 )
                 or ".".join(attribute_chain(call.func.args[0])) in method_aliases
             )
@@ -569,7 +597,24 @@ def is_cursor_execute(
     )
 
 
-def container_values(node: ast.AST) -> list[ast.AST]:
+def container_constructor_aliases(tree: ast.AST) -> set[str]:
+    constructors = {"dict", "list", "tuple", "set"}
+    definitions = simple_assignments(tree)
+    for _ in range(len(definitions) + 1):
+        added = {
+            name
+            for name, values in definitions.items()
+            if len(values) == 1
+            and isinstance(values[0], ast.Name)
+            and values[0].id in constructors
+        } - constructors
+        if not added:
+            break
+        constructors.update(added)
+    return constructors
+
+
+def container_values(node: ast.AST, constructors: set[str]) -> list[ast.AST]:
     if isinstance(node, ast.Dict):
         return [*node.keys, *node.values]
     if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
@@ -577,28 +622,34 @@ def container_values(node: ast.AST) -> list[ast.AST]:
     if (
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)
-        and node.func.id in {"dict", "list", "tuple", "set"}
+        and node.func.id in constructors
     ):
         return [*node.args, *(keyword.value for keyword in node.keywords)]
     return []
 
 
-def is_cursor_method_reference(node: ast.AST, aliases: set[str]) -> bool:
+def is_cursor_method_reference(
+    node: ast.AST, aliases: set[str], lookup_functions: set[str]
+) -> bool:
     return (
         isinstance(node, ast.Attribute)
         and node.attr in {"execute", "executemany"}
         and expression_chain(node.value, aliases, "cursor")
     ) or reflective_attribute(
-        node, aliases, "cursor", {"execute", "executemany"}
+        node, aliases, "cursor", {"execute", "executemany"}, lookup_functions
     )
 
 
-def is_environment_selector_reference(node: ast.AST, aliases: set[str]) -> bool:
+def is_environment_selector_reference(
+    node: ast.AST, aliases: set[str], lookup_functions: set[str]
+) -> bool:
     return (
         isinstance(node, ast.Attribute)
         and node.attr == "__getitem__"
         and expression_chain(node.value, aliases, "environment")
-    ) or reflective_attribute(node, aliases, "environment", {"__getitem__"})
+    ) or reflective_attribute(
+        node, aliases, "environment", {"__getitem__"}, lookup_functions
+    )
 
 
 def operator_getitem_aliases(tree: ast.AST) -> tuple[set[str], set[str]]:
@@ -640,6 +691,7 @@ def dynamic_model_selector(
     operator_modules: set[str] | None = None,
     operator_functions: set[str] | None = None,
     environment_selector_functions: set[str] | None = None,
+    lookup_functions: set[str] | None = None,
 ) -> ast.AST | None:
     if isinstance(node, ast.Subscript) and expression_chain(
         node.value, env_aliases, "environment"
@@ -658,7 +710,7 @@ def dynamic_model_selector(
         and node.args
         and isinstance(node.func, ast.Call)
         and isinstance(node.func.func, ast.Name)
-        and node.func.func.id == "getattr"
+        and node.func.func.id in ({"getattr"} | (lookup_functions or set()))
         and len(node.func.args) >= 2
         and expression_chain(node.func.args[0], env_aliases, "environment")
         and static_string(node.func.args[1]) == "__getitem__"
@@ -693,6 +745,7 @@ def lexical_environment_selector_aliases(
     tree: ast.AST,
     environment_aliases: set[str],
     scoped_environment_aliases: dict[ast.AST | None, set[str]],
+    lookup_functions: set[str],
 ) -> dict[ast.AST | None, set[str]]:
     """Resolve bound environment ``__getitem__`` callables per scope."""
     enclosing = enclosing_functions(tree)
@@ -727,7 +780,7 @@ def lexical_environment_selector_aliases(
                         and expression_chain(value.value, effective_environments, "environment")
                     )
                     or reflective_attribute(
-                        value, effective_environments, "environment", {"__getitem__"}
+                        value, effective_environments, "environment", {"__getitem__"}, lookup_functions
                     )
                     or (
                         isinstance(value, ast.Call)
@@ -738,7 +791,7 @@ def lexical_environment_selector_aliases(
                                 and value.args[0].attr == "__getitem__"
                                 and expression_chain(value.args[0].value, effective_environments, "environment")
                             )
-                            or reflective_attribute(value.args[0], effective_environments, "environment", {"__getitem__"})
+                            or reflective_attribute(value.args[0], effective_environments, "environment", {"__getitem__"}, lookup_functions)
                             or ".".join(attribute_chain(value.args[0])) in selectors
                         )
                     )
@@ -780,7 +833,7 @@ def lexical_environment_selector_aliases(
                             and expression_chain(value.value, all_environments, "environment")
                         )
                         or reflective_attribute(
-                            value, all_environments, "environment", {"__getitem__"}
+                            value, all_environments, "environment", {"__getitem__"}, lookup_functions
                         )
                         or ".".join(attribute_chain(value)) in caller_selectors
                     )
@@ -1481,19 +1534,20 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
         return [f"cannot parse Python source: {exc}"]
 
     constants = static_assignments(tree)
+    lookup_functions = reflective_lookup_aliases(tree)
     cursor_names = transitive_aliases(tree, terminal="cursor")
     env_names = transitive_aliases(tree, terminal="environment")
     scoped_cursor_names = lexical_aliases(tree, terminal="cursor")
     scoped_env_names = lexical_aliases(tree, terminal="environment")
     scoped_env_selectors = lexical_environment_selector_aliases(
-        tree, env_names, scoped_env_names
+        tree, env_names, scoped_env_names, lookup_functions
     )
     scoped_cursor_methods = lexical_cursor_method_aliases(
-        tree, cursor_names, scoped_cursor_names
+        tree, cursor_names, scoped_cursor_names, lookup_functions
     )
     safe_wrappers = static_model_wrapper_parameters(tree, env_names)
     enclosing = enclosing_functions(tree)
-    lookup_functions = reflective_lookup_aliases(tree)
+    constructors = container_constructor_aliases(tree)
     subprocess_modules, os_modules, bare_process = imported_process_functions(
         tree, lookup_functions
     )
@@ -1530,9 +1584,11 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
             findings.append(
                 "process launcher capability references are prohibited in Odoo addons"
             )
-        values = container_values(node)
+        values = container_values(node, constructors)
         if any(
-            is_cursor_method_reference(value, effective_cursor_names)
+            is_cursor_method_reference(
+                value, effective_cursor_names, lookup_functions
+            )
             or (
                 isinstance(value, (ast.Name, ast.Attribute))
                 and ".".join(attribute_chain(value)) in effective_cursor_methods
@@ -1543,7 +1599,9 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
                 "cursor method capabilities stored in containers are prohibited"
             )
         if any(
-            is_environment_selector_reference(value, effective_env_names)
+            is_environment_selector_reference(
+                value, effective_env_names, lookup_functions
+            )
             or (
                 isinstance(value, (ast.Name, ast.Attribute))
                 and ".".join(attribute_chain(value)) in effective_env_selectors
@@ -1568,7 +1626,7 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
                 )
 
             if is_cursor_execute(
-                node, effective_cursor_names, effective_cursor_methods
+                node, effective_cursor_names, effective_cursor_methods, lookup_functions
             ) and not allow_cursor_sql:
                 findings.append(
                     "undeclared Odoo cursor execution is prohibited: "
@@ -1614,6 +1672,7 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
             operator_modules,
             operator_functions,
             scoped_env_selectors.get(scope, set()),
+            lookup_functions,
         )
         if selector is None:
             continue

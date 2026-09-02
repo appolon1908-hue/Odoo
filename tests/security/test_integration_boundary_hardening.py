@@ -736,6 +736,62 @@ class B:
                 "custom-addons/example/models/reflective_cursor_alias.py",
                 "def apply(request):\n    run_sql = getattr(request.env.cr, 'execute')\n    run_sql('DELETE FROM x')\n",
             )
+
+    def test_aliased_reflective_cursor_and_environment_access_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cursor = self.write(
+                root,
+                "custom-addons/example/models/aliased_reflective_cursor.py",
+                "def apply(request):\n    lookup = getattr\n    lookup(request.env.cr, 'execute')('DELETE FROM x')\n",
+            )
+            environment = self.write(
+                root,
+                "custom-addons/example/controllers/aliased_reflective_environment.py",
+                "def apply(request, payload):\n    lookup = getattr\n    lookup(request.env, '__getitem__')(payload['model']).sudo().create({})\n",
+            )
+            self.assertTrue(any(
+                "cursor execution" in finding
+                for finding in hardening.python_findings(cursor, allow_cursor_sql=False)
+            ))
+            self.assertTrue(any(
+                "caller-selected Odoo model" in finding
+                for finding in hardening.python_findings(environment, allow_cursor_sql=False)
+            ))
+
+    def test_aliased_container_constructor_capabilities_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cursor = self.write(
+                root,
+                "custom-addons/example/models/aliased_dict_cursor.py",
+                "def apply(request):\n    make = dict\n    return make(sql=request.env.cr.execute)\n",
+            )
+            environment = self.write(
+                root,
+                "custom-addons/example/controllers/aliased_dict_environment.py",
+                "def apply(request):\n    make = dict\n    return make(selector=request.env.__getitem__)\n",
+            )
+            self.assertIn(
+                "cursor method capabilities stored in containers are prohibited",
+                hardening.python_findings(cursor, allow_cursor_sql=False),
+            )
+            self.assertIn(
+                "environment selector capabilities stored in containers are prohibited",
+                hardening.python_findings(environment, allow_cursor_sql=False),
+            )
+
+    def test_cursor_callable_default_alias_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/default_cursor_callable.py",
+                "def apply(request):\n    def invoke(fn=request.env.cr.execute):\n        fn('DELETE FROM x')\n    invoke()\n",
+            )
+            self.assertTrue(any(
+                "cursor execution" in finding
+                for finding in hardening.python_findings(path, allow_cursor_sql=False)
+            ))
             self.assertTrue(
                 any(
                     "cursor execution" in finding
