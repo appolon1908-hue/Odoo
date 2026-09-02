@@ -178,7 +178,7 @@ def validate_symlinks(
             f"upstream symlink targets an excluded path: {relative}",
         )
         require(
-            not matches_any(target_relative, preserved),
+            not intersects_any(target_relative, preserved),
             f"upstream symlink targets a destination-preserved path: {relative}",
         )
 
@@ -592,7 +592,15 @@ def verify_state(*, destination: Path, policy_path: Path) -> dict[str, Any]:
         "sync state source SHA is invalid",
     )
     marker = load_json(destination / snapshot_relative / ".source.json")
-    require(marker.get("source_sha") == source_sha, "snapshot source SHA drift")
+    require(marker.get("schema_version") == state.get("schema_version"), "snapshot marker schema drift")
+    for field in (
+        "source_repository",
+        "source_ref",
+        "source_sha",
+        "source_tree",
+        "source_committed_at",
+    ):
+        require(marker.get(field) == state.get(field), f"snapshot {field} drift")
     expected_snapshot_sha256 = state.get("snapshot_tree_sha256")
     require(
         isinstance(expected_snapshot_sha256, str)

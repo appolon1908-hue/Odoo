@@ -182,6 +182,53 @@ class UpstreamSyncTests(unittest.TestCase):
                     source_ref="main",
                 )
 
+    def test_symlink_to_ancestor_of_destination_preserved_path_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.write(source, "tests/security/test_guard.py", "# upstream\n")
+            os.symlink("tests", source / "alias")
+            self.add_module(source, "addons", "module_a", "first")
+            self.commit(source, "symlink to preserved ancestor")
+            policy = self.prepare_destination(destination)
+
+            with self.assertRaisesRegex(sync.SyncError, "destination-preserved path"):
+                sync.synchronize(
+                    upstream=source,
+                    destination=destination,
+                    policy_path=policy,
+                    source_ref="main",
+                )
+
+    def test_verify_state_rejects_marker_provenance_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.add_module(source, "addons", "module_a", "first")
+            self.commit(source, "canonical source")
+            policy = self.prepare_destination(destination)
+            sync.synchronize(
+                upstream=source,
+                destination=destination,
+                policy_path=policy,
+                source_ref="main",
+            )
+            marker_path = destination / "upstream/codestra-odoo-addons/.source.json"
+            marker = json.loads(marker_path.read_text(encoding="utf-8"))
+            marker["source_ref"] = "unreviewed"
+            marker_path.write_text(json.dumps(marker), encoding="utf-8")
+
+            with self.assertRaisesRegex(sync.SyncError, "snapshot source_ref drift"):
+                sync.verify_state(destination=destination, policy_path=policy)
+
     def test_legacy_openerp_manifest_is_not_a_promotable_addon(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

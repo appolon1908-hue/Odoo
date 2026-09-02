@@ -99,7 +99,7 @@ modules. The controlled sync therefore:
 6. records the exact source commit and tree SHA;
 7. stores the complete source tree at `upstream/codestra-odoo-addons`;
 8. overlays every non-governance source file at the destination root;
-9. promotes each module containing `__manifest__.py` or `__openerp__.py` to
+9. promotes each module containing `__manifest__.py` to
    `custom-addons/<module_name>`;
 10. lets upstream source win on non-governance collisions;
 11. preserves destination `.github`, `config`, `scripts`, `tests/security`,
