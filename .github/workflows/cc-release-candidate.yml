@@ -26,6 +26,8 @@ concurrency:
 env:
   IMAGE_NAME: ghcr.io/appolon1908-hue/odoo
   IMAGE_TAG: ghcr.io/appolon1908-hue/odoo:sha-${{ inputs.expected_source_sha }}
+  TRIVY_VERSION: "0.74.0"
+  TRIVY_ARCHIVE_SHA256: "41839546f49977c0a26f86d83b0debb6d0d7bfa62b02092a136cd02bec86080d"
 
 jobs:
   build-signed-production-candidate:
@@ -85,6 +87,27 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install checksum-verified Trivy
+        run: |
+          set -Eeuo pipefail
+          archive="$RUNNER_TEMP/trivy-${TRIVY_VERSION}.tar.gz"
+          install_dir="$RUNNER_TEMP/trivy-bin"
+          curl \
+            --fail \
+            --location \
+            --retry 3 \
+            --show-error \
+            --silent \
+            --output "$archive" \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          printf '%s  %s\n' "$TRIVY_ARCHIVE_SHA256" "$archive" \
+            | sha256sum --check --strict
+          mkdir -p "$install_dir"
+          tar -xzf "$archive" -C "$install_dir" trivy
+          chmod 0755 "$install_dir/trivy"
+          printf '%s\n' "$install_dir" >> "$GITHUB_PATH"
+          "$install_dir/trivy" --version
+
       - name: Run exact-main source validation
         run: bash scripts/run_ci.sh
 
@@ -95,39 +118,39 @@ jobs:
           SOURCE_TESTS_STATUS: PASS
         run: bash scripts/build_release_candidate.sh
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
-
       - name: Authenticate to GitHub Container Registry
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          printf '%s' "$GHCR_TOKEN" \
+            | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          printf 'GHCR_AUTHENTICATION=PASS\n'
 
       - name: Refuse mutable SHA-tag replacement
         run: |
           set -Eeuo pipefail
-          if docker buildx imagetools inspect "$IMAGE_TAG" >/dev/null 2>&1; then
+          if docker manifest inspect "$IMAGE_TAG" >/dev/null 2>&1; then
             printf 'ERROR=IMMUTABLE_IMAGE_TAG_ALREADY_EXISTS:%s\n' "$IMAGE_TAG" >&2
             exit 1
           fi
           printf 'IMMUTABLE_IMAGE_TAG_AVAILABLE=PASS\n'
 
       - name: Build production image locally for security gates
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: .
-          file: deploy/container/Dockerfile
-          load: true
-          pull: true
-          no-cache: true
-          platforms: linux/amd64
-          tags: ${{ env.IMAGE_TAG }}
-          build-args: |
-            SOURCE_SHA=${{ inputs.expected_source_sha }}
-          provenance: false
-          sbom: false
+        env:
+          DOCKER_BUILDKIT: "1"
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+        run: |
+          set -Eeuo pipefail
+          docker build \
+            --pull \
+            --no-cache \
+            --platform linux/amd64 \
+            --file deploy/container/Dockerfile \
+            --tag "$IMAGE_TAG" \
+            --build-arg "SOURCE_SHA=$EXPECTED_SOURCE_SHA" \
+            .
+          printf 'PRODUCTION_IMAGE_BUILD=PASS\n'
 
       - name: Verify image identity and reviewed addon content
         env:
@@ -146,98 +169,92 @@ jobs:
           printf 'PRODUCTION_IMAGE_CONTENT=PASS\n'
 
       - name: Block fixed critical vulnerabilities
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ env.IMAGE_TAG }}
-          format: table
-          exit-code: "1"
-          ignore-unfixed: "true"
-          severity: CRITICAL
-          scanners: vuln
-          cache: "true"
-
-      - name: Block secrets embedded in the image
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ env.IMAGE_TAG }}
-          format: table
-          exit-code: "1"
-          scanners: secret
-          cache: "true"
-
-      - name: Record complete high and critical vulnerability evidence
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ env.IMAGE_TAG }}
-          format: json
-          output: dist/container-vulnerabilities.json
-          exit-code: "0"
-          ignore-unfixed: "false"
-          severity: HIGH,CRITICAL
-          scanners: vuln
-          cache: "true"
-
-      - name: Record image secret-scan evidence
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ env.IMAGE_TAG }}
-          format: json
-          output: dist/container-secrets.json
-          exit-code: "0"
-          scanners: secret
-          cache: "true"
-
-      - name: Generate complete container SPDX SBOM
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ env.IMAGE_TAG }}
-          format: spdx-json
-          output: dist/container-sbom.spdx.json
-          exit-code: "0"
-          cache: "true"
-
-      - name: Publish immutable SHA tag
         run: |
           set -Eeuo pipefail
-          docker push "$IMAGE_TAG"
-          printf 'IMAGE_TAG_PUBLISHED=%s\n' "$IMAGE_TAG"
+          trivy image \
+            --cache-dir "$RUNNER_TEMP/trivy-cache" \
+            --timeout 20m \
+            --scanners vuln \
+            --severity CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --format table \
+            "$IMAGE_TAG"
 
-      - name: Resolve immutable registry digest
+      - name: Block secrets embedded in the image
+        run: |
+          set -Eeuo pipefail
+          trivy image \
+            --cache-dir "$RUNNER_TEMP/trivy-cache" \
+            --timeout 20m \
+            --scanners secret \
+            --exit-code 1 \
+            --format table \
+            "$IMAGE_TAG"
+
+      - name: Record complete high and critical vulnerability evidence
+        run: |
+          set -Eeuo pipefail
+          trivy image \
+            --cache-dir "$RUNNER_TEMP/trivy-cache" \
+            --timeout 20m \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --format json \
+            --output dist/container-vulnerabilities.json \
+            "$IMAGE_TAG"
+          test -s dist/container-vulnerabilities.json
+
+      - name: Record image secret-scan evidence
+        run: |
+          set -Eeuo pipefail
+          trivy image \
+            --cache-dir "$RUNNER_TEMP/trivy-cache" \
+            --timeout 20m \
+            --scanners secret \
+            --format json \
+            --output dist/container-secrets.json \
+            "$IMAGE_TAG"
+          test -s dist/container-secrets.json
+
+      - name: Generate complete container SPDX SBOM
+        run: |
+          set -Eeuo pipefail
+          trivy image \
+            --cache-dir "$RUNNER_TEMP/trivy-cache" \
+            --timeout 20m \
+            --format spdx-json \
+            --output dist/container-sbom.spdx.json \
+            "$IMAGE_TAG"
+          test -s dist/container-sbom.spdx.json
+          printf 'CONTAINER_SBOM=PASS\n'
+
+      - name: Publish immutable SHA tag and resolve registry digest
         id: image
         run: |
           set -Eeuo pipefail
-          docker buildx imagetools inspect "$IMAGE_TAG" \
-            --format '{{json .Manifest}}' \
-            > "$RUNNER_TEMP/image-manifest.json"
-          digest="$(python3 - "$RUNNER_TEMP/image-manifest.json" <<'PY'
-          import json
+          push_log="$RUNNER_TEMP/docker-push.log"
+          docker push "$IMAGE_TAG" 2>&1 | tee "$push_log"
+          digest="$(python3 - "$push_log" <<'PY'
           import pathlib
           import re
           import sys
 
-          document = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
-          candidates = []
-          if isinstance(document, dict):
-              candidates.extend((document.get("digest"), document.get("Digest")))
-              descriptor = document.get("descriptor") or document.get("Descriptor")
-              if isinstance(descriptor, dict):
-                  candidates.extend((descriptor.get("digest"), descriptor.get("Digest")))
-          digest = next(
-              (
-                  value
-                  for value in candidates
-                  if isinstance(value, str)
-                  and re.fullmatch(r"sha256:[0-9a-f]{64}", value)
-              ),
-              None,
-          )
-          if digest is None:
+          text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+          matches = re.findall(r"digest:\s+(sha256:[0-9a-f]{64})", text)
+          if not matches:
               raise SystemExit("ERROR=UNABLE_TO_RESOLVE_REGISTRY_DIGEST")
-          print(digest)
+          print(matches[-1])
           PY
           )"
+          case "$digest" in
+            sha256:????????????????????????????????????????????????????????????????) ;;
+            *) printf 'ERROR=INVALID_REGISTRY_DIGEST:%s\n' "$digest" >&2; exit 1 ;;
+          esac
+          docker manifest inspect "$IMAGE_NAME@$digest" >/dev/null
           printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
           printf 'IMAGE_DIGEST=%s\n' "$digest" >> "$GITHUB_ENV"
+          printf 'IMAGE_TAG_PUBLISHED=%s\n' "$IMAGE_TAG"
           printf 'IMMUTABLE_IMAGE_REFERENCE=%s@%s\n' "$IMAGE_NAME" "$digest"
 
       - name: Create signed SLSA provenance
