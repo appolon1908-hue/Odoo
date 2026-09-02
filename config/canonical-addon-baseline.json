@@ -32,9 +32,9 @@
   "strict_mission_overrides": {
     "call_center_campaign": {
       "base_tree": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
-      "current_tree": "9a5c4fefb7f5a51a1260c0134b26cc95a87c0960",
-      "reason": "Preserve the reviewed provider activity endpoint and its Stage 3 compatibility backfills while allowing the isolated provider identity to post chatter through read-only contact access only when the model override confirms the contact belongs to one of that identity's authorized business units, without granting contact write permission.",
-      "pull_request": 47,
+      "current_tree": "caa9cabfb9e83d6865d2b62dbb6bedd7b950160b",
+      "reason": "Preserve the reviewed provider activity and Stage 3 compatibility boundaries while exposing canonical operational aliases through the same handlers, adding fail-closed runtime capability readback, and retaining the isolated provider identity's business-unit-scoped read-only contact access without granting contact write permission.",
+      "pull_request": 58,
       "integration_boundary_exceptions": [
         {
           "path": "controllers/integration_api.py",
