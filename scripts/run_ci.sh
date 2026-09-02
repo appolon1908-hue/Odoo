@@ -4,6 +4,12 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+if [[ -z "${PYTHONPYCACHEPREFIX:-}" ]]; then
+  CI_PYCACHE_DIR="$(mktemp -d)"
+  export PYTHONPYCACHEPREFIX="$CI_PYCACHE_DIR"
+  trap 'rm -rf -- "$CI_PYCACHE_DIR"' EXIT
+fi
+
 printf '==> Checking Git whitespace errors\n'
 git diff --check
 

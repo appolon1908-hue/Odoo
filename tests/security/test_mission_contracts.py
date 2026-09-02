@@ -68,6 +68,10 @@ class MissionContractTests(unittest.TestCase):
             'export PYTHONPYCACHEPREFIX="${RUNNER_TEMP}/destination-python-cache"',
             workflow,
         )
+        runner = (ROOT / "scripts/run_ci.sh").read_text(encoding="utf-8")
+        self.assertIn('CI_PYCACHE_DIR="$(mktemp -d)"', runner)
+        self.assertIn('export PYTHONPYCACHEPREFIX="$CI_PYCACHE_DIR"', runner)
+        self.assertIn("trap 'rm -rf -- \"$CI_PYCACHE_DIR\"' EXIT", runner)
 
     def test_runtime_ci_passwords_cannot_be_parsed_as_cli_options(self):
         runner = (ROOT / "scripts/run_odoo_module_tests.sh").read_text(
