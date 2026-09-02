@@ -280,7 +280,21 @@ jobs:
               raise SystemExit(
                   'candidate index omitted synchronized paths:\n' + '\n'.join(missing)
               )
+          for rendered in sorted(required):
+              path = Path(rendered)
+              payload = os.readlink(path).encode() if path.is_symlink() else path.read_bytes()
+              expected = subprocess.check_output(
+                  ['git', 'hash-object', '--stdin'], input=payload, text=False
+              ).decode().strip()
+              staged = subprocess.check_output(
+                  ['git', 'rev-parse', f':{rendered}'], text=True
+              ).strip()
+              if staged != expected:
+                  raise SystemExit(
+                      f'candidate index bytes differ from validated source: {rendered}'
+                  )
           print(f'CANDIDATE_TRACKED_PATHS_VERIFIED={len(required)}')
+          print('CANDIDATE_STAGED_BLOBS_VERIFIED=YES')
           PY
 
           candidate_tree="$(git write-tree)"
@@ -495,9 +509,10 @@ jobs:
       - name: Commit or reuse the immutable review branch
         id: push
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.ODOO_SYNC_PR_TOKEN }}
         run: |
           set -Eeuo pipefail
+          test -n "$GH_TOKEN"
           branch="sync/codestra-odoo-${SOURCE_SHA:0:12}-${TARGET_SHA:0:8}"
           git config user.name 'codestra-upstream-sync[bot]'
           git config user.email 'codestra-upstream-sync[bot]@users.noreply.github.com'
@@ -528,10 +543,11 @@ jobs:
 
       - name: Open the protected upstream import pull request
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.ODOO_SYNC_PR_TOKEN }}
           BRANCH: ${{ steps.push.outputs.branch }}
         run: |
           set -Eeuo pipefail
+          test -n "$GH_TOKEN"
           body_file="$(mktemp)"
           cat > "$body_file" <<'EOF'
           ## Exact upstream import

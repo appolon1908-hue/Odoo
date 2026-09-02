@@ -303,6 +303,76 @@ class UpstreamSyncTests(unittest.TestCase):
                     source_ref="main",
                 )
 
+    @unittest.skipUnless(hasattr(os, "symlink"), "symlink support is required")
+    def test_preserved_child_cannot_be_replaced_by_upstream_ancestor_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.add_module(source, "addons", "module_a", "first")
+            self.write(source, "payload/security/test_guard.py", "raise SystemExit(1)\n")
+            (source / "tests").symlink_to("payload", target_is_directory=True)
+            self.commit(source, "ancestor symlink")
+            policy = self.prepare_destination(destination)
+
+            sync.synchronize(
+                upstream=source,
+                destination=destination,
+                policy_path=policy,
+                source_ref="main",
+            )
+            self.assertTrue((destination / "tests").is_dir())
+            self.assertFalse((destination / "tests").is_symlink())
+            self.assertEqual(
+                "# preserved\n",
+                (destination / "tests/security/test_guard.py").read_text(),
+            )
+
+    @unittest.skipUnless(hasattr(os, "symlink"), "symlink support is required")
+    def test_runtime_root_symlink_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.add_module(source, "addons", "module_a", "first")
+            (source / "custom-addons").symlink_to("addons", target_is_directory=True)
+            self.commit(source, "runtime root symlink")
+            policy = self.prepare_destination(destination)
+
+            with self.assertRaisesRegex(sync.SyncError, "runtime addon root"):
+                sync.synchronize(
+                    upstream=source,
+                    destination=destination,
+                    policy_path=policy,
+                    source_ref="main",
+                )
+
+    def test_upstream_source_marker_name_is_reserved(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.write(source, ".source.json", '{"untrusted": true}\n')
+            self.commit(source, "reserved marker")
+            policy = self.prepare_destination(destination)
+
+            with self.assertRaisesRegex(sync.SyncError, "reserves .source.json"):
+                sync.synchronize(
+                    upstream=source,
+                    destination=destination,
+                    policy_path=policy,
+                    source_ref="main",
+                )
+
     def test_policy_rejects_replaceable_destination_validation_roots(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory)

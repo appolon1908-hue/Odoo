@@ -74,6 +74,13 @@ def matches_any(relative: Path, configured: Iterable[Path]) -> bool:
     return any(path_is_within(relative, item) for item in configured)
 
 
+def intersects_any(relative: Path, configured: Iterable[Path]) -> bool:
+    return any(
+        path_is_within(relative, item) or path_is_within(item, relative)
+        for item in configured
+    )
+
+
 def load_policy(path: Path = DEFAULT_POLICY) -> dict[str, Any]:
     policy = load_json(path)
     require(policy.get("schema_version") == "1.0", "unsupported sync policy")
@@ -313,6 +320,11 @@ def mirror_snapshot(
     excluded: Sequence[Path],
     marker: Mapping[str, Any],
 ) -> None:
+    reserved_marker = upstream / ".source.json"
+    require(
+        not reserved_marker.exists() and not reserved_marker.is_symlink(),
+        "upstream source reserves .source.json for generated provenance",
+    )
     snapshot = destination / snapshot_relative
     remove_path(snapshot)
 
@@ -352,7 +364,7 @@ def overlay_source(
     entries = [
         (relative, source)
         for relative, source in iter_source_nodes(upstream, excluded)
-        if not matches_any(relative, preserved)
+        if not intersects_any(relative, preserved)
     ]
     managed = {relative.as_posix() for relative, _source in entries}
 
@@ -466,6 +478,11 @@ def synchronize(
     )
 
     validate_symlinks(upstream, excluded)
+    upstream_runtime_root = upstream / runtime_relative
+    require(
+        not upstream_runtime_root.is_symlink(),
+        "upstream runtime addon root must not be a symlink",
+    )
     identity = source_identity(upstream)
     old = previous_state(destination, state_relative)
     previous_managed = {
