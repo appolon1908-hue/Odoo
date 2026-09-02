@@ -92,7 +92,7 @@ def _resource_campaign(env, model_name, record_id):
     if not record:
         return env["cc.campaign"]
     if record._name == "cc.campaign":
-        return record
+        return env["cc.campaign"].browse(record.id)
     if record._name == "call.center.campaign":
         return _canonical_from_legacy(env, record.id)
     if "campaign_id" in record._fields:

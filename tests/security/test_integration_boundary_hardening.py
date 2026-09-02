@@ -416,7 +416,7 @@ class B:
             safe = self.write(
                 root,
                 "custom-addons/example/models/safe_browse.py",
-                "def resolve(env, model_name, record_id):\n    model = env[model_name]\n    record = model.browse(record_id).exists()\n    record.check_access('read')\n    return record\ndef caller(request, payload):\n    return resolve(request.env, payload['model'], payload['id'])\n",
+                "def resolve(env, model_name, record_id):\n    model = env[model_name]\n    record = model.browse(record_id).exists()\n    record.check_access('read')\n    return record.id\ndef caller(request, payload):\n    return resolve(request.env, payload['model'], payload['id'])\n",
             )
             unsafe = self.write(
                 root,
@@ -464,6 +464,19 @@ class B:
                 "    return resolve(request.env, payload['model'], payload['id'], payload['values'])\n",
             )
             self.assertIn(marker, hardening.python_findings(nested, allow_cursor_sql=False))
+
+            returned = self.write(
+                root,
+                "custom-addons/example/models/returned_record.py",
+                "def resolve(env, model_name, record_id):\n"
+                "    model = env[model_name]\n"
+                "    record = model.browse(record_id).exists()\n"
+                "    record.check_access('read')\n"
+                "    return [record]\n"
+                "def caller(request, payload):\n"
+                "    return resolve(request.env, payload['model'], payload['id'])[0].sudo().write({})\n",
+            )
+            self.assertIn(marker, hardening.python_findings(returned, allow_cursor_sql=False))
 
             for name, use in {
                 "setattr_escape.py": "setattr(record, 'name', value)",
@@ -646,6 +659,42 @@ class B:
                     for finding in hardening.python_findings(path, allow_cursor_sql=False)
                 )
             )
+
+    def test_unpacked_cursor_and_environment_aliases_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cursor = self.write(
+                root,
+                "custom-addons/example/models/unpacked_cursor.py",
+                "def apply(request):\n    cursor, unused = request.env.cr, None\n    cursor.execute('DELETE FROM res_users')\n",
+            )
+            environment = self.write(
+                root,
+                "custom-addons/example/controllers/unpacked_env.py",
+                "def apply(request, payload):\n    env, unused = request.env, None\n    env[payload['model']].sudo().write({})\n",
+            )
+            self.assertTrue(any("cursor execution" in item for item in hardening.python_findings(cursor, allow_cursor_sql=False)))
+            self.assertIn(
+                "controller uses a caller-selected Odoo model; only static model names are allowed",
+                hardening.python_findings(environment, allow_cursor_sql=False),
+            )
+
+    def test_subprocess_executable_override_is_inspected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/executable_override.py",
+                "import subprocess\nsubprocess.run(['ignored', 'database'], executable='/usr/bin/psql')\n",
+            )
+            self.assertIn(
+                "Python process invocation of psql is prohibited",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
+    def test_policy_pins_canonical_command_type_and_version(self) -> None:
+        source = (hardening.ROOT / "scripts/validate_platform_control_plane.py").read_text(encoding="utf-8")
+        self.assertIn('bridge.get("canonical_command_type") != expected["canonical_command_type"]', source)
+        self.assertIn('bridge.get("canonical_command_version") != expected["canonical_command_version"]', source)
 
     def test_private_model_wrapper_is_allowed_only_for_literal_callers(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

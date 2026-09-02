@@ -194,6 +194,10 @@ def main() -> int:
     bridge = policy.get("orm_bridge", {})
     if bridge.get("module_name") != "codestra_middleware_bridge":
         fail("machine integration policy names a non-canonical bridge module")
+    if bridge.get("canonical_command_type") != expected["canonical_command_type"]:
+        fail("machine integration policy command type drifted")
+    if bridge.get("canonical_command_version") != expected["canonical_command_version"]:
+        fail("machine integration policy command version drifted")
     if bridge.get("canonical_command_path") != expected["canonical_command_path"]:
         fail("machine integration policy command path drifted")
     if bridge.get("canonical_status_path") != expected["canonical_status_path"]:

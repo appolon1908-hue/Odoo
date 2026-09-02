@@ -115,6 +115,20 @@ def assigned_aliases(node: ast.AST) -> set[str]:
     return assigned_names(node)
 
 
+def assignment_bindings(target: ast.AST, value: ast.AST) -> list[tuple[str, ast.AST]]:
+    """Pair destructured names with their corresponding values."""
+    if (
+        isinstance(target, (ast.Tuple, ast.List))
+        and isinstance(value, (ast.Tuple, ast.List))
+        and len(target.elts) == len(value.elts)
+    ):
+        pairs: list[tuple[str, ast.AST]] = []
+        for child_target, child_value in zip(target.elts, value.elts):
+            pairs.extend(assignment_bindings(child_target, child_value))
+        return pairs
+    return [(name, value) for name in assigned_aliases(target)]
+
+
 def static_string(node: ast.AST) -> str | None:
     return (
         node.value
@@ -176,9 +190,8 @@ def simple_assignments(tree: ast.AST) -> dict[str, list[ast.AST]]:
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign):
             for target in node.targets:
-                names = assigned_aliases(target)
-                for name in names:
-                    definitions[name].append(node.value)
+                for name, value in assignment_bindings(target, node.value):
+                    definitions[name].append(value)
         elif isinstance(node, ast.AnnAssign) and node.value is not None:
             names = assigned_aliases(node.target)
             if len(names) == 1:
@@ -362,8 +375,8 @@ def lexical_aliases(
                 continue
             if isinstance(node, ast.Assign):
                 for target in node.targets:
-                    for name in assigned_aliases(target):
-                        definitions[name].append(node.value)
+                    for name, value in assignment_bindings(target, node.value):
+                        definitions[name].append(value)
             elif isinstance(node, ast.AnnAssign) and node.value is not None:
                 names = assigned_aliases(node.target)
                 if len(names) == 1:
@@ -403,8 +416,8 @@ def lexical_cursor_method_aliases(
                 continue
             if isinstance(node, ast.Assign):
                 for target in node.targets:
-                    for name in assigned_aliases(target):
-                        definitions[name].append(node.value)
+                    for name, value in assignment_bindings(target, node.value):
+                        definitions[name].append(value)
             elif isinstance(node, ast.AnnAssign) and node.value is not None:
                 names = assigned_aliases(node.target)
                 if len(names) == 1:
@@ -722,6 +735,13 @@ def is_acl_guarded_dynamic_browse(
         and isinstance(node.ctx, (ast.Store, ast.Del))
         and isinstance(node.value, ast.Name)
         and node.value.id == record_name
+        for node in ast.walk(function)
+    ):
+        return False
+    if any(
+        isinstance(node, (ast.Return, ast.Yield, ast.YieldFrom))
+        and node.value is not None
+        and passes_record_object(node.value)
         for node in ast.walk(function)
     ):
         return False
@@ -1051,18 +1071,6 @@ def lexical_process_aliases(
     ]]
     result: dict[ast.AST | None, tuple[set[str], set[str], set[str]]] = {}
 
-    def bind(target: ast.AST, value: ast.AST) -> list[tuple[str, ast.AST]]:
-        if (
-            isinstance(target, (ast.Tuple, ast.List))
-            and isinstance(value, (ast.Tuple, ast.List))
-            and len(target.elts) == len(value.elts)
-        ):
-            pairs: list[tuple[str, ast.AST]] = []
-            for child_target, child_value in zip(target.elts, value.elts):
-                pairs.extend(bind(child_target, child_value))
-            return pairs
-        return [(name, value) for name in assigned_aliases(target)]
-
     for scope in scopes:
         definitions: dict[str, list[ast.AST]] = defaultdict(list)
         for node in ast.walk(tree if scope is None else scope):
@@ -1070,7 +1078,7 @@ def lexical_process_aliases(
                 continue
             if isinstance(node, ast.Assign):
                 for target in node.targets:
-                    for name, value in bind(target, node.value):
+                    for name, value in assignment_bindings(target, node.value):
                         definitions[name].append(value)
             elif isinstance(node, ast.AnnAssign) and node.value is not None:
                 for name in assigned_aliases(node.target):
@@ -1262,7 +1270,10 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
                 )
 
             if is_process_call(node, effective_subprocess, effective_os, effective_process):
-                command_node = process_command_node(node)
+                command_nodes = [process_command_node(node)]
+                command_nodes.extend(
+                    keyword.value for keyword in node.keywords if keyword.arg == "executable"
+                )
                 current_function = enclosing.get(node)
                 local_names = set(function_parameters(current_function)) if current_function is not None else set()
                 if current_function is not None:
@@ -1273,22 +1284,23 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
                         and isinstance(child.ctx, ast.Store)
                         and enclosing.get(child) is current_function
                     )
-                shadowed_local = command_node is not None and any(
-                    isinstance(child, ast.Name) and child.id in local_names
-                    for child in ast.walk(command_node)
-                )
-                command_text = None if shadowed_local else static_text(command_node, constants)
-                if command_text is None:
-                    findings.append(
-                        "unanalyzable process invocation is prohibited in Odoo addons"
+                for command_node in command_nodes:
+                    shadowed_local = command_node is not None and any(
+                        isinstance(child, ast.Name) and child.id in local_names
+                        for child in ast.walk(command_node)
                     )
-                else:
-                    if PSQL_TOKEN.search(command_text):
-                        findings.append("Python process invocation of psql is prohibited")
-                    if DB_CREDENTIAL.search(command_text):
+                    command_text = None if shadowed_local else static_text(command_node, constants)
+                    if command_text is None:
                         findings.append(
-                            "Python process invocation contains database credentials"
+                            "unanalyzable process invocation is prohibited in Odoo addons"
                         )
+                    else:
+                        if PSQL_TOKEN.search(command_text):
+                            findings.append("Python process invocation of psql is prohibited")
+                        if DB_CREDENTIAL.search(command_text):
+                            findings.append(
+                                "Python process invocation contains database credentials"
+                            )
 
         selector = dynamic_model_selector(
             node,
