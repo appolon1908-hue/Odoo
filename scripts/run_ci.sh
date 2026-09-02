@@ -12,13 +12,13 @@ while IFS= read -r -d '' script; do
   bash -n "$script"
 done < <(find scripts -type f -name '*.sh' -print0 | sort -z)
 
-printf '==> Compiling Python files\n'
-python3 -m compileall -q custom-addons scripts tests/security
-
 if [[ -f config/upstream-sync-state.json ]]; then
   printf '==> Verifying recorded upstream synchronization state\n'
   python3 scripts/sync_codestra_odoo_addons.py --verify-state
 fi
+
+printf '==> Compiling Python files\n'
+python3 -m compileall -q custom-addons scripts tests/security
 
 printf '==> Verifying the immutable canonical addon baseline\n'
 python3 scripts/validate_legacy_addon_baseline.py
