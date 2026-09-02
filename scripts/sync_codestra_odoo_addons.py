@@ -168,8 +168,13 @@ def validate_symlinks(
         relative = path.relative_to(upstream)
         if matches_any(relative, excluded) or not path.is_symlink():
             continue
+        raw_target = Path(os.readlink(path))
+        require(
+            not raw_target.is_absolute(),
+            f"absolute upstream symlink is not relocation-safe: {relative}",
+        )
         try:
-            target = (path.parent / os.readlink(path)).resolve(strict=True)
+            target = (path.parent / raw_target).resolve(strict=True)
             target_relative = target.relative_to(root)
         except (OSError, ValueError) as exc:
             raise SyncError(f"unsafe or broken upstream symlink: {relative}") from exc
@@ -705,6 +710,23 @@ def verify_state(*, destination: Path, policy_path: Path) -> dict[str, Any]:
             tree_digest(module) == details.get("tree_sha256"),
             f"promoted addon content drift: {name}",
         )
+    target_only_modules = state.get("target_only_modules")
+    require(
+        isinstance(target_only_modules, list)
+        and all(
+            isinstance(name, str) and MODULE_NAME.fullmatch(name) is not None
+            for name in target_only_modules
+        )
+        and target_only_modules == sorted(set(target_only_modules)),
+        "target-only addon inventory is invalid",
+    )
+    actual_target_only = sorted(
+        destination_modules(destination / runtime_relative) - set(modules)
+    )
+    require(
+        target_only_modules == actual_target_only,
+        "target-only addon inventory drift",
+    )
     return state
 
 

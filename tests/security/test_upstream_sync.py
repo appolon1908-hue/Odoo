@@ -448,7 +448,7 @@ class UpstreamSyncTests(unittest.TestCase):
             self.initialize_source(source)
             outside = root / "outside.txt"
             outside.write_text("secret\n", encoding="utf-8")
-            (source / "escape").symlink_to(outside)
+            (source / "escape").symlink_to(Path("../outside.txt"))
             self.commit(source, "unsafe symlink")
             policy = self.prepare_destination(destination)
 
@@ -459,6 +459,53 @@ class UpstreamSyncTests(unittest.TestCase):
                     policy_path=policy,
                     source_ref="main",
                 )
+
+    @unittest.skipUnless(hasattr(os, "symlink"), "symlink support is required")
+    def test_absolute_in_checkout_symlink_is_not_relocation_safe(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            shared = self.write(source, "shared/value.txt", "value\n")
+            (source / "absolute-link").symlink_to(shared)
+            self.add_module(source, "addons", "module_a", "first")
+            self.commit(source, "absolute symlink")
+            policy = self.prepare_destination(destination)
+
+            with self.assertRaisesRegex(sync.SyncError, "absolute upstream symlink"):
+                sync.synchronize(
+                    upstream=source,
+                    destination=destination,
+                    policy_path=policy,
+                    source_ref="main",
+                )
+
+    def test_verify_state_recomputes_target_only_module_inventory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.add_module(source, "addons", "module_a", "first")
+            self.commit(source, "source module")
+            policy = self.prepare_destination(destination)
+            sync.synchronize(
+                upstream=source,
+                destination=destination,
+                policy_path=policy,
+                source_ref="main",
+            )
+            state_path = destination / "config/upstream-sync-state.json"
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            state["target_only_modules"] = []
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+            with self.assertRaisesRegex(sync.SyncError, "target-only addon inventory drift"):
+                sync.verify_state(destination=destination, policy_path=policy)
 
     @unittest.skipUnless(hasattr(os, "symlink"), "symlink support is required")
     def test_preserved_child_cannot_be_replaced_by_upstream_ancestor_symlink(self) -> None:
