@@ -65,8 +65,7 @@ class MissionContractTests(unittest.TestCase):
             ROOT / ".github/workflows/sync-codestra-odoo-addons.yml"
         ).read_text(encoding="utf-8")
         self.assertIn(
-            'PYTHONPYCACHEPREFIX="${RUNNER_TEMP}/destination-python-cache" \\\n'
-            "            python3 -m compileall",
+            'export PYTHONPYCACHEPREFIX="${RUNNER_TEMP}/destination-python-cache"',
             workflow,
         )
 

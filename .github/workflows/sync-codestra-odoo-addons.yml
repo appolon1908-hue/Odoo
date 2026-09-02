@@ -190,8 +190,8 @@ jobs:
           test "$(sha256sum scripts/validate_upstream_git_tree.py | awk '{print $1}')" = "$EXPECTED_UPSTREAM_TREE_VALIDATOR_SHA"
           test "$(sha256sum .gitleaks.toml | awk '{print $1}')" = "$EXPECTED_GITLEAKS_SHA"
           git diff --check
-          PYTHONPYCACHEPREFIX="${RUNNER_TEMP}/destination-python-cache" \
-            python3 -m compileall -q scripts custom-addons tests/security
+          export PYTHONPYCACHEPREFIX="${RUNNER_TEMP}/destination-python-cache"
+          python3 -m compileall -q scripts custom-addons tests/security
           python3 scripts/sync_codestra_odoo_addons.py --verify-state
           bash scripts/run_ci.sh
           printf 'DESTINATION_VALIDATION_AUTHORITY_UNCHANGED=YES\n'
