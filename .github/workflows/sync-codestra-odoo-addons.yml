@@ -116,7 +116,7 @@ jobs:
             exit 1
           fi
 
-      - name: Check out exact inaccessible upstream source and materialize Git LFS
+      - name: Check out exact inaccessible upstream source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Codestra-SRL/codestra-odoo-addons
@@ -124,7 +124,7 @@ jobs:
           token: ${{ secrets.CODESTRA_ODOO_UPSTREAM_READ_TOKEN }}
           path: source
           fetch-depth: 0
-          lfs: true
+          lfs: false
           submodules: false
           persist-credentials: false
 
@@ -133,6 +133,10 @@ jobs:
           set -Eeuo pipefail
           python3 scripts/validate_upstream_git_tree.py \
             --repository ../source
+          if git -C ../source lfs ls-files --name-only | grep -q .; then
+            printf '%s\n' 'Git LFS inputs require a separately reviewed materialization contract.' >&2
+            exit 1
+          fi
 
       - name: Scan upstream history and materialized files with destination policy
         env:
@@ -216,7 +220,7 @@ jobs:
             --pathspec-file-nul
           validation_tree="$(git write-tree)"
           export PYTHONPYCACHEPREFIX="${RUNNER_TEMP}/destination-python-cache"
-          python3 -I -m compileall -q scripts custom-addons tests/security
+          python3 -I -X pycache_prefix="$PYTHONPYCACHEPREFIX" -m compileall -q scripts custom-addons tests/security
           python3 -I scripts/sync_codestra_odoo_addons.py --verify-state
           ODOO_VALIDATION_TREEISH="$validation_tree" bash scripts/run_ci.sh
           test "$(sha256sum scripts/run_ci.sh | awk '{print $1}')" = "$EXPECTED_RUN_CI_SHA"
@@ -359,7 +363,7 @@ jobs:
               'candidate_tree': os.environ['CANDIDATE_TREE'],
               'artifact_name': os.environ['ARTIFACT_NAME'],
               'upstream_gitlinks': 0,
-              'upstream_lfs_materialized': True,
+              'upstream_lfs_materialized': False,
               'runtime_activation': False,
               'deployment_authorized': False,
               'live_write_authorized': False,
@@ -517,7 +521,7 @@ jobs:
               'candidate_tree': os.environ['CANDIDATE_TREE'],
               'artifact_name': os.environ['ARTIFACT_NAME'],
               'upstream_gitlinks': 0,
-              'upstream_lfs_materialized': True,
+              'upstream_lfs_materialized': False,
           }
           for key, value in expected.items():
               if identity.get(key) != value:

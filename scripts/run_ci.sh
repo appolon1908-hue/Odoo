@@ -24,7 +24,7 @@ if [[ -f config/upstream-sync-state.json ]]; then
 fi
 
 printf '==> Compiling Python files\n'
-python3 -I -m compileall -q custom-addons scripts tests/security
+python3 -I -X pycache_prefix="$PYTHONPYCACHEPREFIX" -m compileall -q custom-addons scripts tests/security
 
 printf '==> Verifying the immutable canonical addon baseline\n'
 python3 -I scripts/validate_legacy_addon_baseline.py

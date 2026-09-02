@@ -70,9 +70,21 @@ class MissionContractTests(unittest.TestCase):
             'export PYTHONPYCACHEPREFIX="${RUNNER_TEMP}/destination-python-cache"',
             workflow,
         )
+        self.assertIn(
+            'python3 -I -X pycache_prefix="$PYTHONPYCACHEPREFIX" -m compileall',
+            workflow,
+        )
+        self.assertIn("lfs: false", workflow)
+        self.assertIn("git -C ../source lfs ls-files --name-only", workflow)
+        self.assertIn("'upstream_lfs_materialized': False", workflow)
+        self.assertNotIn("'upstream_lfs_materialized': True", workflow)
         runner = (ROOT / "scripts/run_ci.sh").read_text(encoding="utf-8")
         self.assertIn('CI_PYCACHE_DIR="$(mktemp -d)"', runner)
         self.assertIn('export PYTHONPYCACHEPREFIX="$CI_PYCACHE_DIR"', runner)
+        self.assertIn(
+            'python3 -I -X pycache_prefix="$PYTHONPYCACHEPREFIX" -m compileall',
+            runner,
+        )
         self.assertIn("trap 'rm -rf -- \"$CI_PYCACHE_DIR\"' EXIT", runner)
         self.assertNotIn("\npython3 -m", runner)
         self.assertNotIn("\npython3 scripts/", runner)
