@@ -293,6 +293,55 @@ def transitive_aliases(tree: ast.AST, *, terminal: str) -> set[str]:
     return aliases
 
 
+def lexical_aliases(
+    tree: ast.AST,
+    *,
+    terminal: str,
+) -> dict[ast.AST | None, set[str]]:
+    """Resolve aliases independently in each lexical function scope.
+
+    File-wide alias inference is retained for helper argument propagation, but
+    an unrelated assignment in another function must never erase a local
+    cursor or environment alias.
+    """
+
+    enclosing = enclosing_functions(tree)
+    scopes: list[ast.AST | None] = [None, *[
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]]
+    result: dict[ast.AST | None, set[str]] = {}
+    for scope in scopes:
+        aliases = {"cr", "_cr"} if terminal == "cursor" else set()
+        definitions: dict[str, list[ast.AST]] = defaultdict(list)
+        for node in ast.walk(tree if scope is None else scope):
+            if node is scope:
+                continue
+            if enclosing.get(node) is not scope:
+                continue
+            if isinstance(node, ast.Assign) and len(node.targets) == 1:
+                names = assigned_names(node.targets[0])
+                if len(names) == 1:
+                    definitions[next(iter(names))].append(node.value)
+            elif isinstance(node, ast.AnnAssign) and node.value is not None:
+                names = assigned_names(node.target)
+                if len(names) == 1:
+                    definitions[next(iter(names))].append(node.value)
+        for _ in range(len(definitions) + 1):
+            added = {
+                name
+                for name, values in definitions.items()
+                if name not in aliases
+                and any(expression_chain(value, aliases, terminal) for value in values)
+            }
+            if not added:
+                break
+            aliases.update(added)
+        result[scope] = aliases
+    return result
+
+
 def is_cursor_execute(call: ast.Call, aliases: set[str]) -> bool:
     return (
         isinstance(call.func, ast.Attribute)
@@ -481,11 +530,15 @@ def imported_process_functions(tree: ast.AST) -> tuple[set[str], set[str], set[s
         elif isinstance(node, ast.ImportFrom):
             if node.module == "subprocess":
                 for alias in node.names:
-                    if alias.name in SUBPROCESS_FUNCTIONS or alias.name == "*":
+                    if alias.name == "*":
+                        bare_functions.update(SUBPROCESS_FUNCTIONS)
+                    elif alias.name in SUBPROCESS_FUNCTIONS:
                         bare_functions.add(alias.asname or alias.name)
             elif node.module == "os":
                 for alias in node.names:
-                    if alias.name in OS_PROCESS_FUNCTIONS or alias.name == "*":
+                    if alias.name == "*":
+                        bare_functions.update(OS_PROCESS_FUNCTIONS)
+                    elif alias.name in OS_PROCESS_FUNCTIONS:
                         bare_functions.add(alias.asname or alias.name)
     definitions = simple_assignments(tree)
     for _ in range(len(definitions) + 1):
@@ -603,6 +656,10 @@ def odoo_sql_db_aliases(tree: ast.AST) -> tuple[set[str], set[str]]:
         elif isinstance(node, ast.ImportFrom) and node.module == "odoo.sql_db":
             for alias in node.names:
                 functions.add(alias.asname or alias.name)
+        elif isinstance(node, ast.ImportFrom) and node.module == "odoo":
+            for alias in node.names:
+                if alias.name == "sql_db":
+                    modules.add(alias.asname or alias.name)
     return modules, functions
 
 
@@ -617,6 +674,8 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
     constants = static_assignments(tree)
     cursor_names = transitive_aliases(tree, terminal="cursor")
     env_names = transitive_aliases(tree, terminal="environment")
+    scoped_cursor_names = lexical_aliases(tree, terminal="cursor")
+    scoped_env_names = lexical_aliases(tree, terminal="environment")
     safe_wrappers = static_model_wrapper_parameters(tree, env_names)
     enclosing = enclosing_functions(tree)
     subprocess_modules, os_modules, bare_process = imported_process_functions(tree)
@@ -626,6 +685,9 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
         findings.append(f"Odoo sql_db helper import is prohibited: {imported}")
 
     for node in ast.walk(tree):
+        scope = enclosing.get(node)
+        effective_cursor_names = cursor_names | scoped_cursor_names.get(scope, set())
+        effective_env_names = env_names | scoped_env_names.get(scope, set())
         if isinstance(node, ast.Call):
             chain = attribute_chain(node.func)
             if chain and (
@@ -640,7 +702,7 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
                     + ".".join(chain)
                 )
 
-            if is_cursor_execute(node, cursor_names) and not allow_cursor_sql:
+            if is_cursor_execute(node, effective_cursor_names) and not allow_cursor_sql:
                 findings.append(
                     "undeclared Odoo cursor execution is prohibited: "
                     + ".".join(chain)
@@ -669,7 +731,7 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
 
         if "controllers" not in path.parts:
             continue
-        selector = dynamic_model_selector(node, env_names)
+        selector = dynamic_model_selector(node, effective_env_names)
         if selector is None or static_string(selector) is not None:
             continue
 

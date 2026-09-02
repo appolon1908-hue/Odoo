@@ -10,6 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 VECTOR = ROOT / "contracts" / "odoo-hmac-test-vector.v1.json"
+BOUNDARY = ROOT / "config" / "integration-boundary.json"
 
 
 def fail(message: str) -> None:
@@ -18,10 +19,16 @@ def fail(message: str) -> None:
 
 def main() -> int:
     vector = json.loads(VECTOR.read_text(encoding="utf-8"))
+    boundary = json.loads(BOUNDARY.read_text(encoding="utf-8"))
     if vector.get("schema_version") != "1.0":
         fail("schema version drifted")
     if vector.get("secret") != "test-secret-not-production":
         fail("the committed vector must remain synthetic")
+    if vector.get("method") != "POST":
+        fail("method must remain POST")
+    canonical_path = boundary.get("orm_bridge", {}).get("canonical_command_path")
+    if vector.get("path") != canonical_path:
+        fail("path does not match the canonical command boundary")
     try:
         document = json.loads(vector["body_utf8"])
     except (KeyError, TypeError, json.JSONDecodeError) as exc:

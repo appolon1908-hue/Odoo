@@ -47,6 +47,18 @@ class IntegrationBoundaryHardeningTests(unittest.TestCase):
             findings = hardening.python_findings(path, allow_cursor_sql=False)
             self.assertIn("Python process invocation of psql is prohibited", findings)
 
+    def test_wildcard_process_import_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/job.py",
+                "from subprocess import *\nrun('psql database')\n",
+            )
+            self.assertIn(
+                "Python process invocation of psql is prohibited",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
     def test_python_process_command_variable_is_resolved(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = self.write(
@@ -104,6 +116,17 @@ class IntegrationBoundaryHardeningTests(unittest.TestCase):
             )
             findings = hardening.python_findings(path, allow_cursor_sql=False)
             self.assertTrue(any("sql_db" in finding for finding in findings), findings)
+
+    def test_odoo_package_sql_db_alias_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/job.py",
+                "from odoo import sql_db as db\ndb.db_connect('database')\n",
+            )
+            self.assertTrue(
+                any("sql_db connection helper" in finding for finding in hardening.python_findings(path, allow_cursor_sql=False))
+            )
 
     def test_all_common_odoo_cursor_aliases_are_rejected(self) -> None:
         source = """
@@ -169,6 +192,22 @@ class B:
                     for finding in hardening.python_findings(path, allow_cursor_sql=False)
                 )
             )
+
+    def test_unrelated_function_assignment_does_not_hide_local_aliases(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cursor_path = self.write(
+                root,
+                "custom-addons/example/models/cursor.py",
+                "def unsafe(request):\n    cursor = request.env.cr\n    cursor.execute('DELETE FROM x')\ndef unrelated(value):\n    cursor = value\n",
+            )
+            env_path = self.write(
+                root,
+                "custom-addons/example/controllers/env.py",
+                "def unsafe(request, model):\n    env = request.env\n    return env[model]\ndef unrelated(value):\n    env = value\n",
+            )
+            self.assertTrue(any("cursor execution" in finding for finding in hardening.python_findings(cursor_path, allow_cursor_sql=False)))
+            self.assertTrue(any("caller-selected Odoo model" in finding for finding in hardening.python_findings(env_path, allow_cursor_sql=False)))
 
     def test_dynamic_controller_model_proxy_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
