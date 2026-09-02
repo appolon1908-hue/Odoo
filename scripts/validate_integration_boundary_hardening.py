@@ -44,6 +44,10 @@ SUBPROCESS_FUNCTIONS = {
     "getoutput",
     "getstatusoutput",
 }
+ASYNCIO_PROCESS_FUNCTIONS = {
+    "create_subprocess_exec",
+    "create_subprocess_shell",
+}
 OS_PROCESS_FUNCTIONS = {
     "system", "popen",
     "execl", "execle", "execlp", "execlpe",
@@ -356,10 +360,10 @@ def lexical_aliases(
                 continue
             if enclosing.get(node) is not scope:
                 continue
-            if isinstance(node, ast.Assign) and len(node.targets) == 1:
-                names = assigned_aliases(node.targets[0])
-                if len(names) == 1:
-                    definitions[next(iter(names))].append(node.value)
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    for name in assigned_aliases(target):
+                        definitions[name].append(node.value)
             elif isinstance(node, ast.AnnAssign) and node.value is not None:
                 names = assigned_aliases(node.target)
                 if len(names) == 1:
@@ -397,10 +401,10 @@ def lexical_cursor_method_aliases(
         for node in ast.walk(tree if scope is None else scope):
             if node is scope or enclosing.get(node) is not scope:
                 continue
-            if isinstance(node, ast.Assign) and len(node.targets) == 1:
-                names = assigned_aliases(node.targets[0])
-                if len(names) == 1:
-                    definitions[next(iter(names))].append(node.value)
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    for name in assigned_aliases(target):
+                        definitions[name].append(node.value)
             elif isinstance(node, ast.AnnAssign) and node.value is not None:
                 names = assigned_aliases(node.target)
                 if len(names) == 1:
@@ -635,9 +639,12 @@ def is_acl_guarded_dynamic_browse(
     # single guarded binding below.
     if any(
         isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr))
+        and getattr(node, "value", None) is not None
         and any(
-            isinstance(value, ast.Name) and value.id == record_name
-            for value in ([node.value] if getattr(node, "value", None) is not None else [])
+            isinstance(value, ast.Name)
+            and isinstance(value.ctx, ast.Load)
+            and value.id == record_name
+            for value in ast.walk(node.value)
         )
         and node is not browse_assignments[0]
         for node in ast.walk(function)
@@ -874,14 +881,14 @@ def enclosing_functions(
 
 
 def imported_process_functions(tree: ast.AST) -> tuple[set[str], set[str], set[str]]:
-    subprocess_modules = {"subprocess"}
+    subprocess_modules = {"subprocess", "asyncio"}
     os_modules = {"os"}
     bare_functions: set[str] = set()
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                if alias.name == "subprocess":
+                if alias.name in {"subprocess", "asyncio"}:
                     subprocess_modules.add(alias.asname or alias.name)
                 elif alias.name == "os":
                     os_modules.add(alias.asname or alias.name)
@@ -891,6 +898,12 @@ def imported_process_functions(tree: ast.AST) -> tuple[set[str], set[str], set[s
                     if alias.name == "*":
                         bare_functions.update(SUBPROCESS_FUNCTIONS)
                     elif alias.name in SUBPROCESS_FUNCTIONS:
+                        bare_functions.add(alias.asname or alias.name)
+            elif node.module == "asyncio":
+                for alias in node.names:
+                    if alias.name == "*":
+                        bare_functions.update(ASYNCIO_PROCESS_FUNCTIONS)
+                    elif alias.name in ASYNCIO_PROCESS_FUNCTIONS:
                         bare_functions.add(alias.asname or alias.name)
             elif node.module == "os":
                 for alias in node.names:
@@ -1034,14 +1047,14 @@ def is_process_reference(
         base = attribute_chain(node.args[0])
         name = static_string(node.args[1])
         return bool(base) and (
-            (base[0] in subprocess_modules and name in SUBPROCESS_FUNCTIONS)
+            (base[0] in subprocess_modules and name in (SUBPROCESS_FUNCTIONS | ASYNCIO_PROCESS_FUNCTIONS))
             or (base[0] in os_modules and name in OS_PROCESS_FUNCTIONS)
         )
     chain = attribute_chain(node)
     if len(chain) == 1:
         return chain[0] in bare_functions
     return bool(chain) and (
-        (chain[0] in subprocess_modules and chain[-1] in SUBPROCESS_FUNCTIONS)
+        (chain[0] in subprocess_modules and chain[-1] in (SUBPROCESS_FUNCTIONS | ASYNCIO_PROCESS_FUNCTIONS))
         or (chain[0] in os_modules and chain[-1] in OS_PROCESS_FUNCTIONS)
     )
 
@@ -1064,7 +1077,7 @@ def is_process_call(
     if len(chain) == 1:
         return chain[0] in bare_functions
     root, name = chain[0], chain[-1]
-    return (root in subprocess_modules and name in SUBPROCESS_FUNCTIONS) or (
+    return (root in subprocess_modules and name in (SUBPROCESS_FUNCTIONS | ASYNCIO_PROCESS_FUNCTIONS)) or (
         root in os_modules and name in OS_PROCESS_FUNCTIONS
     )
 

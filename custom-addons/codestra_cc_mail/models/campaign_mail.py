@@ -96,12 +96,11 @@ def _resource_campaign(env, model_name, record_id):
     if record._name == "call.center.campaign":
         return _canonical_from_legacy(env, record.id)
     if "campaign_id" in record._fields:
-        campaign_field = record._fields["campaign_id"]
-        if campaign_field.type != "many2one" or not record.campaign_id:
+        if record._fields["campaign_id"].type != "many2one" or not record.campaign_id:
             return env["cc.campaign"]
-        if campaign_field.comodel_name == "cc.campaign":
+        if record._fields["campaign_id"].comodel_name == "cc.campaign":
             return record.campaign_id
-        if campaign_field.comodel_name == "call.center.campaign":
+        if record._fields["campaign_id"].comodel_name == "call.center.campaign":
             return _canonical_from_legacy(env, record.campaign_id.id)
     return env["cc.campaign"]
 

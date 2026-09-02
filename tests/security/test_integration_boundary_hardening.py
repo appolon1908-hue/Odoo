@@ -450,6 +450,21 @@ class B:
                 )
                 self.assertIn(marker, hardening.python_findings(path, allow_cursor_sql=False), name)
 
+            nested = self.write(
+                root,
+                "custom-addons/example/models/nested_alias.py",
+                "def resolve(env, model_name, record_id, values):\n"
+                "    model = env[model_name]\n"
+                "    record = model.browse(record_id).exists()\n"
+                "    record.check_access('read')\n"
+                "    holder = [record]\n"
+                "    holder[0].write(values)\n"
+                "    return record\n"
+                "def caller(request, payload):\n"
+                "    return resolve(request.env, payload['model'], payload['id'], payload['values'])\n",
+            )
+            self.assertIn(marker, hardening.python_findings(nested, allow_cursor_sql=False))
+
     def test_process_module_aliases_are_lexically_scoped(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = self.write(
@@ -567,6 +582,39 @@ class B:
             self.assertIn(
                 "Python process invocation of psql is prohibited",
                 hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
+    def test_asyncio_subprocess_launchers_and_aliases_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            direct = self.write(
+                root,
+                "custom-addons/example/models/async_process.py",
+                "import asyncio\nasync def run():\n    await asyncio.create_subprocess_exec('psql', 'database')\n",
+            )
+            alias = self.write(
+                root,
+                "custom-addons/example/models/async_process_alias.py",
+                "from asyncio import create_subprocess_shell as launch\nasync def run():\n    await launch('psql database')\n",
+            )
+            for path in (direct, alias):
+                self.assertIn(
+                    "Python process invocation of psql is prohibited",
+                    hardening.python_findings(path, allow_cursor_sql=False),
+                )
+
+    def test_chained_bound_cursor_method_aliases_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/chained_cursor_methods.py",
+                "def apply(request):\n    run_sql = saved = request.env.cr.execute\n    run_sql('DELETE FROM res_users')\n",
+            )
+            self.assertTrue(
+                any(
+                    "cursor execution" in finding
+                    for finding in hardening.python_findings(path, allow_cursor_sql=False)
+                )
             )
 
     def test_private_model_wrapper_is_allowed_only_for_literal_callers(self) -> None:
