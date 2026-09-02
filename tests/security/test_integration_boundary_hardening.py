@@ -759,6 +759,21 @@ class B:
                 for finding in hardening.python_findings(environment, allow_cursor_sql=False)
             ))
 
+    def test_reflective_aliases_are_resolved_per_lexical_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/lexical_reflective_alias.py",
+                "lookup = getattr\n"
+                "def helper():\n    lookup = object\n    return lookup\n"
+                "def apply(request):\n"
+                "    lookup(request.env.cr, 'execute')('DELETE FROM x')\n",
+            )
+            self.assertTrue(any(
+                "cursor execution" in finding
+                for finding in hardening.python_findings(path, allow_cursor_sql=False)
+            ))
+
     def test_aliased_container_constructor_capabilities_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -781,6 +796,21 @@ class B:
                 hardening.python_findings(environment, allow_cursor_sql=False),
             )
 
+    def test_container_aliases_are_resolved_per_lexical_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/lexical_dict_alias.py",
+                "make = dict\n"
+                "def helper():\n    make = object\n    return make\n"
+                "def apply(request):\n"
+                "    return make(sql=request.env.cr.execute)\n",
+            )
+            self.assertIn(
+                "cursor method capabilities stored in containers are prohibited",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
     def test_cursor_callable_default_alias_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = self.write(
@@ -798,6 +828,22 @@ class B:
                     for finding in hardening.python_findings(path, allow_cursor_sql=False)
                 )
             )
+
+    def test_cursor_method_alias_used_as_callable_default_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/aliased_default_cursor_callable.py",
+                "def apply(request):\n"
+                "    run_sql = request.env.cr.execute\n"
+                "    def invoke(fn=run_sql):\n"
+                "        fn('DELETE FROM x')\n"
+                "    invoke()\n",
+            )
+            self.assertTrue(any(
+                "cursor execution" in finding
+                for finding in hardening.python_findings(path, allow_cursor_sql=False)
+            ))
 
     def test_reflectively_acquired_process_launcher_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

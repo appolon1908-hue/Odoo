@@ -175,7 +175,9 @@ def reflective_attribute(
     return (
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)
-        and node.func.id in ({"getattr"} | (lookup_functions or set()))
+        and node.func.id in (
+            lookup_functions if lookup_functions is not None else {"getattr"}
+        )
         and len(node.args) >= 2
         and expression_chain(node.args[0], aliases, terminal)
         and static_string(node.args[1]) in names
@@ -194,6 +196,92 @@ def simple_assignments(tree: ast.AST) -> dict[str, list[ast.AST]]:
             if len(names) == 1:
                 definitions[next(iter(names))].append(node.value)
     return dict(definitions)
+
+
+def lexical_name_aliases(
+    tree: ast.AST, *, roots: set[str]
+) -> dict[ast.AST | None, set[str]]:
+    """Resolve simple name aliases without merging unrelated scopes.
+
+    A binding in a function shadows the inherited spelling from its parent
+    scope. Multiple local bindings are treated fail-closed: if any of them can
+    carry an aliased capability, the local name remains an alias.
+    """
+
+    enclosing = enclosing_functions(tree)
+    scopes: list[ast.AST | None] = [None, *[
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]]
+    definitions_by_scope: dict[ast.AST | None, dict[str, list[ast.AST]]] = {}
+    for scope in scopes:
+        definitions: dict[str, list[ast.AST]] = defaultdict(list)
+        if isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for argument in (
+                *scope.args.posonlyargs,
+                *scope.args.args,
+                *scope.args.kwonlyargs,
+            ):
+                definitions[argument.arg]
+            if scope.args.vararg is not None:
+                definitions[scope.args.vararg.arg]
+            if scope.args.kwarg is not None:
+                definitions[scope.args.kwarg.arg]
+        for node in ast.walk(tree if scope is None else scope):
+            if node is scope or enclosing.get(node) is not scope:
+                continue
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    for name, value in assignment_bindings(target, node.value):
+                        definitions[name].append(value)
+            elif isinstance(node, ast.AnnAssign):
+                for name in assigned_aliases(node.target):
+                    if node.value is not None:
+                        definitions[name].append(node.value)
+                    else:
+                        definitions[name]
+            elif isinstance(node, ast.NamedExpr):
+                for name, value in assignment_bindings(node.target, node.value):
+                    definitions[name].append(value)
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                definitions[node.name]
+            elif isinstance(node, ast.Import):
+                for imported in node.names:
+                    definitions[imported.asname or imported.name.split(".")[0]]
+            elif isinstance(node, ast.ImportFrom):
+                for imported in node.names:
+                    definitions[imported.asname or imported.name]
+        definitions_by_scope[scope] = definitions
+
+    result: dict[ast.AST | None, set[str]] = {}
+
+    def resolve(scope: ast.AST | None) -> set[str]:
+        if scope in result:
+            return result[scope]
+        parent = enclosing.get(scope) if scope is not None else None
+        aliases = set(roots if scope is None else resolve(parent))
+        definitions = definitions_by_scope[scope]
+        aliases.difference_update(definitions)
+        for _ in range(len(definitions) + 1):
+            added = {
+                name
+                for name, values in definitions.items()
+                if name not in aliases
+                and any(
+                    isinstance(value, ast.Name) and value.id in aliases
+                    for value in values
+                )
+            }
+            if not added:
+                break
+            aliases.update(added)
+        result[scope] = aliases
+        return aliases
+
+    for scope in scopes:
+        resolve(scope)
+    return result
 
 
 def static_assignments(tree: ast.AST) -> dict[str, str]:
@@ -396,7 +484,7 @@ def lexical_cursor_method_aliases(
     tree: ast.AST,
     cursor_aliases: set[str],
     scoped_cursor_aliases: dict[ast.AST | None, set[str]],
-    lookup_functions: set[str],
+    scoped_lookup_functions: dict[ast.AST | None, set[str]],
 ) -> dict[ast.AST | None, set[str]]:
     """Resolve names bound to a cursor's ``execute`` method per scope."""
 
@@ -408,6 +496,7 @@ def lexical_cursor_method_aliases(
     ]]
     result: dict[ast.AST | None, set[str]] = {}
     for scope in scopes:
+        lookup_functions = scoped_lookup_functions.get(scope, {"getattr"})
         definitions: dict[str, list[ast.AST]] = defaultdict(list)
         for node in ast.walk(tree if scope is None else scope):
             if node is scope or enclosing.get(node) is not scope:
@@ -480,6 +569,14 @@ def lexical_cursor_method_aliases(
     for _ in range(len(functions) + 1):
         changed = False
         for function in functions:
+            defining_scope = enclosing.get(function)
+            default_cursor_aliases = (
+                cursor_aliases | scoped_cursor_aliases.get(defining_scope, set())
+            )
+            default_cursor_methods = result.get(defining_scope, set())
+            default_lookup_functions = scoped_lookup_functions.get(
+                defining_scope, {"getattr"}
+            )
             parameters = function_parameters(function)
             positional = [*function.args.posonlyargs, *function.args.args]
             defaults = [None] * (len(positional) - len(function.args.defaults)) + list(function.args.defaults)
@@ -497,13 +594,23 @@ def lexical_cursor_method_aliases(
                 if (
                     isinstance(value, ast.Attribute)
                     and value.attr in {"execute", "executemany"}
-                    and expression_chain(value.value, all_cursor_aliases, "cursor")
+                    and expression_chain(value.value, default_cursor_aliases, "cursor")
                 ) or reflective_attribute(
-                    value, all_cursor_aliases, "cursor", {"execute", "executemany"}, lookup_functions
+                    value,
+                    default_cursor_aliases,
+                    "cursor",
+                    {"execute", "executemany"},
+                    default_lookup_functions,
+                ) or (
+                    isinstance(value, (ast.Name, ast.Attribute))
+                    and ".".join(attribute_chain(value)) in default_cursor_methods
                 ):
                     result[function].add(parameter)
             for call in calls.get(function.name, []):
                 caller_methods = result.get(enclosing.get(call), set())
+                caller_lookup_functions = scoped_lookup_functions.get(
+                    enclosing.get(call), {"getattr"}
+                )
                 for index, parameter in enumerate(parameters):
                     positional_index = index
                     if isinstance(call.func, ast.Attribute) and parameters and parameters[0] in {"self", "cls"}:
@@ -525,7 +632,7 @@ def lexical_cursor_method_aliases(
                             all_cursor_aliases,
                             "cursor",
                             {"execute", "executemany"},
-                            lookup_functions,
+                            caller_lookup_functions,
                         )
                     ) or (
                         isinstance(value, ast.Name) and value.id in caller_methods
@@ -597,21 +704,10 @@ def is_cursor_execute(
     )
 
 
-def container_constructor_aliases(tree: ast.AST) -> set[str]:
-    constructors = {"dict", "list", "tuple", "set"}
-    definitions = simple_assignments(tree)
-    for _ in range(len(definitions) + 1):
-        added = {
-            name
-            for name, values in definitions.items()
-            if len(values) == 1
-            and isinstance(values[0], ast.Name)
-            and values[0].id in constructors
-        } - constructors
-        if not added:
-            break
-        constructors.update(added)
-    return constructors
+def container_constructor_aliases(
+    tree: ast.AST,
+) -> dict[ast.AST | None, set[str]]:
+    return lexical_name_aliases(tree, roots={"dict", "list", "tuple", "set"})
 
 
 def container_values(node: ast.AST, constructors: set[str]) -> list[ast.AST]:
@@ -710,7 +806,9 @@ def dynamic_model_selector(
         and node.args
         and isinstance(node.func, ast.Call)
         and isinstance(node.func.func, ast.Name)
-        and node.func.func.id in ({"getattr"} | (lookup_functions or set()))
+        and node.func.func.id in (
+            lookup_functions if lookup_functions is not None else {"getattr"}
+        )
         and len(node.func.args) >= 2
         and expression_chain(node.func.args[0], env_aliases, "environment")
         and static_string(node.func.args[1]) == "__getitem__"
@@ -745,7 +843,7 @@ def lexical_environment_selector_aliases(
     tree: ast.AST,
     environment_aliases: set[str],
     scoped_environment_aliases: dict[ast.AST | None, set[str]],
-    lookup_functions: set[str],
+    scoped_lookup_functions: dict[ast.AST | None, set[str]],
 ) -> dict[ast.AST | None, set[str]]:
     """Resolve bound environment ``__getitem__`` callables per scope."""
     enclosing = enclosing_functions(tree)
@@ -755,6 +853,7 @@ def lexical_environment_selector_aliases(
     ]]
     result: dict[ast.AST | None, set[str]] = {}
     for scope in scopes:
+        lookup_functions = scoped_lookup_functions.get(scope, {"getattr"})
         definitions: dict[str, list[ast.AST]] = defaultdict(list)
         for node in ast.walk(tree if scope is None else scope):
             if node is scope or enclosing.get(node) is not scope:
@@ -816,6 +915,9 @@ def lexical_environment_selector_aliases(
             parameters = function_parameters(function)
             for call in calls.get(function.name, []):
                 caller_selectors = result.get(enclosing.get(call), set())
+                caller_lookup_functions = scoped_lookup_functions.get(
+                    enclosing.get(call), {"getattr"}
+                )
                 for index, parameter in enumerate(parameters):
                     positional_index = index - (
                         1 if isinstance(call.func, ast.Attribute) and parameters and parameters[0] in {"self", "cls"} else 0
@@ -833,7 +935,11 @@ def lexical_environment_selector_aliases(
                             and expression_chain(value.value, all_environments, "environment")
                         )
                         or reflective_attribute(
-                            value, all_environments, "environment", {"__getitem__"}, lookup_functions
+                            value,
+                            all_environments,
+                            "environment",
+                            {"__getitem__"},
+                            caller_lookup_functions,
                         )
                         or ".".join(attribute_chain(value)) in caller_selectors
                     )
@@ -1245,21 +1351,10 @@ def lexical_static_values(tree: ast.AST) -> set[str]:
     return resolved_values
 
 
-def reflective_lookup_aliases(tree: ast.AST) -> set[str]:
-    aliases = {"getattr"}
-    definitions = simple_assignments(tree)
-    for _ in range(len(definitions) + 1):
-        added = {
-            name
-            for name, values in definitions.items()
-            if len(values) == 1
-            and isinstance(values[0], ast.Name)
-            and values[0].id in aliases
-        } - aliases
-        if not added:
-            break
-        aliases.update(added)
-    return aliases
+def reflective_lookup_aliases(
+    tree: ast.AST,
+) -> dict[ast.AST | None, set[str]]:
+    return lexical_name_aliases(tree, roots={"getattr"})
 
 
 def imported_process_functions(
@@ -1371,7 +1466,7 @@ def lexical_process_aliases(
     subprocess_modules: set[str],
     os_modules: set[str],
     bare_functions: set[str],
-    lookup_functions: set[str],
+    scoped_lookup_functions: dict[ast.AST | None, set[str]],
 ) -> dict[ast.AST | None, tuple[set[str], set[str], set[str]]]:
     """Resolve process modules and callables independently per lexical scope."""
 
@@ -1384,6 +1479,7 @@ def lexical_process_aliases(
     result: dict[ast.AST | None, tuple[set[str], set[str], set[str]]] = {}
 
     for scope in scopes:
+        lookup_functions = scoped_lookup_functions.get(scope, {"getattr"})
         definitions: dict[str, list[ast.AST]] = defaultdict(list)
         for node in ast.walk(tree if scope is None else scope):
             if node is scope or enclosing.get(node) is not scope:
@@ -1534,25 +1630,30 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
         return [f"cannot parse Python source: {exc}"]
 
     constants = static_assignments(tree)
-    lookup_functions = reflective_lookup_aliases(tree)
+    scoped_lookup_functions = reflective_lookup_aliases(tree)
+    lookup_functions = set().union(*scoped_lookup_functions.values())
     cursor_names = transitive_aliases(tree, terminal="cursor")
     env_names = transitive_aliases(tree, terminal="environment")
     scoped_cursor_names = lexical_aliases(tree, terminal="cursor")
     scoped_env_names = lexical_aliases(tree, terminal="environment")
     scoped_env_selectors = lexical_environment_selector_aliases(
-        tree, env_names, scoped_env_names, lookup_functions
+        tree, env_names, scoped_env_names, scoped_lookup_functions
     )
     scoped_cursor_methods = lexical_cursor_method_aliases(
-        tree, cursor_names, scoped_cursor_names, lookup_functions
+        tree, cursor_names, scoped_cursor_names, scoped_lookup_functions
     )
     safe_wrappers = static_model_wrapper_parameters(tree, env_names)
     enclosing = enclosing_functions(tree)
-    constructors = container_constructor_aliases(tree)
+    scoped_constructors = container_constructor_aliases(tree)
     subprocess_modules, os_modules, bare_process = imported_process_functions(
         tree, lookup_functions
     )
     scoped_process = lexical_process_aliases(
-        tree, subprocess_modules, os_modules, bare_process, lookup_functions
+        tree,
+        subprocess_modules,
+        os_modules,
+        bare_process,
+        scoped_lookup_functions,
     )
     sql_db_modules, sql_db_functions = odoo_sql_db_aliases(tree)
     operator_modules, operator_functions = operator_getitem_aliases(tree)
@@ -1570,6 +1671,10 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
 
     for node in ast.walk(tree):
         scope = enclosing.get(node)
+        effective_lookup_functions = scoped_lookup_functions.get(scope, {"getattr"})
+        effective_constructors = scoped_constructors.get(
+            scope, {"dict", "list", "tuple", "set"}
+        )
         effective_cursor_names = cursor_names | scoped_cursor_names.get(scope, set())
         effective_env_names = env_names | scoped_env_names.get(scope, set())
         effective_env_selectors = scoped_env_selectors.get(scope, set())
@@ -1579,15 +1684,15 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
         )
         if is_process_reference(
             node, effective_subprocess, effective_os, effective_process,
-            lookup_functions,
+            effective_lookup_functions,
         ):
             findings.append(
                 "process launcher capability references are prohibited in Odoo addons"
             )
-        values = container_values(node, constructors)
+        values = container_values(node, effective_constructors)
         if any(
             is_cursor_method_reference(
-                value, effective_cursor_names, lookup_functions
+                value, effective_cursor_names, effective_lookup_functions
             )
             or (
                 isinstance(value, (ast.Name, ast.Attribute))
@@ -1600,7 +1705,7 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
             )
         if any(
             is_environment_selector_reference(
-                value, effective_env_names, lookup_functions
+                value, effective_env_names, effective_lookup_functions
             )
             or (
                 isinstance(value, (ast.Name, ast.Attribute))
@@ -1626,7 +1731,10 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
                 )
 
             if is_cursor_execute(
-                node, effective_cursor_names, effective_cursor_methods, lookup_functions
+                node,
+                effective_cursor_names,
+                effective_cursor_methods,
+                effective_lookup_functions,
             ) and not allow_cursor_sql:
                 findings.append(
                     "undeclared Odoo cursor execution is prohibited: "
@@ -1672,7 +1780,7 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
             operator_modules,
             operator_functions,
             scoped_env_selectors.get(scope, set()),
-            lookup_functions,
+            effective_lookup_functions,
         )
         if selector is None:
             continue
