@@ -421,7 +421,7 @@ class B:
             unsafe = self.write(
                 root,
                 "custom-addons/example/models/unsafe_browse.py",
-                "def resolve(env, model_name, record_id):\n    model = env[model_name]\n    record = model.browse(record_id).exists()\n    record.check_access('read')\n    record.write({'name': 'changed'})\n    return record\ndef caller(request, payload):\n    return resolve(request.env, payload['model'], payload['id'])\n",
+                "def resolve(env, model_name, record_id):\n    model = env[model_name]\n    record = model.browse(record_id).exists()\n    record.check_access('read')\n    record.action_confirm()\n    return record\ndef caller(request, payload):\n    return resolve(request.env, payload['model'], payload['id'])\n",
             )
             marker = "controller uses a caller-selected Odoo model; only static model names are allowed"
             self.assertNotIn(marker, hardening.python_findings(safe, allow_cursor_sql=False))
@@ -506,6 +506,32 @@ class B:
                     "cursor execution" in finding
                     for finding in hardening.python_findings(path, allow_cursor_sql=False)
                 )
+            )
+
+    def test_reflectively_acquired_cursor_method_alias_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/reflective_cursor_alias.py",
+                "def apply(request):\n    run_sql = getattr(request.env.cr, 'execute')\n    run_sql('DELETE FROM x')\n",
+            )
+            self.assertTrue(
+                any(
+                    "cursor execution" in finding
+                    for finding in hardening.python_findings(path, allow_cursor_sql=False)
+                )
+            )
+
+    def test_reflectively_acquired_process_launcher_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/reflective_process.py",
+                "import subprocess\nlaunch = getattr(subprocess, 'run')\nlaunch(['psql', 'database'])\n",
+            )
+            self.assertIn(
+                "Python process invocation of psql is prohibited",
+                hardening.python_findings(path, allow_cursor_sql=False),
             )
 
     def test_private_model_wrapper_is_allowed_only_for_literal_callers(self) -> None:

@@ -151,6 +151,22 @@ def static_text(node: ast.AST | None, constants: dict[str, str]) -> str | None:
     return None
 
 
+def reflective_attribute(
+    node: ast.AST,
+    aliases: set[str],
+    terminal: str,
+    names: set[str],
+) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "getattr"
+        and len(node.args) >= 2
+        and expression_chain(node.args[0], aliases, terminal)
+        and static_string(node.args[1]) in names
+    )
+
+
 def simple_assignments(tree: ast.AST) -> dict[str, list[ast.AST]]:
     definitions: dict[str, list[ast.AST]] = defaultdict(list)
     for node in ast.walk(tree):
@@ -403,6 +419,12 @@ def lexical_cursor_method_aliases(
                         and value.attr in {"execute", "executemany"}
                         and expression_chain(value.value, effective_cursors, "cursor")
                     )
+                    or reflective_attribute(
+                        value,
+                        effective_cursors,
+                        "cursor",
+                        {"execute", "executemany"},
+                    )
                     or (isinstance(value, ast.Name) and value.id in methods)
                     for value in values
                 ):
@@ -440,6 +462,14 @@ def lexical_cursor_method_aliases(
                         and value.attr in {"execute", "executemany"}
                         and expression_chain(value.value, all_cursor_aliases, "cursor")
                     ) or (
+                        value is not None
+                        and reflective_attribute(
+                            value,
+                            all_cursor_aliases,
+                            "cursor",
+                            {"execute", "executemany"},
+                        )
+                    ) or (
                         isinstance(value, ast.Name) and value.id in caller_methods
                     )
                     if is_bound_execute and parameter not in result[function]:
@@ -467,11 +497,9 @@ def is_cursor_execute(
         )
         or (
             isinstance(call.func, ast.Call)
-            and isinstance(call.func.func, ast.Name)
-            and call.func.func.id == "getattr"
-            and len(call.func.args) >= 2
-            and expression_chain(call.func.args[0], aliases, "cursor")
-            and static_string(call.func.args[1]) in {"execute", "executemany"}
+            and reflective_attribute(
+                call.func, aliases, "cursor", {"execute", "executemany"}
+            )
         )
     )
 
@@ -612,13 +640,24 @@ def is_acl_guarded_dynamic_browse(
     }
     if model_methods != {"browse"}:
         return False
-    dangerous = {"create", "write", "unlink", "sudo", "with_user", "search", "search_read"}
-    if any(
-        isinstance(node, ast.Call)
+    record_methods = {
+        node.func.attr
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)
         and isinstance(node.func.value, ast.Name)
         and node.func.value.id == record_name
-        and node.func.attr in dangerous
+    }
+    if record_methods != {"check_access"}:
+        return False
+    if any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Call)
+        and isinstance(node.func.func, ast.Name)
+        and node.func.func.id == "getattr"
+        and node.func.args
+        and isinstance(node.func.args[0], ast.Name)
+        and node.func.args[0].id == record_name
         for node in ast.walk(function)
     ):
         return False
@@ -838,14 +877,8 @@ def imported_process_functions(tree: ast.AST) -> tuple[set[str], set[str], set[s
         for name, values in definitions.items():
             if name in bare_functions or len(values) != 1:
                 continue
-            chain = attribute_chain(values[0])
-            if not chain:
-                continue
-            if len(chain) == 1 and chain[0] in bare_functions:
-                added.add(name)
-            elif len(chain) > 1 and (
-                (chain[0] in subprocess_modules and chain[-1] in SUBPROCESS_FUNCTIONS)
-                or (chain[0] in os_modules and chain[-1] in OS_PROCESS_FUNCTIONS)
+            if is_process_reference(
+                values[0], subprocess_modules, os_modules, bare_functions
             ):
                 added.add(name)
         if not added:
@@ -928,8 +961,6 @@ def lexical_process_aliases(
             for name, values in definitions.items():
                 for value in values:
                     chain = attribute_chain(value)
-                    if not chain:
-                        continue
                     if len(chain) == 1 and chain[0] in scoped_subprocess and name not in scoped_subprocess:
                         scoped_subprocess.add(name)
                         changed = True
@@ -951,6 +982,18 @@ def is_process_reference(
     os_modules: set[str],
     bare_functions: set[str],
 ) -> bool:
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "getattr"
+        and len(node.args) >= 2
+    ):
+        base = attribute_chain(node.args[0])
+        name = static_string(node.args[1])
+        return bool(base) and (
+            (base[0] in subprocess_modules and name in SUBPROCESS_FUNCTIONS)
+            or (base[0] in os_modules and name in OS_PROCESS_FUNCTIONS)
+        )
     chain = attribute_chain(node)
     if len(chain) == 1:
         return chain[0] in bare_functions
