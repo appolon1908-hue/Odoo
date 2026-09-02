@@ -465,6 +465,24 @@ class B:
             )
             self.assertIn(marker, hardening.python_findings(nested, allow_cursor_sql=False))
 
+            for name, use in {
+                "setattr_escape.py": "setattr(record, 'name', value)",
+                "helper_escape.py": "mutate(record, value)",
+            }.items():
+                escaped = self.write(
+                    root,
+                    f"custom-addons/example/models/{name}",
+                    "def resolve(env, model_name, record_id, value):\n"
+                    "    model = env[model_name]\n"
+                    "    record = model.browse(record_id).exists()\n"
+                    "    record.check_access('read')\n"
+                    f"    {use}\n"
+                    "    return record\n"
+                    "def caller(request, payload):\n"
+                    "    return resolve(request.env, payload['model'], payload['id'], payload['value'])\n",
+                )
+                self.assertIn(marker, hardening.python_findings(escaped, allow_cursor_sql=False), name)
+
     def test_process_module_aliases_are_lexically_scoped(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = self.write(
@@ -603,6 +621,18 @@ class B:
                     hardening.python_findings(path, allow_cursor_sql=False),
                 )
 
+    def test_unpacked_process_callable_alias_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/unpacked_process.py",
+                "import subprocess\nlaunch, unused = subprocess.run, None\nlaunch(['psql', 'database'])\n",
+            )
+            self.assertIn(
+                "Python process invocation of psql is prohibited",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
     def test_chained_bound_cursor_method_aliases_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = self.write(
@@ -658,6 +688,30 @@ class Controller:
                 marker,
                 hardening.python_findings(unsafe, allow_cursor_sql=False),
             )
+
+    def test_private_model_wrapper_callable_escape_revokes_exemption(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, invocation in {
+                "assigned.py": "invoke = helper._dispatch\n    return invoke(payload['model'])",
+                "reflective.py": "invoke = getattr(helper, '_dispatch')\n    return invoke(payload['model'])",
+            }.items():
+                path = self.write(
+                    root,
+                    f"custom-addons/example/controllers/{name}",
+                    "class Helper:\n"
+                    "    def _dispatch(self, model):\n"
+                    "        return request.env[model].search([])\n"
+                    "    def safe(self):\n"
+                    "        return self._dispatch('crm.lead')\n"
+                    "def route(helper, payload):\n"
+                    f"    {invocation}\n",
+                )
+                self.assertIn(
+                    "controller uses a caller-selected Odoo model; only static model names are allowed",
+                    hardening.python_findings(path, allow_cursor_sql=False),
+                    name,
+                )
 
     def test_same_named_safe_helper_does_not_exempt_routed_lexical_owner(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

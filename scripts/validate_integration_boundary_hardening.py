@@ -681,6 +681,34 @@ def is_acl_guarded_dynamic_browse(
         for node in ast.walk(function)
     ):
         return False
+
+    def passes_record_object(value: ast.AST) -> bool:
+        if isinstance(value, ast.Name):
+            return value.id == record_name
+        # Attribute/subscript reads derive a field value; direct record method
+        # calls are independently restricted to the ACL guard below.
+        if isinstance(value, (ast.Attribute, ast.Subscript)):
+            return False
+        return any(passes_record_object(child) for child in ast.iter_child_nodes(value))
+
+    if any(
+        isinstance(node, ast.Call)
+        and not (
+            isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == record_name
+            and node.func.attr == "check_access"
+        )
+        and any(
+            passes_record_object(value)
+            for value in (
+                *node.args,
+                *(keyword.value for keyword in node.keywords),
+            )
+        )
+        for node in ast.walk(function)
+    ):
+        return False
     if any(
         isinstance(node, ast.Attribute)
         and isinstance(node.ctx, (ast.Store, ast.Del))
@@ -767,6 +795,11 @@ def static_model_wrapper_parameters(
     calls = function_call_arguments(tree)
     safe: set[tuple[ast.FunctionDef | ast.AsyncFunctionDef, str]] = set()
     route_aliases = route_decorator_aliases(tree)
+    parents = {
+        child: parent
+        for parent in ast.walk(tree)
+        for child in ast.iter_child_nodes(parent)
+    }
 
     for function in functions:
         name = function.name
@@ -780,6 +813,27 @@ def static_model_wrapper_parameters(
             )
             for decorator in function.decorator_list
         ):
+            continue
+        callable_escapes = any(
+            (
+                isinstance(child, (ast.Name, ast.Attribute))
+                and isinstance(child.ctx, ast.Load)
+                and (attribute_chain(child) or [""])[-1] == name
+                and not (
+                    isinstance(parents.get(child), ast.Call)
+                    and parents[child].func is child
+                )
+            )
+            or (
+                isinstance(child, ast.Call)
+                and isinstance(child.func, ast.Name)
+                and child.func.id == "getattr"
+                and len(child.args) >= 2
+                and static_string(child.args[1]) == name
+            )
+            for child in ast.walk(tree)
+        )
+        if callable_escapes:
             continue
         parameters = function_parameters(function)
         candidates: set[str] = set()
@@ -996,6 +1050,19 @@ def lexical_process_aliases(
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     ]]
     result: dict[ast.AST | None, tuple[set[str], set[str], set[str]]] = {}
+
+    def bind(target: ast.AST, value: ast.AST) -> list[tuple[str, ast.AST]]:
+        if (
+            isinstance(target, (ast.Tuple, ast.List))
+            and isinstance(value, (ast.Tuple, ast.List))
+            and len(target.elts) == len(value.elts)
+        ):
+            pairs: list[tuple[str, ast.AST]] = []
+            for child_target, child_value in zip(target.elts, value.elts):
+                pairs.extend(bind(child_target, child_value))
+            return pairs
+        return [(name, value) for name in assigned_aliases(target)]
+
     for scope in scopes:
         definitions: dict[str, list[ast.AST]] = defaultdict(list)
         for node in ast.walk(tree if scope is None else scope):
@@ -1003,8 +1070,8 @@ def lexical_process_aliases(
                 continue
             if isinstance(node, ast.Assign):
                 for target in node.targets:
-                    for name in assigned_aliases(target):
-                        definitions[name].append(node.value)
+                    for name, value in bind(target, node.value):
+                        definitions[name].append(value)
             elif isinstance(node, ast.AnnAssign) and node.value is not None:
                 for name in assigned_aliases(node.target):
                     definitions[name].append(node.value)
