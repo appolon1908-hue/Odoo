@@ -177,10 +177,11 @@ def validate_symlinks(
             not matches_any(target_relative, excluded),
             f"upstream symlink targets an excluded path: {relative}",
         )
-        require(
-            not intersects_any(target_relative, preserved),
-            f"upstream symlink targets a destination-preserved path: {relative}",
-        )
+        if not intersects_any(relative, preserved):
+            require(
+                not intersects_any(target_relative, preserved),
+                f"upstream symlink targets a destination-preserved path: {relative}",
+            )
 
 
 def remove_path(path: Path) -> None:

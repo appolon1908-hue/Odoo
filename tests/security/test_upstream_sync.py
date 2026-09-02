@@ -204,6 +204,33 @@ class UpstreamSyncTests(unittest.TestCase):
                     source_ref="main",
                 )
 
+    def test_snapshot_only_symlink_inside_preserved_path_is_allowed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.write(source, "scripts/helper.py", "# upstream helper\n")
+            os.symlink("helper.py", source / "scripts/tool.py")
+            self.add_module(source, "addons", "module_a", "first")
+            self.commit(source, "snapshot-only preserved symlink")
+            policy = self.prepare_destination(destination)
+
+            sync.synchronize(
+                upstream=source,
+                destination=destination,
+                policy_path=policy,
+                source_ref="main",
+            )
+            snapshot_link = destination / "upstream/codestra-odoo-addons/scripts/tool.py"
+            self.assertTrue(snapshot_link.is_symlink())
+            self.assertEqual(
+                "#!/bin/sh\necho destination-ci\n",
+                (destination / "scripts/run_ci.sh").read_text(encoding="utf-8"),
+            )
+
     def test_verify_state_rejects_marker_provenance_drift(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
