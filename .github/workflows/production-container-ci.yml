@@ -7,12 +7,10 @@ on:
       - ".github/workflows/cc-release-candidate.yml"
       - ".dockerignore"
       - "custom-addons/**"
-      - "deploy/container/**"
+      - "deploy/**"
       - "config/release-policy.json"
       - "release/**"
-      - "scripts/generate_container_release_manifest.py"
-      - "scripts/validate_production_evidence.py"
-      - "scripts/validate_release_policy.py"
+      - "scripts/**"
   push:
     branches:
       - main
@@ -21,12 +19,10 @@ on:
       - ".github/workflows/cc-release-candidate.yml"
       - ".dockerignore"
       - "custom-addons/**"
-      - "deploy/container/**"
+      - "deploy/**"
       - "config/release-policy.json"
       - "release/**"
-      - "scripts/generate_container_release_manifest.py"
-      - "scripts/validate_production_evidence.py"
-      - "scripts/validate_release_policy.py"
+      - "scripts/**"
 
 permissions:
   contents: read
@@ -64,13 +60,17 @@ jobs:
           tags: codestra-odoo-ci:${{ github.sha }}
           build-args: |
             SOURCE_SHA=${{ github.sha }}
+          provenance: false
+          sbom: false
 
       - name: Verify image content and non-root runtime identity
         env:
           IMAGE_TAG: codestra-odoo-ci:${{ github.sha }}
+          EXPECTED_SOURCE_SHA: ${{ github.sha }}
         run: |
           set -Eeuo pipefail
           test "$(docker image inspect "$IMAGE_TAG" --format '{{.Config.User}}')" = "odoo"
+          test "$(docker image inspect "$IMAGE_TAG" --format '{{index .Config.Labels \"org.opencontainers.image.revision\"}}')" = "$EXPECTED_SOURCE_SHA"
           docker run --rm --entrypoint sh "$IMAGE_TAG" -c '
             set -eu
             test -d /mnt/extra-addons
