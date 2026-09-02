@@ -27,7 +27,7 @@ env:
   IMAGE_NAME: ghcr.io/appolon1908-hue/odoo
   IMAGE_TAG: ghcr.io/appolon1908-hue/odoo:sha-${{ inputs.expected_source_sha }}
   TRIVY_VERSION: "0.74.0"
-  TRIVY_ARCHIVE_SHA256: "41839546f49977c0a26f86d83b0debb6d0d7bfa62b02092a136cd02bec86080d"
+  TRIVY_ARCHIVE_SHA256: "d093ed4fd2bcb28f2feb034f83a593c03056dbfbb7056e4fedcf47e5035ee637"
 
 jobs:
   build-signed-production-candidate:
