@@ -388,6 +388,20 @@ def overlay_source(
     ]
     managed = {relative.as_posix() for relative, _source in entries}
 
+    for relative, source in entries:
+        target = destination / relative
+        if (source.is_file() or source.is_symlink()) and target.is_dir() and not target.is_symlink():
+            unmanaged = [
+                path.relative_to(destination).as_posix()
+                for path in target.rglob("*")
+                if (path.is_file() or path.is_symlink())
+                and path.relative_to(destination).as_posix() not in previous_managed
+            ]
+            require(
+                not unmanaged,
+                f"node replacement would delete unmanaged descendants: {relative}",
+            )
+
     stale = previous_managed - managed
     for raw in sorted(
         stale,
@@ -582,6 +596,14 @@ def verify_state(*, destination: Path, policy_path: Path) -> dict[str, Any]:
         policy["runtime_addons_path"], field="runtime_addons_path"
     )
     state = load_json(destination / state_relative)
+    require(
+        state.get("snapshot_path") == snapshot_relative.as_posix(),
+        "sync state snapshot path drift",
+    )
+    require(
+        state.get("runtime_addons_path") == runtime_relative.as_posix(),
+        "sync state runtime addon path drift",
+    )
     require(state.get("schema_version") == "1.0", "sync state schema drift")
     require(
         state.get("source_repository") == policy["source_repository"],

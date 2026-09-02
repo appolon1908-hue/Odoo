@@ -537,6 +537,19 @@ class UpstreamSyncTests(unittest.TestCase):
             with self.assertRaisesRegex(sync.SyncError, "imported addon inventory drift"):
                 sync.verify_state(destination=destination, policy_path=policy)
 
+            state_path.write_text(json.dumps(original), encoding="utf-8")
+            promoted = destination / "custom-addons/module_a/models.py"
+            promoted.write_text("MARKER = 'tampered'\n", encoding="utf-8")
+            altered = json.loads(json.dumps(original))
+            altered["modules"]["module_a"]["tree_sha256"] = sync.tree_digest(
+                destination / "custom-addons/module_a"
+            )
+            state_path.write_text(json.dumps(altered), encoding="utf-8")
+            with self.assertRaisesRegex(
+                sync.SyncError, "imported addon source digest drift|promoted addon content drift"
+            ):
+                sync.verify_state(destination=destination, policy_path=policy)
+
     def test_verify_state_requires_complete_false_safety_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -563,18 +576,63 @@ class UpstreamSyncTests(unittest.TestCase):
                 with self.assertRaisesRegex(sync.SyncError, "safety evidence"):
                     sync.verify_state(destination=destination, policy_path=policy)
 
-            state_path.write_text(json.dumps(original), encoding="utf-8")
-            promoted = destination / "custom-addons/module_a/models.py"
-            promoted.write_text("MARKER = 'tampered'\n", encoding="utf-8")
-            altered = json.loads(json.dumps(original))
-            altered["modules"]["module_a"]["tree_sha256"] = sync.tree_digest(
-                destination / "custom-addons/module_a"
+    def test_verify_state_binds_snapshot_and_runtime_paths_to_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.add_module(source, "addons", "module_a", "first")
+            self.commit(source, "source module")
+            policy = self.prepare_destination(destination)
+            sync.synchronize(
+                upstream=source, destination=destination, policy_path=policy, source_ref="main"
             )
-            state_path.write_text(json.dumps(altered), encoding="utf-8")
-            with self.assertRaisesRegex(
-                sync.SyncError, "imported addon source digest drift|promoted addon content drift"
+            state_path = destination / "config/upstream-sync-state.json"
+            original = json.loads(state_path.read_text(encoding="utf-8"))
+            for field, value, message in (
+                ("snapshot_path", "docs/fake-snapshot", "snapshot path drift"),
+                ("runtime_addons_path", "addons/fake-runtime", "runtime addon path drift"),
             ):
-                sync.verify_state(destination=destination, policy_path=policy)
+                changed = json.loads(json.dumps(original))
+                changed[field] = value
+                state_path.write_text(json.dumps(changed), encoding="utf-8")
+                with self.assertRaisesRegex(sync.SyncError, message):
+                    sync.verify_state(destination=destination, policy_path=policy)
+
+    def test_directory_replacement_rejects_unmanaged_descendants(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.add_module(source, "addons", "module_a", "first")
+            self.write(source, "docs/item/a", "managed\n")
+            self.commit(source, "managed directory")
+            policy = self.prepare_destination(destination)
+            sync.synchronize(
+                upstream=source, destination=destination, policy_path=policy, source_ref="main"
+            )
+            self.write(destination, "docs/item/local", "destination-only\n")
+            (source / "docs/item/a").unlink()
+            (source / "docs/item").rmdir()
+            self.write(source, "docs/item", "replacement\n")
+            self.commit(source, "replace directory with file")
+            with self.assertRaisesRegex(sync.SyncError, "unmanaged descendants"):
+                sync.synchronize(
+                    upstream=source,
+                    destination=destination,
+                    policy_path=policy,
+                    source_ref="main",
+                )
+            self.assertEqual(
+                "destination-only\n",
+                (destination / "docs/item/local").read_text(encoding="utf-8"),
+            )
 
     @unittest.skipUnless(hasattr(os, "symlink"), "symlink support is required")
     def test_preserved_child_cannot_be_replaced_by_upstream_ancestor_symlink(self) -> None:

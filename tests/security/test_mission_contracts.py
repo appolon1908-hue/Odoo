@@ -72,6 +72,16 @@ class MissionContractTests(unittest.TestCase):
         self.assertIn('CI_PYCACHE_DIR="$(mktemp -d)"', runner)
         self.assertIn('export PYTHONPYCACHEPREFIX="$CI_PYCACHE_DIR"', runner)
         self.assertIn("trap 'rm -rf -- \"$CI_PYCACHE_DIR\"' EXIT", runner)
+        self.assertNotIn("\npython3 -m", runner)
+        self.assertNotIn("\npython3 scripts/", runner)
+        self.assertNotIn("\n  python3 -m", runner)
+        self.assertNotIn("\n  python3 scripts/", runner)
+        self.assertGreaterEqual(runner.count("python3 -I "), 16)
+        isolated_runner = (ROOT / "scripts/run_isolated_source_tests.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("sys.path.append(str(ROOT))", isolated_runner)
+        self.assertNotIn("sys.path.insert", isolated_runner)
 
     def test_upstream_overlay_validation_uses_isolated_python_and_rechecks_authority(self):
         workflow = (ROOT / ".github/workflows/sync-codestra-odoo-addons.yml").read_text(
