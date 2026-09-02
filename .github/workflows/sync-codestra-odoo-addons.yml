@@ -434,6 +434,7 @@ jobs:
     name: Publish the exact validated candidate as a protected PR
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    environment: odoo-upstream-source-sync
     permissions:
       actions: read
       contents: write

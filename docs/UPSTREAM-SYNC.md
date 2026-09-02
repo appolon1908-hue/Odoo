@@ -49,13 +49,14 @@ Configure it before storing the source credential:
   requested upstream ref and workflow run;
 - prevent self-review where a second trusted reviewer is available;
 - no environment URL and no deployment action;
-- environment secret:
+- environment secrets:
 
   ```text
   CODESTRA_ODOO_UPSTREAM_READ_TOKEN
+  ODOO_SYNC_PR_TOKEN
   ```
 
-Do **not** store that token as an ordinary repository secret. A manual workflow
+Do **not** store either token as an ordinary repository secret. A manual workflow
 can be selected from another branch, so a repository secret could be exposed to
 an unreviewed workflow definition. The job itself also requires
 `github.ref == refs/heads/main`, but the environment branch restriction is the
@@ -74,6 +75,11 @@ organization SSO: authorized when the organization requires it
 Do not grant Administration, Actions write, pull-request write, secrets, or
 access to unrelated repositories. Never paste the token into a workflow input,
 issue, pull request, commit, documentation, chat, or log.
+
+`ODOO_SYNC_PR_TOKEN` is a separate fine-grained credential limited to
+`appolon1908-hue/Odoo`, with Contents and Pull requests write permissions only.
+The `publish` job is bound to the same main-restricted protected environment,
+so an unreviewed workflow ref cannot obtain this destination write credential.
 
 Installing the GitHub integration on the `Codestra-SRL` organization is also
 recommended for direct read/review access, but the import workflow still uses
@@ -119,7 +125,8 @@ After the sync-controller PR is merged:
 2. Re-audit collaborators, deploy keys, Actions, GitHub Apps, and branch rules.
 3. Create and protect environment `odoo-upstream-source-sync` as described
    above.
-4. Add `CODESTRA_ODOO_UPSTREAM_READ_TOKEN` to that environment only.
+4. Add `CODESTRA_ODOO_UPSTREAM_READ_TOKEN` and `ODOO_SYNC_PR_TOKEN` to that
+   environment only.
 5. Open **Actions → Sync Codestra Odoo addons upstream** on branch `main`.
 6. Run:
 
