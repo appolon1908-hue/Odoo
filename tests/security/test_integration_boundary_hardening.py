@@ -655,6 +655,21 @@ class B:
                 hardening.python_findings(path, allow_cursor_sql=False),
             )
 
+    def test_dotted_cursor_method_alias_reassignment_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/dotted_cursor_reassignment.py",
+                "def apply(request, holder):\n    holder.run_sql = request.env.cr.execute\n"
+                "    run_sql = holder.run_sql\n    run_sql('DELETE FROM res_users')\n",
+            )
+            self.assertTrue(
+                any(
+                    "cursor execution" in finding
+                    for finding in hardening.python_findings(path, allow_cursor_sql=False)
+                )
+            )
+
     def test_dotted_environment_selector_alias_stored_in_container_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = self.write(
@@ -668,6 +683,23 @@ class B:
             self.assertIn(
                 "environment selector capabilities stored in containers are prohibited",
                 hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
+    def test_dotted_environment_selector_alias_reassignment_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/controllers/dotted_selector_reassignment.py",
+                "def apply(request, payload, holder):\n"
+                "    holder.select = request.env.__getitem__\n"
+                "    select = holder.select\n"
+                "    select(payload['model']).sudo().create({})\n",
+            )
+            self.assertTrue(
+                any(
+                    "caller-selected Odoo model" in finding
+                    for finding in hardening.python_findings(path, allow_cursor_sql=False)
+                )
             )
 
     def test_reflectively_acquired_cursor_method_alias_is_rejected(self) -> None:

@@ -457,7 +457,7 @@ def lexical_cursor_method_aliases(
                             )
                         )
                     )
-                    or (isinstance(value, ast.Name) and value.id in methods)
+                    or ".".join(attribute_chain(value)) in methods
                     for value in values
                 ):
                     added.add(name)
@@ -736,7 +736,7 @@ def lexical_environment_selector_aliases(
                             or ".".join(attribute_chain(value.args[0])) in selectors
                         )
                     )
-                    or (isinstance(value, ast.Name) and value.id in selectors)
+                    or ".".join(attribute_chain(value)) in selectors
                     for value in values
                 )
             }
