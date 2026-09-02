@@ -1,0 +1,119 @@
+name: Production container CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/production-container-ci.yml"
+      - ".github/workflows/cc-release-candidate.yml"
+      - ".dockerignore"
+      - "custom-addons/**"
+      - "deploy/container/**"
+      - "config/release-policy.json"
+      - "release/**"
+      - "scripts/generate_container_release_manifest.py"
+      - "scripts/validate_production_evidence.py"
+      - "scripts/validate_release_policy.py"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/production-container-ci.yml"
+      - ".github/workflows/cc-release-candidate.yml"
+      - ".dockerignore"
+      - "custom-addons/**"
+      - "deploy/container/**"
+      - "config/release-policy.json"
+      - "release/**"
+      - "scripts/generate_container_release_manifest.py"
+      - "scripts/validate_production_evidence.py"
+      - "scripts/validate_release_policy.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-container-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-scan:
+    name: Build and scan digest-pinned Odoo image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out exact workflow SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Build the production image without publishing
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: deploy/container/Dockerfile
+          load: true
+          pull: true
+          no-cache: true
+          platforms: linux/amd64
+          tags: codestra-odoo-ci:${{ github.sha }}
+          build-args: |
+            SOURCE_SHA=${{ github.sha }}
+
+      - name: Verify image content and non-root runtime identity
+        env:
+          IMAGE_TAG: codestra-odoo-ci:${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+          test "$(docker image inspect "$IMAGE_TAG" --format '{{.Config.User}}')" = "odoo"
+          docker run --rm --entrypoint sh "$IMAGE_TAG" -c '
+            set -eu
+            test -d /mnt/extra-addons
+            test -z "$(find /mnt/extra-addons -type l -print -quit)"
+            test -n "$(find /mnt/extra-addons -mindepth 2 -maxdepth 2 -name __manifest__.py -print -quit)"
+            test -r /mnt/extra-addons/codestra_intake_leads/__manifest__.py
+          '
+          printf 'PRODUCTION_IMAGE_CONTENT=PASS\n'
+
+      - name: Block fixed critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: codestra-odoo-ci:${{ github.sha }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: "true"
+          severity: CRITICAL
+          scanners: vuln
+          cache: "true"
+
+      - name: Block secrets embedded in the image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: codestra-odoo-ci:${{ github.sha }}
+          format: table
+          exit-code: "1"
+          scanners: secret
+          cache: "true"
+
+      - name: Generate container SPDX SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: codestra-odoo-ci:${{ github.sha }}
+          format: spdx-json
+          output: container-sbom.spdx.json
+          exit-code: "0"
+          cache: "true"
+
+      - name: Upload container CI evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: production-container-ci-${{ github.sha }}
+          path: container-sbom.spdx.json
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
