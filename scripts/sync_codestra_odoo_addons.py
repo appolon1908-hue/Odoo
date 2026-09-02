@@ -23,7 +23,7 @@ from typing import Any, Iterable, Mapping, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_POLICY = ROOT / "config" / "upstream-sync-policy.json"
-MODULE_MANIFESTS = ("__manifest__.py", "__openerp__.py")
+MODULE_MANIFESTS = ("__manifest__.py",)
 MODULE_NAME = re.compile(r"^[A-Za-z0-9_]+$")
 REQUIRED_PRESERVED_ROOTS = (
     Path(".github"),
@@ -158,7 +158,11 @@ def source_identity(upstream: Path) -> dict[str, str]:
     }
 
 
-def validate_symlinks(upstream: Path, excluded: Sequence[Path]) -> None:
+def validate_symlinks(
+    upstream: Path,
+    excluded: Sequence[Path],
+    preserved: Sequence[Path],
+) -> None:
     root = upstream.resolve()
     for path in sorted(upstream.rglob("*")):
         relative = path.relative_to(upstream)
@@ -172,6 +176,10 @@ def validate_symlinks(upstream: Path, excluded: Sequence[Path]) -> None:
         require(
             not matches_any(target_relative, excluded),
             f"upstream symlink targets an excluded path: {relative}",
+        )
+        require(
+            not matches_any(target_relative, preserved),
+            f"upstream symlink targets a destination-preserved path: {relative}",
         )
 
 
@@ -235,10 +243,13 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def tree_digest(root: Path) -> str:
+def tree_digest(root: Path, excluded: frozenset[str] = frozenset()) -> str:
     digest = hashlib.sha256()
     for path in sorted(root.rglob("*")):
-        relative = path.relative_to(root).as_posix().encode("utf-8")
+        relative_text = path.relative_to(root).as_posix()
+        if relative_text in excluded:
+            continue
+        relative = relative_text.encode("utf-8")
         if path.is_dir() and not path.is_symlink():
             continue
         digest.update(relative)
@@ -319,7 +330,7 @@ def mirror_snapshot(
     snapshot_relative: Path,
     excluded: Sequence[Path],
     marker: Mapping[str, Any],
-) -> None:
+) -> str:
     reserved_marker = upstream / ".source.json"
     require(
         not reserved_marker.exists() and not reserved_marker.is_symlink(),
@@ -347,10 +358,13 @@ def mirror_snapshot(
         copy_function=shutil.copy2,
         ignore=ignore,
     )
+    snapshot_sha256 = tree_digest(snapshot)
+    complete_marker = {**marker, "snapshot_tree_sha256": snapshot_sha256}
     (snapshot / ".source.json").write_text(
-        json.dumps(marker, indent=2, sort_keys=True) + "\n",
+        json.dumps(complete_marker, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    return snapshot_sha256
 
 
 def overlay_source(
@@ -477,7 +491,7 @@ def synchronize(
         "sync state path must be destination-preserved",
     )
 
-    validate_symlinks(upstream, excluded)
+    validate_symlinks(upstream, excluded, preserved)
     upstream_runtime_root = upstream / runtime_relative
     require(
         not upstream_runtime_root.is_symlink(),
@@ -504,7 +518,7 @@ def synchronize(
         "source_ref": source_ref,
         **identity,
     }
-    mirror_snapshot(
+    snapshot_sha256 = mirror_snapshot(
         upstream,
         destination,
         snapshot_relative,
@@ -534,6 +548,7 @@ def synchronize(
         "destination_repository": policy["destination_repository"],
         **identity,
         "snapshot_path": snapshot_relative.as_posix(),
+        "snapshot_tree_sha256": snapshot_sha256,
         "runtime_addons_path": runtime_relative.as_posix(),
         "managed_overlay_files": sorted(managed),
         "modules": promoted,
@@ -578,6 +593,24 @@ def verify_state(*, destination: Path, policy_path: Path) -> dict[str, Any]:
     )
     marker = load_json(destination / snapshot_relative / ".source.json")
     require(marker.get("source_sha") == source_sha, "snapshot source SHA drift")
+    expected_snapshot_sha256 = state.get("snapshot_tree_sha256")
+    require(
+        isinstance(expected_snapshot_sha256, str)
+        and re.fullmatch(r"[0-9a-f]{64}", expected_snapshot_sha256) is not None,
+        "snapshot tree digest is invalid",
+    )
+    require(
+        marker.get("snapshot_tree_sha256") == expected_snapshot_sha256,
+        "snapshot marker digest drift",
+    )
+    snapshot = destination / snapshot_relative
+    actual_snapshot_sha256 = tree_digest(
+        snapshot, frozenset({".source.json"})
+    )
+    require(
+        actual_snapshot_sha256 == expected_snapshot_sha256,
+        "snapshot content drift",
+    )
     safety = state.get("safety")
     require(isinstance(safety, dict), "sync safety evidence is missing")
     require(not any(safety.values()), "sync state claims a live effect")

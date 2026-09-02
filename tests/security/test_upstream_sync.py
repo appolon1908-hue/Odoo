@@ -154,6 +154,41 @@ class UpstreamSyncTests(unittest.TestCase):
             self.assertEqual(["target_only"], state["target_only_modules"])
             sync.verify_state(destination=destination, policy_path=policy)
 
+            (snapshot / "docs/source.md").write_text("tampered\n", encoding="utf-8")
+            with self.assertRaisesRegex(sync.SyncError, "snapshot content drift"):
+                sync.verify_state(destination=destination, policy_path=policy)
+
+    def test_symlink_to_destination_preserved_source_path_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.write(source, "scripts/tool.py", "# upstream\n")
+            os.symlink("scripts", source / "alias")
+            self.add_module(source, "addons", "module_a", "first")
+            self.commit(source, "symlink to preserved path")
+            policy = self.prepare_destination(destination)
+
+            with self.assertRaisesRegex(
+                sync.SyncError, "destination-preserved path"
+            ):
+                sync.synchronize(
+                    upstream=source,
+                    destination=destination,
+                    policy_path=policy,
+                    source_ref="main",
+                )
+
+    def test_legacy_openerp_manifest_is_not_a_promotable_addon(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            module = root / "legacy"
+            self.write(root, "legacy/__openerp__.py", "{'name': 'legacy'}\n")
+            self.assertEqual({}, sync.discover_modules(root, []))
+
     def test_file_and_directory_transitions_are_supported(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
