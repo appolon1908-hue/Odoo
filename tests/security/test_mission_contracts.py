@@ -69,6 +69,13 @@ class MissionContractTests(unittest.TestCase):
             workflow,
         )
 
+    def test_runtime_ci_passwords_cannot_be_parsed_as_cli_options(self):
+        runner = (ROOT / "scripts/run_odoo_module_tests.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("token_urlsafe", runner)
+        self.assertGreaterEqual(runner.count("secrets.token_hex("), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
