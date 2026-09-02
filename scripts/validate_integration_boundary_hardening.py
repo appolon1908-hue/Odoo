@@ -409,7 +409,27 @@ def is_cursor_execute(
     )
 
 
-def dynamic_model_selector(node: ast.AST, env_aliases: set[str]) -> ast.AST | None:
+def operator_getitem_aliases(tree: ast.AST) -> tuple[set[str], set[str]]:
+    modules: set[str] = set()
+    functions: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "operator":
+                    modules.add(alias.asname or "operator")
+        elif isinstance(node, ast.ImportFrom) and node.module == "operator":
+            for alias in node.names:
+                if alias.name == "getitem":
+                    functions.add(alias.asname or alias.name)
+    return modules, functions
+
+
+def dynamic_model_selector(
+    node: ast.AST,
+    env_aliases: set[str],
+    operator_modules: set[str] | None = None,
+    operator_functions: set[str] | None = None,
+) -> ast.AST | None:
     if isinstance(node, ast.Subscript) and expression_chain(
         node.value, env_aliases, "environment"
     ):
@@ -422,6 +442,20 @@ def dynamic_model_selector(node: ast.AST, env_aliases: set[str]) -> ast.AST | No
         and node.args
     ):
         return node.args[0]
+    if isinstance(node, ast.Call) and len(node.args) >= 2:
+        chain = attribute_chain(node.func)
+        is_operator_getitem = (
+            isinstance(node.func, ast.Name)
+            and node.func.id in (operator_functions or set())
+        ) or (
+            len(chain) == 2
+            and chain[0] in (operator_modules or set())
+            and chain[1] == "getitem"
+        )
+        if is_operator_getitem and expression_chain(
+            node.args[0], env_aliases, "environment"
+        ):
+            return node.args[1]
     return None
 
 
@@ -742,6 +776,7 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
     enclosing = enclosing_functions(tree)
     subprocess_modules, os_modules, bare_process = imported_process_functions(tree)
     sql_db_modules, sql_db_functions = odoo_sql_db_aliases(tree)
+    operator_modules, operator_functions = operator_getitem_aliases(tree)
 
     for imported in sorted(sql_db_functions):
         findings.append(f"Odoo sql_db helper import is prohibited: {imported}")
@@ -794,8 +829,13 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
                             "Python process invocation contains database credentials"
                         )
 
-        selector = dynamic_model_selector(node, effective_env_names)
-        if selector is None or static_string(selector) is not None:
+        selector = dynamic_model_selector(
+            node,
+            effective_env_names,
+            operator_modules,
+            operator_functions,
+        )
+        if selector is None or static_text(selector, constants) is not None:
             continue
         if "tests" in path.parts:
             continue

@@ -486,6 +486,45 @@ class TestBridge(HttpCase):
                 hardening.python_findings(path, allow_cursor_sql=False),
             )
 
+    def test_operator_getitem_dynamic_model_selector_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            module_path = self.write(
+                root,
+                "custom-addons/example/models/operator_module.py",
+                "import operator as op\ndef dispatch(request, payload):\n    return op.getitem(request.env, payload['model']).sudo().create({})\n",
+            )
+            alias_path = self.write(
+                root,
+                "custom-addons/example/models/operator_alias.py",
+                "from operator import getitem as select\ndef dispatch(request, payload):\n    return select(request.env, payload['model']).sudo().create({})\n",
+            )
+            for path in (module_path, alias_path):
+                self.assertTrue(
+                    any(
+                        "caller-selected Odoo model" in finding
+                        for finding in hardening.python_findings(
+                            path, allow_cursor_sql=False
+                        )
+                    )
+                )
+
+    def test_statically_resolved_model_selectors_are_allowed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/static.py",
+                "MODEL = 'crm.lead'\ndef read(self):\n    first = self.env[MODEL]\n    second = self.env['crm.' + 'lead']\n    return first, second\n",
+            )
+            self.assertFalse(
+                any(
+                    "caller-selected Odoo model" in finding
+                    for finding in hardening.python_findings(
+                        path, allow_cursor_sql=False
+                    )
+                )
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
