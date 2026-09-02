@@ -388,6 +388,15 @@ def overlay_source(
     ]
     managed = {relative.as_posix() for relative, _source in entries}
 
+    for relative, _source in entries:
+        ancestor = destination
+        for part in relative.parts[:-1]:
+            ancestor /= part
+            require(
+                not ancestor.is_symlink(),
+                f"destination symlink ancestor is prohibited: {relative}",
+            )
+
     for relative, source in entries:
         target = destination / relative
         if (source.is_file() or source.is_symlink()) and target.is_dir() and not target.is_symlink():
@@ -651,6 +660,7 @@ def verify_state(*, destination: Path, policy_path: Path) -> dict[str, Any]:
         normalize_relative(value, field="preserve_destination_paths")
         for value in policy["preserve_destination_paths"]
     ]
+    preserved.append(snapshot_relative)
     managed_overlay_files = state.get("managed_overlay_files")
     require(
         isinstance(managed_overlay_files, list)

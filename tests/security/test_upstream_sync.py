@@ -634,6 +634,64 @@ class UpstreamSyncTests(unittest.TestCase):
                 (destination / "docs/item/local").read_text(encoding="utf-8"),
             )
 
+    def test_snapshot_namespace_is_preserved_from_overlay(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.add_module(source, "addons", "module_a", "first")
+            self.write(
+                source,
+                "upstream/codestra-odoo-addons/nested.txt",
+                "source namespace content\n",
+            )
+            self.commit(source, "snapshot namespace source")
+            policy = self.prepare_destination(destination)
+
+            state = sync.synchronize(
+                upstream=source,
+                destination=destination,
+                policy_path=policy,
+                source_ref="main",
+            )
+
+            self.assertNotIn(
+                "upstream/codestra-odoo-addons/nested.txt",
+                state["managed_overlay_files"],
+            )
+            sync.verify_state(destination=destination, policy_path=policy)
+
+    @unittest.skipUnless(hasattr(os, "symlink"), "symlink support is required")
+    def test_destination_symlink_ancestor_is_rejected_before_overlay(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.add_module(source, "addons", "module_a", "first")
+            self.write(source, "alias/validate_manifests.py", "untrusted\n")
+            self.commit(source, "overlay through destination symlink")
+            policy = self.prepare_destination(destination)
+            (destination / "alias").symlink_to("scripts", target_is_directory=True)
+
+            with self.assertRaisesRegex(sync.SyncError, "destination symlink ancestor"):
+                sync.synchronize(
+                    upstream=source,
+                    destination=destination,
+                    policy_path=policy,
+                    source_ref="main",
+                )
+            self.assertEqual(
+                "#!/bin/sh\necho destination-ci\n",
+                (destination / "scripts/run_ci.sh").read_text(encoding="utf-8"),
+            )
+            self.assertFalse((destination / "scripts/validate_manifests.py").exists())
+
     @unittest.skipUnless(hasattr(os, "symlink"), "symlink support is required")
     def test_preserved_child_cannot_be_replaced_by_upstream_ancestor_symlink(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -99,6 +99,10 @@ class MissionContractTests(unittest.TestCase):
         )
         self.assertNotIn("token_urlsafe", runner)
         self.assertGreaterEqual(runner.count("secrets.token_hex("), 2)
+        self.assertNotIn("python3 - <<'PY'", runner)
+        self.assertNotIn("python3 -m pip", runner)
+        self.assertEqual(runner.count("python3 -I - <<'PY'"), 2)
+        self.assertIn("python3 -I -m pip install", runner)
 
 
 if __name__ == "__main__":

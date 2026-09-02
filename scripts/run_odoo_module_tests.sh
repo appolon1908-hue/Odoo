@@ -85,13 +85,13 @@ for image in "$ODOO_IMAGE" "$POSTGRES_IMAGE"; do
 done
 
 DB_PASSWORD="$(
-  python3 - <<'PY'
+  python3 -I - <<'PY'
 import secrets
 print(secrets.token_hex(36))
 PY
 )"
 ADMIN_PASSWORD="$(
-  python3 - <<'PY'
+  python3 -I - <<'PY'
 import secrets
 print(secrets.token_hex(40))
 PY
@@ -112,7 +112,7 @@ docker image inspect \
 
 printf '==> Installing the hash-pinned Odoo browser-test dependency\n'
 CI_PYTHON_DIR="$(mktemp -d)"
-python3 -m pip install \
+python3 -I -m pip install \
   --disable-pip-version-check \
   --no-deps \
   --require-hashes \
