@@ -271,6 +271,38 @@ def tree_digest(root: Path, excluded: frozenset[str] = frozenset()) -> str:
     return digest.hexdigest()
 
 
+def git_tree_digest(root: Path, excluded: frozenset[str] = frozenset()) -> str:
+    """Reconstruct the Git tree object ID for a filesystem snapshot."""
+
+    def object_id(path: Path) -> tuple[str, bytes]:
+        if path.is_symlink():
+            payload = os.readlink(path).encode("utf-8", "surrogateescape")
+            header = f"blob {len(payload)}\0".encode()
+            return "120000", hashlib.sha1(header + payload).digest()
+        if path.is_dir():
+            entries: list[tuple[bytes, bool, str, bytes]] = []
+            for child in path.iterdir():
+                if child == root / child.name and child.name in excluded:
+                    continue
+                mode, digest = object_id(child)
+                name = os.fsencode(child.name)
+                entries.append((name, child.is_dir() and not child.is_symlink(), mode, digest))
+            entries.sort(key=lambda item: item[0] + (b"/" if item[1] else b""))
+            payload = b"".join(
+                mode.encode() + b" " + name + b"\0" + digest
+                for name, _is_directory, mode, digest in entries
+            )
+            header = f"tree {len(payload)}\0".encode()
+            return "40000", hashlib.sha1(header + payload).digest()
+        payload = path.read_bytes()
+        mode = "100755" if path.stat().st_mode & 0o111 else "100644"
+        header = f"blob {len(payload)}\0".encode()
+        return mode, hashlib.sha1(header + payload).digest()
+
+    require(root.is_dir() and not root.is_symlink(), f"Git tree root is unsafe: {root}")
+    return object_id(root)[1].hex()
+
+
 def module_symlinks(module: Path) -> list[Path]:
     links: list[Path] = []
     if module.is_symlink():
@@ -657,6 +689,10 @@ def verify_state(*, destination: Path, policy_path: Path) -> dict[str, Any]:
     require(
         actual_snapshot_sha256 == expected_snapshot_sha256,
         "snapshot content drift",
+    )
+    require(
+        git_tree_digest(snapshot, frozenset({".source.json"})) == state.get("source_tree"),
+        "snapshot Git tree drift",
     )
     preserved = [
         normalize_relative(value, field="preserve_destination_paths")

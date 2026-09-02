@@ -93,6 +93,10 @@ class MissionContractTests(unittest.TestCase):
         )
         self.assertNotIn("python3 - <<'PY'", workflow)
         self.assertGreaterEqual(workflow.count("python3 -I - <<'PY'"), 5)
+        runtime_workflow = (ROOT / ".github/workflows/odoo-addons-ci.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertEqual(runtime_workflow.count('python3 -I - "$runtime_log"'), 2)
         validation = workflow.split("- name: Validate with the preserved destination authority", 1)[1].split("- name: Force-stage", 1)[0]
         self.assertEqual(validation.count("sha256sum scripts/run_ci.sh"), 2)
         self.assertEqual(validation.count("sha256sum scripts/sync_codestra_odoo_addons.py"), 2)

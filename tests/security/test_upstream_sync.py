@@ -602,6 +602,39 @@ class UpstreamSyncTests(unittest.TestCase):
                 with self.assertRaisesRegex(sync.SyncError, message):
                     sync.verify_state(destination=destination, policy_path=policy)
 
+    def test_verify_state_binds_snapshot_bytes_to_recorded_git_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.add_module(source, "addons", "module_a", "first")
+            self.write(source, "docs/source.md", "original\n")
+            self.commit(source, "source tree")
+            policy = self.prepare_destination(destination)
+            state = sync.synchronize(
+                upstream=source,
+                destination=destination,
+                policy_path=policy,
+                source_ref="main",
+            )
+
+            snapshot = destination / state["snapshot_path"]
+            self.write(snapshot, "docs/source.md", "tampered\n")
+            changed_digest = sync.tree_digest(snapshot, frozenset({".source.json"}))
+            state["snapshot_tree_sha256"] = changed_digest
+            state_path = destination / self.policy_document()["state_path"]
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+            marker_path = snapshot / ".source.json"
+            marker = json.loads(marker_path.read_text(encoding="utf-8"))
+            marker["snapshot_tree_sha256"] = changed_digest
+            marker_path.write_text(json.dumps(marker), encoding="utf-8")
+
+            with self.assertRaisesRegex(sync.SyncError, "snapshot Git tree drift"):
+                sync.verify_state(destination=destination, policy_path=policy)
+
     def test_directory_replacement_rejects_unmanaged_descendants(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
