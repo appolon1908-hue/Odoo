@@ -33,8 +33,6 @@ concurrency:
 
 env:
   IMAGE_TAG: codestra-odoo-ci:${{ github.sha }}
-  TRIVY_VERSION: "0.74.0"
-  TRIVY_ARCHIVE_SHA256: "2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a"
 
 jobs:
   build-and-scan:
@@ -51,26 +49,7 @@ jobs:
           persist-credentials: false
 
       - name: Install checksum-verified Trivy
-        run: |
-          set -Eeuo pipefail
-          archive="$RUNNER_TEMP/trivy-${TRIVY_VERSION}.tar.gz"
-          install_dir="$RUNNER_TEMP/trivy-bin"
-          curl \
-            --fail \
-            --location \
-            --retry 3 \
-            --show-error \
-            --silent \
-            --output "$archive" \
-            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
-          actual_sha256="$(sha256sum "$archive" | awk '{print $1}')"
-          printf 'TRIVY_ARCHIVE_ACTUAL_SHA256=%s\n' "$actual_sha256"
-          test "$actual_sha256" = "$TRIVY_ARCHIVE_SHA256"
-          mkdir -p "$install_dir"
-          tar -xzf "$archive" -C "$install_dir" trivy
-          chmod 0755 "$install_dir/trivy"
-          printf '%s\n' "$install_dir" >> "$GITHUB_PATH"
-          "$install_dir/trivy" --version
+        run: bash scripts/install_trivy.sh
 
       - name: Build the production image without publishing
         env:
