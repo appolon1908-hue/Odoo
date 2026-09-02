@@ -1,0 +1,15 @@
+.git
+.gitignore
+.github
+dist
+__pycache__
+*.py[cod]
+*.log
+*.tar
+*.tar.gz
+*.zip
+.env
+.env.*
+SERVER-VS-GITHUB-MODULE-LEDGER.csv
+reports
+upstream
