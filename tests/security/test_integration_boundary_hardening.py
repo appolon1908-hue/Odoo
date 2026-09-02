@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from scripts import validate_integration_boundary_hardening as hardening
+from scripts import validate_integration_boundary as boundary
 
 
 class IntegrationBoundaryHardeningTests(unittest.TestCase):
@@ -14,6 +15,12 @@ class IntegrationBoundaryHardeningTests(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
         return path
+
+    def test_only_addon_root_migration_paths_receive_migration_treatment(self) -> None:
+        self.assertTrue(boundary.is_module_migration_path("migrations/19.0.1.0/pre.py"))
+        self.assertTrue(boundary.is_module_migration_path("upgrades/19.0.1.0/post.py"))
+        self.assertFalse(boundary.is_module_migration_path("models/upgrades/job.py"))
+        self.assertFalse(boundary.is_module_migration_path("controllers/migrations/proxy.py"))
 
     def test_shell_psql_and_database_credentials_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -136,6 +143,26 @@ def apply(self, env, cr):
                 "custom-addons/example/models/helper.py",
                 "def raw(cursor):\n    cursor.execute('DELETE FROM x')\ndef route(request):\n    raw(request.env.cr)\n",
             )
+
+    def test_same_named_helpers_in_different_classes_do_not_hide_cursor_flow(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/helper.py",
+                """
+class A:
+    def raw(self, cursor):
+        cursor.execute('DELETE FROM x')
+
+    def apply(self, request):
+        self.raw(request.env.cr)
+
+class B:
+    def raw(self, other):
+        return other
+""",
+            )
+            self.assertTrue(any("cursor execution" in finding for finding in hardening.python_findings(path, allow_cursor_sql=False)))
             self.assertTrue(
                 any(
                     "cursor execution" in finding
@@ -247,6 +274,59 @@ class Controller:
                 "controller uses a caller-selected Odoo model; only static model names are allowed",
                 hardening.python_findings(path, allow_cursor_sql=False),
             )
+
+    def test_aliased_route_decorator_never_exempts_dynamic_model_wrapper(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/controllers/routed_alias.py",
+                """
+from odoo.http import route as endpoint
+
+class Controller:
+    @endpoint('/proxy/<model_name>')
+    def _proxy(self, model_name):
+        return request.env[model_name].search([])
+
+    def internal(self):
+        return self._proxy('crm.lead')
+""",
+            )
+            self.assertIn(
+                "controller uses a caller-selected Odoo model; only static model names are allowed",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
+    def test_shadowed_parameter_anywhere_in_command_expression_is_dynamic(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/shadow_list.py",
+                "import subprocess\ncommand = 'echo safe'\ndef launch(command):\n    subprocess.run([command], shell=True)\n",
+            )
+            self.assertIn(
+                "unanalyzable process invocation is prohibited in Odoo addons",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
+    def test_process_callable_default_and_argument_aliases_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            default = self.write(
+                root,
+                "custom-addons/example/models/default_callable.py",
+                "import subprocess\ndef invoke(command, launch=subprocess.run):\n    launch(command)\ninvoke('psql db')\n",
+            )
+            argument = self.write(
+                root,
+                "custom-addons/example/models/argument_callable.py",
+                "import subprocess\ndef invoke(command, launch):\n    launch(command)\ninvoke('psql db', subprocess.run)\n",
+            )
+            for path in (default, argument):
+                self.assertIn(
+                    "unanalyzable process invocation is prohibited in Odoo addons",
+                    hardening.python_findings(path, allow_cursor_sql=False),
+                )
 
     def test_bridge_manifest_must_load_acl_and_tests_must_be_real(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

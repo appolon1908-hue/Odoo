@@ -421,7 +421,7 @@ def validate_addons(errors: list[str]) -> None:
                 for kind in kinds & DRIVER_EXCEPTION_KINDS
             )
 
-        is_migration = any(part in {"migrations", "upgrades"} for part in path.parts)
+        is_migration = is_module_migration_path(module_relative)
         statements = [] if is_migration else cursor_sql_statements(path, errors)
         validate_sql_exception(relative, kinds, statements, errors)
         if kinds & HARDENING_EXCEPTION_KINDS:
@@ -448,6 +448,13 @@ def validate_addons(errors: list[str]) -> None:
                     errors.append(
                         f"custom-addons/{module_name}/{module_relative}: unused reviewed exception {kind}"
                     )
+
+
+def is_module_migration_path(module_relative: str) -> bool:
+    """Recognize only migration directories rooted directly in an addon."""
+
+    parts = PurePosixPath(module_relative).parts
+    return len(parts) >= 2 and parts[0] in {"migrations", "upgrades"}
 
     print(f"INTEGRATION_BOUNDARY_PINNED_MODULES={len(pinned)}")
     print(f"INTEGRATION_BOUNDARY_STRICT_OVERRIDES={len(overrides)}")

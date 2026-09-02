@@ -265,15 +265,16 @@ def transitive_aliases(tree: ast.AST, *, terminal: str) -> set[str]:
             break
         aliases.update(added)
     if terminal == "cursor":
-        functions = {
-            node.name: node
+        functions = [
+            node
             for node in ast.walk(tree)
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        }
+        ]
         calls = function_call_arguments(tree)
         for _ in range(len(functions) + 1):
             added: set[str] = set()
-            for name, function in functions.items():
+            for function in functions:
+                name = function.name
                 parameters = function_parameters(function)
                 for call in calls.get(name, []):
                     for index, parameter in enumerate(parameters):
@@ -344,22 +345,24 @@ def static_model_wrapper_parameters(
 ) -> set[tuple[str, str]]:
     """Permit a private wrapper only when all in-file callers use literals."""
 
-    functions = {
-        node.name: node
+    functions = [
+        node
         for node in ast.walk(tree)
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-    }
+    ]
     calls = function_call_arguments(tree)
     safe: set[tuple[str, str]] = set()
+    route_aliases = route_decorator_aliases(tree)
 
-    for name, function in functions.items():
+    for function in functions:
+        name = function.name
         if not name.startswith("_"):
             continue
         if any(
-            (attribute_chain(decorator) or [""])[-1] == "route"
+            (attribute_chain(decorator) or [""])[-1] in route_aliases
             or (
                 isinstance(decorator, ast.Call)
-                and (attribute_chain(decorator.func) or [""])[-1] == "route"
+                and (attribute_chain(decorator.func) or [""])[-1] in route_aliases
             )
             for decorator in function.decorator_list
         ):
@@ -404,6 +407,28 @@ def static_model_wrapper_parameters(
             if all_literal:
                 safe.add((name, parameter))
     return safe
+
+
+def route_decorator_aliases(tree: ast.AST) -> set[str]:
+    aliases = {"route"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "odoo.http":
+            for imported in node.names:
+                if imported.name == "route":
+                    aliases.add(imported.asname or imported.name)
+    definitions = simple_assignments(tree)
+    for _ in range(len(definitions) + 1):
+        added = {
+            name
+            for name, values in definitions.items()
+            if name not in aliases
+            and values
+            and all((attribute_chain(value) or [""])[-1] in aliases for value in values)
+        }
+        if not added:
+            break
+        aliases.update(added)
+    return aliases
 
 
 def enclosing_functions(
@@ -481,7 +506,60 @@ def imported_process_functions(tree: ast.AST) -> tuple[set[str], set[str], set[s
         if not added:
             break
         bare_functions.update(added)
+
+    functions = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+    calls = function_call_arguments(tree)
+    for _ in range(len(functions) + 1):
+        added: set[str] = set()
+        for function in functions:
+            parameters = function_parameters(function)
+            positional = [*function.args.posonlyargs, *function.args.args]
+            defaults = [None] * (len(positional) - len(function.args.defaults)) + list(function.args.defaults)
+            default_by_name = {argument.arg: value for argument, value in zip(positional, defaults) if value is not None}
+            default_by_name.update(
+                {
+                    argument.arg: value
+                    for argument, value in zip(function.args.kwonlyargs, function.args.kw_defaults)
+                    if value is not None
+                }
+            )
+            for parameter, value in default_by_name.items():
+                if is_process_reference(value, subprocess_modules, os_modules, bare_functions):
+                    added.add(parameter)
+            for call in calls.get(function.name, []):
+                for index, parameter in enumerate(parameters):
+                    positional_index = index
+                    if isinstance(call.func, ast.Attribute) and parameters and parameters[0] in {"self", "cls"}:
+                        positional_index -= 1
+                    value = next((item.value for item in call.keywords if item.arg == parameter), None)
+                    if value is None and 0 <= positional_index < len(call.args):
+                        value = call.args[positional_index]
+                    if value is not None and is_process_reference(value, subprocess_modules, os_modules, bare_functions):
+                        added.add(parameter)
+        added -= bare_functions
+        if not added:
+            break
+        bare_functions.update(added)
     return subprocess_modules, os_modules, bare_functions
+
+
+def is_process_reference(
+    node: ast.AST,
+    subprocess_modules: set[str],
+    os_modules: set[str],
+    bare_functions: set[str],
+) -> bool:
+    chain = attribute_chain(node)
+    if len(chain) == 1:
+        return chain[0] in bare_functions
+    return bool(chain) and (
+        (chain[0] in subprocess_modules and chain[-1] in SUBPROCESS_FUNCTIONS)
+        or (chain[0] in os_modules and chain[-1] in OS_PROCESS_FUNCTIONS)
+    )
 
 
 def is_process_call(
@@ -571,10 +649,10 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
             if is_process_call(node, subprocess_modules, os_modules, bare_process):
                 command_node = process_command_node(node)
                 current_function = enclosing.get(node)
-                shadowed_parameter = (
-                    isinstance(command_node, ast.Name)
-                    and current_function is not None
-                    and command_node.id in function_parameters(current_function)
+                shadowed_parameter = current_function is not None and command_node is not None and any(
+                    isinstance(child, ast.Name)
+                    and child.id in function_parameters(current_function)
+                    for child in ast.walk(command_node)
                 )
                 command_text = None if shadowed_parameter else static_text(command_node, constants)
                 if command_text is None:
