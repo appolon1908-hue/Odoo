@@ -1486,6 +1486,7 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
         scope = enclosing.get(node)
         effective_cursor_names = cursor_names | scoped_cursor_names.get(scope, set())
         effective_env_names = env_names | scoped_env_names.get(scope, set())
+        effective_env_selectors = scoped_env_selectors.get(scope, set())
         effective_cursor_methods = scoped_cursor_methods.get(scope, set())
         effective_subprocess, effective_os, effective_process = scoped_process.get(
             scope, (subprocess_modules, os_modules, bare_process)
@@ -1497,11 +1498,19 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
                 "process launcher capability references are prohibited in Odoo addons"
             )
         values = container_values(node)
-        if any(is_cursor_method_reference(value, effective_cursor_names) for value in values):
+        if any(
+            is_cursor_method_reference(value, effective_cursor_names)
+            or (isinstance(value, ast.Name) and value.id in effective_cursor_methods)
+            for value in values
+        ):
             findings.append(
                 "cursor method capabilities stored in containers are prohibited"
             )
-        if any(is_environment_selector_reference(value, effective_env_names) for value in values):
+        if any(
+            is_environment_selector_reference(value, effective_env_names)
+            or (isinstance(value, ast.Name) and value.id in effective_env_selectors)
+            for value in values
+        ):
             findings.append(
                 "environment selector capabilities stored in containers are prohibited"
             )
