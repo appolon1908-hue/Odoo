@@ -60,6 +60,16 @@ class MissionContractTests(unittest.TestCase):
         ]
         self.assertFalse(unauthenticated_mutations)
 
+    def test_upstream_sync_compilation_cannot_mutate_promoted_addon_trees(self):
+        workflow = (
+            ROOT / ".github/workflows/sync-codestra-odoo-addons.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            'PYTHONPYCACHEPREFIX="${RUNNER_TEMP}/destination-python-cache" \\\n'
+            "            python3 -m compileall",
+            workflow,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
