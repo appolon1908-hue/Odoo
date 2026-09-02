@@ -1,5 +1,6 @@
 import base64
 from datetime import timedelta
+from unittest.mock import patch
 
 from odoo import fields
 from odoo.tests.common import TransactionCase, tagged
@@ -9,13 +10,43 @@ from ..controllers.integration_api import (
     CodestraServiceOperationsController,
     IntegrationRejected,
     _b64url,
+    _capability_state,
     _effective_service_key,
+    _runtime_flag,
     _validated_jwks_url,
 )
 
 
 @tagged("post_install", "-at_install")
 class TestIntegrationApiContract(TransactionCase):
+    def test_runtime_capability_flags_are_exact_and_fail_closed(self):
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertFalse(_runtime_flag("CODESTRA_TEST_FLAG"))
+        for value in ("1", "yes", "enabled", "unknown"):
+            with patch.dict("os.environ", {"CODESTRA_TEST_FLAG": value}, clear=True):
+                self.assertFalse(_runtime_flag("CODESTRA_TEST_FLAG"))
+        with patch.dict("os.environ", {"CODESTRA_TEST_FLAG": "true"}, clear=True):
+            self.assertTrue(_runtime_flag("CODESTRA_TEST_FLAG"))
+
+    def test_capability_handler_uses_governed_deployment_gate_names(self):
+        gates = {
+            "LIVE_ODOO_WRITE": "true",
+            "ENABLE_EXTERNAL_DELIVERY": "true",
+            "EMAIL_DELIVERY": "true",
+            "SMS_DELIVERY": "true",
+            "PSTN_DIALING": "true",
+        }
+        with patch.dict("os.environ", gates, clear=True):
+            state = _capability_state()
+        self.assertTrue(state["business_writes_enabled"])
+        self.assertTrue(state["external_delivery_enabled"])
+        self.assertTrue(state["live_email_enabled"])
+        self.assertTrue(state["live_sms_enabled"])
+        self.assertTrue(state["live_pstn_enabled"])
+        self.assertFalse(state["read_only_mode"])
+        self.assertEqual(state["live_social_publish_enabled"], "NOT_APPLICABLE")
+        self.assertEqual(state["live_advertising_enabled"], "NOT_APPLICABLE")
+
     def test_jwks_url_is_bounded_to_keycloak_certificate_endpoints(self):
         public = "https://auth.example.test/realms/test/protocol/openid-connect/certs"
         private = "http://keycloak:8080/realms/test/protocol/openid-connect/certs"
@@ -72,6 +103,7 @@ class TestIntegrationApiContract(TransactionCase):
             route for method in methods for route in method.original_routing["routes"]
         }
         expected = {
+            "/capabilities",
             "/api/v1/integration/capabilities",
             "/api/v1/integration/outbox/claims",
             "/api/v1/integration/outbox/<string:outbox_id>",
@@ -109,8 +141,11 @@ class TestIntegrationApiContract(TransactionCase):
         self.assertEqual(
             routes,
             {
+                "/health",
                 "/health/live",
+                "/ready",
                 "/health/ready",
+                "/version",
                 "/.well-known/codestra-service",
                 "/metrics",
             },
