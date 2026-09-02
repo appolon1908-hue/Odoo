@@ -7,6 +7,7 @@ from pathlib import Path
 
 from scripts import validate_integration_boundary_hardening as hardening
 from scripts import validate_integration_boundary as boundary
+from scripts import validate_platform_control_plane as platform_control_plane
 
 
 class IntegrationBoundaryHardeningTests(unittest.TestCase):
@@ -15,6 +16,16 @@ class IntegrationBoundaryHardeningTests(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
         return path
+
+    def test_platform_policy_hmac_field_order_must_match_contract(self) -> None:
+        expected = ["timestamp", "event_id", "raw_body"]
+        platform_control_plane.validate_hmac_field_order(expected, expected, expected)
+        with self.assertRaisesRegex(
+            SystemExit, "machine integration policy HMAC canonical field order drifted"
+        ):
+            platform_control_plane.validate_hmac_field_order(
+                expected, list(reversed(expected)), expected
+            )
 
     def test_only_addon_root_migration_paths_receive_migration_treatment(self) -> None:
         self.assertTrue(boundary.is_module_migration_path("migrations/19.0.1.0/pre.py"))
@@ -49,6 +60,40 @@ class IntegrationBoundaryHardeningTests(unittest.TestCase):
             )
             findings = hardening.python_findings(path, allow_cursor_sql=False)
             self.assertIn("Python process invocation of psql is prohibited", findings)
+
+    def test_python_literal_database_credentials_are_rejected_without_process_call(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/job.py",
+                "DSN = 'postgresql://odoo:example-secret@db/odoo'\n",
+            )
+            self.assertIn(
+                "Python source contains database credentials or PostgreSQL DSN",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
+    def test_direct_os_exec_and_spawn_psql_launchers_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            exec_path = self.write(
+                root,
+                "custom-addons/example/models/exec_job.py",
+                "import os\nos.execvp('psql', ['psql', 'db'])\n",
+            )
+            spawn_path = self.write(
+                root,
+                "custom-addons/example/models/spawn_job.py",
+                "import os\nos.spawnvp(os.P_NOWAIT, 'psql', ['psql', 'db'])\n",
+            )
+            self.assertIn(
+                "Python process invocation of psql is prohibited",
+                hardening.python_findings(exec_path, allow_cursor_sql=False),
+            )
+            self.assertIn(
+                "Python process invocation of psql is prohibited",
+                hardening.python_findings(spawn_path, allow_cursor_sql=False),
+            )
 
     def test_wildcard_process_import_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

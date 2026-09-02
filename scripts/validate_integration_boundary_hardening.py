@@ -44,7 +44,14 @@ SUBPROCESS_FUNCTIONS = {
     "getoutput",
     "getstatusoutput",
 }
-OS_PROCESS_FUNCTIONS = {"system", "popen"}
+OS_PROCESS_FUNCTIONS = {
+    "system", "popen",
+    "execl", "execle", "execlp", "execlpe",
+    "execv", "execve", "execvp", "execvpe",
+    "spawnl", "spawnle", "spawnlp", "spawnlpe",
+    "spawnv", "spawnve", "spawnvp", "spawnvpe",
+    "posix_spawn", "posix_spawnp",
+}
 CONFIG_SUFFIXES = {
     "",
     ".sh",
@@ -812,8 +819,11 @@ def is_process_call(
 
 
 def process_command_node(call: ast.Call) -> ast.AST | None:
-    if call.args:
-        return call.args[0]
+    chain = attribute_chain(call.func)
+    function_name = chain[-1] if chain else ""
+    command_index = 1 if function_name.startswith("spawn") else 0
+    if len(call.args) > command_index:
+        return call.args[command_index]
     return next(
         (
             keyword.value
@@ -875,6 +885,14 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
     subprocess_modules, os_modules, bare_process = imported_process_functions(tree)
     sql_db_modules, sql_db_functions = odoo_sql_db_aliases(tree)
     operator_modules, operator_functions = operator_getitem_aliases(tree)
+
+    if any(
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and DB_CREDENTIAL.search(node.value)
+        for node in ast.walk(tree)
+    ):
+        findings.append("Python source contains database credentials or PostgreSQL DSN")
 
     for imported in sorted(sql_db_functions):
         findings.append(f"Odoo sql_db helper import is prohibited: {imported}")

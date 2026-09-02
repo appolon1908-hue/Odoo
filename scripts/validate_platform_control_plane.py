@@ -23,6 +23,15 @@ def fail(message: str) -> None:
     raise SystemExit(f"PLATFORM_CONTROL_PLANE=FAIL {message}")
 
 
+def validate_hmac_field_order(
+    contract_fields: object, policy_fields: object, expected_fields: list[str]
+) -> None:
+    if contract_fields != expected_fields:
+        fail("HMAC canonical field order drifted")
+    if policy_fields != expected_fields:
+        fail("machine integration policy HMAC canonical field order drifted")
+
+
 def function_source(source: str, name: str) -> str:
     tree = ast.parse(source)
     matches = [
@@ -158,8 +167,11 @@ def main() -> int:
         "Idempotency-Key",
         "RAW_REQUEST_BODY",
     ]
-    if canonical_fields != expected_fields:
-        fail("HMAC canonical field order drifted")
+    validate_hmac_field_order(
+        canonical_fields,
+        policy.get("message_authentication", {}).get("canonical_fields_in_order"),
+        expected_fields,
+    )
 
     bridge = policy.get("orm_bridge", {})
     if bridge.get("module_name") != "codestra_middleware_bridge":
