@@ -750,6 +750,41 @@ class B:
                     for finding in hardening.python_findings(path, allow_cursor_sql=False)
                 )
             )
+            immediate = self.write(
+                Path(directory),
+                "custom-addons/example/models/immediate_partial_cursor.py",
+                "from functools import partial\ndef apply(request):\n    partial(request.env.cr.execute, 'DELETE FROM res_users')()\n",
+            )
+            self.assertTrue(
+                any(
+                    "cursor execution" in finding
+                    for finding in hardening.python_findings(immediate, allow_cursor_sql=False)
+                )
+            )
+
+    def test_wrapped_environment_selector_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/controllers/wrapped_selector.py",
+                "from functools import partial\ndef apply(request, payload):\n    select = partial(request.env.__getitem__)\n    select(payload['model']).sudo().create({})\n",
+            )
+            self.assertIn(
+                "controller uses a caller-selected Odoo model; only static model names are allowed",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
+    def test_process_callable_container_escape_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/process_container.py",
+                "import subprocess\nlaunchers = {'run': subprocess.run}\nlaunchers['run'](['psql', 'database'])\n",
+            )
+            self.assertIn(
+                "process launcher capability references are prohibited in Odoo addons",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
 
     def test_database_credentials_are_resolved_per_lexical_scope(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

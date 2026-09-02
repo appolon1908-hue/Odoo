@@ -537,6 +537,21 @@ def is_cursor_execute(
                 call.func, aliases, "cursor", {"execute", "executemany"}
             )
         )
+        or (
+            isinstance(call.func, ast.Call)
+            and call.func.args
+            and (
+                (
+                    isinstance(call.func.args[0], ast.Attribute)
+                    and call.func.args[0].attr in {"execute", "executemany"}
+                    and expression_chain(call.func.args[0].value, aliases, "cursor")
+                )
+                or reflective_attribute(
+                    call.func.args[0], aliases, "cursor", {"execute", "executemany"}
+                )
+                or ".".join(attribute_chain(call.func.args[0])) in method_aliases
+            )
+        )
     )
 
 
@@ -667,6 +682,19 @@ def lexical_environment_selector_aliases(
                     )
                     or reflective_attribute(
                         value, effective_environments, "environment", {"__getitem__"}
+                    )
+                    or (
+                        isinstance(value, ast.Call)
+                        and value.args
+                        and (
+                            (
+                                isinstance(value.args[0], ast.Attribute)
+                                and value.args[0].attr == "__getitem__"
+                                and expression_chain(value.args[0].value, effective_environments, "environment")
+                            )
+                            or reflective_attribute(value.args[0], effective_environments, "environment", {"__getitem__"})
+                            or ".".join(attribute_chain(value.args[0])) in selectors
+                        )
                     )
                     or (isinstance(value, ast.Name) and value.id in selectors)
                     for value in values
@@ -1422,6 +1450,12 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
         effective_subprocess, effective_os, effective_process = scoped_process.get(
             scope, (subprocess_modules, os_modules, bare_process)
         )
+        if is_process_reference(
+            node, effective_subprocess, effective_os, effective_process
+        ):
+            findings.append(
+                "process launcher capability references are prohibited in Odoo addons"
+            )
         if isinstance(node, ast.Call):
             chain = attribute_chain(node.func)
             if chain and (
