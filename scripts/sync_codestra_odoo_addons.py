@@ -620,6 +620,65 @@ def verify_state(*, destination: Path, policy_path: Path) -> dict[str, Any]:
         actual_snapshot_sha256 == expected_snapshot_sha256,
         "snapshot content drift",
     )
+    preserved = [
+        normalize_relative(value, field="preserve_destination_paths")
+        for value in policy["preserve_destination_paths"]
+    ]
+    managed_overlay_files = state.get("managed_overlay_files")
+    require(
+        isinstance(managed_overlay_files, list)
+        and all(isinstance(value, str) and value for value in managed_overlay_files),
+        "managed overlay file list is invalid",
+    )
+    normalized_managed = [
+        normalize_relative(value, field="managed_overlay_files")
+        for value in managed_overlay_files
+    ]
+    require(
+        len({path.as_posix() for path in normalized_managed}) == len(normalized_managed),
+        "managed overlay file list contains duplicates",
+    )
+    expected_managed = {
+        path.relative_to(snapshot).as_posix()
+        for path in snapshot.rglob("*")
+        if (path.is_file() or path.is_symlink())
+        and path.relative_to(snapshot).as_posix() != ".source.json"
+        and not intersects_any(path.relative_to(snapshot), preserved)
+    }
+    require(
+        {path.as_posix() for path in normalized_managed} == expected_managed,
+        "managed overlay file inventory drift",
+    )
+    for relative in normalized_managed:
+        source = snapshot / relative
+        target = destination / relative
+        require(
+            source.exists() or source.is_symlink(),
+            f"managed overlay snapshot node is missing: {relative}",
+        )
+        require(
+            target.exists() or target.is_symlink(),
+            f"managed overlay node is missing: {relative}",
+        )
+        if source.is_symlink():
+            require(target.is_symlink(), f"managed overlay node type drift: {relative}")
+            require(
+                os.readlink(target) == os.readlink(source),
+                f"managed overlay symlink target drift: {relative}",
+            )
+        else:
+            require(
+                source.is_file() and target.is_file() and not target.is_symlink(),
+                f"managed overlay node type drift: {relative}",
+            )
+            require(
+                sha256_file(target) == sha256_file(source),
+                f"managed overlay content drift: {relative}",
+            )
+            require(
+                stat.S_IMODE(target.stat().st_mode) == stat.S_IMODE(source.stat().st_mode),
+                f"managed overlay mode drift: {relative}",
+            )
     safety = state.get("safety")
     require(isinstance(safety, dict), "sync safety evidence is missing")
     require(not any(safety.values()), "sync state claims a live effect")

@@ -6,9 +6,12 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from scripts import sync_codestra_odoo_addons as sync
+from scripts import review_modules
+from scripts import validate_legacy_addon_baseline as baseline
 
 
 class UpstreamSyncTests(unittest.TestCase):
@@ -98,6 +101,37 @@ class UpstreamSyncTests(unittest.TestCase):
         self.add_module(destination, "custom-addons", "target_only", "target")
         return self.policy(destination)
 
+    def test_module_tree_validators_read_the_staged_candidate_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repository = Path(directory)
+            self.initialize_source(repository)
+            module = repository / "custom-addons/example"
+            self.write(repository, "custom-addons/example/__manifest__.py", "{'name': 'before'}\n")
+            self.commit(repository, "baseline")
+            head_tree = self.git(repository, "rev-parse", "HEAD:custom-addons/example")
+
+            self.write(repository, "custom-addons/example/__manifest__.py", "{'name': 'candidate'}\n")
+            self.git(repository, "add", "-A")
+            candidate_tree = self.git(repository, "write-tree")
+            candidate_module_tree = self.git(
+                repository, "rev-parse", f"{candidate_tree}:custom-addons/example"
+            )
+            self.assertNotEqual(head_tree, candidate_module_tree)
+
+            with (
+                mock.patch.dict(os.environ, {"ODOO_VALIDATION_TREEISH": candidate_tree}),
+                mock.patch.object(baseline, "ROOT", repository),
+                mock.patch.object(review_modules, "ROOT", repository),
+            ):
+                self.assertEqual(
+                    candidate_module_tree,
+                    baseline.git_tree_sha(Path("custom-addons/example")),
+                )
+                self.assertEqual(
+                    candidate_module_tree,
+                    review_modules.git_tree_sha(module),
+                )
+
     def test_complete_snapshot_overlay_and_runtime_promotion(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -153,6 +187,20 @@ class UpstreamSyncTests(unittest.TestCase):
             )
             self.assertEqual(["target_only"], state["target_only_modules"])
             sync.verify_state(destination=destination, policy_path=policy)
+
+            (destination / "docs/source.md").write_text("overlay tampered\n", encoding="utf-8")
+            with self.assertRaisesRegex(sync.SyncError, "managed overlay content drift"):
+                sync.verify_state(destination=destination, policy_path=policy)
+            (destination / "docs/source.md").write_text("upstream document\n", encoding="utf-8")
+
+            state_path = destination / "config/upstream-sync-state.json"
+            recorded = json.loads(state_path.read_text(encoding="utf-8"))
+            recorded["managed_overlay_files"].remove("docs/source.md")
+            state_path.write_text(json.dumps(recorded), encoding="utf-8")
+            with self.assertRaisesRegex(sync.SyncError, "managed overlay file inventory drift"):
+                sync.verify_state(destination=destination, policy_path=policy)
+            recorded["managed_overlay_files"].append("docs/source.md")
+            state_path.write_text(json.dumps(recorded), encoding="utf-8")
 
             (snapshot / "docs/source.md").write_text("tampered\n", encoding="utf-8")
             with self.assertRaisesRegex(sync.SyncError, "snapshot content drift"):

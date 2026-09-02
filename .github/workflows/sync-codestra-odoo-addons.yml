@@ -45,12 +45,16 @@ jobs:
       SOURCE_REPOSITORY: Codestra-SRL/codestra-odoo-addons
       SOURCE_REF: ${{ inputs.upstream_ref }}
       OPERATION: ${{ inputs.operation }}
+    defaults:
+      run:
+        working-directory: destination
 
     steps:
       - name: Check out the exact trusted destination main SHA
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
+          path: destination
           fetch-depth: 0
           persist-credentials: false
 
@@ -118,7 +122,7 @@ jobs:
           repository: Codestra-SRL/codestra-odoo-addons
           ref: ${{ env.SOURCE_REF }}
           token: ${{ secrets.CODESTRA_ODOO_UPSTREAM_READ_TOKEN }}
-          path: .upstream/codestra-odoo-addons
+          path: source
           fetch-depth: 0
           lfs: true
           submodules: false
@@ -128,17 +132,17 @@ jobs:
         run: |
           set -Eeuo pipefail
           python3 scripts/validate_upstream_git_tree.py \
-            --repository .upstream/codestra-odoo-addons
+            --repository ../source
 
       - name: Scan upstream history and materialized files with destination policy
         env:
           GITLEAKS_VERSION: v8.28.0
-          DESTINATION_GITLEAKS_CONFIG: ${{ github.workspace }}/.gitleaks.toml
+          DESTINATION_GITLEAKS_CONFIG: ${{ github.workspace }}/destination/.gitleaks.toml
         run: |
           set -Eeuo pipefail
           go install "github.com/zricethezav/gitleaks/v8@${GITLEAKS_VERSION}"
           (
-            cd .upstream/codestra-odoo-addons
+            cd ../source
             "$(go env GOPATH)/bin/gitleaks" git \
               --config "$DESTINATION_GITLEAKS_CONFIG" \
               --redact \
@@ -158,8 +162,8 @@ jobs:
         id: identity
         run: |
           set -Eeuo pipefail
-          source_sha="$(git -C .upstream/codestra-odoo-addons rev-parse HEAD)"
-          source_tree="$(git -C .upstream/codestra-odoo-addons rev-parse 'HEAD^{tree}')"
+          source_sha="$(git -C ../source rev-parse HEAD)"
+          source_tree="$(git -C ../source rev-parse 'HEAD^{tree}')"
           target_sha="$(git rev-parse HEAD)"
           printf 'source_sha=%s\n' "$source_sha" >> "$GITHUB_OUTPUT"
           printf 'source_tree=%s\n' "$source_tree" >> "$GITHUB_OUTPUT"
@@ -172,10 +176,11 @@ jobs:
         run: |
           set -Eeuo pipefail
           python3 scripts/sync_codestra_odoo_addons.py \
-            --upstream .upstream/codestra-odoo-addons \
+            --upstream ../source \
             --destination . \
             --source-ref "$SOURCE_REF"
-          rm -rf .upstream
+          test "$(realpath ../source)" = "${GITHUB_WORKSPACE}/source"
+          rm -rf -- "${GITHUB_WORKSPACE}/source"
 
       - name: Validate with the preserved destination authority
         env:
@@ -183,6 +188,7 @@ jobs:
           EXPECTED_SYNC_SHA: ${{ steps.validator.outputs.sync_sha }}
           EXPECTED_UPSTREAM_TREE_VALIDATOR_SHA: ${{ steps.validator.outputs.upstream_tree_validator_sha }}
           EXPECTED_GITLEAKS_SHA: ${{ steps.validator.outputs.gitleaks_sha }}
+          VALIDATION_PATHSPEC_FILE: ${{ runner.temp }}/validation-candidate-pathspecs.zlist
         run: |
           set -Eeuo pipefail
           test "$(sha256sum scripts/run_ci.sh | awk '{print $1}')" = "$EXPECTED_RUN_CI_SHA"
@@ -190,10 +196,30 @@ jobs:
           test "$(sha256sum scripts/validate_upstream_git_tree.py | awk '{print $1}')" = "$EXPECTED_UPSTREAM_TREE_VALIDATOR_SHA"
           test "$(sha256sum .gitleaks.toml | awk '{print $1}')" = "$EXPECTED_GITLEAKS_SHA"
           git diff --check
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          state = json.loads(Path('config/upstream-sync-state.json').read_text(encoding='utf-8'))
+          runtime = Path(state['runtime_addons_path'])
+          paths = [Path(state['snapshot_path']), Path('config/upstream-sync-state.json')]
+          paths.extend(Path(value) for value in state['managed_overlay_files'])
+          paths.extend(runtime / name for name in sorted(state['modules']))
+          Path(os.environ['VALIDATION_PATHSPEC_FILE']).write_bytes(
+              b''.join(os.fsencode(path.as_posix()) + b'\0' for path in paths)
+          )
+          PY
+          git add -A -- .
+          git --literal-pathspecs add -f \
+            --pathspec-from-file="$VALIDATION_PATHSPEC_FILE" \
+            --pathspec-file-nul
+          validation_tree="$(git write-tree)"
           export PYTHONPYCACHEPREFIX="${RUNNER_TEMP}/destination-python-cache"
           python3 -m compileall -q scripts custom-addons tests/security
           python3 scripts/sync_codestra_odoo_addons.py --verify-state
-          bash scripts/run_ci.sh
+          ODOO_VALIDATION_TREEISH="$validation_tree" bash scripts/run_ci.sh
+          printf 'VALIDATED_CANDIDATE_TREE=%s\n' "$validation_tree"
           printf 'DESTINATION_VALIDATION_AUTHORITY_UNCHANGED=YES\n'
 
       - name: Force-stage the complete candidate and build private plan evidence
