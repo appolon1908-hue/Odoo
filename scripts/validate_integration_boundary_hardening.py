@@ -380,7 +380,7 @@ def lexical_cursor_method_aliases(
                 if any(
                     (
                         isinstance(value, ast.Attribute)
-                        and value.attr == "execute"
+                        and value.attr in {"execute", "executemany"}
                         and expression_chain(value.value, effective_cursors, "cursor")
                     )
                     or (isinstance(value, ast.Name) and value.id in methods)
@@ -417,7 +417,7 @@ def lexical_cursor_method_aliases(
                         value = call.args[positional_index]
                     is_bound_execute = (
                         isinstance(value, ast.Attribute)
-                        and value.attr == "execute"
+                        and value.attr in {"execute", "executemany"}
                         and expression_chain(value.value, all_cursor_aliases, "cursor")
                     ) or (
                         isinstance(value, ast.Name) and value.id in caller_methods
@@ -438,7 +438,7 @@ def is_cursor_execute(
     return (
         (
             isinstance(call.func, ast.Attribute)
-            and call.func.attr == "execute"
+            and call.func.attr in {"execute", "executemany"}
             and expression_chain(call.func.value, aliases, "cursor")
         )
         or (isinstance(call.func, ast.Name) and call.func.id in method_aliases)
@@ -899,12 +899,28 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
             operator_modules,
             operator_functions,
         )
-        if selector is None or static_text(selector, constants) is not None:
+        if selector is None:
+            continue
+        current_function = enclosing.get(node)
+        shadowed_selector = (
+            isinstance(selector, ast.Name)
+            and current_function is not None
+            and (
+                selector.id in function_parameters(current_function)
+                or any(
+                    selector.id in assigned_names(candidate)
+                    and enclosing.get(candidate) is current_function
+                    for candidate in ast.walk(current_function)
+                    if isinstance(candidate, (ast.Name, ast.Tuple, ast.List))
+                    and isinstance(getattr(candidate, "ctx", None), ast.Store)
+                )
+            )
+        )
+        if not shadowed_selector and static_text(selector, constants) is not None:
             continue
         if "tests" in path.parts:
             continue
 
-        current_function = enclosing.get(node)
         if (
             isinstance(selector, ast.Name)
             and current_function is not None

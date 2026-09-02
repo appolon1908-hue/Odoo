@@ -537,6 +537,32 @@ class TestBridge(HttpCase):
                 hardening.python_findings(path, allow_cursor_sql=False),
             )
 
+    def test_module_constant_shadowed_by_parameter_is_dynamic(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/shadowed_model.py",
+                "MODEL = 'crm.lead'\ndef dispatch(self, MODEL, values):\n    return self.env[MODEL].create(values)\n",
+            )
+            self.assertIn(
+                "controller uses a caller-selected Odoo model; only static model names are allowed",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
+    def test_cursor_executemany_and_bound_alias_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/bulk_sql.py",
+                "def bulk(self, rows):\n    run = self.env.cr.executemany\n    run('INSERT INTO x VALUES (%s)', rows)\n",
+            )
+            self.assertTrue(
+                any(
+                    "cursor execution" in finding
+                    for finding in hardening.python_findings(path, allow_cursor_sql=False)
+                )
+            )
+
     def test_operator_getitem_dynamic_model_selector_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
