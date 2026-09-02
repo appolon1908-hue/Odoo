@@ -158,6 +158,7 @@ def main() -> int:
     expected = {
         "target": "odoo-19",
         "capability": "ODOO_WRITE",
+        "hmac_algorithm": "hmac-sha256",
         "bridge_module": "codestra_middleware_bridge",
         "canonical_command_type": "crm.lead.upsert",
         "canonical_command_version": "1.0",

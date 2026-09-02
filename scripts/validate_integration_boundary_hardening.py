@@ -154,10 +154,11 @@ def static_text(node: ast.AST | None, constants: dict[str, str]) -> str | None:
 def simple_assignments(tree: ast.AST) -> dict[str, list[ast.AST]]:
     definitions: dict[str, list[ast.AST]] = defaultdict(list)
     for node in ast.walk(tree):
-        if isinstance(node, ast.Assign) and len(node.targets) == 1:
-            names = assigned_aliases(node.targets[0])
-            if len(names) == 1:
-                definitions[next(iter(names))].append(node.value)
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                names = assigned_aliases(target)
+                for name in names:
+                    definitions[name].append(node.value)
         elif isinstance(node, ast.AnnAssign) and node.value is not None:
             names = assigned_aliases(node.target)
             if len(names) == 1:
@@ -517,6 +518,17 @@ def dynamic_model_selector(
         and node.func.attr == "__getitem__"
         and expression_chain(node.func.value, env_aliases, "environment")
         and node.args
+    ):
+        return node.args[0]
+    if (
+        isinstance(node, ast.Call)
+        and node.args
+        and isinstance(node.func, ast.Call)
+        and isinstance(node.func.func, ast.Name)
+        and node.func.func.id == "getattr"
+        and len(node.func.args) >= 2
+        and expression_chain(node.func.args[0], env_aliases, "environment")
+        and static_string(node.func.args[1]) == "__getitem__"
     ):
         return node.args[0]
     if isinstance(node, ast.Call) and len(node.args) >= 2:
@@ -1014,6 +1026,16 @@ def config_findings(path: Path) -> list[str]:
     return findings
 
 
+def text_credential_findings(path: Path) -> list[str]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return []
+    if DB_CREDENTIAL.search(text):
+        return ["addon text contains database credentials or PostgreSQL DSN"]
+    return []
+
+
 def meaningful_test_method(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     for child in ast.walk(node):
         if isinstance(child, ast.Assert):
@@ -1163,9 +1185,12 @@ def scan_repository(root: Path = ROOT) -> list[str]:
             )
             for finding in python_findings(path, allow_cursor_sql=allow_sql):
                 findings.append(f"{display}: {finding}")
-        elif path.suffix.lower() in CONFIG_SUFFIXES or os.access(path, os.X_OK):
-            for finding in config_findings(path):
+        else:
+            for finding in text_credential_findings(path):
                 findings.append(f"{display}: {finding}")
+            if path.suffix.lower() in CONFIG_SUFFIXES or os.access(path, os.X_OK):
+                for finding in config_findings(path):
+                    findings.append(f"{display}: {finding}")
 
     for finding in bridge_scaffold_findings(root):
         findings.append(f"custom-addons/codestra_middleware_bridge: {finding}")

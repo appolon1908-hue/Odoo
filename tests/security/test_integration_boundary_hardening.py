@@ -65,6 +65,33 @@ class IntegrationBoundaryHardeningTests(unittest.TestCase):
                 findings,
             )
 
+    def test_database_credentials_are_rejected_in_ordinary_addon_text(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write(
+                root,
+                "custom-addons/example/data/provider.xml",
+                "<odoo><field name='value'>postgresql://odoo:example-secret@db/odoo</field></odoo>",
+            )
+            findings = hardening.scan_repository(root)
+            self.assertTrue(
+                any("addon text contains database credentials" in finding for finding in findings)
+            )
+
+    def test_chained_assignments_propagate_guarded_aliases(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/chained.py",
+                "def apply(request):\n    cursor = saved = request.env.cr\n    cursor.execute('DELETE FROM x')\n",
+            )
+            self.assertTrue(
+                any(
+                    "cursor execution" in finding
+                    for finding in hardening.python_findings(path, allow_cursor_sql=False)
+                )
+            )
+
     def test_python_process_psql_invocation_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = self.write(
@@ -412,6 +439,18 @@ class B:
             self.assertNotIn(
                 marker,
                 hardening.python_findings(static, allow_cursor_sql=False),
+            )
+
+    def test_reflective_environment_indexing_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/controllers/reflective.py",
+                "def route(request, payload, values):\n    return getattr(request.env, '__getitem__')(payload['model']).sudo().create(values)\n",
+            )
+            self.assertIn(
+                "controller uses a caller-selected Odoo model; only static model names are allowed",
+                hardening.python_findings(path, allow_cursor_sql=False),
             )
 
     def test_private_model_wrapper_is_allowed_only_for_literal_callers(self) -> None:
