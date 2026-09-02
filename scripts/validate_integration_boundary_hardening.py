@@ -342,11 +342,70 @@ def lexical_aliases(
     return result
 
 
-def is_cursor_execute(call: ast.Call, aliases: set[str]) -> bool:
+def lexical_cursor_method_aliases(
+    tree: ast.AST,
+    cursor_aliases: set[str],
+    scoped_cursor_aliases: dict[ast.AST | None, set[str]],
+) -> dict[ast.AST | None, set[str]]:
+    """Resolve names bound to a cursor's ``execute`` method per scope."""
+
+    enclosing = enclosing_functions(tree)
+    scopes: list[ast.AST | None] = [None, *[
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]]
+    result: dict[ast.AST | None, set[str]] = {}
+    for scope in scopes:
+        definitions: dict[str, list[ast.AST]] = defaultdict(list)
+        for node in ast.walk(tree if scope is None else scope):
+            if node is scope or enclosing.get(node) is not scope:
+                continue
+            if isinstance(node, ast.Assign) and len(node.targets) == 1:
+                names = assigned_names(node.targets[0])
+                if len(names) == 1:
+                    definitions[next(iter(names))].append(node.value)
+            elif isinstance(node, ast.AnnAssign) and node.value is not None:
+                names = assigned_names(node.target)
+                if len(names) == 1:
+                    definitions[next(iter(names))].append(node.value)
+
+        methods: set[str] = set()
+        effective_cursors = cursor_aliases | scoped_cursor_aliases.get(scope, set())
+        for _ in range(len(definitions) + 1):
+            added: set[str] = set()
+            for name, values in definitions.items():
+                if name in methods:
+                    continue
+                if any(
+                    (
+                        isinstance(value, ast.Attribute)
+                        and value.attr == "execute"
+                        and expression_chain(value.value, effective_cursors, "cursor")
+                    )
+                    or (isinstance(value, ast.Name) and value.id in methods)
+                    for value in values
+                ):
+                    added.add(name)
+            if not added:
+                break
+            methods.update(added)
+        result[scope] = methods
+    return result
+
+
+def is_cursor_execute(
+    call: ast.Call,
+    aliases: set[str],
+    method_aliases: set[str],
+) -> bool:
     return (
-        isinstance(call.func, ast.Attribute)
-        and call.func.attr == "execute"
-        and expression_chain(call.func.value, aliases, "cursor")
+        (
+            isinstance(call.func, ast.Attribute)
+            and call.func.attr == "execute"
+            and expression_chain(call.func.value, aliases, "cursor")
+        )
+        or (isinstance(call.func, ast.Name) and call.func.id in method_aliases)
     )
 
 
@@ -676,6 +735,9 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
     env_names = transitive_aliases(tree, terminal="environment")
     scoped_cursor_names = lexical_aliases(tree, terminal="cursor")
     scoped_env_names = lexical_aliases(tree, terminal="environment")
+    scoped_cursor_methods = lexical_cursor_method_aliases(
+        tree, cursor_names, scoped_cursor_names
+    )
     safe_wrappers = static_model_wrapper_parameters(tree, env_names)
     enclosing = enclosing_functions(tree)
     subprocess_modules, os_modules, bare_process = imported_process_functions(tree)
@@ -688,6 +750,7 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
         scope = enclosing.get(node)
         effective_cursor_names = cursor_names | scoped_cursor_names.get(scope, set())
         effective_env_names = env_names | scoped_env_names.get(scope, set())
+        effective_cursor_methods = scoped_cursor_methods.get(scope, set())
         if isinstance(node, ast.Call):
             chain = attribute_chain(node.func)
             if chain and (
@@ -702,7 +765,9 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
                     + ".".join(chain)
                 )
 
-            if is_cursor_execute(node, effective_cursor_names) and not allow_cursor_sql:
+            if is_cursor_execute(
+                node, effective_cursor_names, effective_cursor_methods
+            ) and not allow_cursor_sql:
                 findings.append(
                     "undeclared Odoo cursor execution is prohibited: "
                     + ".".join(chain)
@@ -729,10 +794,10 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
                             "Python process invocation contains database credentials"
                         )
 
-        if "controllers" not in path.parts:
-            continue
         selector = dynamic_model_selector(node, effective_env_names)
         if selector is None or static_string(selector) is not None:
+            continue
+        if "tests" in path.parts:
             continue
 
         current_function = enclosing.get(node)

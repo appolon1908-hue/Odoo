@@ -159,6 +159,22 @@ def apply(self, env, cr):
                 )
             )
 
+    def test_bound_cursor_execute_method_alias_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/job.py",
+                "def apply(request):\n    execute = request.env.cr.execute\n    run = execute\n    run('DELETE FROM x')\n",
+            )
+            self.assertTrue(
+                any(
+                    "cursor execution" in finding
+                    for finding in hardening.python_findings(
+                        path, allow_cursor_sql=False
+                    )
+                )
+            )
+
     def test_cursor_forwarded_through_helper_parameter_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = self.write(
@@ -456,6 +472,18 @@ class TestBridge(HttpCase):
                         allow_cursor_sql=False,
                     )
                 )
+            )
+
+    def test_dynamic_model_selector_in_model_helper_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/proxy.py",
+                "def dispatch(self, model_name, values):\n    return self.env[model_name].sudo().create(values)\n",
+            )
+            self.assertIn(
+                "controller uses a caller-selected Odoo model; only static model names are allowed",
+                hardening.python_findings(path, allow_cursor_sql=False),
             )
 
 
