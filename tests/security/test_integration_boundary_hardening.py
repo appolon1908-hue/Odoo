@@ -586,6 +586,50 @@ class TestBridge(HttpCase):
                     )
                 )
 
+    def test_assigned_operator_getitem_alias_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/operator_assigned.py",
+                "import operator\nget = operator.getitem\ndef dispatch(request, payload):\n    return get(request.env, payload['model']).sudo().create({})\n",
+            )
+            self.assertTrue(
+                any(
+                    "caller-selected Odoo model" in finding
+                    for finding in hardening.python_findings(path, allow_cursor_sql=False)
+                )
+            )
+
+    def test_cursor_attribute_alias_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/attribute_cursor.py",
+                "def remove(self):\n    self.cursor = self.env.cr\n    self.cursor.execute('DELETE FROM x')\n",
+            )
+            self.assertTrue(
+                any(
+                    "cursor execution" in finding
+                    for finding in hardening.python_findings(path, allow_cursor_sql=False)
+                )
+            )
+
+    def test_subprocess_shell_output_helpers_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for helper in ("getoutput", "getstatusoutput"):
+                path = self.write(
+                    root,
+                    f"custom-addons/example/models/{helper}.py",
+                    f"import subprocess\ndef probe():\n    return subprocess.{helper}('psql database')\n",
+                )
+                self.assertTrue(
+                    any(
+                        "psql" in finding
+                        for finding in hardening.python_findings(path, allow_cursor_sql=False)
+                    )
+                )
+
     def test_statically_resolved_model_selectors_are_allowed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = self.write(

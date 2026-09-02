@@ -41,6 +41,8 @@ SUBPROCESS_FUNCTIONS = {
     "call",
     "check_call",
     "check_output",
+    "getoutput",
+    "getstatusoutput",
 }
 OS_PROCESS_FUNCTIONS = {"system", "popen"}
 CONFIG_SUFFIXES = {
@@ -93,6 +95,15 @@ def assigned_names(node: ast.AST) -> set[str]:
     return set()
 
 
+def assigned_aliases(node: ast.AST) -> set[str]:
+    if isinstance(node, ast.Attribute):
+        chain = attribute_chain(node)
+        return {".".join(chain)} if chain else set()
+    if isinstance(node, (ast.Tuple, ast.List)):
+        return {name for item in node.elts for name in assigned_aliases(item)}
+    return assigned_names(node)
+
+
 def static_string(node: ast.AST) -> str | None:
     return (
         node.value
@@ -137,11 +148,11 @@ def simple_assignments(tree: ast.AST) -> dict[str, list[ast.AST]]:
     definitions: dict[str, list[ast.AST]] = defaultdict(list)
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign) and len(node.targets) == 1:
-            names = assigned_names(node.targets[0])
+            names = assigned_aliases(node.targets[0])
             if len(names) == 1:
                 definitions[next(iter(names))].append(node.value)
         elif isinstance(node, ast.AnnAssign) and node.value is not None:
-            names = assigned_names(node.target)
+            names = assigned_aliases(node.target)
             if len(names) == 1:
                 definitions[next(iter(names))].append(node.value)
     return dict(definitions)
@@ -241,6 +252,8 @@ def expression_chain(node: ast.AST, aliases: set[str], terminal: str) -> bool:
     chain = attribute_chain(node)
     if not chain:
         return False
+    if ".".join(chain) in aliases:
+        return True
     if terminal == "cursor":
         if chain[-1] == "_cr" and chain[0] == "self":
             return True
@@ -321,11 +334,11 @@ def lexical_aliases(
             if enclosing.get(node) is not scope:
                 continue
             if isinstance(node, ast.Assign) and len(node.targets) == 1:
-                names = assigned_names(node.targets[0])
+                names = assigned_aliases(node.targets[0])
                 if len(names) == 1:
                     definitions[next(iter(names))].append(node.value)
             elif isinstance(node, ast.AnnAssign) and node.value is not None:
-                names = assigned_names(node.target)
+                names = assigned_aliases(node.target)
                 if len(names) == 1:
                     definitions[next(iter(names))].append(node.value)
         for _ in range(len(definitions) + 1):
@@ -362,11 +375,11 @@ def lexical_cursor_method_aliases(
             if node is scope or enclosing.get(node) is not scope:
                 continue
             if isinstance(node, ast.Assign) and len(node.targets) == 1:
-                names = assigned_names(node.targets[0])
+                names = assigned_aliases(node.targets[0])
                 if len(names) == 1:
                     definitions[next(iter(names))].append(node.value)
             elif isinstance(node, ast.AnnAssign) and node.value is not None:
-                names = assigned_names(node.target)
+                names = assigned_aliases(node.target)
                 if len(names) == 1:
                     definitions[next(iter(names))].append(node.value)
 
@@ -441,7 +454,10 @@ def is_cursor_execute(
             and call.func.attr in {"execute", "executemany"}
             and expression_chain(call.func.value, aliases, "cursor")
         )
-        or (isinstance(call.func, ast.Name) and call.func.id in method_aliases)
+        or (
+            isinstance(call.func, (ast.Name, ast.Attribute))
+            and ".".join(attribute_chain(call.func)) in method_aliases
+        )
     )
 
 
@@ -457,6 +473,24 @@ def operator_getitem_aliases(tree: ast.AST) -> tuple[set[str], set[str]]:
             for alias in node.names:
                 if alias.name == "getitem":
                     functions.add(alias.asname or alias.name)
+    definitions = simple_assignments(tree)
+    for _ in range(len(definitions) + 1):
+        added = {
+            name
+            for name, values in definitions.items()
+            if name not in functions
+            and any(
+                (isinstance(value, ast.Name) and value.id in functions)
+                or any(
+                    attribute_chain(value)[-2:] == [module, "getitem"]
+                    for module in modules
+                )
+                for value in values
+            )
+        }
+        if not added:
+            break
+        functions.update(added)
     return modules, functions
 
 
