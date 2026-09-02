@@ -34,7 +34,7 @@ concurrency:
 env:
   IMAGE_TAG: codestra-odoo-ci:${{ github.sha }}
   TRIVY_VERSION: "0.74.0"
-  TRIVY_ARCHIVE_SHA256: "d093ed4fd2bcb28f2feb034f83a593c03056dbfbb7056e4fedcf47e5035ee637"
+  TRIVY_ARCHIVE_SHA256: "2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a"
 
 jobs:
   build-and-scan:
