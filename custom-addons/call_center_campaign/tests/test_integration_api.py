@@ -1,5 +1,6 @@
 import base64
 from datetime import timedelta
+from pathlib import Path
 from unittest.mock import patch
 
 from odoo import fields
@@ -26,6 +27,29 @@ class TestIntegrationApiContract(TransactionCase):
                 self.assertFalse(_runtime_flag("CODESTRA_TEST_FLAG"))
         with patch.dict("os.environ", {"CODESTRA_TEST_FLAG": "true"}, clear=True):
             self.assertTrue(_runtime_flag("CODESTRA_TEST_FLAG"))
+
+    def test_capability_handler_uses_governed_deployment_gate_names(self):
+        source = (
+            Path(__file__).resolve().parents[1]
+            / "controllers"
+            / "integration_api.py"
+        ).read_text(encoding="utf-8")
+        for name in (
+            "LIVE_ODOO_WRITE",
+            "ENABLE_EXTERNAL_DELIVERY",
+            "EMAIL_DELIVERY",
+            "SMS_DELIVERY",
+            "PSTN_DIALING",
+        ):
+            self.assertIn(f'_runtime_flag("{name}")', source)
+        for obsolete in (
+            "CODESTRA_ODOO_BUSINESS_WRITES_ENABLED",
+            "CODESTRA_ODOO_EXTERNAL_DELIVERY_ENABLED",
+            "CODESTRA_ODOO_LIVE_EMAIL_ENABLED",
+            "CODESTRA_ODOO_LIVE_SMS_ENABLED",
+            "CODESTRA_ODOO_LIVE_PSTN_ENABLED",
+        ):
+            self.assertNotIn(obsolete, source)
 
     def test_jwks_url_is_bounded_to_keycloak_certificate_endpoints(self):
         public = "https://auth.example.test/realms/test/protocol/openid-connect/certs"

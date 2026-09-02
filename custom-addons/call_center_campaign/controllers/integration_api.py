@@ -467,30 +467,16 @@ class CodestraIntegrationApiController(http.Controller):
                         "CODESTRA_ODOO_MAINTENANCE_MODE"
                     ),
                     "degraded_mode": _runtime_flag("CODESTRA_ODOO_DEGRADED_MODE"),
-                    "business_writes_enabled": _runtime_flag(
-                        "CODESTRA_ODOO_BUSINESS_WRITES_ENABLED"
-                    ),
+                    "business_writes_enabled": _runtime_flag("LIVE_ODOO_WRITE"),
                     "external_delivery_enabled": _runtime_flag(
-                        "CODESTRA_ODOO_EXTERNAL_DELIVERY_ENABLED"
+                        "ENABLE_EXTERNAL_DELIVERY"
                     ),
-                    "live_email_enabled": _runtime_flag(
-                        "CODESTRA_ODOO_LIVE_EMAIL_ENABLED"
-                    ),
-                    "live_sms_enabled": _runtime_flag(
-                        "CODESTRA_ODOO_LIVE_SMS_ENABLED"
-                    ),
-                    "live_pstn_enabled": _runtime_flag(
-                        "CODESTRA_ODOO_LIVE_PSTN_ENABLED"
-                    ),
-                    "live_social_publish_enabled": _runtime_flag(
-                        "CODESTRA_ODOO_LIVE_SOCIAL_PUBLISH_ENABLED"
-                    ),
-                    "live_advertising_enabled": _runtime_flag(
-                        "CODESTRA_ODOO_LIVE_ADVERTISING_ENABLED"
-                    ),
-                    "read_only_mode": not _runtime_flag(
-                        "CODESTRA_ODOO_BUSINESS_WRITES_ENABLED"
-                    ),
+                    "live_email_enabled": _runtime_flag("EMAIL_DELIVERY"),
+                    "live_sms_enabled": _runtime_flag("SMS_DELIVERY"),
+                    "live_pstn_enabled": _runtime_flag("PSTN_DIALING"),
+                    "live_social_publish_enabled": "NOT_APPLICABLE",
+                    "live_advertising_enabled": "NOT_APPLICABLE",
+                    "read_only_mode": not _runtime_flag("LIVE_ODOO_WRITE"),
                     "supported_api_versions": ["v1"],
                     "required_compliance_gates": [
                         "business-write-activation",
