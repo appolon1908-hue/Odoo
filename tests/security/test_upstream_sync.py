@@ -635,6 +635,36 @@ class UpstreamSyncTests(unittest.TestCase):
             with self.assertRaisesRegex(sync.SyncError, "snapshot Git tree drift"):
                 sync.verify_state(destination=destination, policy_path=policy)
 
+    def test_verify_state_binds_recorded_commit_sha_to_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.add_module(source, "addons", "module_a", "first")
+            self.commit(source, "source identity")
+            policy = self.prepare_destination(destination)
+            state = sync.synchronize(
+                upstream=source,
+                destination=destination,
+                policy_path=policy,
+                source_ref="main",
+            )
+
+            forged_sha = "a" * 40 if state["source_sha"] != "a" * 40 else "b" * 40
+            state["source_sha"] = forged_sha
+            state_path = destination / self.policy_document()["state_path"]
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+            marker_path = destination / state["snapshot_path"] / ".source.json"
+            marker = json.loads(marker_path.read_text(encoding="utf-8"))
+            marker["source_sha"] = forged_sha
+            marker_path.write_text(json.dumps(marker), encoding="utf-8")
+
+            with self.assertRaisesRegex(sync.SyncError, "source commit object SHA drift"):
+                sync.verify_state(destination=destination, policy_path=policy)
+
     def test_directory_replacement_rejects_unmanaged_descendants(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

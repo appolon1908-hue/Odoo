@@ -66,6 +66,11 @@ class MissionContractTests(unittest.TestCase):
         workflow = (
             ROOT / ".github/workflows/sync-codestra-odoo-addons.yml"
         ).read_text(encoding="utf-8")
+        ci_workflow = (ROOT / ".github/workflows/odoo-addons-ci.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("fetch-depth: 1", ci_workflow)
+        self.assertGreaterEqual(ci_workflow.count("fetch-depth: 0"), 5)
         self.assertIn(
             'export PYTHONPYCACHEPREFIX="${RUNNER_TEMP}/destination-python-cache"',
             workflow,

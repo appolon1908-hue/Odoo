@@ -10,6 +10,7 @@ the operation and every mutation remains subject to a normal protected PR.
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -148,14 +149,49 @@ def git_value(repository: Path, *arguments: str) -> str:
     return value
 
 
+def git_bytes(repository: Path, *arguments: str) -> bytes:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repository), *arguments],
+            check=True,
+            capture_output=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise SyncError(
+            f"cannot read upstream Git identity: {' '.join(arguments)}"
+        ) from exc
+    require(bool(result.stdout), f"upstream Git identity is empty: {' '.join(arguments)}")
+    return result.stdout
+
+
 def source_identity(upstream: Path) -> dict[str, str]:
+    commit_payload = git_bytes(upstream, "cat-file", "commit", "HEAD")
     return {
         "source_sha": git_value(upstream, "rev-parse", "HEAD"),
         "source_tree": git_value(upstream, "rev-parse", "HEAD^{tree}"),
         "source_committed_at": git_value(
             upstream, "show", "-s", "--format=%cI", "HEAD"
         ),
+        "source_commit_object_base64": base64.b64encode(commit_payload).decode("ascii"),
     }
+
+
+def verify_commit_identity(state: Mapping[str, Any]) -> None:
+    encoded = state.get("source_commit_object_base64")
+    require(isinstance(encoded, str) and encoded, "source commit object is missing")
+    try:
+        payload = base64.b64decode(encoded, validate=True)
+    except (ValueError, TypeError) as exc:
+        raise SyncError("source commit object is invalid") from exc
+    object_id = hashlib.sha1(
+        b"commit " + str(len(payload)).encode("ascii") + b"\0" + payload
+    ).hexdigest()
+    require(object_id == state.get("source_sha"), "source commit object SHA drift")
+    first_line = payload.splitlines()[0].decode("ascii", errors="strict")
+    require(
+        first_line == f"tree {state.get('source_tree')}",
+        "source commit object tree drift",
+    )
 
 
 def validate_symlinks(
@@ -670,8 +706,10 @@ def verify_state(*, destination: Path, policy_path: Path) -> dict[str, Any]:
         "source_sha",
         "source_tree",
         "source_committed_at",
+        "source_commit_object_base64",
     ):
         require(marker.get(field) == state.get(field), f"snapshot {field} drift")
+    verify_commit_identity(state)
     expected_snapshot_sha256 = state.get("snapshot_tree_sha256")
     require(
         isinstance(expected_snapshot_sha256, str)
