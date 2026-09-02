@@ -574,6 +574,12 @@ def container_values(node: ast.AST) -> list[ast.AST]:
         return [*node.keys, *node.values]
     if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
         return list(node.elts)
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id in {"dict", "list", "tuple", "set"}
+    ):
+        return [*node.args, *(keyword.value for keyword in node.keywords)]
     return []
 
 
@@ -1186,7 +1192,26 @@ def lexical_static_values(tree: ast.AST) -> set[str]:
     return resolved_values
 
 
-def imported_process_functions(tree: ast.AST) -> tuple[set[str], set[str], set[str]]:
+def reflective_lookup_aliases(tree: ast.AST) -> set[str]:
+    aliases = {"getattr"}
+    definitions = simple_assignments(tree)
+    for _ in range(len(definitions) + 1):
+        added = {
+            name
+            for name, values in definitions.items()
+            if len(values) == 1
+            and isinstance(values[0], ast.Name)
+            and values[0].id in aliases
+        } - aliases
+        if not added:
+            break
+        aliases.update(added)
+    return aliases
+
+
+def imported_process_functions(
+    tree: ast.AST, lookup_functions: set[str]
+) -> tuple[set[str], set[str], set[str]]:
     subprocess_modules = {"subprocess", "asyncio"}
     os_modules = {"os"}
     bare_functions: set[str] = set()
@@ -1240,7 +1265,8 @@ def imported_process_functions(tree: ast.AST) -> tuple[set[str], set[str], set[s
             if name in bare_functions or len(values) != 1:
                 continue
             if is_process_reference(
-                values[0], subprocess_modules, os_modules, bare_functions
+                values[0], subprocess_modules, os_modules, bare_functions,
+                lookup_functions,
             ):
                 added.add(name)
         if not added:
@@ -1268,7 +1294,7 @@ def imported_process_functions(tree: ast.AST) -> tuple[set[str], set[str], set[s
                 }
             )
             for parameter, value in default_by_name.items():
-                if is_process_reference(value, subprocess_modules, os_modules, bare_functions):
+                if is_process_reference(value, subprocess_modules, os_modules, bare_functions, lookup_functions):
                     added.add(parameter)
             for call in calls.get(function.name, []):
                 for index, parameter in enumerate(parameters):
@@ -1278,7 +1304,7 @@ def imported_process_functions(tree: ast.AST) -> tuple[set[str], set[str], set[s
                     value = next((item.value for item in call.keywords if item.arg == parameter), None)
                     if value is None and 0 <= positional_index < len(call.args):
                         value = call.args[positional_index]
-                    if value is not None and is_process_reference(value, subprocess_modules, os_modules, bare_functions):
+                    if value is not None and is_process_reference(value, subprocess_modules, os_modules, bare_functions, lookup_functions):
                         added.add(parameter)
         added -= bare_functions
         if not added:
@@ -1292,6 +1318,7 @@ def lexical_process_aliases(
     subprocess_modules: set[str],
     os_modules: set[str],
     bare_functions: set[str],
+    lookup_functions: set[str],
 ) -> dict[ast.AST | None, tuple[set[str], set[str], set[str]]]:
     """Resolve process modules and callables independently per lexical scope."""
 
@@ -1330,7 +1357,7 @@ def lexical_process_aliases(
                     if len(chain) == 1 and chain[0] in scoped_os and name not in scoped_os:
                         scoped_os.add(name)
                         changed = True
-                    if is_process_reference(value, scoped_subprocess, scoped_os, scoped_bare) and name not in scoped_bare:
+                    if is_process_reference(value, scoped_subprocess, scoped_os, scoped_bare, lookup_functions) and name not in scoped_bare:
                         scoped_bare.add(name)
                         changed = True
             if not changed:
@@ -1344,19 +1371,21 @@ def is_process_reference(
     subprocess_modules: set[str],
     os_modules: set[str],
     bare_functions: set[str],
+    lookup_functions: set[str] = frozenset({"getattr"}),
 ) -> bool:
     if (
         isinstance(node, ast.Call)
         and node.args
         and is_process_reference(
-            node.args[0], subprocess_modules, os_modules, bare_functions
+            node.args[0], subprocess_modules, os_modules, bare_functions,
+            lookup_functions,
         )
     ):
         return True
     if (
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)
-        and node.func.id == "getattr"
+        and node.func.id in lookup_functions
         and len(node.args) >= 2
     ):
         base = attribute_chain(node.args[0])
@@ -1464,9 +1493,12 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
     )
     safe_wrappers = static_model_wrapper_parameters(tree, env_names)
     enclosing = enclosing_functions(tree)
-    subprocess_modules, os_modules, bare_process = imported_process_functions(tree)
+    lookup_functions = reflective_lookup_aliases(tree)
+    subprocess_modules, os_modules, bare_process = imported_process_functions(
+        tree, lookup_functions
+    )
     scoped_process = lexical_process_aliases(
-        tree, subprocess_modules, os_modules, bare_process
+        tree, subprocess_modules, os_modules, bare_process, lookup_functions
     )
     sql_db_modules, sql_db_functions = odoo_sql_db_aliases(tree)
     operator_modules, operator_functions = operator_getitem_aliases(tree)
@@ -1492,7 +1524,8 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
             scope, (subprocess_modules, os_modules, bare_process)
         )
         if is_process_reference(
-            node, effective_subprocess, effective_os, effective_process
+            node, effective_subprocess, effective_os, effective_process,
+            lookup_functions,
         ):
             findings.append(
                 "process launcher capability references are prohibited in Odoo addons"
