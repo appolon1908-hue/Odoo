@@ -56,3 +56,8 @@ python3 -m unittest discover -s tests/security -p 'test_*.py'
 
 printf '==> Validating release-candidate policy\n'
 python3 scripts/validate_release_policy.py
+
+printf '==> Validating blocked-by-default production evidence schema\n'
+python3 scripts/validate_production_evidence.py \
+  --file release/production-evidence-template.json \
+  --allow-blocked-template
