@@ -1500,7 +1500,10 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
         values = container_values(node)
         if any(
             is_cursor_method_reference(value, effective_cursor_names)
-            or (isinstance(value, ast.Name) and value.id in effective_cursor_methods)
+            or (
+                isinstance(value, (ast.Name, ast.Attribute))
+                and ".".join(attribute_chain(value)) in effective_cursor_methods
+            )
             for value in values
         ):
             findings.append(
@@ -1508,7 +1511,10 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
             )
         if any(
             is_environment_selector_reference(value, effective_env_names)
-            or (isinstance(value, ast.Name) and value.id in effective_env_selectors)
+            or (
+                isinstance(value, (ast.Name, ast.Attribute))
+                and ".".join(attribute_chain(value)) in effective_env_selectors
+            )
             for value in values
         ):
             findings.append(
