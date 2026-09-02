@@ -27,6 +27,7 @@ SQL_EXCEPTION_KINDS = {
     "odoo_sql_view",
     "odoo_schema_index",
     "odoo_test_fixture_sql",
+    "odoo_schema_migration",
 }
 ODOO_SQL_DB_HELPERS = {
     "db_connect",
@@ -263,6 +264,31 @@ def transitive_aliases(tree: ast.AST, *, terminal: str) -> set[str]:
         if not added:
             break
         aliases.update(added)
+    if terminal == "cursor":
+        functions = {
+            node.name: node
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        calls = function_call_arguments(tree)
+        for _ in range(len(functions) + 1):
+            added: set[str] = set()
+            for name, function in functions.items():
+                parameters = function_parameters(function)
+                for call in calls.get(name, []):
+                    for index, parameter in enumerate(parameters):
+                        positional_index = index
+                        if isinstance(call.func, ast.Attribute) and parameters and parameters[0] in {"self", "cls"}:
+                            positional_index -= 1
+                        value = next((item.value for item in call.keywords if item.arg == parameter), None)
+                        if value is None and 0 <= positional_index < len(call.args):
+                            value = call.args[positional_index]
+                        if value is not None and expression_chain(value, aliases, "cursor"):
+                            added.add(parameter)
+            added -= aliases
+            if not added:
+                break
+            aliases.update(added)
     return aliases
 
 
@@ -328,6 +354,15 @@ def static_model_wrapper_parameters(
 
     for name, function in functions.items():
         if not name.startswith("_"):
+            continue
+        if any(
+            (attribute_chain(decorator) or [""])[-1] == "route"
+            or (
+                isinstance(decorator, ast.Call)
+                and (attribute_chain(decorator.func) or [""])[-1] == "route"
+            )
+            for decorator in function.decorator_list
+        ):
             continue
         parameters = function_parameters(function)
         candidates: set[str] = set()
@@ -427,6 +462,25 @@ def imported_process_functions(tree: ast.AST) -> tuple[set[str], set[str], set[s
                 for alias in node.names:
                     if alias.name in OS_PROCESS_FUNCTIONS or alias.name == "*":
                         bare_functions.add(alias.asname or alias.name)
+    definitions = simple_assignments(tree)
+    for _ in range(len(definitions) + 1):
+        added = set()
+        for name, values in definitions.items():
+            if name in bare_functions or len(values) != 1:
+                continue
+            chain = attribute_chain(values[0])
+            if not chain:
+                continue
+            if len(chain) == 1 and chain[0] in bare_functions:
+                added.add(name)
+            elif len(chain) > 1 and (
+                (chain[0] in subprocess_modules and chain[-1] in SUBPROCESS_FUNCTIONS)
+                or (chain[0] in os_modules and chain[-1] in OS_PROCESS_FUNCTIONS)
+            ):
+                added.add(name)
+        if not added:
+            break
+        bare_functions.update(added)
     return subprocess_modules, os_modules, bare_functions
 
 
@@ -515,7 +569,14 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
                 )
 
             if is_process_call(node, subprocess_modules, os_modules, bare_process):
-                command_text = static_text(process_command_node(node), constants)
+                command_node = process_command_node(node)
+                current_function = enclosing.get(node)
+                shadowed_parameter = (
+                    isinstance(command_node, ast.Name)
+                    and current_function is not None
+                    and command_node.id in function_parameters(current_function)
+                )
+                command_text = None if shadowed_parameter else static_text(command_node, constants)
                 if command_text is None:
                     findings.append(
                         "unanalyzable process invocation is prohibited in Odoo addons"
@@ -711,7 +772,6 @@ def scan_repository(root: Path = ROOT) -> list[str]:
         if path.suffix == ".py":
             allow_sql = (
                 module_name in pinned
-                or module_name in exact_overrides
                 or relative.as_posix() in sql_exceptions
             )
             for finding in python_findings(path, allow_cursor_sql=allow_sql):

@@ -66,6 +66,28 @@ class IntegrationBoundaryHardeningTests(unittest.TestCase):
                 hardening.python_findings(path, allow_cursor_sql=False),
             )
 
+    def test_process_alias_and_lexically_shadowed_command_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            alias = self.write(
+                root,
+                "custom-addons/example/models/alias.py",
+                "import subprocess\nlaunch = subprocess.run\nlaunch('psql database')\n",
+            )
+            shadow = self.write(
+                root,
+                "custom-addons/example/models/shadow.py",
+                "import subprocess\ncommand = 'echo safe'\ndef launch(command):\n    subprocess.run(command, shell=True)\n",
+            )
+            self.assertIn(
+                "Python process invocation of psql is prohibited",
+                hardening.python_findings(alias, allow_cursor_sql=False),
+            )
+            self.assertIn(
+                "unanalyzable process invocation is prohibited in Odoo addons",
+                hardening.python_findings(shadow, allow_cursor_sql=False),
+            )
+
     def test_odoo_sql_db_helpers_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = self.write(
@@ -104,6 +126,20 @@ def apply(self, env, cr):
                         path,
                         allow_cursor_sql=True,
                     )
+                )
+            )
+
+    def test_cursor_forwarded_through_helper_parameter_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/helper.py",
+                "def raw(cursor):\n    cursor.execute('DELETE FROM x')\ndef route(request):\n    raw(request.env.cr)\n",
+            )
+            self.assertTrue(
+                any(
+                    "cursor execution" in finding
+                    for finding in hardening.python_findings(path, allow_cursor_sql=False)
                 )
             )
 
@@ -190,6 +226,26 @@ class Controller:
             self.assertIn(
                 marker,
                 hardening.python_findings(unsafe, allow_cursor_sql=False),
+            )
+
+    def test_routed_private_wrapper_is_never_exempted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/controllers/routed.py",
+                """
+class Controller:
+    @http.route('/proxy/<model_name>')
+    def _proxy(self, model_name):
+        return request.env[model_name].search([])
+
+    def internal(self):
+        return self._proxy('crm.lead')
+""",
+            )
+            self.assertIn(
+                "controller uses a caller-selected Odoo model; only static model names are allowed",
+                hardening.python_findings(path, allow_cursor_sql=False),
             )
 
     def test_bridge_manifest_must_load_acl_and_tests_must_be_real(self) -> None:

@@ -56,11 +56,12 @@ SQL_EXCEPTION_KINDS = {
     "odoo_schema_index",
     "odoo_test_fixture_sql",
 }
+HARDENING_EXCEPTION_KINDS = {"odoo_schema_migration"}
 DRIVER_EXCEPTION_KINDS = {
     "odoo_internal_driver_exception",
     "odoo_test_driver_exception",
 }
-ALLOWED_EXCEPTION_KINDS = SQL_EXCEPTION_KINDS | DRIVER_EXCEPTION_KINDS
+ALLOWED_EXCEPTION_KINDS = SQL_EXCEPTION_KINDS | DRIVER_EXCEPTION_KINDS | HARDENING_EXCEPTION_KINDS
 
 
 def string_set(value: object, name: str, errors: list[str]) -> set[str]:
@@ -423,6 +424,14 @@ def validate_addons(errors: list[str]) -> None:
         is_migration = any(part in {"migrations", "upgrades"} for part in path.parts)
         statements = [] if is_migration else cursor_sql_statements(path, errors)
         validate_sql_exception(relative, kinds, statements, errors)
+        if kinds & HARDENING_EXCEPTION_KINDS:
+            if not is_migration:
+                errors.append(f"{relative}: schema-migration exception is outside migrations")
+            else:
+                used_exceptions.update(
+                    (module_name, module_relative, kind)
+                    for kind in kinds & HARDENING_EXCEPTION_KINDS
+                )
         if statements and kinds & SQL_EXCEPTION_KINDS:
             used_exceptions.update(
                 (module_name, module_relative, kind)
