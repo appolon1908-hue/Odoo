@@ -693,6 +693,45 @@ class UpstreamSyncTests(unittest.TestCase):
             self.assertFalse((destination / "scripts/validate_manifests.py").exists())
 
     @unittest.skipUnless(hasattr(os, "symlink"), "symlink support is required")
+    def test_stale_path_with_destination_symlink_ancestor_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.add_module(source, "addons", "module_a", "first")
+            self.write(source, "alias/CODEOWNERS", "managed\n")
+            self.commit(source, "managed alias")
+            policy = self.prepare_destination(destination)
+            sync.synchronize(
+                upstream=source,
+                destination=destination,
+                policy_path=policy,
+                source_ref="main",
+            )
+
+            (source / "alias/CODEOWNERS").unlink()
+            (source / "alias").rmdir()
+            self.commit(source, "remove managed alias")
+            shutil.rmtree(destination / "alias")
+            self.write(destination, ".github/CODEOWNERS", "preserved\n")
+            (destination / "alias").symlink_to(".github", target_is_directory=True)
+
+            with self.assertRaisesRegex(sync.SyncError, "destination symlink ancestor"):
+                sync.synchronize(
+                    upstream=source,
+                    destination=destination,
+                    policy_path=policy,
+                    source_ref="main",
+                )
+            self.assertEqual(
+                "preserved\n",
+                (destination / ".github/CODEOWNERS").read_text(encoding="utf-8"),
+            )
+
+    @unittest.skipUnless(hasattr(os, "symlink"), "symlink support is required")
     def test_preserved_child_cannot_be_replaced_by_upstream_ancestor_symlink(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

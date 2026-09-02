@@ -387,8 +387,12 @@ def overlay_source(
         if not intersects_any(relative, preserved)
     ]
     managed = {relative.as_posix() for relative, _source in entries}
+    stale_paths = [
+        normalize_relative(raw, field="previous managed path")
+        for raw in previous_managed - managed
+    ]
 
-    for relative, _source in entries:
+    for relative in [*(item[0] for item in entries), *stale_paths]:
         ancestor = destination
         for part in relative.parts[:-1]:
             ancestor /= part
@@ -411,13 +415,11 @@ def overlay_source(
                 f"node replacement would delete unmanaged descendants: {relative}",
             )
 
-    stale = previous_managed - managed
-    for raw in sorted(
-        stale,
-        key=lambda value: (len(Path(value).parts), value),
+    for relative in sorted(
+        stale_paths,
+        key=lambda value: (len(value.parts), value.as_posix()),
         reverse=True,
     ):
-        relative = normalize_relative(raw, field="previous managed path")
         if not matches_any(relative, preserved):
             remove_path(destination / relative)
 

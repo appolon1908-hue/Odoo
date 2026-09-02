@@ -4,14 +4,19 @@
 from __future__ import annotations
 
 import sys
+import types
 import unittest
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-# Append rather than prepend: trusted standard-library and installed modules
-# must win over any same-named file imported from the synchronized candidate.
-sys.path.append(str(ROOT))
+# Bind the preserved scripts directory as an explicit namespace. Adding the
+# candidate root to sys.path would let a synchronized root-level scripts.py
+# shadow this trusted namespace and execute during source validation.
+trusted_scripts = types.ModuleType("scripts")
+trusted_scripts.__path__ = [str(ROOT / "scripts")]
+trusted_scripts.__package__ = "scripts"
+sys.modules["scripts"] = trusted_scripts
 
 TEST_ROOT = ROOT / "tests" / "security"
 suite = unittest.defaultTestLoader.discover(

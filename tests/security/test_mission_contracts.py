@@ -1,5 +1,7 @@
 import csv
 import json
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -80,8 +82,10 @@ class MissionContractTests(unittest.TestCase):
         isolated_runner = (ROOT / "scripts/run_isolated_source_tests.py").read_text(
             encoding="utf-8"
         )
-        self.assertIn("sys.path.append(str(ROOT))", isolated_runner)
+        self.assertNotIn("sys.path.append", isolated_runner)
         self.assertNotIn("sys.path.insert", isolated_runner)
+        self.assertIn('types.ModuleType("scripts")', isolated_runner)
+        self.assertIn('trusted_scripts.__path__ = [str(ROOT / "scripts")]', isolated_runner)
 
     def test_upstream_overlay_validation_uses_isolated_python_and_rechecks_authority(self):
         workflow = (ROOT / ".github/workflows/sync-codestra-odoo-addons.yml").read_text(
@@ -103,6 +107,40 @@ class MissionContractTests(unittest.TestCase):
         self.assertNotIn("python3 -m pip", runner)
         self.assertEqual(runner.count("python3 -I - <<'PY'"), 2)
         self.assertIn("python3 -I -m pip install", runner)
+
+    def test_isolated_runner_cannot_import_candidate_scripts_module(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "scripts").mkdir()
+            (root / "tests/security").mkdir(parents=True)
+            runner = (ROOT / "scripts/run_isolated_source_tests.py").read_text(
+                encoding="utf-8"
+            )
+            (root / "scripts/run_isolated_source_tests.py").write_text(
+                runner, encoding="utf-8"
+            )
+            (root / "scripts/trusted_marker.py").write_text(
+                "VALUE = 'trusted'\n", encoding="utf-8"
+            )
+            (root / "scripts.py").write_text(
+                "from pathlib import Path\nPath('candidate-executed').write_text('bad')\n",
+                encoding="utf-8",
+            )
+            (root / "tests/security/test_import.py").write_text(
+                "import unittest\nfrom scripts import trusted_marker\n"
+                "class ImportTest(unittest.TestCase):\n"
+                "    def test_trusted(self): self.assertEqual(trusted_marker.VALUE, 'trusted')\n",
+                encoding="utf-8",
+            )
+
+            subprocess.run(
+                ["python3", "-I", "scripts/run_isolated_source_tests.py"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertFalse((root / "candidate-executed").exists())
 
 
 if __name__ == "__main__":
