@@ -196,7 +196,7 @@ jobs:
           test "$(sha256sum scripts/validate_upstream_git_tree.py | awk '{print $1}')" = "$EXPECTED_UPSTREAM_TREE_VALIDATOR_SHA"
           test "$(sha256sum .gitleaks.toml | awk '{print $1}')" = "$EXPECTED_GITLEAKS_SHA"
           git diff --check
-          python3 - <<'PY'
+          python3 -I - <<'PY'
           import json
           import os
           from pathlib import Path
@@ -219,6 +219,10 @@ jobs:
           python3 -m compileall -q scripts custom-addons tests/security
           python3 scripts/sync_codestra_odoo_addons.py --verify-state
           ODOO_VALIDATION_TREEISH="$validation_tree" bash scripts/run_ci.sh
+          test "$(sha256sum scripts/run_ci.sh | awk '{print $1}')" = "$EXPECTED_RUN_CI_SHA"
+          test "$(sha256sum scripts/sync_codestra_odoo_addons.py | awk '{print $1}')" = "$EXPECTED_SYNC_SHA"
+          test "$(sha256sum scripts/validate_upstream_git_tree.py | awk '{print $1}')" = "$EXPECTED_UPSTREAM_TREE_VALIDATOR_SHA"
+          test "$(sha256sum .gitleaks.toml | awk '{print $1}')" = "$EXPECTED_GITLEAKS_SHA"
           printf 'VALIDATED_CANDIDATE_TREE=%s\n' "$validation_tree"
           printf 'DESTINATION_VALIDATION_AUTHORITY_UNCHANGED=YES\n'
 
@@ -235,7 +239,7 @@ jobs:
           rm -rf "$EVIDENCE_DIR"
           mkdir -p "$EVIDENCE_DIR"
 
-          python3 - <<'PY'
+          python3 -I - <<'PY'
           import json
           import os
           from pathlib import Path
@@ -271,7 +275,7 @@ jobs:
             --pathspec-file-nul
           git diff --cached --check
 
-          python3 - <<'PY'
+          python3 -I - <<'PY'
           import json
           import os
           import subprocess
@@ -336,7 +340,7 @@ jobs:
           git diff --cached --stat > "$EVIDENCE_DIR/diff-stat.txt"
           cp config/upstream-sync-state.json "$EVIDENCE_DIR/upstream-sync-state.json"
 
-          CANDIDATE_TREE="$candidate_tree" ARTIFACT_NAME="$artifact_name" python3 - <<'PY'
+          CANDIDATE_TREE="$candidate_tree" ARTIFACT_NAME="$artifact_name" python3 -I - <<'PY'
           import json
           import os
           from pathlib import Path
@@ -496,7 +500,7 @@ jobs:
             cd "$EVIDENCE_DIR"
             sha256sum -c SHA256SUMS
           )
-          python3 - <<'PY'
+          python3 -I - <<'PY'
           import json
           import os
           from pathlib import Path

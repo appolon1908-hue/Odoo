@@ -73,6 +73,16 @@ class MissionContractTests(unittest.TestCase):
         self.assertIn('export PYTHONPYCACHEPREFIX="$CI_PYCACHE_DIR"', runner)
         self.assertIn("trap 'rm -rf -- \"$CI_PYCACHE_DIR\"' EXIT", runner)
 
+    def test_upstream_overlay_validation_uses_isolated_python_and_rechecks_authority(self):
+        workflow = (ROOT / ".github/workflows/sync-codestra-odoo-addons.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("python3 - <<'PY'", workflow)
+        self.assertGreaterEqual(workflow.count("python3 -I - <<'PY'"), 5)
+        validation = workflow.split("- name: Validate with the preserved destination authority", 1)[1].split("- name: Force-stage", 1)[0]
+        self.assertEqual(validation.count("sha256sum scripts/run_ci.sh"), 2)
+        self.assertEqual(validation.count("sha256sum scripts/sync_codestra_odoo_addons.py"), 2)
+
     def test_runtime_ci_passwords_cannot_be_parsed_as_cli_options(self):
         runner = (ROOT / "scripts/run_odoo_module_tests.sh").read_text(
             encoding="utf-8"

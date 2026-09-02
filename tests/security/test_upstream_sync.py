@@ -537,6 +537,32 @@ class UpstreamSyncTests(unittest.TestCase):
             with self.assertRaisesRegex(sync.SyncError, "imported addon inventory drift"):
                 sync.verify_state(destination=destination, policy_path=policy)
 
+    def test_verify_state_requires_complete_false_safety_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            destination = root / "destination"
+            source.mkdir()
+            destination.mkdir()
+            self.initialize_source(source)
+            self.add_module(source, "addons", "module_a", "first")
+            self.commit(source, "source module")
+            policy = self.prepare_destination(destination)
+            sync.synchronize(
+                upstream=source,
+                destination=destination,
+                policy_path=policy,
+                source_ref="main",
+            )
+            state_path = destination / "config/upstream-sync-state.json"
+            original = json.loads(state_path.read_text(encoding="utf-8"))
+            for unsafe in ({}, {"runtime_activated": False}, {**original["safety"], "extra": False}, {**original["safety"], "runtime_activated": 0}):
+                changed = json.loads(json.dumps(original))
+                changed["safety"] = unsafe
+                state_path.write_text(json.dumps(changed), encoding="utf-8")
+                with self.assertRaisesRegex(sync.SyncError, "safety evidence"):
+                    sync.verify_state(destination=destination, policy_path=policy)
+
             state_path.write_text(json.dumps(original), encoding="utf-8")
             promoted = destination / "custom-addons/module_a/models.py"
             promoted.write_text("MARKER = 'tampered'\n", encoding="utf-8")

@@ -685,8 +685,18 @@ def verify_state(*, destination: Path, policy_path: Path) -> dict[str, Any]:
                 f"managed overlay mode drift: {relative}",
             )
     safety = state.get("safety")
-    require(isinstance(safety, dict), "sync safety evidence is missing")
-    require(not any(safety.values()), "sync state claims a live effect")
+    expected_safety = {
+        "source_workflows_activated": False,
+        "runtime_activated": False,
+        "deployment_authorized": False,
+        "live_write_authorized": False,
+    }
+    require(
+        isinstance(safety, dict)
+        and set(safety) == set(expected_safety)
+        and all(safety[key] is False for key in expected_safety),
+        "sync safety evidence is incomplete or unsafe",
+    )
 
     modules = state.get("modules")
     require(isinstance(modules, dict) and modules, "sync imported no Odoo addons")
