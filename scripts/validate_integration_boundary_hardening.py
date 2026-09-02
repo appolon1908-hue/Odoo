@@ -569,6 +569,32 @@ def is_cursor_execute(
     )
 
 
+def container_values(node: ast.AST) -> list[ast.AST]:
+    if isinstance(node, ast.Dict):
+        return [*node.keys, *node.values]
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        return list(node.elts)
+    return []
+
+
+def is_cursor_method_reference(node: ast.AST, aliases: set[str]) -> bool:
+    return (
+        isinstance(node, ast.Attribute)
+        and node.attr in {"execute", "executemany"}
+        and expression_chain(node.value, aliases, "cursor")
+    ) or reflective_attribute(
+        node, aliases, "cursor", {"execute", "executemany"}
+    )
+
+
+def is_environment_selector_reference(node: ast.AST, aliases: set[str]) -> bool:
+    return (
+        isinstance(node, ast.Attribute)
+        and node.attr == "__getitem__"
+        and expression_chain(node.value, aliases, "environment")
+    ) or reflective_attribute(node, aliases, "environment", {"__getitem__"})
+
+
 def operator_getitem_aliases(tree: ast.AST) -> tuple[set[str], set[str]]:
     modules: set[str] = set()
     functions: set[str] = set()
@@ -1469,6 +1495,15 @@ def python_findings(path: Path, *, allow_cursor_sql: bool) -> list[str]:
         ):
             findings.append(
                 "process launcher capability references are prohibited in Odoo addons"
+            )
+        values = container_values(node)
+        if any(is_cursor_method_reference(value, effective_cursor_names) for value in values):
+            findings.append(
+                "cursor method capabilities stored in containers are prohibited"
+            )
+        if any(is_environment_selector_reference(value, effective_env_names) for value in values):
+            findings.append(
+                "environment selector capabilities stored in containers are prohibited"
             )
         if isinstance(node, ast.Call):
             chain = attribute_chain(node.func)

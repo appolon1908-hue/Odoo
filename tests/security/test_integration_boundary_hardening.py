@@ -591,6 +591,30 @@ class B:
                 )
             )
 
+    def test_cursor_method_stored_in_container_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/models/cursor_container.py",
+                "def apply(request):\n    ops = {'sql': request.env.cr.execute}\n    ops['sql']('DELETE FROM res_users')\n",
+            )
+            self.assertIn(
+                "cursor method capabilities stored in containers are prohibited",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
+    def test_environment_selector_stored_in_container_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write(
+                Path(directory),
+                "custom-addons/example/controllers/environment_container.py",
+                "def apply(request, payload):\n    selectors = {'model': request.env.__getitem__}\n    selectors['model'](payload['model']).sudo().create({})\n",
+            )
+            self.assertIn(
+                "environment selector capabilities stored in containers are prohibited",
+                hardening.python_findings(path, allow_cursor_sql=False),
+            )
+
     def test_reflectively_acquired_cursor_method_alias_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = self.write(
