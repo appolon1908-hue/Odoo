@@ -26,8 +26,6 @@ concurrency:
 env:
   IMAGE_NAME: ghcr.io/appolon1908-hue/odoo
   IMAGE_TAG: ghcr.io/appolon1908-hue/odoo:sha-${{ inputs.expected_source_sha }}
-  TRIVY_VERSION: "0.74.0"
-  TRIVY_ARCHIVE_SHA256: "d093ed4fd2bcb28f2feb034f83a593c03056dbfbb7056e4fedcf47e5035ee637"
 
 jobs:
   build-signed-production-candidate:
@@ -51,14 +49,14 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
-          test "${{ github.ref_name }}" = "main"
+          test "$GITHUB_REF_NAME" = "main"
           test "$CONFIRMATION" = "BUILD_SIGNED_PRODUCTION_CANDIDATE"
           test "${#EXPECTED_SOURCE_SHA}" -eq 40
           case "$EXPECTED_SOURCE_SHA" in
             *[!0-9a-f]*) printf 'ERROR=INVALID_EXPECTED_SOURCE_SHA\n' >&2; exit 1 ;;
           esac
           test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
-          test "$EXPECTED_SOURCE_SHA" = "${{ github.sha }}"
+          test "$EXPECTED_SOURCE_SHA" = "$GITHUB_SHA"
           curl --fail --silent --show-error \
             --header "Authorization: Bearer $GITHUB_TOKEN" \
             --header "Accept: application/vnd.github+json" \
@@ -88,34 +86,20 @@ jobs:
           python-version: "3.12"
 
       - name: Install checksum-verified Trivy
-        run: |
-          set -Eeuo pipefail
-          archive="$RUNNER_TEMP/trivy-${TRIVY_VERSION}.tar.gz"
-          install_dir="$RUNNER_TEMP/trivy-bin"
-          curl \
-            --fail \
-            --location \
-            --retry 3 \
-            --show-error \
-            --silent \
-            --output "$archive" \
-            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
-          printf '%s  %s\n' "$TRIVY_ARCHIVE_SHA256" "$archive" \
-            | sha256sum --check --strict
-          mkdir -p "$install_dir"
-          tar -xzf "$archive" -C "$install_dir" trivy
-          chmod 0755 "$install_dir/trivy"
-          printf '%s\n' "$install_dir" >> "$GITHUB_PATH"
-          "$install_dir/trivy" --version
+        run: bash scripts/install_trivy.sh
 
       - name: Run exact-main source validation
         run: bash scripts/run_ci.sh
+
+      - name: Test Odoo 19 and PostgreSQL runtime
+        run: bash scripts/run_odoo_module_tests.sh
 
       - name: Build deterministic source evidence
         env:
           EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
           SOURCE_COMMIT_VERIFIED: "true"
           SOURCE_TESTS_STATUS: PASS
+          SOURCE_RUNTIME_TESTS_STATUS: PASS
         run: bash scripts/build_release_candidate.sh
 
       - name: Authenticate to GitHub Container Registry

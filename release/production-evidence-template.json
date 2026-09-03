@@ -1,4 +1,15 @@
 {
+  "activation_approval": {
+    "approved": false,
+    "approved_at": null,
+    "approver": null,
+    "candidate_author": null,
+    "image_digest": null,
+    "provenance": null,
+    "review_state": null,
+    "review_url": null,
+    "source_sha": null
+  },
   "approved_live_capabilities": [],
   "backup": {
     "database_sha256": null,
@@ -13,6 +24,14 @@
     "passed": false,
     "unexpected_writes": 0
   },
+  "candidate": {
+    "checksums_path": null,
+    "manifest_path": null,
+    "provenance_bundle_path": null,
+    "provenance_verified": false,
+    "sbom_bundle_path": null,
+    "sbom_verified": false
+  },
   "environment": "staging",
   "image": {
     "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
@@ -23,6 +42,7 @@
     "idempotency_passed": false,
     "kong_passed": false,
     "middleware_passed": false,
+    "negative_authorization_passed": false,
     "odoo_passed": false,
     "tenant_isolation_passed": false,
     "unexpected_external_effects": 0
