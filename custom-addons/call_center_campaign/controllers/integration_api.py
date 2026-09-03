@@ -6,6 +6,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from urllib import parse as urlparse
 from urllib import request as urlrequest
+from uuid import uuid4
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
@@ -44,7 +45,35 @@ def _json_response(document, status=200):
     encoded = json.dumps(
         document, sort_keys=True, separators=(",", ":"), ensure_ascii=False
     )
-    return Response(encoded, status=status, content_type="application/json")
+    return Response(
+        encoded,
+        status=status,
+        content_type="application/json",
+        headers={
+            "Cache-Control": "no-store",
+            "X-Correlation-ID": str(uuid4()),
+        },
+    )
+
+
+def _runtime_flag(name):
+    """Read a boolean capability without accepting ambiguous truthy values."""
+    return os.environ.get(name, "false").strip().lower() == "true"
+
+
+def _capability_state():
+    """Return capability read-back from the governed deployment contract."""
+    writes = _runtime_flag("LIVE_ODOO_WRITE")
+    return {
+        "business_writes_enabled": writes,
+        "external_delivery_enabled": _runtime_flag("ENABLE_EXTERNAL_DELIVERY"),
+        "live_email_enabled": _runtime_flag("EMAIL_DELIVERY"),
+        "live_sms_enabled": _runtime_flag("SMS_DELIVERY"),
+        "live_pstn_enabled": _runtime_flag("PSTN_DIALING"),
+        "live_social_publish_enabled": "NOT_APPLICABLE",
+        "live_advertising_enabled": "NOT_APPLICABLE",
+        "read_only_mode": not writes,
+    }
 
 
 def _canonical_hash(document):
@@ -418,7 +447,7 @@ def _handle_errors(callback):
 
 class CodestraIntegrationApiController(http.Controller):
     @http.route(
-        "/api/v1/integration/capabilities",
+        ["/api/v1/integration/capabilities", "/capabilities"],
         type="http",
         auth="none",
         methods=["GET"],
@@ -448,6 +477,16 @@ class CodestraIntegrationApiController(http.Controller):
                         "telephony.projections.read",
                         "telephony.mappings.read",
                         "reconciliation.read",
+                    ],
+                    "maintenance_mode": _runtime_flag(
+                        "CODESTRA_ODOO_MAINTENANCE_MODE"
+                    ),
+                    "degraded_mode": _runtime_flag("CODESTRA_ODOO_DEGRADED_MODE"),
+                    **_capability_state(),
+                    "supported_api_versions": ["v1"],
+                    "required_compliance_gates": [
+                        "business-write-activation",
+                        "external-delivery-activation",
                     ],
                 }
             )
@@ -1331,7 +1370,7 @@ class CodestraIntegrationApiController(http.Controller):
 
 class CodestraServiceOperationsController(http.Controller):
     @http.route(
-        "/health/live",
+        ["/health/live", "/health"],
         type="http",
         auth="none",
         methods=["GET"],
@@ -1341,7 +1380,7 @@ class CodestraServiceOperationsController(http.Controller):
         return _json_response({"status": "UP", "service_key": "odoo"})
 
     @http.route(
-        "/health/ready",
+        ["/health/ready", "/ready"],
         type="http",
         auth="none",
         methods=["GET"],
@@ -1358,7 +1397,7 @@ class CodestraServiceOperationsController(http.Controller):
         return _handle_errors(operation)
 
     @http.route(
-        "/.well-known/codestra-service",
+        ["/.well-known/codestra-service", "/version"],
         type="http",
         auth="none",
         methods=["GET"],
