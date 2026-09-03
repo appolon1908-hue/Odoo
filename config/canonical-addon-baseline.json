@@ -2,7 +2,7 @@
   "schema_version": 2,
   "source_commit": "9674951f4b2c9c53f88412885ed5c96fcb0769cc",
   "source_pull_request": 9,
-  "module_count": 32,
+  "module_count": 33,
   "policy": "An unchanged pinned subtree may retain its separately reviewed Odoo hook and local ORM-locking implementation. Any subtree change removes the exception, must be declared as a strict mission override, and must pass the current strict module review at its exact tree SHA. Narrow integration-boundary exceptions must be path-specific, reasoned, structurally validated, and invalidated by any subtree change.",
   "modules": {
     "call_center_compliance": "85610757c8f9bd140611b6ca99e435283b803e63",
@@ -32,9 +32,9 @@
   "strict_mission_overrides": {
     "call_center_campaign": {
       "base_tree": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
-      "current_tree": "7a931e845d7e16bf2394fdb1babfb28570dc6387",
-      "reason": "Preserve the reviewed provider activity endpoint and make its Stage 3 compatibility backfills safe for legacy staging databases where the new outbox and result-inbox tables do not exist before ORM initialization.",
-      "pull_request": 42,
+      "current_tree": "d469706ab1bc52d1df5bc5e0e5e1096315477059",
+      "reason": "Preserve the reviewed provider activity and Stage 3 compatibility boundaries while exposing canonical operational aliases through the same handlers, binding fail-closed capability readback to the exact governed deployment gate names, and retaining the isolated provider identity's business-unit-scoped read-only contact access without granting contact write permission.",
+      "pull_request": 58,
       "integration_boundary_exceptions": [
         {
           "path": "controllers/integration_api.py",
@@ -60,6 +60,26 @@
           "path": "tests/test_outbox.py",
           "kind": "odoo_test_driver_exception",
           "reason": "The test imports only the PostgreSQL constraint exception class to assert uniqueness and does not create a database connection."
+        },
+        {
+          "path": "migrations/19.0.3.0.0/post-migration.py",
+          "kind": "odoo_schema_migration",
+          "reason": "The versioned Odoo migration backfills canonical campaign journey state through the active migration cursor."
+        },
+        {
+          "path": "migrations/19.0.3.2.0/pre-migrate.py",
+          "kind": "odoo_schema_migration",
+          "reason": "The versioned Odoo migration preserves legacy integration-result references before the canonical relationship upgrade."
+        },
+        {
+          "path": "migrations/19.0.5.1.0/pre-migration.py",
+          "kind": "odoo_schema_migration",
+          "reason": "The versioned Odoo migration establishes deterministic integration idempotency and reconciliation fields."
+        },
+        {
+          "path": "migrations/19.0.5.1.0/post-migration.py",
+          "kind": "odoo_schema_migration",
+          "reason": "The versioned Odoo migration completes deterministic integration identity and terminal timestamps."
         }
       ]
     },
@@ -67,7 +87,14 @@
       "base_tree": "35a16bc1b7e107c3ba7f7087054ee86a7b26c326",
       "current_tree": "e2c53688eb228096bead826d1a621de9df4fb0b1",
       "reason": "Add a non-interactive Integration Service authorization group that inherits ordinary call-center scoping but no manager or administrator role, allowing resource-specific service ACLs and business-unit record rules to remain explicit.",
-      "pull_request": 39
+      "pull_request": 39,
+      "integration_boundary_exceptions": [
+        {
+          "path": "migrations/19.0.1.0.1/pre-migration.py",
+          "kind": "odoo_schema_migration",
+          "reason": "The versioned Odoo migration backfills the canonical shared business-unit relationship."
+        }
+      ]
     },
     "codestra_appointments": {
       "base_tree": "5812f7df199b0d5525ee7dd6a9fdc9d314947f6f",
@@ -84,6 +111,11 @@
           "path": "tests/test_callback.py",
           "kind": "odoo_test_fixture_sql",
           "reason": "The rolled-back Odoo transaction test rebinds an existing disabled synthetic campaign fixture to the synthetic business unit without external connectivity."
+        },
+        {
+          "path": "migrations/19.0.3.1.0/post-migrate.py",
+          "kind": "odoo_schema_migration",
+          "reason": "The versioned Odoo migration reconciles the canonical callback schema and legacy ownership fields."
         }
       ]
     },
@@ -92,7 +124,14 @@
       "current_tree": "dd5efbdac9ed2801d897a5b70010f2841a71c5e2",
       "reason": "Consolidate the duplicate data-quality model and extend the global CRM boundary so the dedicated non-interactive Integration Service group may create leads only inside its explicitly authorized business units, without campaign-manager or administrator access.",
       "pull_request": 39,
-      "allow_post_init_hook": true
+      "allow_post_init_hook": true,
+      "integration_boundary_exceptions": [
+        {
+          "path": "migrations/19.0.1.3.0/post-migrate.py",
+          "kind": "odoo_schema_migration",
+          "reason": "The versioned Odoo migration normalizes legacy data-quality rows into the canonical tenant-scoped model."
+        }
+      ]
     },
     "codestra_identity_provisioning": {
       "base_tree": "245f4e9fc94f3447ecbaa22b17b4784d5b1c36cc",
@@ -133,9 +172,9 @@
     },
     "codestra_middleware_bridge": {
       "base_tree": "d5f2785ea737689dfc1bdc88bb1eb1650a334e02",
-      "current_tree": "4f16e11ea12770def990bd062d0860b12ef993d9",
-      "reason": "Preserve the reviewed Stage 3 Odoo destination and repair its Odoo 19 ACL identifiers, canonical campaign fixture, and business-unit-scoped service campaign resolution for runtime certification.",
-      "pull_request": 41,
+      "current_tree": "5484877c28c216d5356e5ad2ff890792215de23f",
+      "reason": "Preserve the reviewed Stage 3 destination and centralize tenant-bound intake identity plus fail-closed CRM consent and suppression handling in one canonical model authority.",
+      "pull_request": 57,
       "integration_boundary_exceptions": [
         {
           "path": "tests/test_bridge_schema.py",
@@ -158,12 +197,35 @@
         {
           "path": "tests/test_lead_reconciliation.py",
           "kind": "odoo_test_driver_exception",
-          "reason": "The test imports only UniqueViolation to assert a partial unique mapping invariant and does not open a database connection."
+          "reason": "The test imports only UniqueViolation to assert a partial unique mapping invariant and does not open an external database connection."
         },
         {
           "path": "tests/test_reconciliation.py",
           "kind": "odoo_test_driver_exception",
           "reason": "The test imports only IntegrityError to assert call-record database constraints and does not open a database connection."
+        },
+        {
+          "path": "migrations/19.0.3.2.0/pre-migrate.py",
+          "kind": "odoo_schema_migration",
+          "reason": "The versioned Odoo migration aligns callback foreign keys and canonical VICIdial campaign identity."
+        },
+        {
+          "path": "migrations/19.0.3.2.0/post-migrate.py",
+          "kind": "odoo_schema_migration",
+          "reason": "The versioned Odoo migration backfills canonical VICIdial campaign identity from durable call evidence."
+        }
+      ]
+    },
+    "codestra_moneybee_crm": {
+      "base_tree": "31cebcead3176785e4d7e9f1f38be95c802ef03e",
+      "current_tree": "084930604b897e4731fb76a336d09625e2974b9d",
+      "reason": "Add the reviewed MoneyBee CRM identity and durable command-receipt boundary, preserve Middleware-only authorization and tenant-bound idempotency, and allow only the PostgreSQL IntegrityError class needed to reconcile unique-constraint races inside Odoo savepoints without opening an external database connection.",
+      "pull_request": 5,
+      "integration_boundary_exceptions": [
+        {
+          "path": "models/res_partner.py",
+          "kind": "odoo_internal_driver_exception",
+          "reason": "The model imports only IntegrityError to reconcile unique-constraint races inside Odoo savepoints and never opens an external database connection."
         }
       ]
     }

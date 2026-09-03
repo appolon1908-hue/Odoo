@@ -3,6 +3,7 @@ from . import campaign_mapping
 from . import crm_team
 from . import crm_lead
 from . import pipeline
+from . import provider_activity
 from . import script
 from . import foundation
 from . import outbox
