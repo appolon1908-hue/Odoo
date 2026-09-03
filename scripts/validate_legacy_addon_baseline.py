@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import subprocess
 import sys
@@ -21,9 +20,8 @@ MODULE_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
 def git_tree_sha(relative: Path) -> str | None:
-    treeish = os.environ.get("ODOO_VALIDATION_TREEISH", "HEAD")
     result = subprocess.run(
-        ["git", "rev-parse", f"{treeish}:{relative.as_posix()}"],
+        ["git", "rev-parse", f"HEAD:{relative.as_posix()}"],
         cwd=ROOT,
         check=False,
         capture_output=True,

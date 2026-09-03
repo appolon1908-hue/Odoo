@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Verify exact source head identity
@@ -54,7 +54,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Verify exact merge-result identity
@@ -86,7 +86,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Verify exact runtime-test identity
@@ -107,7 +107,7 @@ jobs:
           set -o pipefail
           runtime_log="$RUNNER_TEMP/odoo-runtime.log"
           if ! bash scripts/run_odoo_module_tests.sh 2>&1 | tee "$runtime_log"; then
-            python3 -I - "$runtime_log" <<'PY'
+            python3 - "$runtime_log" <<'PY'
           from pathlib import Path
           import sys
 
@@ -135,7 +135,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Verify exact pushed SHA identity
@@ -166,7 +166,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Verify exact runtime-test identity
@@ -187,7 +187,7 @@ jobs:
           set -o pipefail
           runtime_log="$RUNNER_TEMP/odoo-runtime.log"
           if ! bash scripts/run_odoo_module_tests.sh 2>&1 | tee "$runtime_log"; then
-            python3 -I - "$runtime_log" <<'PY'
+            python3 - "$runtime_log" <<'PY'
           from pathlib import Path
           import sys
 

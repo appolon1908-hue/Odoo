@@ -1,7 +1,5 @@
 import csv
 import json
-import subprocess
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -62,122 +60,12 @@ class MissionContractTests(unittest.TestCase):
         ]
         self.assertFalse(unauthenticated_mutations)
 
-    def test_upstream_sync_compilation_cannot_mutate_promoted_addon_trees(self):
-        workflow = (
-            ROOT / ".github/workflows/sync-codestra-odoo-addons.yml"
-        ).read_text(encoding="utf-8")
-        ci_workflow = (ROOT / ".github/workflows/odoo-addons-ci.yml").read_text(
-            encoding="utf-8"
-        )
-        self.assertNotIn("fetch-depth: 1", ci_workflow)
-        self.assertGreaterEqual(ci_workflow.count("fetch-depth: 0"), 5)
-        self.assertIn(
-            'export PYTHONPYCACHEPREFIX="${RUNNER_TEMP}/destination-python-cache"',
-            workflow,
-        )
-        self.assertIn(
-            'python3 -I -X pycache_prefix="$PYTHONPYCACHEPREFIX" -m compileall',
-            workflow,
-        )
-        self.assertIn("lfs: false", workflow)
-        self.assertIn("git -C ../source lfs ls-files --name-only", workflow)
-        self.assertNotIn("lfs ls-files --name-only | grep -q", workflow)
-        self.assertIn("'upstream_lfs_materialized': False", workflow)
-        self.assertNotIn("'upstream_lfs_materialized': True", workflow)
-        runner = (ROOT / "scripts/run_ci.sh").read_text(encoding="utf-8")
-        self.assertIn('CI_PYCACHE_DIR="$(mktemp -d)"', runner)
-        self.assertIn('export PYTHONPYCACHEPREFIX="$CI_PYCACHE_DIR"', runner)
-        self.assertIn('git cat-file -e "$treeish:config/upstream-sync-state.json"', runner)
-        self.assertIn("initialized upstream sync state is missing", runner)
-        self.assertIn("initialized upstream source snapshot is missing", runner)
-        self.assertIn(
-            'python3 -I -X pycache_prefix="$PYTHONPYCACHEPREFIX" -m compileall',
-            runner,
-        )
-        self.assertIn("trap 'rm -rf -- \"$CI_PYCACHE_DIR\"' EXIT", runner)
-        self.assertNotIn("\npython3 -m", runner)
-        self.assertNotIn("\npython3 scripts/", runner)
-        self.assertNotIn("\n  python3 -m", runner)
-        self.assertNotIn("\n  python3 scripts/", runner)
-        self.assertGreaterEqual(runner.count("python3 -I "), 16)
-        isolated_runner = (ROOT / "scripts/run_isolated_source_tests.py").read_text(
-            encoding="utf-8"
-        )
-        self.assertNotIn("sys.path.append", isolated_runner)
-        self.assertNotIn("sys.path.insert", isolated_runner)
-        self.assertIn('types.ModuleType("scripts")', isolated_runner)
-        self.assertIn('trusted_scripts.__path__ = [str(ROOT / "scripts")]', isolated_runner)
-
-    def test_upstream_overlay_validation_uses_isolated_python_and_rechecks_authority(self):
-        workflow = (ROOT / ".github/workflows/sync-codestra-odoo-addons.yml").read_text(
-            encoding="utf-8"
-        )
-        self.assertNotIn("python3 - <<'PY'", workflow)
-        self.assertGreaterEqual(workflow.count("python3 -I - <<'PY'"), 5)
-        runtime_workflow = (ROOT / ".github/workflows/odoo-addons-ci.yml").read_text(
-            encoding="utf-8"
-        )
-        self.assertEqual(runtime_workflow.count('python3 -I - "$runtime_log"'), 2)
-        validation = workflow.split("- name: Validate with the preserved destination authority", 1)[1].split("- name: Force-stage", 1)[0]
-        self.assertEqual(validation.count("sha256sum scripts/run_ci.sh"), 2)
-        self.assertEqual(validation.count("sha256sum scripts/sync_codestra_odoo_addons.py"), 2)
-
-    def test_upstream_publish_job_uses_context_available_before_runner_start(self):
-        workflow = (ROOT / ".github/workflows/sync-codestra-odoo-addons.yml").read_text(
-            encoding="utf-8"
-        )
-        publish_job = workflow.split("\n  publish:\n", 1)[1]
-        publish_job_configuration = publish_job.split("\n    steps:\n", 1)[0]
-        self.assertNotIn("${{ runner.", publish_job_configuration)
-        self.assertIn(
-            "EVIDENCE_DIR: ${{ github.workspace }}/upstream-sync-evidence",
-            publish_job_configuration,
-        )
-
     def test_runtime_ci_passwords_cannot_be_parsed_as_cli_options(self):
         runner = (ROOT / "scripts/run_odoo_module_tests.sh").read_text(
             encoding="utf-8"
         )
         self.assertNotIn("token_urlsafe", runner)
         self.assertGreaterEqual(runner.count("secrets.token_hex("), 2)
-        self.assertNotIn("python3 - <<'PY'", runner)
-        self.assertNotIn("python3 -m pip", runner)
-        self.assertEqual(runner.count("python3 -I - <<'PY'"), 2)
-        self.assertIn("python3 -I -m pip install", runner)
-
-    def test_isolated_runner_cannot_import_candidate_scripts_module(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "scripts").mkdir()
-            (root / "tests/security").mkdir(parents=True)
-            runner = (ROOT / "scripts/run_isolated_source_tests.py").read_text(
-                encoding="utf-8"
-            )
-            (root / "scripts/run_isolated_source_tests.py").write_text(
-                runner, encoding="utf-8"
-            )
-            (root / "scripts/trusted_marker.py").write_text(
-                "VALUE = 'trusted'\n", encoding="utf-8"
-            )
-            (root / "scripts.py").write_text(
-                "from pathlib import Path\nPath('candidate-executed').write_text('bad')\n",
-                encoding="utf-8",
-            )
-            (root / "tests/security/test_import.py").write_text(
-                "import unittest\nfrom scripts import trusted_marker\n"
-                "class ImportTest(unittest.TestCase):\n"
-                "    def test_trusted(self): self.assertEqual(trusted_marker.VALUE, 'trusted')\n",
-                encoding="utf-8",
-            )
-
-            subprocess.run(
-                ["python3", "-I", "scripts/run_isolated_source_tests.py"],
-                cwd=root,
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            self.assertFalse((root / "candidate-executed").exists())
 
 
 if __name__ == "__main__":

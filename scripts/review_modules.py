@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import ast
 import json
-import os
 import re
 import subprocess
 import sys
@@ -58,9 +57,8 @@ def load_registry() -> tuple[dict[str, str], dict[str, dict[str, Any]]]:
 
 def git_tree_sha(module_dir: Path) -> str | None:
     relative = module_dir.relative_to(ROOT)
-    treeish = os.environ.get("ODOO_VALIDATION_TREEISH", "HEAD")
     result = subprocess.run(
-        ["git", "rev-parse", f"{treeish}:{relative.as_posix()}"],
+        ["git", "rev-parse", f"HEAD:{relative.as_posix()}"],
         cwd=ROOT,
         check=False,
         capture_output=True,
