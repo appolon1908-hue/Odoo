@@ -87,13 +87,13 @@ done
 DB_PASSWORD="$(
   python3 - <<'PY'
 import secrets
-print(secrets.token_urlsafe(36))
+print(secrets.token_hex(36))
 PY
 )"
 ADMIN_PASSWORD="$(
   python3 - <<'PY'
 import secrets
-print(secrets.token_urlsafe(40))
+print(secrets.token_hex(40))
 PY
 )"
 
