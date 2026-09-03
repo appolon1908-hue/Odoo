@@ -122,6 +122,18 @@ class MissionContractTests(unittest.TestCase):
         self.assertEqual(validation.count("sha256sum scripts/run_ci.sh"), 2)
         self.assertEqual(validation.count("sha256sum scripts/sync_codestra_odoo_addons.py"), 2)
 
+    def test_upstream_publish_job_uses_context_available_before_runner_start(self):
+        workflow = (ROOT / ".github/workflows/sync-codestra-odoo-addons.yml").read_text(
+            encoding="utf-8"
+        )
+        publish_job = workflow.split("\n  publish:\n", 1)[1]
+        publish_job_configuration = publish_job.split("\n    steps:\n", 1)[0]
+        self.assertNotIn("${{ runner.", publish_job_configuration)
+        self.assertIn(
+            "EVIDENCE_DIR: ${{ github.workspace }}/upstream-sync-evidence",
+            publish_job_configuration,
+        )
+
     def test_runtime_ci_passwords_cannot_be_parsed_as_cli_options(self):
         runner = (ROOT / "scripts/run_odoo_module_tests.sh").read_text(
             encoding="utf-8"

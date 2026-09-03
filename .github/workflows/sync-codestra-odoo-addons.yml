@@ -482,7 +482,7 @@ jobs:
       TARGET_SHA: ${{ needs.plan.outputs.target_sha }}
       CANDIDATE_TREE: ${{ needs.plan.outputs.candidate_tree }}
       ARTIFACT_NAME: ${{ needs.plan.outputs.artifact_name }}
-      EVIDENCE_DIR: ${{ runner.temp }}/upstream-sync-evidence
+      EVIDENCE_DIR: ${{ github.workspace }}/upstream-sync-evidence
 
     steps:
       - name: Check out the exact destination base from the accepted plan
