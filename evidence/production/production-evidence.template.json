@@ -3,6 +3,14 @@
   "template": true,
   "system": "codestra-odoo-19",
   "repository": "appolon1908-hue/Odoo",
+  "producer": {
+    "repository": "appolon1908-hue/Odoo",
+    "workflow": ".github/workflows/REPLACE_WITH_EVIDENCE_WORKFLOW.yml",
+    "run_id": 0,
+    "run_attempt": 0,
+    "head_sha": "0000000000000000000000000000000000000000",
+    "artifact_name": "REPLACE_WITH_EVIDENCE_ARTIFACT"
+  },
   "release_version": "REPLACE_WITH_RELEASE_VERSION",
   "source_branch": "main",
   "source_sha": "0000000000000000000000000000000000000000",
