@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "system": "codestra-odoo-19",
+  "authoritative_repository": "appolon1908-hue/Odoo",
+  "candidate_branch": "main",
+  "production_certified": false,
+  "default_verdict": "NO_GO",
+  "policy": {
+    "source_sha_must_be_protected_main": true,
+    "runtime_artifact_must_be_immutable": true,
+    "evidence_must_bind_to_same_source_sha_and_artifact_digest": true,
+    "production_promotion_must_be_separate_from_source_merge": true,
+    "administrator_bypass_allowed": false,
+    "mutable_image_tags_allowed": false,
+    "direct_external_postgresql_writes_allowed": false,
+    "odoo_write_default": false,
+    "external_delivery_default": false,
+    "pstn_dialing_default": false
+  },
+  "required_gates": {
+    "source_ci": {
+      "status": "REQUIRED",
+      "evidence": [
+        "Odoo Addons CI exact-SHA success",
+        "Security gates exact-SHA success"
+      ]
+    },
+    "immutable_artifact": {
+      "status": "BLOCKED",
+      "evidence": [
+        "runtime image digest",
+        "source SHA label",
+        "reproducible release manifest"
+      ]
+    },
+    "supply_chain": {
+      "status": "BLOCKED",
+      "evidence": [
+        "runtime-image SBOM",
+        "build provenance",
+        "artifact signature verification",
+        "vulnerability scan"
+      ]
+    },
+    "isolated_staging": {
+      "status": "BLOCKED",
+      "evidence": [
+        "fresh install",
+        "deployed-version upgrade",
+        "Caddy to Kong to Middleware to Odoo contract tests",
+        "negative authorization and tenant-isolation tests",
+        "no-effect safety readback"
+      ]
+    },
+    "backup_restore": {
+      "status": "BLOCKED",
+      "evidence": [
+        "database backup bound to release",
+        "filestore backup bound to release",
+        "isolated restore",
+        "RPO and RTO result"
+      ]
+    },
+    "rollback": {
+      "status": "BLOCKED",
+      "evidence": [
+        "application rollback rehearsal",
+        "database compatibility decision",
+        "post-rollback health and reconciliation"
+      ]
+    },
+    "canary_and_soak": {
+      "status": "BLOCKED",
+      "evidence": [
+        "bounded canary",
+        "error-budget and latency checks",
+        "queue and reconciliation checks",
+        "soak duration and exit criteria"
+      ]
+    },
+    "governance": {
+      "status": "BLOCKED",
+      "evidence": [
+        "protected main branch",
+        "required exact-head checks",
+        "force-push and deletion protection",
+        "independent approval or approved automated-equivalent policy",
+        "protected production environment"
+      ]
+    },
+    "production_activation": {
+      "status": "BLOCKED",
+      "evidence": [
+        "approved change record",
+        "runtime secret binding",
+        "operator and rollback owner",
+        "post-deploy smoke and reconciliation"
+      ]
+    }
+  }
+}
