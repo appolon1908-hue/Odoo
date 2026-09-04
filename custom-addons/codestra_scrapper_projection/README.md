@@ -20,6 +20,14 @@ credentials, arbitrary model names, SQL, or executable templates.
   activation;
 - no secret committed to this repository.
 
+## Replay and failure semantics
+
+An exact retry of a committed `event_id` returns its original receipt. Reusing that
+identifier with changed content is rejected. A lower business version is recorded
+as stale without changing the current projection, while changed content at the
+same version fails closed. Receipt reservation and projection persistence share the
+same Odoo transaction, so an uncommitted failure cannot publish a success receipt.
+
 ## Required non-secret configuration
 
 ```text
