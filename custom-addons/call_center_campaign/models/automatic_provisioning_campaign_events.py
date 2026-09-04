@@ -59,10 +59,15 @@ class CallCenterCampaignAutomaticProvisioningEvents(models.Model):
             "_codestra_automatic_default"
         )
         if not automatic:
-            event = super()._create_design_request_event(revision=revision)
-            validation = event.payload_json.get("validation", {}).get("errors", [])
-            self._ensure_revision_record(event, validation)
-            return event
+            return super()._create_design_request_event(revision=revision)
+        if (
+            not self.purpose_code
+            or self.purpose_code == "UNSPECIFIED"
+            or self._normalize_purpose_code(self.purpose_code) != self.purpose_code
+        ):
+            raise ValidationError(
+                "Automatic campaign design requires a canonical purpose code."
+            )
         if not self.integration_uuid:
             self._write_integration_state({"integration_uuid": str(uuid.uuid4())})
         revision = revision or self.design_request_revision + 1
@@ -113,15 +118,21 @@ class CallCenterCampaignAutomaticProvisioningEvents(models.Model):
                 "last_design_event_uuid": event_uuid,
             }
         )
+        reset_values = {"design_approval_reason": False}
+        if self.state == "approved":
+            reset_values["state"] = "draft"
+        self._system_write(reset_values)
         self._ensure_revision_record(event, payload["validation"]["errors"])
         return event
 
     def action_request_design_preview(self):
         if not self.env.user.has_group("call_center_core.group_call_center_manager"):
             raise AccessError("Only contact-center managers may request campaign designs.")
+        self._lock_automatic_design_rows()
         for campaign in self:
-            if not campaign.design_automation_enabled:
+            if not campaign.automatic_design_managed:
                 campaign._system_write({"automatic_design_managed": True})
+            if not campaign.design_automation_enabled:
                 campaign.with_context(_codestra_automatic_default=True).write(
                     {"design_automation_enabled": True}
                 )

@@ -39,7 +39,10 @@ class CodestraIntegrationOutboxAutomaticProvisioning(models.Model):
 
     def _finalize_delivery_success(self, result):
         self.ensure_one()
-        if self.event_type == DESIGN_REQUEST_EVENT:
+        if (
+            self.event_type == DESIGN_REQUEST_EVENT
+            and self.campaign_id.automatic_design_managed
+        ):
             revision = self.campaign_id._ensure_revision_record(
                 self,
                 self.payload_json.get("validation", {}).get("errors", []),

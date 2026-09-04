@@ -16,6 +16,12 @@ class CallCenterCampaignAutomaticProvisioningApproval(models.Model):
 
     def _validate_design_approval(self):
         self.ensure_one()
+        if not self.env.user.has_group(
+            "call_center_core.group_call_center_manager"
+        ):
+            raise AccessError(
+                "Only contact-center managers may approve campaign designs."
+            )
         revision = self.current_design_revision_id
         if not self.design_automation_enabled or not revision:
             raise ValidationError("Campaign design preview has not been requested.")

@@ -31,7 +31,7 @@
   "strict_mission_overrides": {
     "call_center_campaign": {
       "base_tree": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
-      "current_tree": "792a3920023f27d4be5ae336b77f5dc4737db903",
+      "current_tree": "ba26ee72d238e1cc5d7f01be66dfe3662057626c",
       "reason": "Preserve the reviewed provider activity, Stage 3 compatibility, readiness, transactional outbox, and integration-boundary controls while adding automatic versioned campaign-design requests, immutable Middleware preview validation, canonical business-unit allocation checks, and idempotent fail-closed approval events without authorizing direct VICIdial writes or live activation.",
       "pull_request": 67,
       "integration_boundary_exceptions": [
@@ -44,6 +44,11 @@
           "path": "models/outbox.py",
           "kind": "odoo_cursor_locking",
           "reason": "Transactional outbox lease claims and campaign finalization use SELECT FOR UPDATE on Odoo's existing cursor to prevent duplicate delivery."
+        },
+        {
+          "path": "models/automatic_provisioning_campaign_core.py",
+          "kind": "odoo_cursor_locking",
+          "reason": "Automatic campaign-design revision, adoption, and approval operations serialize affected campaign rows with SELECT FOR UPDATE on Odoo's active cursor so concurrent requests cannot create duplicate revisions or approvals."
         },
         {
           "path": "models/result_inbox.py",

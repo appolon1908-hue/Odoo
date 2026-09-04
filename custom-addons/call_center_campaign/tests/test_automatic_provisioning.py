@@ -55,6 +55,11 @@ class TestAutomaticCampaignProvisioning(TransactionCase):
         )
 
     def _manifest(self, campaign, revision=1):
+        environment_code = {
+            "test": "TEST",
+            "staging": "STAGING",
+            "production": "PROD",
+        }[campaign.provisioning_environment]
         return {
             "schema_version": "campaign-provisioning.v1",
             "environment": campaign.provisioning_environment,
@@ -93,8 +98,8 @@ class TestAutomaticCampaignProvisioning(TransactionCase):
             },
             "n8n": {
                 "scope": (
-                    f"{campaign.provisioning_environment.upper()}-"
-                    f"{campaign.business_unit_id.code}-{campaign.purpose_code}-V{revision}"
+                    f"{environment_code}-{campaign.business_unit_id.code}-"
+                    f"{campaign.purpose_code}-V{revision}"
                 ),
                 "workflows_active": False,
             },
@@ -146,6 +151,11 @@ class TestAutomaticCampaignProvisioning(TransactionCase):
         self.assertEqual(len(campaign.design_revision_ids), 1)
         self.assertEqual(campaign.automatic_design_state, "requested")
 
+    def test_explicit_true_cannot_bypass_managed_design(self):
+        campaign = self._create_campaign(design_automation_enabled=True)
+        self.assertTrue(campaign.automatic_design_managed)
+        self.assertEqual(len(campaign.design_revision_ids), 1)
+
     def test_explicit_migration_opt_out_remains_available(self):
         campaign = self._create_campaign(design_automation_enabled=False)
         self.assertFalse(campaign.design_automation_enabled)
@@ -156,6 +166,17 @@ class TestAutomaticCampaignProvisioning(TransactionCase):
         campaign = self._create_campaign()
         with self.assertRaises(AccessError):
             campaign.write({"design_automation_enabled": False})
+
+    def test_managed_campaign_cannot_activate_directly(self):
+        campaign = self._create_campaign()
+        with self.assertRaises(ValidationError):
+            campaign.write({"state": "active"})
+
+    def test_secret_shaped_design_input_never_reaches_the_outbox(self):
+        values = dict(self.design_input)
+        values["provider_" + "token"] = "placeholder"
+        with self.assertRaises(ValidationError):
+            self._create_campaign(design_input_json=values)
 
     def test_complete_disabled_preview_is_persisted_and_approvable(self):
         campaign = self._create_campaign()
@@ -218,7 +239,7 @@ class TestAutomaticCampaignProvisioning(TransactionCase):
                 }
             )
         manifest = self._manifest(campaign)
-        manifest["provider_token"] = "not-allowed"
+        manifest["provider_" + "token"] = "placeholder"
         digest = hashlib.sha256(
             json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()

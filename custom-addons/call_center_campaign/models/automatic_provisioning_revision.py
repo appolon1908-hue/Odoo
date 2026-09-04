@@ -135,11 +135,14 @@ class CallCenterCampaignDesignRevision(models.Model):
         odoo_state = manifest.get("odoo")
         if not isinstance(odoo_state, dict):
             raise ValidationError("Campaign design manifest lacks Odoo state.")
+        crm_team_code = odoo_state.get("crm_team_code")
         if (
             odoo_state.get("campaign_id") != campaign.id
             or odoo_state.get("campaign_code") != campaign.code
             or odoo_state.get("owner_user_id") != campaign.create_uid.id
             or odoo_state.get("supervisor_user_id") not in campaign.supervisor_ids.ids
+            or not isinstance(crm_team_code, str)
+            or not crm_team_code.startswith(f"{unit_code}_")
         ):
             raise ValidationError("Campaign design manifest Odoo binding mismatch.")
 
@@ -167,26 +170,42 @@ class CallCenterCampaignDesignRevision(models.Model):
         ):
             raise ValidationError("VICIdial default list ID is outside its business-unit range.")
         lists = vicidial.get("lists")
-        if not isinstance(lists, list):
-            raise ValidationError("VICIdial list design must be a JSON list.")
+        if not isinstance(lists, list) or not lists:
+            raise ValidationError("VICIdial list design must be a non-empty JSON list.")
+        resource_prefix = f"{unit_code}_{campaign.purpose_code}_"
+        list_ids = []
         for item in lists:
             list_id = item.get("list_id") if isinstance(item, dict) else None
+            list_code = item.get("code") if isinstance(item, dict) else None
             if (
                 not isinstance(item, dict)
                 or item.get("active") is not False
                 or isinstance(list_id, bool)
                 or not isinstance(list_id, int)
                 or not list_range[0] <= list_id <= list_range[1]
+                or not isinstance(list_code, str)
+                or not list_code.startswith(resource_prefix)
             ):
                 raise ValidationError(
-                    "Every VICIdial list must be disabled and use its business-unit range."
+                    "Every VICIdial list must be disabled, campaign-owned, and use "
+                    "its business-unit range."
                 )
-        resource_prefix = f"{unit_code}_{campaign.purpose_code}_"
+            list_ids.append(list_id)
+        if len(set(list_ids)) != len(list_ids) or default_list_id not in list_ids:
+            raise ValidationError(
+                "VICIdial list identifiers must be unique and include the default list."
+            )
         for field_name in ("user_groups", "inbound_groups", "scripts"):
             resources = vicidial.get(field_name)
-            if not isinstance(resources, list) or any(
-                not isinstance(value, str) or not value.startswith(resource_prefix)
-                for value in resources
+            if (
+                not isinstance(resources, list)
+                or not resources
+                or any(
+                    not isinstance(value, str)
+                    or not value.startswith(resource_prefix)
+                    for value in resources
+                )
+                or len(set(resources)) != len(resources)
             ):
                 raise ValidationError(
                     f"VICIdial {field_name} must use canonical campaign-owned identifiers."
@@ -224,12 +243,31 @@ class CallCenterCampaignDesignRevision(models.Model):
     def _record_preview(self, result):
         self.ensure_one()
         result_revision = result.get("design_revision")
-        if isinstance(result_revision, bool) or result_revision != self.revision:
-            raise ValidationError("Middleware design revision does not match the request.")
+        if (
+            isinstance(result_revision, bool)
+            or not isinstance(result_revision, int)
+            or result_revision <= 0
+        ):
+            raise ValidationError("Middleware design revision is invalid.")
         manifest_hash = normalized_hash(result.get("manifest_hash"))
         if re.fullmatch(r"[0-9a-f]{64}", manifest_hash) is None:
             raise ValidationError("Middleware design manifest hash is invalid.")
-        manifest = result.get("manifest") or result.get("design_manifest")
+        manifest = result.get("manifest")
+        if manifest is None:
+            manifest = result.get("design_manifest")
+        if manifest is not None and result_revision != self.revision:
+            raise ValidationError("Middleware design revision does not match the request.")
+        if (
+            self.state == "superseded"
+            or self.revision != self.campaign_id.design_request_revision
+        ):
+            return self._system_write(
+                {
+                    "manifest_hash": manifest_hash,
+                    "received_at": fields.Datetime.now(),
+                    "state": "superseded",
+                }
+            )
         validation_errors = result.get(
             "validation_errors", self.validation_errors_json or []
         )

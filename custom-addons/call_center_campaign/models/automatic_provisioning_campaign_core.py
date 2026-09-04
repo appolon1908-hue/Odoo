@@ -6,6 +6,7 @@ from odoo.exceptions import AccessError, ValidationError
 from .automatic_provisioning_common import (
     APPROVED_BUSINESS_UNITS,
     AUTOMATIC_STATE_CAPABILITY,
+    DESIGN_MANIFEST_SCHEMA,
     DESIGN_REVISION_STATES,
     DIRECTION_CODES,
     REQUIRED_DESIGN_INPUT_KEYS,
@@ -80,7 +81,7 @@ class CallCenterCampaignAutomaticProvisioning(models.Model):
     @api.model
     def _automatic_design_default_allowed(self):
         context = self.env.context
-        return not any(
+        migration_context = any(
             context.get(flag)
             for flag in (
                 "install_mode",
@@ -89,6 +90,10 @@ class CallCenterCampaignAutomaticProvisioning(models.Model):
                 "codestra_skip_automatic_campaign_design",
             )
         )
+        is_admin = self.env.su or self.env.user.has_group(
+            "call_center_core.group_call_center_admin"
+        )
+        return not (migration_context and is_admin)
 
     @api.model
     def _normalize_purpose_code(self, value):
@@ -117,29 +122,29 @@ class CallCenterCampaignAutomaticProvisioning(models.Model):
         allow_default = self._automatic_design_default_allowed()
         for original in vals_list:
             values = dict(original)
-            explicitly_disabled = values.get("design_automation_enabled") is False
             if (
-                explicitly_disabled
-                and allow_default
-                and not self.env.user.has_group(
-                    "call_center_core.group_call_center_admin"
-                )
+                "design_automation_enabled" in values
+                and not isinstance(values["design_automation_enabled"], bool)
             ):
+                raise ValidationError(
+                    "Campaign design automation must be an explicit boolean."
+                )
+            explicitly_disabled = values.get("design_automation_enabled") is False
+            is_admin = self.env.su or self.env.user.has_group(
+                "call_center_core.group_call_center_admin"
+            )
+            if explicitly_disabled and not is_admin:
                 raise AccessError(
                     "Only a call-center administrator may create an unmanaged "
                     "campaign for a reviewed migration."
                 )
             automatic_default = allow_default and (
-                "design_automation_enabled" not in values
-                or (
-                    self.env.context.get("codestra_automatic_campaign_form")
-                    and values.get("design_automation_enabled") is True
-                )
+                values.get("design_automation_enabled", True) is not False
             )
-            if "automatic_design_managed" in values and not self.env.context.get(
-                "codestra_skip_automatic_campaign_design"
-            ):
-                raise AccessError("Automatic campaign-design ownership is system controlled.")
+            if "automatic_design_managed" in values:
+                raise AccessError(
+                    "Automatic campaign-design ownership is system controlled."
+                )
             if automatic_default:
                 if values.get("state") in {"approved", "active"}:
                     raise ValidationError(
@@ -157,25 +162,31 @@ class CallCenterCampaignAutomaticProvisioning(models.Model):
             created_ids.extend(record.ids)
         return self.browse(created_ids)
 
+    def _lock_automatic_design_rows(self):
+        if self:
+            self.env.cr.execute(
+                "SELECT id FROM call_center_campaign WHERE id = ANY(%s) FOR UPDATE",
+                [self.ids],
+            )
+            self.invalidate_recordset()
+        return self
+
     def write(self, vals):
         if (
             self.env.context.get("_codestra_automatic_state_capability")
             is AUTOMATIC_STATE_CAPABILITY
         ):
             return super().write(vals)
-        system_fields = {"automatic_design_managed", "last_approval_event_uuid"}
-        if system_fields & vals.keys() and not self.env.context.get(
-            "codestra_skip_automatic_campaign_design"
-        ):
-            raise AccessError("Automatic campaign-design state is system controlled.")
         if (
-            vals.get("design_automation_enabled") is False
-            and any(self.mapped("automatic_design_managed"))
-            and not self.env.context.get("codestra_skip_automatic_campaign_design")
+            "design_automation_enabled" in vals
+            and not isinstance(vals["design_automation_enabled"], bool)
         ):
-            raise AccessError(
-                "Automatically managed campaign design cannot be disabled outside migration."
+            raise ValidationError(
+                "Campaign design automation must be an explicit boolean."
             )
+        system_fields = {"automatic_design_managed", "last_approval_event_uuid"}
+        if system_fields & vals.keys():
+            raise AccessError("Automatic campaign-design state is system controlled.")
         native_design_fields = {
             "business_unit_id",
             "purpose_code",
@@ -202,6 +213,45 @@ class CallCenterCampaignAutomaticProvisioning(models.Model):
             "provisioning_environment",
             "design_input_json",
         }
+        requires_automatic_lock = bool(
+            extra_design_fields & vals.keys()
+            or "design_automation_enabled" in vals
+            or vals.get("state") in {"approved", "active"}
+        )
+        if requires_automatic_lock:
+            self._lock_automatic_design_rows()
+        adopting_managed_design = self.filtered(
+            lambda campaign: vals.get("design_automation_enabled") is True
+            and not campaign.automatic_design_managed
+        )
+        already_enabled_adoptions = adopting_managed_design.filtered(
+            "design_automation_enabled"
+        )
+        if adopting_managed_design:
+            adopting_managed_design._system_write(
+                {"automatic_design_managed": True}
+            )
+        if vals.get("design_automation_enabled") is False:
+            if any(self.mapped("automatic_design_managed")):
+                raise AccessError(
+                    "Automatically managed campaign design cannot be disabled."
+                )
+            if not (
+                self.env.su
+                or self.env.user.has_group(
+                    "call_center_core.group_call_center_admin"
+                )
+            ):
+                raise AccessError(
+                    "Only a call-center administrator may disable legacy design automation."
+                )
+        if (
+            vals.get("state") == "active"
+            and any(self.mapped("automatic_design_managed"))
+        ):
+            raise ValidationError(
+                "Campaign activation requires the separate governed activation release."
+            )
         approving = vals.get("state") == "approved"
         changing_design = bool((native_design_fields | extra_design_fields) & vals.keys())
         if approving and changing_design:
@@ -209,14 +259,18 @@ class CallCenterCampaignAutomaticProvisioning(models.Model):
                 "Save campaign design changes before approving the design revision."
             )
         campaigns_to_approve = self.filtered(
-            lambda campaign: approving
+            lambda campaign: campaign.automatic_design_managed
+            and approving
             and (campaign.state != "approved" or campaign.automatic_design_state != "approved")
         )
         for campaign in campaigns_to_approve:
             campaign._validate_design_approval()
         result = super().write(vals)
+        if not (native_design_fields | extra_design_fields) & vals.keys():
+            for campaign in already_enabled_adoptions:
+                campaign._create_design_request_event()
         if extra_design_fields & vals.keys() and not native_design_fields & vals.keys():
-            for campaign in self.filtered("design_automation_enabled"):
+            for campaign in self.filtered("automatic_design_managed"):
                 campaign._create_design_request_event()
         for campaign in campaigns_to_approve:
             campaign._finalize_design_approval()
@@ -243,7 +297,7 @@ class CallCenterCampaignAutomaticProvisioning(models.Model):
         unit_code = self._business_unit_code()
         if unit_code not in APPROVED_BUSINESS_UNITS:
             errors.append("BUSINESS_UNIT_NOT_APPROVED")
-        if not self.purpose_code:
+        if not self.purpose_code or self.purpose_code == "UNSPECIFIED":
             errors.append("PURPOSE_REQUIRED")
         elif self._normalize_purpose_code(self.purpose_code) != self.purpose_code:
             errors.append("PURPOSE_CODE_NOT_CANONICAL")
@@ -268,6 +322,12 @@ class CallCenterCampaignAutomaticProvisioning(models.Model):
         self.ensure_one()
         validation_errors = self._design_validation_errors()
         design_input = self.design_input_json or {}
+        if not isinstance(design_input, dict):
+            raise ValidationError("Campaign design input must be a JSON object.")
+        if contains_secret_key(design_input):
+            raise ValidationError(
+                "Campaign design input contains a forbidden secret-shaped key."
+            )
         return {
             "schema_version": DESIGN_MANIFEST_SCHEMA,
             "event_id": event_uuid,
