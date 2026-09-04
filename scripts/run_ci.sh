@@ -21,6 +21,9 @@ python3 scripts/validate_legacy_addon_baseline.py
 printf '==> Validating Odoo manifests\n'
 python3 scripts/validate_manifests.py
 
+printf '==> Validating every custom browser asset and stylesheet\n'
+python3 scripts/validate_asset_integrity.py
+
 printf '==> Validating the Middleware and Odoo write boundary\n'
 python3 scripts/validate_integration_boundary.py
 

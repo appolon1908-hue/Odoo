@@ -1,0 +1,73 @@
+/* Codestra call pop-up styles. Kept as standards-based CSS so Odoo does not
+ * need to run a custom Sass compilation step for this module. */
+
+.o_codestra_call_popup {
+    position: fixed;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    z-index: 1100;
+    width: calc(100vw - 2rem);
+    max-width: 26rem;
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+    padding: 1rem;
+    border: 1px solid var(--border-color, #d8dadd);
+    border-radius: 0.75rem;
+    background: var(--body-bg, #fff);
+    box-shadow: 0 0.75rem 2.5rem rgba(0, 0, 0, 0.24);
+}
+
+.o_codestra_call_popup header,
+.o_codestra_call_popup .o_codestra_controls,
+.o_codestra_call_popup footer {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.o_codestra_call_popup header {
+    justify-content: space-between;
+}
+
+.o_codestra_call_popup .badge {
+    text-transform: uppercase;
+}
+
+.o_codestra_call_popup .o_codestra_identity {
+    padding: 0.75rem 0;
+}
+
+.o_codestra_call_popup .o_codestra_identity h3,
+.o_codestra_call_popup .o_codestra_identity p {
+    margin: 0;
+}
+
+.o_codestra_call_popup dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.25rem 0.75rem;
+}
+
+.o_codestra_call_popup dt {
+    color: var(--text-muted, #6c757d);
+}
+
+.o_codestra_call_popup dd {
+    margin: 0;
+}
+
+.o_codestra_call_popup textarea {
+    min-height: 5rem;
+    margin-bottom: 0.5rem;
+}
+
+.o_codestra_call_popup .o_codestra_disposition {
+    display: grid;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.o_codestra_call_popup footer {
+    margin-top: 0.5rem;
+}

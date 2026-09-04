@@ -1,6 +1,6 @@
 {
     "name": "Codestra Interaction Workflow",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.0.1",
     "category": "Tools/Integration",
     "summary": "Read-only integration operations dashboard and approval requests",
     "author": "Codestra",
@@ -15,7 +15,7 @@
         "web.assets_backend": [
             "codestra_interaction_workflow/static/src/components/activation_dashboard/activation_dashboard.js",
             "codestra_interaction_workflow/static/src/components/activation_dashboard/activation_dashboard.xml",
-            "codestra_interaction_workflow/static/src/components/activation_dashboard/activation_dashboard.scss",
+            "codestra_interaction_workflow/static/src/components/activation_dashboard/activation_dashboard.css",
         ],
     },
     "installable": True,
