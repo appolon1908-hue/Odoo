@@ -5,6 +5,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 
+from odoo import fields
 from odoo.exceptions import AccessError
 from odoo.tests import HttpCase, tagged
 from odoo.tests.common import TransactionCase
@@ -55,10 +56,11 @@ class TestCallEventReadbackModel(TransactionCase):
                 "idempotency_key": "call-key-" + suffix,
             }
         )
+        now = fields.Datetime.now()
         cls.event = cls.env["codestra.vicidial.call.event"].create(
             {
                 "event_type": "call.ringing",
-                "occurred_at": datetime.now(timezone.utc),
+                "occurred_at": now,
                 "call_id": cls.call.id,
                 "agent_id": cls.agent.id,
                 "campaign_id": cls.campaign.id,
@@ -66,7 +68,7 @@ class TestCallEventReadbackModel(TransactionCase):
                 "payload_hash": "a" * 64,
                 "idempotency_key": "event-" + suffix,
                 "processing_state": "processed",
-                "processed_at": datetime.now(timezone.utc),
+                "processed_at": now,
                 "correlation_id": cls.call.correlation_id,
                 "sequence": 1,
             }
@@ -257,8 +259,14 @@ class TestCallEventReadbackHTTP(HttpCase):
     def test_readback_rejects_wrong_tenant_and_signature(self):
         event_id = "readback-http-event-" + uuid.uuid4().hex
         self._post_event(event_id)
-        self.assertEqual(self._get_event(event_id, tenant_id="OTHER").status_code, 403)
-        self.assertEqual(self._get_event(event_id, secret="x" * 32).status_code, 403)
+        self.assertEqual(
+            self._get_event(event_id, tenant_id="OTHER").status_code,
+            403,
+        )
+        self.assertEqual(
+            self._get_event(event_id, secret="x" * 32).status_code,
+            403,
+        )
 
     def test_readback_missing_event(self):
         event_id = "readback-missing-" + uuid.uuid4().hex
