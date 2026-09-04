@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="mail_server_klyrow_production" model="ir.mail_server">
+        <field name="name">Klyrow Production</field>
+        <field name="sequence">10</field>
+        <field name="active" eval="False"/>
+        <field name="from_filter">breero.com, breero.shop, codestra.agency, codestra.cloud, codestra.co, codestra.digital, codestra.media, klyrow.com, kyqra.com, moneybee.loan, moneybeeloan.com, nativoenglish.com, telnexa.co</field>
+        <field name="smtp_host">mail.klyrow.com</field>
+        <field name="smtp_port">25</field>
+        <field name="smtp_encryption">starttls_strict</field>
+        <field name="smtp_authentication">login</field>
+        <field name="smtp_user">klyrow/klyrow-production</field>
+        <field name="smtp_debug" eval="False"/>
+        <field name="codestra_managed" eval="True"/>
+        <field name="codestra_profile">shared</field>
+        <field name="codestra_credential_name">klyrow-production</field>
+        <field name="codestra_credential_state">hold</field>
+        <field name="codestra_secret_source">/etc/klyrow/odoo-postal.env</field>
+        <field name="codestra_tracking_policy">canonical_only</field>
+        <field name="codestra_tracking_host">track.klyrow.com</field>
+    </record>
+
+    <record id="mail_server_beyvra_production" model="ir.mail_server">
+        <field name="name">Beyvra Production</field>
+        <field name="sequence">20</field>
+        <field name="active" eval="False"/>
+        <field name="from_filter">beyvra.com</field>
+        <field name="smtp_host">mail.klyrow.com</field>
+        <field name="smtp_port">25</field>
+        <field name="smtp_encryption">starttls_strict</field>
+        <field name="smtp_authentication">login</field>
+        <field name="smtp_user">klyrow/beyvra-production</field>
+        <field name="smtp_debug" eval="False"/>
+        <field name="codestra_managed" eval="True"/>
+        <field name="codestra_profile">beyvra</field>
+        <field name="codestra_credential_name">beyvra-production</field>
+        <field name="codestra_credential_state">missing</field>
+        <field name="codestra_secret_source">/etc/klyrow/odoo-postal.env</field>
+        <field name="codestra_tracking_policy">canonical_only</field>
+        <field name="codestra_tracking_host">track.klyrow.com</field>
+    </record>
+</odoo>
