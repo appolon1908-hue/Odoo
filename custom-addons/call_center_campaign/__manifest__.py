@@ -10,7 +10,6 @@
         "security/provider_activity_security.xml",
         "security/ir.model.access.csv",
         "security/record_rules.xml",
-        "security/automatic_provisioning_access.csv",
         "security/automatic_provisioning_security.xml",
         "data/lifecycle_stages.xml",
         "data/lifecycle_stage_mappings.xml",
