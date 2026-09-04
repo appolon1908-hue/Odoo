@@ -1,0 +1,130 @@
+/* Codestra scheduling pop-out styles. This file intentionally uses plain CSS
+ * so production asset generation cannot fail on custom Sass syntax. */
+
+.o_codestra_popout_tools .o_navbar_item {
+    min-width: 2.5rem;
+    height: 100%;
+    padding: 0 0.65rem;
+    color: inherit;
+    border: 0;
+    border-radius: 0;
+}
+
+.o_codestra_popout_tools .o_navbar_item[aria-expanded="true"] {
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.o_codestra_schedule_popout {
+    position: fixed;
+    top: 3.25rem;
+    right: 1rem;
+    z-index: 1090;
+    display: flex;
+    width: calc(100vw - 2rem);
+    max-width: 26rem;
+    max-height: calc(100vh - 4.25rem);
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--border-color, #d8dadd);
+    border-radius: 0.85rem;
+    background: var(--body-bg, #fff);
+    box-shadow: 0 1rem 3rem rgba(26, 31, 41, 0.24);
+}
+
+.o_codestra_schedule_header,
+.o_codestra_schedule_footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    border-color: var(--border-color, #d8dadd);
+}
+
+.o_codestra_schedule_header {
+    border-bottom: 1px solid var(--border-color, #d8dadd);
+    background: linear-gradient(135deg, #17243d, #315480);
+    color: #fff;
+}
+
+.o_codestra_schedule_header h2 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.o_codestra_schedule_header small {
+    opacity: 0.75;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.o_codestra_schedule_body {
+    display: grid;
+    gap: 0.45rem;
+    overflow: auto;
+    padding: 0.75rem;
+}
+
+.o_codestra_schedule_item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.18rem 0.75rem;
+    width: 100%;
+    padding: 0.7rem 0.75rem;
+    border: 1px solid var(--border-color, #d8dadd);
+    border-radius: 0.6rem;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+}
+
+.o_codestra_schedule_item:hover,
+.o_codestra_schedule_item:focus-visible {
+    border-color: var(--primary, #714b67);
+    outline: 0;
+    box-shadow: 0 0 0 0.15rem rgba(113, 75, 103, 0.16);
+}
+
+.o_codestra_schedule_item .o_codestra_item_time {
+    color: var(--text-muted, #6c757d);
+    font-size: 0.78rem;
+}
+
+.o_codestra_schedule_item strong {
+    grid-column: 1;
+}
+
+.o_codestra_schedule_item > span:not(.badge):not(.o_codestra_item_time) {
+    grid-column: 1;
+    color: var(--text-muted, #6c757d);
+    font-size: 0.84rem;
+}
+
+.o_codestra_schedule_item .badge {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    align-self: center;
+    text-transform: capitalize;
+}
+
+.o_codestra_schedule_loading,
+.o_codestra_empty {
+    padding: 2rem 1rem;
+    color: var(--text-muted, #6c757d);
+    text-align: center;
+}
+
+.o_codestra_schedule_footer {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    border-top: 1px solid var(--border-color, #d8dadd);
+}
+
+@media (max-width: 575.98px) {
+    .o_codestra_schedule_popout {
+        top: 3rem;
+        right: 0.5rem;
+        width: calc(100vw - 1rem);
+        max-height: calc(100vh - 3.5rem);
+    }
+}

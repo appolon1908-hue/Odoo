@@ -1,0 +1,4 @@
+/* Plain CSS avoids introducing a custom Sass compilation dependency. */
+.o_codestra_activation_dashboard .card {
+    min-height: 100px;
+}
