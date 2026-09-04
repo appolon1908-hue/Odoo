@@ -218,7 +218,7 @@
     },
     "codestra_moneybee_crm": {
       "base_tree": "31cebcead3176785e4d7e9f1f38be95c802ef03e",
-      "current_tree": "a7a896eec826dce0aef3e7b22f7b83f7b4a0ee2b",
+      "current_tree": "10189dfa42c79c8d85ab922c81361109f9bc786b",
       "reason": "Add the reviewed MoneyBee CRM identity and durable command-receipt boundary, preserve Middleware-only authorization and tenant-bound idempotency, and allow only the PostgreSQL IntegrityError class needed to reconcile unique-constraint races inside Odoo savepoints without opening an external database connection.",
       "pull_request": 5,
       "integration_boundary_exceptions": [

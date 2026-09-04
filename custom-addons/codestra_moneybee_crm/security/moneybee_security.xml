@@ -2,6 +2,10 @@
 <odoo>
     <record id="group_moneybee_middleware" model="res.groups">
         <field name="name">MoneyBee Middleware Integration</field>
+        <!-- Contact writes stay behind the one reviewed Middleware grant: this
+             identity inherits the bridge group rather than minting a second
+             res.partner create right of its own. -->
+        <field name="implied_ids" eval="[(4, ref('codestra_middleware_bridge.group_codestra_middleware_bridge'))]"/>
         <field name="comment">Dedicated service principal group for Middleware-only MoneyBee CRM synchronization.</field>
     </record>
 </odoo>
