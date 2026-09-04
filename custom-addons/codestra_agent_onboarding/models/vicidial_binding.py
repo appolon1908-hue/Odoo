@@ -1,9 +1,14 @@
-from odoo import _, models
+from odoo import _, fields, models
 from odoo.exceptions import ValidationError
 
 
 class CodestraAgentOnboardingVicidialBinding(models.Model):
     _inherit = "codestra.agent.onboarding"
+
+    # Receiving a secure activation email is independent from provisioning a
+    # company mailbox. Mailbox creation remains opt-in until a governed company
+    # address and provider binding are present.
+    needs_company_email = fields.Boolean(default=False)
 
     def _assert_assignment_ready(self):
         result = super()._assert_assignment_ready()
@@ -49,6 +54,11 @@ class CodestraAgentOnboardingVicidialBinding(models.Model):
         result.update(
             {
                 "employee_display_name": self.employee_id.name,
+                "vicidial_username": (
+                    self.campaign_membership_id.vicidial_user
+                    if self.needs_vicidial
+                    else False
+                ),
                 "vicidial_campaign_id": (
                     campaign.vicidial_campaign_id
                     if self.needs_vicidial
