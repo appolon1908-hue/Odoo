@@ -12,6 +12,10 @@ while IFS= read -r -d '' script; do
   bash -n "$script"
 done < <(find scripts -type f -name '*.sh' -print0 | sort -z)
 
+printf '==> Validating the canonical calling-contract pin\n'
+python3 scripts/validate_calling_contract_pin.py
+python3 scripts/validate_calling_contract_pin.py --self-test
+
 printf '==> Compiling Python files\n'
 python3 -m compileall -q custom-addons scripts tests/security
 
