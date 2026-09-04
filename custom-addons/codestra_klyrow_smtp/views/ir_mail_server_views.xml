@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_ir_mail_server_form_klyrow" model="ir.ui.view">
+        <field name="name">ir.mail.server.form.klyrow</field>
+        <field name="model">ir.mail_server</field>
+        <field name="inherit_id" ref="base.ir_mail_server_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/notebook" position="after">
+                <group string="Codestra governance" invisible="not codestra_managed">
+                    <group>
+                        <field name="codestra_managed"/>
+                        <field name="codestra_profile"/>
+                        <field name="codestra_credential_name"/>
+                        <field name="codestra_credential_state"/>
+                        <field name="codestra_secret_source"/>
+                        <field name="codestra_secret_loaded_at"/>
+                    </group>
+                    <group>
+                        <field name="codestra_tracking_policy"/>
+                        <field name="codestra_tracking_host"/>
+                        <field name="codestra_secret_loaded"/>
+                        <field name="codestra_delivery_ready"/>
+                        <field name="codestra_readiness_message"/>
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_ir_mail_server_list_klyrow" model="ir.ui.view">
+        <field name="name">ir.mail.server.list.klyrow</field>
+        <field name="model">ir.mail_server</field>
+        <field name="inherit_id" ref="base.ir_mail_server_list"/>
+        <field name="arch" type="xml">
+            <field name="from_filter" position="after">
+                <field name="codestra_profile" optional="show"/>
+                <field name="codestra_credential_state" optional="show"/>
+                <field name="codestra_delivery_ready" optional="show"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="action_klyrow_outgoing_mail_servers" model="ir.actions.act_window">
+        <field name="name">Klyrow Outgoing Servers</field>
+        <field name="res_model">ir.mail_server</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="base.ir_mail_server_list"/>
+        <field name="domain">[('codestra_managed', '=', True)]</field>
+        <field name="context">{'active_test': False}</field>
+    </record>
+
+    <menuitem
+        id="menu_klyrow_outgoing_mail_servers"
+        name="Klyrow Outgoing Servers"
+        parent="codestra_mail_inbox.menu_codestra_mail_root"
+        action="action_klyrow_outgoing_mail_servers"
+        sequence="40"
+        groups="base.group_system"
+    />
+</odoo>

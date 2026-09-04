@@ -42,6 +42,9 @@ python3 scripts/validate_mission_coverage.py
 printf '==> Validating mission security and closed capabilities\n'
 python3 scripts/validate_mission_security.py
 
+printf '==> Validating fail-closed Klyrow SMTP routing\n'
+python3 scripts/validate_klyrow_smtp_policy.py
+
 printf '==> Validating canonical API inventory\n'
 python3 scripts/validate_api_contracts.py
 

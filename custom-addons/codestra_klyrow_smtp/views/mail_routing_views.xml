@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_klyrow_mail_brand_list" model="ir.ui.view">
+        <field name="name">codestra.mail.brand.klyrow.list</field>
+        <field name="model">codestra.mail.brand</field>
+        <field name="arch" type="xml">
+            <list string="Klyrow Domain Routing">
+                <field name="name"/>
+                <field name="domain"/>
+                <field name="active"/>
+                <field name="outbound_server_id"/>
+                <field name="klyrow_inbound_target"/>
+                <field name="klyrow_inbound_observed"/>
+                <field name="klyrow_inbound_state"/>
+                <field name="klyrow_tracking_host"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_klyrow_mail_brand_form" model="ir.ui.view">
+        <field name="name">codestra.mail.brand.klyrow.form</field>
+        <field name="model">codestra.mail.brand</field>
+        <field name="arch" type="xml">
+            <form string="Klyrow Domain Routing">
+                <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="code"/>
+                            <field name="domain"/>
+                            <field name="company_id"/>
+                            <field name="active"/>
+                        </group>
+                        <group string="Outbound">
+                            <field name="outbound_server_id"/>
+                            <field name="klyrow_tracking_policy"/>
+                            <field name="klyrow_tracking_host"/>
+                        </group>
+                    </group>
+                    <group string="Inbound reconciliation">
+                        <field name="klyrow_inbound_target"/>
+                        <field name="klyrow_inbound_observed"/>
+                        <field name="klyrow_inbound_state"/>
+                    </group>
+                    <group string="Inbox teams">
+                        <field name="team_ids" readonly="1">
+                            <list>
+                                <field name="name"/>
+                                <field name="queue_type_id"/>
+                                <field name="alias_full_name"/>
+                                <field name="active"/>
+                                <field name="codestra_delivery_ready"/>
+                                <field name="codestra_inbound_state"/>
+                            </list>
+                        </field>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_klyrow_mail_brand_routing" model="ir.actions.act_window">
+        <field name="name">Klyrow Domain Routing</field>
+        <field name="res_model">codestra.mail.brand</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="view_klyrow_mail_brand_list"/>
+        <field name="domain">[('domain', 'in', ['beyvra.com', 'breero.com', 'breero.shop', 'codestra.agency', 'codestra.cloud', 'codestra.co', 'codestra.digital', 'codestra.media', 'klyrow.com', 'kyqra.com', 'moneybee.loan', 'moneybeeloan.com', 'nativoenglish.com', 'telnexa.co', 'booked4seasons.com'])]</field>
+        <field name="context">{'active_test': False}</field>
+    </record>
+
+    <menuitem
+        id="menu_klyrow_mail_brand_routing"
+        name="Klyrow Domain Routing"
+        parent="codestra_mail_inbox.menu_codestra_mail_root"
+        action="action_klyrow_mail_brand_routing"
+        sequence="30"
+        groups="base.group_system,codestra_mail_inbox.group_mail_support_manager,codestra_mail_inbox.group_mail_admin_manager,codestra_mail_inbox.group_mail_auditor"
+    />
+</odoo>
