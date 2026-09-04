@@ -18,7 +18,6 @@
     "codestra_base": "8bf385e37463092ad45d86fd0f474a41d2f87828",
     "codestra_daily_reporting": "d28b3589c50fbc566218eef123ca4f13a2c1646d",
     "codestra_integration_hub": "f4db314a557fdf2a9e0aac81ed5543d1994f7f70",
-    "codestra_interaction_workflow": "27891ce138cc6053173308f1c806e277d3c5fde9",
     "codestra_ivr_control": "3b27a0bfe3501da52f205cacf756cd8741fdf9f5",
     "codestra_lead_automation": "30b65a165e91988e8be9edc0c97aef9c19059194",
     "codestra_lead_ingestion": "071935b8becbaa636b656d05a040d4650b15ae24",
@@ -71,9 +70,9 @@
     },
     "codestra_appointments": {
       "base_tree": "5812f7df199b0d5525ee7dd6a9fdc9d314947f6f",
-      "current_tree": "e0f353e40a6c99d8b82ceb50059383d0556f48c3",
-      "reason": "Extend the canonical VICIdial callback model with the governed appointment, reminder, and scheduler lifecycle; separate Odoo and physical campaign identities; add restartable upgrade reconciliation; deliver accessible pop-outs with real-browser regression coverage; scope child records through their parent appointment; enqueue legacy completions; and constrain callback synchronization destinations.",
-      "pull_request": 38,
+      "current_tree": "a2a8b48878f8ff3733070a28ef80230db22fbf62",
+      "reason": "Preserve the governed appointment, reminder, callback, synchronization, access-control, and migration boundaries while replacing repository-owned SCSS with standards-based CSS, advancing the module version, and extending the real-browser regression to load the normal production backend stylesheet bundle and fail on style-compilation errors.",
+      "pull_request": 64,
       "integration_boundary_exceptions": [
         {
           "path": "models/callback_sync.py",
@@ -118,11 +117,11 @@
         }
       ]
     },
-    "codestra_odoo_certification": {
-      "base_tree": "fa57c82248ff878aaa18933fefc9eba6bbc45e61",
-      "current_tree": "852c5524878651a525a542777e25d22ef69e41d3",
-      "reason": "Preserve the disabled synthetic-company hierarchy and make TEST_SYN disposition certification deterministic across canonical business codes and physical VICIdial status aliases.",
-      "pull_request": 21
+    "codestra_interaction_workflow": {
+      "base_tree": "27891ce138cc6053173308f1c806e277d3c5fde9",
+      "current_tree": "08458624077550a4bb7bf1c6e835198e827032c9",
+      "reason": "Preserve the reviewed read-only integration operations dashboard while replacing its repository-owned SCSS with standards-based CSS, advancing the module version, and documenting the browser-asset boundary so production requests do not depend on a custom Sass compiler path.",
+      "pull_request": 64
     },
     "codestra_mail_inbox": {
       "base_tree": "396f22ab185e538e4781b4d75a8ae01b5ae0eeff",
@@ -144,11 +143,17 @@
         }
       ]
     },
+    "codestra_odoo_certification": {
+      "base_tree": "fa57c82248ff878aaa18933fefc9eba6bbc45e61",
+      "current_tree": "852c5524878651a525a542777e25d22ef69e41d3",
+      "reason": "Preserve the disabled synthetic-company hierarchy and make TEST_SYN disposition certification deterministic across canonical business codes and physical VICIdial status aliases.",
+      "pull_request": 21
+    },
     "codestra_vicidial_crm": {
       "base_tree": "cf0783918b94c3e396d24ebe868c4fb04096e4a1",
-      "current_tree": "0817633caa49a04c7b5b54c1363f187496fda49b",
-      "reason": "Preserve the Odoo 19 asset repair and supported click-to-call RPC client; remove the duplicate callback schema; make idempotent callback replay return the original result; and constrain the existing Middleware client to credential-free HTTPS destinations.",
-      "pull_request": 38,
+      "current_tree": "5156100a1415f236b40a7f8959bed3bfffea96c2",
+      "reason": "Preserve the reviewed Odoo 19 VICIdial staging, reconciliation, idempotency, click-to-call, and constrained Middleware boundaries while replacing the repository-owned call pop-up SCSS with standards-based CSS and advancing the module version to remove a custom Sass compilation path from the production backend bundle.",
+      "pull_request": 64,
       "integration_boundary_exceptions": [
         {
           "path": "models/reconciliation.py",
@@ -158,12 +163,12 @@
         {
           "path": "tests/test_lead_reconciliation.py",
           "kind": "odoo_test_driver_exception",
-          "reason": "The test imports only UniqueViolation to assert a partial unique mapping invariant and does not open a database connection."
+          "reason": "The test imports only UniqueViolation to assert a partial unique mapping invariant and does not open an external database connection."
         },
         {
           "path": "tests/test_reconciliation.py",
           "kind": "odoo_test_driver_exception",
-          "reason": "The test imports only IntegrityError to assert call-record database constraints and does not open a database connection."
+          "reason": "The test imports only IntegrityError to assert call-record database constraints and does not open an external database connection."
         }
       ]
     }
