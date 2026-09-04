@@ -80,7 +80,7 @@
                         domain="[('projection_status', '=', 'review_required')]"/>
                 <filter name="drift_detected" string="Drift detected"
                         domain="[('reconciliation_status', '!=', 'in_sync')]"/>
-                <group expand="0" string="Group By">
+                <group>
                     <filter name="group_tenant" string="Tenant"
                             context="{'group_by': 'tenant_id'}"/>
                     <filter name="group_status" string="Projection status"
