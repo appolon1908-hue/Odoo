@@ -93,7 +93,7 @@
                 <filter name="closed_threads" string="Closed" domain="[('state', '=', 'closed')]"/>
                 <separator/>
                 <filter name="updated_today" string="Updated Today" domain="[('write_date', '&gt;=', context_today().strftime('%Y-%m-%d 00:00:00'))]"/>
-                <group expand="0" string="Group By">
+                <group string="Group By">
                     <filter name="group_campaign" string="Campaign" context="{'group_by': 'campaign_id'}"/>
                     <filter name="group_route" string="Mail Route" context="{'group_by': 'route_id'}"/>
                     <filter name="group_state" string="Status" context="{'group_by': 'state'}"/>
