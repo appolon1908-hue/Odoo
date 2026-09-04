@@ -111,6 +111,11 @@ class TestCodestraAgentOnboarding(TransactionCase):
                 "supervisor_ids": [(6, 0, cls.supervisor.ids)],
                 "start_date": fields.Date.today(),
                 "timezone": "UTC",
+                "telephony_enabled": True,
+                "vicidial_required": True,
+                "vicidial_campaign_id": "ONB0001",
+                "vicidial_user_group": "ONB_AGENT",
+                "reconciliation_status": "synced_disabled",
             }
         )
         cls.campaign = cls.env["cc.campaign"].create(
@@ -292,6 +297,9 @@ class TestCodestraAgentOnboarding(TransactionCase):
         self.assertFalse(payload["controls"]["send_activation_email"])
         self.assertFalse(payload["controls"]["plaintext_password_allowed"])
         self.assertFalse(payload["controls"]["production_dialing"])
+        self.assertEqual(payload["employee_display_name"], "New Campaign Agent")
+        self.assertEqual(payload["vicidial_campaign_id"], "ONB0001")
+        self.assertEqual(payload["vicidial_user_group"], "ONB_AGENT")
         self.assertTrue(onboarding.campaign_membership_id.vicidial_user)
         self.assertEqual(
             onboarding.campaign_membership_id.vicidial_user_group, "ONB_AGENT"
@@ -391,6 +399,7 @@ class TestCodestraAgentOnboarding(TransactionCase):
                 "name": "Other Onboarding Campaign",
                 "code": "ONB-OTHER-OUT",
                 "team_ids": [(6, 0, self.team.ids)],
+                "vicidial_campaign_id": "ONB0002",
             }
         )
         other_campaign = self.env["cc.campaign"].create(
