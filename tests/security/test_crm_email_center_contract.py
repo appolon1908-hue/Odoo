@@ -20,7 +20,7 @@ class TestCrmEmailCenterContract(unittest.TestCase):
             self.assertTrue((MODULE.parent / asset).is_file())
 
     def test_normal_crm_action_and_menu_are_declared(self):
-        tree = ET.parse(MODULE / "views" / "crm_email_center_views.xml")
+        tree = ET.parse(MODULE / "views" / "mail_routing_views.xml")
         action = tree.find(".//record[@id='action_crm_email_center']")
         menu = tree.find(".//menuitem[@id='menu_crm_email_center']")
         self.assertIsNotNone(action)

@@ -1,7 +1,7 @@
 {
     "name": "Codestra Klyrow SMTP Routing",
     "summary": "Fail-closed Klyrow SMTP routing with CRM Email Center",
-    "version": "19.0.1.1.0",
+    "version": "19.0.1.0.0",
     "category": "Sales/CRM",
     "license": "LGPL-3",
     "author": "Codestra",
@@ -18,7 +18,6 @@
         "data/routing_policy_data.xml",
         "views/mail_routing_views.xml",
         "views/ir_mail_server_views.xml",
-        "views/crm_email_center_views.xml",
     ],
     "assets": {
         "web.assets_backend": [
