@@ -31,8 +31,8 @@
   "strict_mission_overrides": {
     "call_center_campaign": {
       "base_tree": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
-      "current_tree": "ba26ee72d238e1cc5d7f01be66dfe3662057626c",
-      "reason": "Preserve the reviewed provider activity, Stage 3 compatibility, readiness, transactional outbox, and integration-boundary controls while adding automatic versioned campaign-design requests, immutable Middleware preview validation, canonical business-unit allocation checks, and idempotent fail-closed approval events without authorizing direct VICIdial writes or live activation.",
+      "current_tree": "a1e61431aa596e87c787b8b778ebea5273c91ca9",
+      "reason": "Preserve the reviewed provider activity, Stage 3 compatibility, readiness, transactional outbox, and integration-boundary controls while adding automatic versioned campaign-design requests, immutable Middleware preview validation, canonical business-unit allocation checks, and idempotent fail-closed approval events without authorizing direct VICIdial writes or live activation. The design-revision ACL rows are consolidated into Odoo's canonical ir.model.access.csv so the immutable Odoo 19 runtime imports them through the correct ir.model.access model.",
       "pull_request": 67,
       "integration_boundary_exceptions": [
         {
