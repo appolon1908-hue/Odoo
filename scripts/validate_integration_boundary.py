@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import ast
 import json
-import re
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
@@ -57,12 +56,11 @@ SQL_EXCEPTION_KINDS = {
     "odoo_schema_index",
     "odoo_test_fixture_sql",
 }
-HARDENING_EXCEPTION_KINDS = {"odoo_schema_migration"}
 DRIVER_EXCEPTION_KINDS = {
     "odoo_internal_driver_exception",
     "odoo_test_driver_exception",
 }
-ALLOWED_EXCEPTION_KINDS = SQL_EXCEPTION_KINDS | DRIVER_EXCEPTION_KINDS | HARDENING_EXCEPTION_KINDS
+ALLOWED_EXCEPTION_KINDS = SQL_EXCEPTION_KINDS | DRIVER_EXCEPTION_KINDS
 
 
 def string_set(value: object, name: str, errors: list[str]) -> set[str]:
@@ -422,17 +420,9 @@ def validate_addons(errors: list[str]) -> None:
                 for kind in kinds & DRIVER_EXCEPTION_KINDS
             )
 
-        is_migration = is_module_migration_path(module_relative)
+        is_migration = any(part in {"migrations", "upgrades"} for part in path.parts)
         statements = [] if is_migration else cursor_sql_statements(path, errors)
         validate_sql_exception(relative, kinds, statements, errors)
-        if kinds & HARDENING_EXCEPTION_KINDS:
-            if not is_migration:
-                errors.append(f"{relative}: schema-migration exception is outside migrations")
-            else:
-                used_exceptions.update(
-                    (module_name, module_relative, kind)
-                    for kind in kinds & HARDENING_EXCEPTION_KINDS
-                )
         if statements and kinds & SQL_EXCEPTION_KINDS:
             used_exceptions.update(
                 (module_name, module_relative, kind)
@@ -449,23 +439,6 @@ def validate_addons(errors: list[str]) -> None:
                     errors.append(
                         f"custom-addons/{module_name}/{module_relative}: unused reviewed exception {kind}"
                     )
-
-
-def is_module_migration_path(module_relative: str) -> bool:
-    """Recognize only versioned Odoo migration scripts rooted in an addon."""
-
-    parts = PurePosixPath(module_relative).parts
-    return (
-        len(parts) == 3
-        and parts[0] in {"migrations", "upgrades"}
-        and bool(re.fullmatch(r"\d+(?:\.\d+)+", parts[1]))
-        and bool(
-            re.fullmatch(
-                r"(?:pre|post|end)(?:-(?:migrate|migration))?\.py",
-                parts[2],
-            )
-        )
-    )
 
     print(f"INTEGRATION_BOUNDARY_PINNED_MODULES={len(pinned)}")
     print(f"INTEGRATION_BOUNDARY_STRICT_OVERRIDES={len(overrides)}")

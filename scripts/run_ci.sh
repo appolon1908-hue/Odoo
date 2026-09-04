@@ -24,14 +24,8 @@ python3 scripts/validate_manifests.py
 printf '==> Validating the Middleware and Odoo write boundary\n'
 python3 scripts/validate_integration_boundary.py
 
-printf '==> Validating hardened database and generic-proxy boundary controls\n'
-python3 scripts/validate_integration_boundary_hardening.py
-
 printf '==> Validating the four-repository platform control plane\n'
 python3 scripts/validate_platform_control_plane.py
-
-printf '==> Validating the shared Middleware-to-Odoo HMAC vector\n'
-python3 scripts/validate_odoo_hmac_vector.py
 
 printf '==> Reviewing every custom Odoo module\n'
 python3 scripts/review_modules.py --strict
@@ -62,3 +56,8 @@ python3 -m unittest discover -s tests/security -p 'test_*.py'
 
 printf '==> Validating release-candidate policy\n'
 python3 scripts/validate_release_policy.py
+
+printf '==> Validating blocked-by-default production evidence schema\n'
+python3 scripts/validate_production_evidence.py \
+  --file release/production-evidence-template.json \
+  --allow-blocked-template

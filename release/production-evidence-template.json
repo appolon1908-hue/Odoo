@@ -1,0 +1,94 @@
+{
+  "activation_approval": {
+    "approved": false,
+    "approved_at": null,
+    "approver": null,
+    "candidate_author": null,
+    "image_digest": null,
+    "provenance": null,
+    "review_state": null,
+    "review_url": null,
+    "source_sha": null
+  },
+  "approved_live_capabilities": [],
+  "backup": {
+    "database_sha256": null,
+    "filestore_sha256": null,
+    "off_host_copy_verified": false,
+    "paired_backup_completed_at": null
+  },
+  "canary": {
+    "duration_minutes": 0,
+    "error_rate": null,
+    "mode": "read-only",
+    "passed": false,
+    "unexpected_writes": 0
+  },
+  "candidate": {
+    "checksums_path": null,
+    "manifest_path": null,
+    "provenance_bundle_path": null,
+    "provenance_verified": false,
+    "sbom_bundle_path": null,
+    "sbom_verified": false
+  },
+  "environment": "staging",
+  "image": {
+    "digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "name": "ghcr.io/appolon1908-hue/odoo"
+  },
+  "integration": {
+    "caddy_passed": false,
+    "idempotency_passed": false,
+    "kong_passed": false,
+    "middleware_passed": false,
+    "negative_authorization_passed": false,
+    "odoo_passed": false,
+    "tenant_isolation_passed": false,
+    "unexpected_external_effects": 0
+  },
+  "migration": {
+    "affected_modules": [],
+    "interrupted_restart_passed": false,
+    "schema_audit_passed": false,
+    "upgrade_passed": false
+  },
+  "release_id": "UNASSIGNED",
+  "restore": {
+    "checksums_verified": false,
+    "database_restored": false,
+    "filestore_restored": false,
+    "rto_seconds": null
+  },
+  "rollback": {
+    "database_restored": false,
+    "filestore_restored": false,
+    "post_rollback_smoke_passed": false,
+    "rehearsed": false,
+    "source_restored": false
+  },
+  "runtime_flags": {
+    "CALLBACK_DISPATCH": false,
+    "EMAIL_DELIVERY": false,
+    "ENABLE_EXTERNAL_DELIVERY": false,
+    "LIVE_ODOO_WRITE": false,
+    "N8N_ACTIVATION": false,
+    "PSTN_DIALING": false,
+    "SMS_DELIVERY": false,
+    "VICIDIAL_LIVE_CONTROL": false
+  },
+  "schema_version": 1,
+  "soak": {
+    "duration_minutes": 0,
+    "error_rate": null,
+    "passed": false,
+    "reconciliation_backlog": null
+  },
+  "source_authority": {
+    "mutable_host_checkout_removed": false,
+    "server_matches_image_digest": false,
+    "server_matches_source_sha": false
+  },
+  "source_sha": "0000000000000000000000000000000000000000",
+  "verdict": "BLOCKED"
+}
