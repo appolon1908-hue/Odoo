@@ -1,7 +1,7 @@
 {
     "name": "Codestra VICIdial CRM",
-    "version": "19.0.3.2.1",
-    "summary": "Read-only VICIdial integration staging for CRM",
+    "version": "19.0.3.3.0",
+    "summary": "Fail-closed VICIdial integration with governed real-time agent screen pops",
     "author": "Codestra",
     "license": "LGPL-3",
     "category": "CRM",
@@ -21,6 +21,7 @@
     "data": [
         "security/security.xml",
         "security/security_extra.xml",
+        "security/call_event_projection_security.xml",
         "security/ir.model.access.csv",
         "security/record_rules.xml",
         "data/dispositions.xml",

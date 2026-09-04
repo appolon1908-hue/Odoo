@@ -86,14 +86,24 @@ class VicidialCallControl(models.Model):
         return normalize_phone(value)
 
     @api.model
-    def match_customer(self, number, campaign_code=None):
+    def match_customer(self, number, campaign_code=None, business_unit_id=None):
         normalized = self.normalize_number(number)
         candidates = []
         Partner = self.env["res.partner"]
         Lead = self.env["crm.lead"]
-        for partner in Partner.search([("x_codestra_phone_e164", "=", normalized)]):
+        partner_domain = [("x_codestra_phone_e164", "=", normalized)]
+        lead_domain = [("x_phone_e164", "=", normalized)]
+        if business_unit_id:
+            unit_id = (
+                business_unit_id.id
+                if hasattr(business_unit_id, "id")
+                else int(business_unit_id)
+            )
+            partner_domain.append(("business_unit_id", "=", unit_id))
+            lead_domain.append(("business_unit_id", "=", unit_id))
+        for partner in Partner.search(partner_domain):
             candidates.append(("partner", partner.id, partner.display_name, 2))
-        for lead in Lead.search([("x_phone_e164", "=", normalized)]):
+        for lead in Lead.search(lead_domain):
             priority = 0 if campaign_code and lead.vicidial_campaign_id == campaign_code else 1
             candidates.append(("lead", lead.id, lead.display_name, priority))
         candidates.sort(key=lambda item: (item[3] if len(item) > 3 else 2, item[0], item[1]))
@@ -118,7 +128,7 @@ class VicidialCallControl(models.Model):
         ):
             raise AccessError("The call is not assigned to the current agent.")
 
-    def apply_authoritative_event(self, envelope):
+    def apply_authoritative_event(self, envelope, *, strict_sequence=False):
         self.ensure_one()
         event_id = str(envelope.get("event_id") or "")
         incoming = str(envelope.get("state") or "").lower()
@@ -140,14 +150,39 @@ class VicidialCallControl(models.Model):
                 raise ValidationError("Event ID conflicts with different lifecycle evidence.")
             return {"duplicate": True, "state": self.state, "call_id": self.call_id}
         current = self.state or None
-        applied = sequence > self.sequence and (metadata_event or incoming in ALLOWED_TRANSITIONS.get(current, set()))
+        initial_created = (
+            event_type == "call.created"
+            and current == "new"
+            and self.sequence == 0
+            and sequence == 1
+        )
+        transition_allowed = (
+            metadata_event
+            or initial_created
+            or incoming in ALLOWED_TRANSITIONS.get(current, set())
+        )
+        if strict_sequence:
+            expected_sequence = self.sequence + 1
+            if sequence != expected_sequence:
+                raise ValidationError(
+                    f"Expected call-event sequence {expected_sequence}, got {sequence}."
+                )
+            if current in TERMINAL_STATES and not metadata_event:
+                raise ValidationError("A terminal call cannot accept another lifecycle event.")
+            if not transition_allowed:
+                raise ValidationError(
+                    f"Call lifecycle transition {current!r} -> {incoming!r} is not allowed."
+                )
+        applied = sequence > self.sequence and transition_allowed
         if current in TERMINAL_STATES and not metadata_event:
             applied = False
         values = {"last_event_id": event_id}
         if applied:
             values["sequence"] = sequence
             if not metadata_event:
-                values.update({"previous_state": current, "state": incoming})
+                values["state"] = incoming
+                if incoming != current:
+                    values["previous_state"] = current
             timestamp = envelope.get("timestamp")
             if incoming in {"ringing", "offered"} and not self.ringing_at:
                 values["ringing_at"] = timestamp

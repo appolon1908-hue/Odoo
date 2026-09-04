@@ -151,10 +151,15 @@
     },
     "codestra_vicidial_crm": {
       "base_tree": "cf0783918b94c3e396d24ebe868c4fb04096e4a1",
-      "current_tree": "5156100a1415f236b40a7f8959bed3bfffea96c2",
-      "reason": "Preserve the reviewed Odoo 19 VICIdial staging, reconciliation, idempotency, click-to-call, and constrained Middleware boundaries while replacing the repository-owned call pop-up SCSS with standards-based CSS and advancing the module version to remove a custom Sass compilation path from the production backend bundle.",
-      "pull_request": 64,
+      "current_tree": "02e278288086e19570590c03e99bda4544143e08",
+      "reason": "Preserve the reviewed Odoo 19 VICIdial staging, reconciliation, idempotency, click-to-call, and constrained Middleware boundaries while adding the governed AMI lifecycle projection, transaction-scoped mapped-agent row serialization, business-unit-scoped customer matching, immutable identity binding, strict monotonic sequencing, exact retryable sequence-gap evidence, terminal stale/lifecycle/identity conflict evidence, retry-safe rejection, and the existing assigned-agent Odoo Bus screen pop.",
+      "pull_request": 78,
       "integration_boundary_exceptions": [
+        {
+          "path": "controllers/call_event_projection.py",
+          "kind": "odoo_cursor_locking",
+          "reason": "A transaction-scoped SELECT FOR UPDATE lock on the authoritative mapped agent serializes all of that agent's call lifecycle mutations before authoritative call lookup and update, preventing concurrent at-least-once events from regressing or skipping state."
+        },
         {
           "path": "models/reconciliation.py",
           "kind": "odoo_schema_index",

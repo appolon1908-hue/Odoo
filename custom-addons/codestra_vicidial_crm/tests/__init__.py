@@ -10,3 +10,6 @@ from . import test_webhook
 from . import test_reconciliation
 from . import test_click_to_call
 from . import test_lead_reconciliation
+from . import test_call_event_projection_policy
+from . import test_call_event_projection_http
+from . import test_call_event_projection_scope
