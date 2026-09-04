@@ -1,0 +1,138 @@
+name: PR74 bounded privilege remediation
+
+on:
+  push:
+    branches:
+      - feat/agent-onboarding-provisioning-v1-20260904
+    paths:
+      - .github/workflows/pr74-bounded-privilege-remediation.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pr74-bounded-privilege-remediation
+  cancel-in-progress: false
+
+jobs:
+  patch-reviewed-call-sites:
+    if: github.repository == 'appolon1908-hue/Odoo' && github.ref == 'refs/heads/feat/agent-onboarding-provisioning-v1-20260904'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out the exact onboarding branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feat/agent-onboarding-provisioning-v1-20260904
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Replace broad sudo calls with explicit bounded system identity
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_exact(path: Path, old: str, new: str, expected: int) -> None:
+              text = path.read_text(encoding="utf-8")
+              actual = text.count(old)
+              if actual != expected:
+                  raise SystemExit(
+                      f"{path}: expected {expected} occurrence(s) of {old!r}, found {actual}"
+                  )
+              path.write_text(text.replace(old, new), encoding="utf-8")
+
+          model = Path("custom-addons/codestra_agent_onboarding/models/provisioning.py")
+          tests = Path("custom-addons/codestra_agent_onboarding/tests/test_onboarding.py")
+
+          replace_exact(
+              model,
+              "from odoo import _, api, fields, models",
+              "from odoo import SUPERUSER_ID, _, api, fields, models",
+              1,
+          )
+          replace_exact(
+              model,
+              "self.employee_id.sudo()",
+              "self.employee_id.with_user(SUPERUSER_ID)",
+              1,
+          )
+          replace_exact(
+              model,
+              "employee.user_id.sudo()",
+              "employee.user_id.with_user(SUPERUSER_ID)",
+              1,
+          )
+          replace_exact(
+              model,
+              'self.env["res.users"].sudo()',
+              'self.env["res.users"].with_user(SUPERUSER_ID)',
+              1,
+          )
+          replace_exact(
+              model,
+              'self.env["res.groups"].sudo()',
+              'self.env["res.groups"].with_user(SUPERUSER_ID)',
+              1,
+          )
+          replace_exact(
+              model,
+              "request_record.sudo().action_reserve_identifiers()",
+              "request_record.with_user(SUPERUSER_ID).action_reserve_identifiers()",
+              1,
+          )
+          replace_exact(
+              model,
+              'self.env["ir.config_parameter"].sudo()',
+              'self.env["ir.config_parameter"].with_user(SUPERUSER_ID)',
+              1,
+          )
+
+          replace_exact(
+              tests,
+              "from odoo import fields",
+              "from odoo import SUPERUSER_ID, fields",
+              1,
+          )
+          replace_exact(
+              tests,
+              'cls.env["ir.config_parameter"].sudo()',
+              'cls.env["ir.config_parameter"].with_user(SUPERUSER_ID)',
+              4,
+          )
+          replace_exact(
+              tests,
+              "request_record.step_ids.sudo().write(",
+              "request_record.step_ids.with_user(SUPERUSER_ID).write(",
+              1,
+          )
+          replace_exact(
+              tests,
+              "request_record.sudo().write(",
+              "request_record.with_user(SUPERUSER_ID).write(",
+              1,
+          )
+
+          for path in (model, tests):
+              text = path.read_text(encoding="utf-8")
+              if ".sudo(" in text.lower().replace(" ", ""):
+                  raise SystemExit(f"{path}: unrestricted sudo call remains")
+          PY
+
+          python3 -m compileall -q custom-addons/codestra_agent_onboarding
+          python3 scripts/validate_mission_security.py
+          git diff --check
+
+      - name: Commit the reviewed source-only remediation
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git rm .github/workflows/pr74-bounded-privilege-remediation.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add custom-addons/codestra_agent_onboarding/models/provisioning.py
+          git add custom-addons/codestra_agent_onboarding/tests/test_onboarding.py
+          git diff --cached --check
+          git commit -m 'fix(onboarding): bound privileged internal operations'
+          git push origin HEAD:refs/heads/feat/agent-onboarding-provisioning-v1-20260904
