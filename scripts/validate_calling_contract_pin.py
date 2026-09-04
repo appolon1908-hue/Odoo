@@ -14,7 +14,7 @@ LOCK = ROOT / ".codestra/calling-contract.lock.json"
 EXPECTED = {
     "schema_version": "codestra.calling-contract-lock.v1",
     "version": "1.0.0",
-    "sha256": "856f55ce980fe661a6a326c1a70207496f0eb3fc4bc335141e874c075b5a7e93",
+    "sha256": "b39cdffe56a8185c91174228f0423df68b1137f34875f6ee52f9914f904bf724",
     "authority": "appolon1908-hue/codestra-production-platform#257",
     "role": "agent_workspace",
     "external_effects_enabled": False,
