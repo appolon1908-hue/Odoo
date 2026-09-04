@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_scrapper_business_list" model="ir.ui.view">
+        <field name="name">codestra.scrapper.business.list</field>
+        <field name="model">codestra.scrapper.business</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0" delete="0">
+                <field name="company_name"/>
+                <field name="tenant_id"/>
+                <field name="external_business_id"/>
+                <field name="external_version"/>
+                <field name="projection_status"/>
+                <field name="reconciliation_status"/>
+                <field name="confidence"/>
+                <field name="last_projected_at"/>
+                <field name="partner_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_scrapper_business_form" model="ir.ui.view">
+        <field name="name">codestra.scrapper.business.form</field>
+        <field name="model">codestra.scrapper.business</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0" delete="0">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="company_name"/>
+                            <field name="tenant_id"/>
+                            <field name="external_business_id"/>
+                            <field name="external_version"/>
+                            <field name="partner_id"/>
+                        </group>
+                        <group>
+                            <field name="projection_status"/>
+                            <field name="reconciliation_status"/>
+                            <field name="confidence"/>
+                            <field name="active"/>
+                            <field name="last_projected_at"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Business">
+                            <group>
+                                <field name="website"/>
+                                <field name="email"/>
+                                <field name="phone"/>
+                                <field name="country_code"/>
+                            </group>
+                        </page>
+                        <page string="Source">
+                            <group>
+                                <field name="source_url"/>
+                                <field name="source_captured_at"/>
+                                <field name="adapter_version"/>
+                                <field name="mapping_version"/>
+                                <field name="last_event_id"/>
+                                <field name="last_correlation_id"/>
+                                <field name="last_projection_digest"/>
+                            </group>
+                            <field name="evidence_summary"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_scrapper_business_search" model="ir.ui.view">
+        <field name="name">codestra.scrapper.business.search</field>
+        <field name="model">codestra.scrapper.business</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="company_name"/>
+                <field name="tenant_id"/>
+                <field name="external_business_id"/>
+                <field name="email"/>
+                <filter name="review_required" string="Review required"
+                        domain="[('projection_status', '=', 'review_required')]"/>
+                <filter name="drift_detected" string="Drift detected"
+                        domain="[('reconciliation_status', '!=', 'in_sync')]"/>
+                <group>
+                    <filter name="group_tenant" string="Tenant"
+                            context="{'group_by': 'tenant_id'}"/>
+                    <filter name="group_status" string="Projection status"
+                            context="{'group_by': 'projection_status'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_scrapper_receipt_list" model="ir.ui.view">
+        <field name="name">codestra.scrapper.projection.receipt.list</field>
+        <field name="model">codestra.scrapper.projection.receipt</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0" delete="0">
+                <field name="created_at"/>
+                <field name="tenant_id"/>
+                <field name="event_id"/>
+                <field name="business_id"/>
+                <field name="incoming_version"/>
+                <field name="result"/>
+                <field name="projection_id"/>
+                <field name="correlation_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_scrapper_receipt_form" model="ir.ui.view">
+        <field name="name">codestra.scrapper.projection.receipt.form</field>
+        <field name="model">codestra.scrapper.projection.receipt</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0" delete="0">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="tenant_id"/>
+                            <field name="event_id"/>
+                            <field name="business_id"/>
+                            <field name="incoming_version"/>
+                            <field name="result"/>
+                        </group>
+                        <group>
+                            <field name="projection_id"/>
+                            <field name="correlation_id"/>
+                            <field name="created_at"/>
+                            <field name="payload_digest"/>
+                        </group>
+                    </group>
+                    <field name="message"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_scrapper_business" model="ir.actions.act_window">
+        <field name="name">Scrapper Businesses</field>
+        <field name="res_model">codestra.scrapper.business</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_scrapper_business_search"/>
+    </record>
+
+    <record id="action_scrapper_receipts" model="ir.actions.act_window">
+        <field name="name">Projection Receipts</field>
+        <field name="res_model">codestra.scrapper.projection.receipt</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_scrapper_projection_root"
+              name="Scrapper Projection"
+              sequence="80"
+              groups="codestra_scrapper_projection.group_scrapper_projection_auditor,codestra_scrapper_projection.group_scrapper_projection_manager"/>
+    <menuitem id="menu_scrapper_business"
+              name="Businesses"
+              parent="menu_scrapper_projection_root"
+              action="action_scrapper_business"
+              sequence="10"/>
+    <menuitem id="menu_scrapper_receipts"
+              name="Receipts"
+              parent="menu_scrapper_projection_root"
+              action="action_scrapper_receipts"
+              sequence="20"/>
+</odoo>
