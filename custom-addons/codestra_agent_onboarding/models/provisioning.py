@@ -4,7 +4,7 @@ import re
 import urllib.parse
 import uuid
 
-from odoo import _, api, fields, models
+from odoo import SUPERUSER_ID, _, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
 
@@ -402,11 +402,11 @@ class CodestraAgentOnboardingProvisioning(models.Model):
 
     def _ensure_agent_user(self):
         self.ensure_one()
-        employee = self.employee_id.sudo()
+        employee = self.employee_id.with_user(SUPERUSER_ID)
         unit = self.campaign_id.legacy_campaign_id.business_unit_id
         email = self.activation_email.strip().lower()
-        user = employee.user_id.sudo()
-        Users = self.env["res.users"].sudo().with_context(active_test=False)
+        user = employee.user_id.with_user(SUPERUSER_ID)
+        Users = self.env["res.users"].with_user(SUPERUSER_ID).with_context(active_test=False)
         if not user:
             collision = Users.search([("login", "=ilike", email)], limit=1)
             if collision:
@@ -457,7 +457,7 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 user.write(values)
 
         required_group = self.env.ref(ROLE_GROUP_XMLIDS[self.campaign_role])
-        operational_groups = self.env["res.groups"].sudo().browse(
+        operational_groups = self.env["res.groups"].with_user(SUPERUSER_ID).browse(
             [self.env.ref(xmlid).id for xmlid in ROLE_GROUP_XMLIDS.values()]
         )
         group_commands = [
@@ -759,7 +759,7 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 # Reservation and step rows are internal orchestration records whose
                 # ACLs are intentionally service-only. The caller has already passed
                 # both the global-admin and provisioning-approval gates above.
-                request_record.sudo().action_reserve_identifiers()
+                request_record.with_user(SUPERUSER_ID).action_reserve_identifiers()
             if request_record.state != "provisioning":
                 raise ValidationError(
                     _("The provisioning request must be approved and prepared.")
@@ -798,7 +798,7 @@ class CodestraAgentOnboardingProvisioning(models.Model):
 
     def _activation_email_payload(self):
         self.ensure_one()
-        parameters = self.env["ir.config_parameter"].sudo()
+        parameters = self.env["ir.config_parameter"].with_user(SUPERUSER_ID)
         login_url = _credential_free_https_url(
             parameters.get_param("codestra.agent.activation.login_url"),
             _("Agent login URL"),

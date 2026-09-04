@@ -1,4 +1,4 @@
-from odoo import fields
+from odoo import SUPERUSER_ID, fields
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
@@ -138,17 +138,17 @@ class TestCodestraAgentOnboarding(TransactionCase):
                 "requires_mfa": True,
             }
         )
-        cls.env["ir.config_parameter"].sudo().set_param(
+        cls.env["ir.config_parameter"].with_user(SUPERUSER_ID).set_param(
             "codestra.integration.environment", "STAGING"
         )
-        cls.env["ir.config_parameter"].sudo().set_param(
+        cls.env["ir.config_parameter"].with_user(SUPERUSER_ID).set_param(
             "codestra.integration.organization_public_id", "codestra-test"
         )
-        cls.env["ir.config_parameter"].sudo().set_param(
+        cls.env["ir.config_parameter"].with_user(SUPERUSER_ID).set_param(
             "codestra.agent.activation.login_url",
             "https://auth.codestra.co/contact-center/agent",
         )
-        cls.env["ir.config_parameter"].sudo().set_param(
+        cls.env["ir.config_parameter"].with_user(SUPERUSER_ID).set_param(
             "codestra.agent.activation.ttl_minutes", "30"
         )
 
@@ -339,13 +339,13 @@ class TestCodestraAgentOnboarding(TransactionCase):
             onboarding.with_user(self.approver).action_request_activation_email()
 
         self._match_membership(onboarding)
-        request_record.step_ids.sudo().write(
+        request_record.step_ids.with_user(SUPERUSER_ID).write(
             {
                 "state": "verified",
                 "verification_state": "verified",
             }
         )
-        request_record.sudo().write({"state": "awaiting_user_activation"})
+        request_record.with_user(SUPERUSER_ID).write({"state": "awaiting_user_activation"})
         request_record.invalidate_recordset(
             ["state", "mandatory_steps_complete"]
         )
