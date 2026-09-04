@@ -15,6 +15,9 @@ done < <(find scripts -type f -name '*.sh' -print0 | sort -z)
 printf '==> Compiling Python files\n'
 python3 -m compileall -q custom-addons scripts tests/security
 
+printf '==> Validating campaign authority matrix\n'
+python3 scripts/validate_campaign_authority_matrix.py
+
 printf '==> Verifying the immutable canonical addon baseline\n'
 python3 scripts/validate_legacy_addon_baseline.py
 
