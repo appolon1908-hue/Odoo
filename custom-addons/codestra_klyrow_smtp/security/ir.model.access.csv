@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_klyrow_brand_admin_manager,Klyrow brand admin manager,codestra_mail_inbox.model_codestra_mail_brand,codestra_mail_inbox.group_mail_admin_manager,1,1,0,0
+access_klyrow_brand_auditor,Klyrow brand auditor,codestra_mail_inbox.model_codestra_mail_brand,codestra_mail_inbox.group_mail_auditor,1,0,0,0
