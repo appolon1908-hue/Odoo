@@ -1,0 +1,128 @@
+name: Production container CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/production-container-ci.yml"
+      - ".github/workflows/cc-release-candidate.yml"
+      - ".dockerignore"
+      - "custom-addons/**"
+      - "deploy/**"
+      - "config/release-policy.json"
+      - "release/**"
+      - "scripts/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/production-container-ci.yml"
+      - ".github/workflows/cc-release-candidate.yml"
+      - ".dockerignore"
+      - "custom-addons/**"
+      - "deploy/**"
+      - "config/release-policy.json"
+      - "release/**"
+      - "scripts/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-container-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_TAG: codestra-odoo-ci:${{ github.sha }}
+
+jobs:
+  build-and-scan:
+    name: Build and scan digest-pinned Odoo image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out exact workflow SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install checksum-verified Trivy
+        run: bash scripts/install_trivy.sh
+
+      - name: Build the production image without publishing
+        env:
+          DOCKER_BUILDKIT: "1"
+        run: |
+          set -Eeuo pipefail
+          docker build \
+            --pull \
+            --no-cache \
+            --platform linux/amd64 \
+            --file deploy/container/Dockerfile \
+            --tag "$IMAGE_TAG" \
+            --build-arg "SOURCE_SHA=$GITHUB_SHA" \
+            .
+          printf 'PRODUCTION_IMAGE_BUILD=PASS\n'
+
+      - name: Verify image content and non-root runtime identity
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+          test "$(docker image inspect "$IMAGE_TAG" --format '{{.Config.User}}')" = "odoo"
+          test "$(docker image inspect "$IMAGE_TAG" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$EXPECTED_SOURCE_SHA"
+          docker run --rm --entrypoint sh "$IMAGE_TAG" -c '
+            set -eu
+            test -d /mnt/extra-addons
+            test -z "$(find /mnt/extra-addons -type l -print -quit)"
+            test -n "$(find /mnt/extra-addons -mindepth 2 -maxdepth 2 -name __manifest__.py -print -quit)"
+            test -r /mnt/extra-addons/codestra_intake_leads/__manifest__.py
+          '
+          printf 'PRODUCTION_IMAGE_CONTENT=PASS\n'
+
+      - name: Block fixed critical vulnerabilities
+        run: |
+          set -Eeuo pipefail
+          trivy image \
+            --cache-dir "$RUNNER_TEMP/trivy-cache" \
+            --timeout 20m \
+            --scanners vuln \
+            --severity CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --format table \
+            "$IMAGE_TAG"
+
+      - name: Block secrets embedded in the image
+        run: |
+          set -Eeuo pipefail
+          trivy image \
+            --cache-dir "$RUNNER_TEMP/trivy-cache" \
+            --timeout 20m \
+            --scanners secret \
+            --exit-code 1 \
+            --format table \
+            "$IMAGE_TAG"
+
+      - name: Generate container SPDX SBOM
+        run: |
+          set -Eeuo pipefail
+          trivy image \
+            --cache-dir "$RUNNER_TEMP/trivy-cache" \
+            --timeout 20m \
+            --format spdx-json \
+            --output container-sbom.spdx.json \
+            "$IMAGE_TAG"
+          test -s container-sbom.spdx.json
+          printf 'CONTAINER_SBOM=PASS\n'
+
+      - name: Upload container CI evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: production-container-ci-${{ github.sha }}
+          path: container-sbom.spdx.json
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

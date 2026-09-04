@@ -2,10 +2,21 @@
 <odoo>
     <record id="group_moneybee_middleware" model="res.groups">
         <field name="name">MoneyBee Middleware Integration</field>
-        <!-- Contact writes stay behind the one reviewed Middleware grant: this
-             identity inherits the bridge group rather than minting a second
-             res.partner create right of its own. -->
+        <!-- Contact access stays behind the reviewed Middleware bridge grant.
+             Model-layer guards below this group allow writes only through the
+             tenant-bound, receipted command method. -->
         <field name="implied_ids" eval="[(4, ref('codestra_middleware_bridge.group_codestra_middleware_bridge'))]"/>
-        <field name="comment">Dedicated service principal group for Middleware-only MoneyBee CRM synchronization.</field>
+        <field name="comment">Dedicated, single-company service principal for tenant-bound MoneyBee CRM synchronization.</field>
+    </record>
+
+    <record id="rule_moneybee_receipt_principal_scope" model="ir.rule">
+        <field name="name">MoneyBee receipts owned by authenticated principal</field>
+        <field name="model_id" ref="model_codestra_moneybee_integration_receipt"/>
+        <field name="groups" eval="[(4, ref('group_moneybee_middleware'))]"/>
+        <field name="domain_force">[('principal_user_id', '=', user.id), ('company_id', 'in', company_ids)]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="False"/>
     </record>
 </odoo>

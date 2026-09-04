@@ -1,10 +1,15 @@
-from odoo import fields, models
+from odoo import api, fields, models
+from odoo.exceptions import AccessError
+
+
+MONEYBEE_RECEIPT_CREATE_TOKEN = object()
 
 
 class MoneyBeeIntegrationReceipt(models.Model):
     _name = "codestra.moneybee.integration.receipt"
     _description = "MoneyBee Middleware Integration Receipt"
     _order = "received_at desc, id desc"
+    _check_company_auto = True
 
     _sql_constraints = [
         (
@@ -17,6 +22,20 @@ class MoneyBeeIntegrationReceipt(models.Model):
     command_id = fields.Char(required=True, index=True, readonly=True)
     source_event_id = fields.Char(required=True, index=True, readonly=True)
     tenant_id = fields.Char(required=True, index=True, readonly=True)
+    company_id = fields.Many2one(
+        "res.company",
+        required=True,
+        index=True,
+        readonly=True,
+        ondelete="restrict",
+    )
+    principal_user_id = fields.Many2one(
+        "res.users",
+        required=True,
+        index=True,
+        readonly=True,
+        ondelete="restrict",
+    )
     schema_version = fields.Integer(required=True, readonly=True)
     command_type = fields.Char(required=True, index=True, readonly=True)
     payload_hash = fields.Char(required=True, index=True, readonly=True)
@@ -38,4 +57,31 @@ class MoneyBeeIntegrationReceipt(models.Model):
     )
     applied_at = fields.Datetime(readonly=True)
     error_code = fields.Char(readonly=True)
-    partner_id = fields.Many2one("res.partner", readonly=True, ondelete="set null")
+    partner_id = fields.Many2one(
+        "res.partner",
+        readonly=True,
+        ondelete="set null",
+        check_company=True,
+    )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        if (
+            self.env.context.get("_moneybee_receipt_create_token")
+            is not MONEYBEE_RECEIPT_CREATE_TOKEN
+        ):
+            raise AccessError(
+                "MoneyBee command receipts are server-managed and cannot be "
+                "created directly."
+            )
+        return super().create(vals_list)
+
+    def write(self, vals):
+        raise AccessError(
+            "MoneyBee command receipts are immutable and cannot be modified."
+        )
+
+    def unlink(self):
+        raise AccessError(
+            "MoneyBee command receipts are immutable and cannot be deleted."
+        )

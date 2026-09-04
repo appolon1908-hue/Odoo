@@ -19,8 +19,7 @@
     "correlation_id",
     "stable_external_mapping",
     "audit_trail",
-    "optimistic_concurrency_when_applicable",
-    "unknown_outcome_reconciliation_before_retry"
+    "optimistic_concurrency_when_applicable"
   ],
   "odoo_owns": [
     "customers_and_contacts",
@@ -55,51 +54,10 @@
     "backups"
   ],
   "orm_bridge": {
-    "module_name": "codestra_middleware_bridge",
-    "canonical_command_type": "crm.lead.upsert",
-    "canonical_command_version": "1.0",
-    "canonical_command_path": "/codestra/middleware/v1/commands/crm.lead.upsert",
-    "canonical_status_path": "/codestra/middleware/v1/commands/{command_id}/status",
+    "planned_module_name": "codestra_integration_bridge",
     "must_use_odoo_orm_for_business_writes": true,
     "may_use_migration_sql_inside_reviewed_migrations": true,
     "must_store_middleware_command_identity_atomically": true,
-    "must_not_expose_arbitrary_model_or_method_parameters": true,
-    "status_readback_required_after_unknown_outcome": true,
-    "blind_resubmission_after_unknown_outcome_allowed": false,
-    "compatibility_routes": [
-      {
-        "path": "/codestra/middleware/v1/crm/leads",
-        "status": "deprecated",
-        "purpose": "temporary direct-CRUD compatibility only"
-      },
-      {
-        "path": "/codestra/middleware/v1/crm/leads/{external_id}",
-        "status": "deprecated",
-        "purpose": "temporary direct-CRUD compatibility and read-back only"
-      },
-      {
-        "path": "/codestra/middleware/v1/crm/activities",
-        "status": "deprecated",
-        "purpose": "temporary activity compatibility only"
-      }
-    ]
-  },
-  "message_authentication": {
-    "algorithm": "hmac-sha256",
-    "secret_scope": "per_tenant_preferred_with_global_allowlisted_tenant_fallback",
-    "global_fallback_is_tenant_isolated": false,
-    "multi_tenant_production_requires_tenant_specific_secret_and_service_identity": true,
-    "maximum_clock_skew_seconds": 300,
-    "canonical_fields_in_order": [
-      "X-Codestra-Timestamp",
-      "X-Codestra-Event-ID",
-      "HTTP_METHOD_UPPERCASE",
-      "REQUEST_PATH",
-      "X-Tenant-ID",
-      "X-Correlation-ID",
-      "Idempotency-Key",
-      "RAW_REQUEST_BODY"
-    ],
-    "header_body_identity_agreement_required": true
+    "must_not_expose_arbitrary_model_or_method_parameters": true
   }
 }

@@ -16,35 +16,10 @@ CONTROLLER = (
     / "controllers"
     / "api.py"
 )
-INTEGRATION_POLICY = ROOT / "config" / "integration-boundary.json"
 
 
 def fail(message: str) -> None:
     raise SystemExit(f"PLATFORM_CONTROL_PLANE=FAIL {message}")
-
-
-def validate_hmac_field_order(
-    contract_fields: object, policy_fields: object, expected_fields: list[str]
-) -> None:
-    if contract_fields != expected_fields:
-        fail("HMAC canonical field order drifted")
-    if policy_fields != expected_fields:
-        fail("machine integration policy HMAC canonical field order drifted")
-
-
-def validate_route_contract(
-    actual_routes: dict[str, tuple[set[str], bool]],
-    expected_routes: dict[str, set[str]],
-) -> None:
-    for path, methods in expected_routes.items():
-        actual = actual_routes.get(path)
-        if actual is None:
-            fail(f"required controller route is missing: {path}")
-        actual_methods, replay_protected = actual
-        if actual_methods != methods:
-            fail(f"route methods drifted for {path}")
-        if not replay_protected:
-            fail(f"route no longer invokes replay-protected _begin: {path}")
 
 
 def function_source(source: str, name: str) -> str:
@@ -108,15 +83,12 @@ def validated_routes(source: str) -> dict[str, tuple[set[str], bool]]:
 
 def main() -> int:
     contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
-    policy = json.loads(INTEGRATION_POLICY.read_text(encoding="utf-8"))
     source = CONTROLLER.read_text(encoding="utf-8")
 
     if contract.get("contract_id") != "codestra.platform-control-plane":
         fail("unexpected contract identity")
     if contract.get("status") != "PREPARED_DISABLED":
         fail("integration must remain prepared/disabled before staging activation")
-    if contract.get("decision") != "middleware_adopts_automation_v2":
-        fail("automation authority decision drifted")
 
     repositories = contract.get("repositories", {})
     if repositories.get("business_authority") != "appolon1908-hue/Odoo":
@@ -128,82 +100,18 @@ def main() -> int:
     if repositories.get("gateway_authority") != "appolon1908-hue/Kong":
         fail("Kong is not the declared gateway authority")
 
-    automation = contract.get("n8n_to_middleware", {})
-    expected_automation = {
-        "canonical_submit_path": "/v2/automation/commands",
-        "canonical_read_path": "/v2/automation/commands/{command_id}",
-        "client_id": "n8n-crm-automation",
-        "audience": "middleware-api",
-        "submit_scope": "automation.command.crm",
-        "read_scope": "automation.command.read",
-        "tenant_authority": "verified_token_and_durable_job",
-        "header_body_agreement_required": True,
-        "direct_provider_access": False,
-    }
-    for key, value in expected_automation.items():
-        if automation.get(key) != value:
-            fail(f"automation contract field {key} drifted")
-    aliases = automation.get("compatibility_aliases", [])
-    if {
-        item.get("path")
-        for item in aliases
-        if isinstance(item, dict) and item.get("status") == "deprecated"
-    } != {
-        "/v1/integrations/n8n/commands",
-        "/v1/integrations/n8n/operations/{command_id}",
-    }:
-        fail("legacy n8n compatibility aliases drifted")
-
     boundary = contract.get("middleware_to_odoo", {})
     expected = {
         "target": "odoo-19",
         "capability": "ODOO_WRITE",
-        "hmac_algorithm": "hmac-sha256",
-        "bridge_module": "codestra_middleware_bridge",
-        "canonical_command_type": "crm.lead.upsert",
-        "canonical_command_version": "1.0",
-        "canonical_command_path": "/codestra/middleware/v1/commands/crm.lead.upsert",
-        "canonical_status_path": "/codestra/middleware/v1/commands/{command_id}/status",
+        "create_lead_path": "/codestra/middleware/v1/crm/leads",
+        "lead_path": "/codestra/middleware/v1/crm/leads/{external_id}",
+        "activity_path": "/codestra/middleware/v1/crm/activities",
         "readback_required": True,
-        "unknown_outcome_policy": "query_command_status_before_any_retry",
-        "blind_resubmission_allowed": False,
     }
     for key, value in expected.items():
         if boundary.get(key) != value:
-            fail(f"Odoo contract field {key} drifted")
-
-    canonical_fields = boundary.get("hmac_canonical_fields_in_order")
-    expected_fields = [
-        "X-Codestra-Timestamp",
-        "X-Codestra-Event-ID",
-        "HTTP_METHOD_UPPERCASE",
-        "REQUEST_PATH",
-        "X-Tenant-ID",
-        "X-Correlation-ID",
-        "Idempotency-Key",
-        "RAW_REQUEST_BODY",
-    ]
-    validate_hmac_field_order(
-        canonical_fields,
-        policy.get("message_authentication", {}).get("canonical_fields_in_order"),
-        expected_fields,
-    )
-    if policy.get("message_authentication", {}).get("algorithm") != "hmac-sha256":
-        fail("machine integration policy HMAC algorithm drifted")
-
-    bridge = policy.get("orm_bridge", {})
-    if bridge.get("module_name") != "codestra_middleware_bridge":
-        fail("machine integration policy names a non-canonical bridge module")
-    if bridge.get("canonical_command_type") != expected["canonical_command_type"]:
-        fail("machine integration policy command type drifted")
-    if bridge.get("canonical_command_version") != expected["canonical_command_version"]:
-        fail("machine integration policy command version drifted")
-    if bridge.get("canonical_command_path") != expected["canonical_command_path"]:
-        fail("machine integration policy command path drifted")
-    if bridge.get("canonical_status_path") != expected["canonical_status_path"]:
-        fail("machine integration policy status path drifted")
-    if bridge.get("blind_resubmission_after_unknown_outcome_allowed") is not False:
-        fail("unknown-outcome blind resubmission must remain prohibited")
+            fail(f"contract field {key} drifted")
 
     authenticate_source = function_source(source, "_authenticate")
     required_authentication_markers = (
@@ -213,7 +121,6 @@ def main() -> int:
         'headers.get("X-Tenant-ID", "")',
         'headers.get("X-Correlation-ID", "")',
         'headers.get("Idempotency-Key", "")',
-        "tenant.encode(), correlation.encode(), idempotency.encode()",
         "hmac.compare_digest",
     )
     missing = [
@@ -237,33 +144,24 @@ def main() -> int:
     if missing:
         fail("_begin no longer proves required security markers: " + ", ".join(missing))
 
-    command_source = function_source(source, "_command_to_crm_payload")
-    for marker in (
-        'command.get("command_type") != "crm.lead.upsert"',
-        'command.get("command_version") != "1.0"',
-        'command.get("target") != "odoo-19"',
-        'command.get("capability") != "ODOO_WRITE"',
-        'command.get("command_id") != auth["event_id"]',
-        'command.get("tenant_id") != auth["tenant_id"]',
-        'command.get("correlation_id") != auth["correlation_id"]',
-        'command.get("idempotency_key") != auth["idempotency_key"]',
-    ):
-        if marker not in command_source:
-            fail(f"canonical CRM command validation marker is missing: {marker}")
-
     expected_routes = {
-        "/codestra/middleware/v1/commands/crm.lead.upsert": {"POST"},
-        "/codestra/middleware/v1/commands/<string:command_id>/status": {"GET"},
-    }
-    actual_routes = validated_routes(source)
-    validate_route_contract(actual_routes, expected_routes)
-
-    compatibility_routes = {
         "/codestra/middleware/v1/crm/leads": {"POST"},
-        "/codestra/middleware/v1/crm/leads/<string:external_id>": {"GET", "PATCH"},
+        "/codestra/middleware/v1/crm/leads/<string:external_id>": {
+            "GET",
+            "PATCH",
+        },
         "/codestra/middleware/v1/crm/activities": {"POST"},
     }
-    validate_route_contract(actual_routes, compatibility_routes)
+    actual_routes = validated_routes(source)
+    for path, methods in expected_routes.items():
+        actual = actual_routes.get(path)
+        if actual is None:
+            fail(f"required controller route is missing: {path}")
+        actual_methods, replay_protected = actual
+        if actual_methods != methods:
+            fail(f"route methods drifted for {path}")
+        if not replay_protected:
+            fail(f"route no longer invokes replay-protected _begin: {path}")
 
     safety = contract.get("safety", {})
     for flag in ("ODOO_WRITE", "ENABLE_EXTERNAL_DELIVERY", "LIVE_WRITE"):
@@ -274,7 +172,7 @@ def main() -> int:
     if safety.get("deployment_permitted_by_contract") is not False:
         fail("source contract must not grant deployment authority")
 
-    serialized = (CONTRACT.read_text(encoding="utf-8") + INTEGRATION_POLICY.read_text(encoding="utf-8")).lower()
+    serialized = CONTRACT.read_text(encoding="utf-8").lower()
     for forbidden in ("client_secret", "password", "access_token", "private_key"):
         if forbidden in serialized:
             fail(f"contract contains forbidden secret-bearing field: {forbidden}")

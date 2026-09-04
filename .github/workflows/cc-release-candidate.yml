@@ -1,41 +1,83 @@
-name: Codestra Odoo Contact Center Release Candidate
+name: Codestra Odoo Signed Production Candidate
 
 on:
   workflow_dispatch:
     inputs:
       expected_source_sha:
-        description: Exact release-branch SHA selected for candidate packaging
+        description: Exact signed main SHA selected for candidate publication
+        required: true
+        type: string
+      confirmation:
+        description: Type BUILD_SIGNED_PRODUCTION_CANDIDATE
         required: true
         type: string
 
 permissions:
   contents: read
+  packages: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
 
 concurrency:
-  group: cc-release-candidate-${{ github.ref }}
+  group: odoo-production-candidate-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  IMAGE_NAME: ghcr.io/appolon1908-hue/odoo
+  IMAGE_TAG: ghcr.io/appolon1908-hue/odoo:sha-${{ inputs.expected_source_sha }}
+
 jobs:
-  package-source-candidate:
-    name: Validate and package source candidate only
+  build-signed-production-candidate:
+    name: Build, scan, publish, and attest immutable candidate
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 90
+    environment: odoo-production-candidate
 
     steps:
-      - name: Check out exact selected ref
+      - name: Check out exact selected SHA
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify workflow and source identity
+      - name: Verify signed main source identity
         env:
           EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          test "${{ github.ref_name }}" = "release/cc-10-staging-certification"
+          set -Eeuo pipefail
+          test "$GITHUB_REF_NAME" = "main"
+          test "$CONFIRMATION" = "BUILD_SIGNED_PRODUCTION_CANDIDATE"
+          test "${#EXPECTED_SOURCE_SHA}" -eq 40
+          case "$EXPECTED_SOURCE_SHA" in
+            *[!0-9a-f]*) printf 'ERROR=INVALID_EXPECTED_SOURCE_SHA\n' >&2; exit 1 ;;
+          esac
           test "$(git rev-parse HEAD)" = "$EXPECTED_SOURCE_SHA"
-          test "$EXPECTED_SOURCE_SHA" = "${{ github.sha }}"
+          test "$EXPECTED_SOURCE_SHA" = "$GITHUB_SHA"
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer $GITHUB_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/commits/$EXPECTED_SOURCE_SHA" \
+            > "$RUNNER_TEMP/source-commit.json"
+          python3 - "$RUNNER_TEMP/source-commit.json" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          document = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          verification = document.get("commit", {}).get("verification", {})
+          if verification.get("verified") is not True:
+              raise SystemExit(
+                  "ERROR=SOURCE_COMMIT_SIGNATURE_NOT_VERIFIED:"
+                  + str(verification.get("reason", "unknown"))
+              )
+          print("SOURCE_COMMIT_SIGNATURE=PASS")
+          PY
+          printf 'SOURCE_COMMIT_VERIFIED=true\n' >> "$GITHUB_ENV"
           printf 'CANDIDATE_SOURCE_SHA=%s\n' "$EXPECTED_SOURCE_SHA"
 
       - name: Set up Python
@@ -43,20 +85,229 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Run exact-head source validation
+      - name: Install checksum-verified Trivy
+        run: bash scripts/install_trivy.sh
+
+      - name: Run exact-main source validation
         run: bash scripts/run_ci.sh
 
-      - name: Build deterministic source candidate
+      - name: Test Odoo 19 and PostgreSQL runtime
+        run: bash scripts/run_odoo_module_tests.sh
+
+      - name: Build deterministic source evidence
         env:
           EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+          SOURCE_COMMIT_VERIFIED: "true"
           SOURCE_TESTS_STATUS: PASS
+          SOURCE_RUNTIME_TESTS_STATUS: PASS
         run: bash scripts/build_release_candidate.sh
 
-      - name: Upload candidate evidence without publishing or deploying
+      - name: Authenticate to GitHub Container Registry
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          printf '%s' "$GHCR_TOKEN" \
+            | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          printf 'GHCR_AUTHENTICATION=PASS\n'
+
+      - name: Refuse mutable SHA-tag replacement
+        run: |
+          set -Eeuo pipefail
+          if docker manifest inspect "$IMAGE_TAG" >/dev/null 2>&1; then
+            printf 'ERROR=IMMUTABLE_IMAGE_TAG_ALREADY_EXISTS:%s\n' "$IMAGE_TAG" >&2
+            exit 1
+          fi
+          printf 'IMMUTABLE_IMAGE_TAG_AVAILABLE=PASS\n'
+
+      - name: Build production image locally for security gates
+        env:
+          DOCKER_BUILDKIT: "1"
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+        run: |
+          set -Eeuo pipefail
+          docker build \
+            --pull \
+            --no-cache \
+            --platform linux/amd64 \
+            --file deploy/container/Dockerfile \
+            --tag "$IMAGE_TAG" \
+            --build-arg "SOURCE_SHA=$EXPECTED_SOURCE_SHA" \
+            .
+          printf 'PRODUCTION_IMAGE_BUILD=PASS\n'
+
+      - name: Verify image identity and reviewed addon content
+        env:
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+        run: |
+          set -Eeuo pipefail
+          test "$(docker image inspect "$IMAGE_TAG" --format '{{.Config.User}}')" = "odoo"
+          test "$(docker image inspect "$IMAGE_TAG" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$EXPECTED_SOURCE_SHA"
+          docker run --rm --entrypoint sh "$IMAGE_TAG" -c '
+            set -eu
+            test -d /mnt/extra-addons
+            test -z "$(find /mnt/extra-addons -type l -print -quit)"
+            test -n "$(find /mnt/extra-addons -mindepth 2 -maxdepth 2 -name __manifest__.py -print -quit)"
+            test -r /mnt/extra-addons/codestra_intake_leads/__manifest__.py
+          '
+          printf 'PRODUCTION_IMAGE_CONTENT=PASS\n'
+
+      - name: Block fixed critical vulnerabilities
+        run: |
+          set -Eeuo pipefail
+          trivy image \
+            --cache-dir "$RUNNER_TEMP/trivy-cache" \
+            --timeout 20m \
+            --scanners vuln \
+            --severity CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            --format table \
+            "$IMAGE_TAG"
+
+      - name: Block secrets embedded in the image
+        run: |
+          set -Eeuo pipefail
+          trivy image \
+            --cache-dir "$RUNNER_TEMP/trivy-cache" \
+            --timeout 20m \
+            --scanners secret \
+            --exit-code 1 \
+            --format table \
+            "$IMAGE_TAG"
+
+      - name: Record complete high and critical vulnerability evidence
+        run: |
+          set -Eeuo pipefail
+          trivy image \
+            --cache-dir "$RUNNER_TEMP/trivy-cache" \
+            --timeout 20m \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --format json \
+            --output dist/container-vulnerabilities.json \
+            "$IMAGE_TAG"
+          test -s dist/container-vulnerabilities.json
+
+      - name: Record image secret-scan evidence
+        run: |
+          set -Eeuo pipefail
+          trivy image \
+            --cache-dir "$RUNNER_TEMP/trivy-cache" \
+            --timeout 20m \
+            --scanners secret \
+            --format json \
+            --output dist/container-secrets.json \
+            "$IMAGE_TAG"
+          test -s dist/container-secrets.json
+
+      - name: Generate complete container SPDX SBOM
+        run: |
+          set -Eeuo pipefail
+          trivy image \
+            --cache-dir "$RUNNER_TEMP/trivy-cache" \
+            --timeout 20m \
+            --format spdx-json \
+            --output dist/container-sbom.spdx.json \
+            "$IMAGE_TAG"
+          test -s dist/container-sbom.spdx.json
+          printf 'CONTAINER_SBOM=PASS\n'
+
+      - name: Publish immutable SHA tag and resolve registry digest
+        id: image
+        run: |
+          set -Eeuo pipefail
+          push_log="$RUNNER_TEMP/docker-push.log"
+          docker push "$IMAGE_TAG" 2>&1 | tee "$push_log"
+          digest="$(python3 - "$push_log" <<'PY'
+          import pathlib
+          import re
+          import sys
+
+          text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+          matches = re.findall(r"digest:\s+(sha256:[0-9a-f]{64})", text)
+          if not matches:
+              raise SystemExit("ERROR=UNABLE_TO_RESOLVE_REGISTRY_DIGEST")
+          print(matches[-1])
+          PY
+          )"
+          case "$digest" in
+            sha256:????????????????????????????????????????????????????????????????) ;;
+            *) printf 'ERROR=INVALID_REGISTRY_DIGEST:%s\n' "$digest" >&2; exit 1 ;;
+          esac
+          docker manifest inspect "$IMAGE_NAME@$digest" >/dev/null
+          printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+          printf 'IMAGE_DIGEST=%s\n' "$digest" >> "$GITHUB_ENV"
+          printf 'IMAGE_TAG_PUBLISHED=%s\n' "$IMAGE_TAG"
+          printf 'IMMUTABLE_IMAGE_REFERENCE=%s@%s\n' "$IMAGE_NAME" "$digest"
+
+      - name: Create signed SLSA provenance
+        id: provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.image.outputs.digest }}
+          push-to-registry: true
+
+      - name: Create signed SBOM attestation
+        id: sbom
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.image.outputs.digest }}
+          sbom-path: dist/container-sbom.spdx.json
+          push-to-registry: true
+
+      - name: Finalize production-candidate evidence
+        env:
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+          SOURCE_COMMIT_VERIFIED: "true"
+          PROVENANCE_ATTESTATION_URL: ${{ steps.provenance.outputs.attestation-url }}
+          SBOM_ATTESTATION_URL: ${{ steps.sbom.outputs.attestation-url }}
+          PROVENANCE_BUNDLE_PATH: ${{ steps.provenance.outputs.bundle-path }}
+          SBOM_BUNDLE_PATH: ${{ steps.sbom.outputs.bundle-path }}
+        run: |
+          set -Eeuo pipefail
+          prefix="codestra-odoo-contact-center-$EXPECTED_SOURCE_SHA"
+          source_manifest="dist/$prefix.release-manifest.json"
+          test -f "$source_manifest"
+          test -f "$PROVENANCE_BUNDLE_PATH"
+          test -f "$SBOM_BUNDLE_PATH"
+          cp "$PROVENANCE_BUNDLE_PATH" "dist/$prefix.provenance.sigstore.json"
+          cp "$SBOM_BUNDLE_PATH" "dist/$prefix.sbom.sigstore.json"
+          python3 scripts/generate_container_release_manifest.py \
+            --source-manifest "$source_manifest" \
+            --container-sbom dist/container-sbom.spdx.json \
+            --vulnerability-report dist/container-vulnerabilities.json \
+            --secret-report dist/container-secrets.json \
+            --output "dist/$prefix.production-candidate.json"
+          (
+            cd dist
+            find . -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\0' \
+              | sort -z \
+              | xargs -0 sha256sum \
+              > SHA256SUMS
+            sha256sum --check SHA256SUMS
+          )
+          printf 'SIGNED_OCI_PRODUCTION_CANDIDATE=PASS\n'
+          printf 'PRODUCTION_DEPLOYED=NO\n'
+          printf 'DATABASE_MIGRATED=NO\n'
+          printf 'LIVE_ODOO_WRITE=false\n'
+          printf 'ENABLE_EXTERNAL_DELIVERY=false\n'
+          printf 'EMAIL_DELIVERY=false\n'
+          printf 'SMS_DELIVERY=false\n'
+          printf 'CALLBACK_DISPATCH=false\n'
+          printf 'PSTN_DIALING=false\n'
+          printf 'N8N_ACTIVATION=false\n'
+          printf 'VICIDIAL_LIVE_CONTROL=false\n'
+
+      - name: Upload signed candidate evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: codestra-odoo-contact-center-source-${{ inputs.expected_source_sha }}
+          name: codestra-odoo-signed-candidate-${{ inputs.expected_source_sha }}
           path: dist/
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 90
           compression-level: 0
