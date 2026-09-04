@@ -86,7 +86,7 @@
     "call_center_core": {
       "base_tree": "35a16bc1b7e107c3ba7f7087054ee86a7b26c326",
       "current_tree": "e2c53688eb228096bead826d1a621de9df4fb0b1",
-      "reason": "Add a non-interactive Integration Service authorization group that inherits ordinary call-center scoping but no manager or administrator role, allowing resource-specific service ACLs and business-unit hrecord rules to remain explicit.",
+      "reason": "Add a non-interactive Integration Service authorization group that inherits ordinary call-center scoping but no manager or administrator role, allowing resource-specific service ACLs and business-unit record rules to remain explicit.",
       "pull_request": 39,
       "integration_boundary_exceptions": [
         {
@@ -127,7 +127,7 @@
       "allow_post_init_hook": true,
       "integration_boundary_exceptions": [
         {
-          "path": "migrations/19.0.1.3.0/post-migration.py",
+          "path": "migrations/19.0.1.3.0/post-migrate.py",
           "kind": "odoo_schema_migration",
           "reason": "The versioned Odoo migration normalizes legacy data-quality rows into the canonical tenant-scoped model."
         }
@@ -197,7 +197,7 @@
         {
           "path": "tests/test_lead_reconciliation.py",
           "kind": "odoo_test_driver_exception",
-          "reason": "The test imports only UniqueViolation to assert a partial unique mapping invariant and does not open an external database connection."
+          "reason": "The test imports only UniqueViolation to assert a partial unique mapping invariant and does not open a database connection."
         },
         {
           "path": "tests/test_reconciliation.py",
