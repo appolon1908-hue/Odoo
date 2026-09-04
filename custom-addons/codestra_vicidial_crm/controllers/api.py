@@ -33,7 +33,11 @@ class CodestraAPI(http.Controller):
 
     @staticmethod
     def signature(secret, timestamp, body):
-        return hmac.new(secret.encode(), timestamp.encode() + b"." + body, hashlib.sha256).hexdigest()
+        return hmac.new(
+            secret.encode(),
+            timestamp.encode() + b"." + body,
+            hashlib.sha256,
+        ).hexdigest()
 
     @staticmethod
     def timestamp_is_fresh(timestamp, now=None, tolerance=300):
@@ -42,11 +46,17 @@ class CodestraAPI(http.Controller):
         except (TypeError, ValueError):
             return False
 
-    @http.route("/codestra/api/v1/health", type="http", auth="none", methods=["GET"], csrf=False)
+    @http.route(
+        "/codestra/api/v1/health",
+        type="http",
+        auth="none",
+        methods=["GET"],
+        csrf=False,
+    )
     def health(self):
         return request.make_json_response(
             {
-                "module_version": "19.0.3.0.0",
+                "module_version": "19.0.3.3.0",
                 "live_writes_enabled": False,
                 "vicidial_read_only": True,
                 "odoo_version": release.version,
@@ -61,14 +71,22 @@ class CodestraAPI(http.Controller):
             raise Forbidden("Missing integration signature headers")
         if not self.timestamp_is_fresh(timestamp):
             raise Forbidden("Expired timestamp")
-        secret = request.env["ir.config_parameter"].sudo().get_param("codestra.webhook_secret")
+        secret = request.env["ir.config_parameter"].sudo().get_param(
+            "codestra.webhook_secret"
+        )
         body = request.httprequest.get_data()
         expected = self.signature(secret or "", timestamp, body)
         if not secret or not hmac.compare_digest(expected, signature):
             raise Forbidden("Invalid signature")
         return key, body
 
-    @http.route("/codestra/api/v1/events", type="http", auth="none", methods=["POST"], csrf=False)
+    @http.route(
+        "/codestra/api/v1/events",
+        type="http",
+        auth="none",
+        methods=["POST"],
+        csrf=False,
+    )
     def events(self):
         key, body = self._verify()
         try:
@@ -83,7 +101,9 @@ class CodestraAPI(http.Controller):
         if prior:
             if prior.payload_hash != digest:
                 raise Forbidden("Idempotency payload conflict")
-            return request.make_json_response({"status": "duplicate", "id": prior.id})
+            return request.make_json_response(
+                {"status": "duplicate", "id": prior.id}
+            )
         record = model.create(
             {
                 "event_type": payload["event_type"],
@@ -96,9 +116,18 @@ class CodestraAPI(http.Controller):
                 "state": "queued",
             }
         )
-        return request.make_json_response({"status": "accepted", "id": record.id}, status=202)
+        return request.make_json_response(
+            {"status": "accepted", "id": record.id},
+            status=202,
+        )
 
-    @http.route("/codestra/api/v1/call-events", type="http", auth="none", methods=["POST"], csrf=False)
+    @http.route(
+        "/codestra/api/v1/call-events",
+        type="http",
+        auth="none",
+        methods=["POST"],
+        csrf=False,
+    )
     def call_events(self):
         key, body = self._verify()
         if len(body) > 262144:
@@ -137,7 +166,9 @@ class CodestraAPI(http.Controller):
         ):
             raise BadRequest("sequence must be a nonnegative integer")
         if any(
-            not isinstance(payload.get(name), str) or not payload[name].strip() or len(payload[name]) > 255
+            not isinstance(payload.get(name), str)
+            or not payload[name].strip()
+            or len(payload[name]) > 255
             for name in (
                 "event_id",
                 "correlation_id",
@@ -152,20 +183,35 @@ class CodestraAPI(http.Controller):
                 "keycloak_subject",
             )
         ):
-            raise BadRequest("canonical identifiers must be nonempty bounded strings")
+            raise BadRequest(
+                "canonical identifiers must be nonempty bounded strings"
+            )
         try:
-            timestamp = datetime.fromisoformat(str(payload["timestamp"]).replace("Z", "+00:00"))
+            timestamp = datetime.fromisoformat(
+                str(payload["timestamp"]).replace("Z", "+00:00")
+            )
             if timestamp.tzinfo is None:
                 raise ValueError("timezone required")
-            payload["timestamp"] = timestamp.astimezone(timezone.utc).replace(tzinfo=None)
+            payload["timestamp"] = timestamp.astimezone(timezone.utc).replace(
+                tzinfo=None
+            )
         except (TypeError, ValueError) as exc:
-            raise BadRequest("timestamp must be an ISO-8601 value with timezone") from exc
+            raise BadRequest(
+                "timestamp must be an ISO-8601 value with timezone"
+            ) from exc
         if key != str(payload["event_id"]):
             raise Forbidden("event identity mismatch")
+
+        header_tenant = request.httprequest.headers.get("X-Codestra-Tenant-ID")
+        if header_tenant and header_tenant != payload["tenant_id"]:
+            raise Forbidden("tenant identity mismatch")
+
         params = request.env["ir.config_parameter"].sudo()
         allowed_tenants = {
             item.strip()
-            for item in (params.get_param("codestra.call_control.tenant_ids") or "").split(",")
+            for item in (
+                params.get_param("codestra.call_control.tenant_ids") or ""
+            ).split(",")
             if item.strip()
         }
         if payload["tenant_id"] not in allowed_tenants:
@@ -173,7 +219,10 @@ class CodestraAPI(http.Controller):
         Campaign = request.env["codestra.vicidial.campaign"].sudo()
         Agent = request.env["codestra.vicidial.agent"].sudo()
         Call = request.env["codestra.vicidial.call"].sudo()
-        campaign = Campaign.search([("campaign_id", "=", payload["campaign_id"])], limit=1)
+        campaign = Campaign.search(
+            [("campaign_id", "=", payload["campaign_id"])],
+            limit=1,
+        )
         agent = Agent.search(
             [
                 ("vicidial_user", "=", str(payload["agent_id"])),
@@ -188,10 +237,14 @@ class CodestraAPI(http.Controller):
             or not agent
             or campaign not in agent.campaign_ids
             or not agent.odoo_user_id.keycloak_subject
-            or agent.odoo_user_id.keycloak_subject != str(payload["keycloak_subject"])
+            or agent.odoo_user_id.keycloak_subject
+            != str(payload["keycloak_subject"])
         ):
             raise Forbidden("agent campaign extension mapping rejected")
-        call = Call.search([("call_id", "=", str(payload["call_id"]))], limit=1)
+        call = Call.search(
+            [("call_id", "=", str(payload["call_id"]))],
+            limit=1,
+        )
         if call and (
             call.tenant_id != payload["tenant_id"]
             or call.agent_id != agent
@@ -213,17 +266,40 @@ class CodestraAPI(http.Controller):
             "call.recording_available",
             "call.disposition_required",
         }:
-            raise NotFound("call must be established before this lifecycle event")
+            raise NotFound(
+                "call must be established before this lifecycle event"
+            )
         if not call:
-            number = payload.get("caller_number") or payload.get("destination_number")
+            number = (
+                payload.get("caller_number")
+                or payload.get("destination_number")
+            )
             match = (
                 Call.match_customer(number, payload["campaign_id"])
                 if number
-                else {"normalized_number": False, "match": "none", "matches": []}
+                else {
+                    "normalized_number": False,
+                    "match": "none",
+                    "matches": [],
+                }
             )
             exact = match["match"] == "exact"
-            lead_match = next((row for row in match["matches"] if exact and row["model"] == "lead"), None)
-            partner_match = next((row for row in match["matches"] if exact and row["model"] == "partner"), None)
+            lead_match = next(
+                (
+                    row
+                    for row in match["matches"]
+                    if exact and row["model"] == "lead"
+                ),
+                None,
+            )
+            partner_match = next(
+                (
+                    row
+                    for row in match["matches"]
+                    if exact and row["model"] == "partner"
+                ),
+                None,
+            )
             values = {
                 "name": f"{payload['event_type']} {payload['call_id']}",
                 "call_id": str(payload["call_id"]),
@@ -263,8 +339,58 @@ class CodestraAPI(http.Controller):
             )
         except ValidationError as exc:
             raise Conflict(str(exc)) from exc
-        return request.make_json_response(result, status=200 if result.get("duplicate") else 202)
+        return request.make_json_response(
+            result,
+            status=200 if result.get("duplicate") else 202,
+        )
 
-    @http.route("/codestra/api/v1/sync/preview", type="jsonrpc", auth="user", methods=["POST"], csrf=False)
+    @http.route(
+        "/codestra/api/v1/call-events/<string:event_id>",
+        type="http",
+        auth="none",
+        methods=["GET"],
+        csrf=False,
+    )
+    def call_event_readback(self, event_id):
+        key, body = self._verify()
+        if body:
+            raise BadRequest(
+                "call-event read-back does not accept a request body"
+            )
+        if key != event_id:
+            raise Forbidden("event identity mismatch")
+        tenant_id = request.httprequest.headers.get("X-Codestra-Tenant-ID")
+        if not tenant_id:
+            raise Forbidden("tenant identity header required")
+        event = (
+            request.env["codestra.vicidial.call.event"]
+            .sudo()
+            .search([("idempotency_key", "=", event_id)], limit=1)
+        )
+        if not event:
+            raise NotFound("call event not found")
+        call = event.call_id
+        if not call or call.tenant_id != tenant_id:
+            raise Forbidden("tenant rejected")
+        response = request.make_json_response(
+            {
+                "event_id": event.idempotency_key,
+                "event_type": event.event_type,
+                "call_id": call.call_id,
+                "sequence": event.sequence,
+                "state": call.state,
+                "payload_hash": event.payload_hash,
+            }
+        )
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @http.route(
+        "/codestra/api/v1/sync/preview",
+        type="jsonrpc",
+        auth="user",
+        methods=["POST"],
+        csrf=False,
+    )
     def preview(self):
         return {"read_only": True, "changes": []}
