@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate login branding, administrator identity, and runtime audit controls."""
+"""Validate login branding, asset safety, administrator identity, and audits."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "custom-addons" / "codestra_login_branding"
 EXPECTED_LOGIN = "appolon1908@gmail.com"
+LOGIN_ASSET = "codestra_login_branding/static/src/css/login.css"
 
 
 def require(condition: bool, message: str, errors: list[str]) -> None:
@@ -78,8 +79,13 @@ def main() -> int:
     )
     frontend_assets = manifest.get("assets", {}).get("web.assets_frontend", [])
     require(
-        "codestra_login_branding/static/src/scss/login.scss" in frontend_assets,
-        "login SCSS is not in web.assets_frontend",
+        LOGIN_ASSET in frontend_assets,
+        "login CSS is not in web.assets_frontend",
+        errors,
+    )
+    require(
+        not any(str(asset).lower().endswith((".scss", ".sass", ".less")) for asset in frontend_assets),
+        "login bundle still declares a custom preprocessor stylesheet",
         errors,
     )
 
@@ -115,23 +121,37 @@ def main() -> int:
         errors,
     )
 
-    scss_text = (MODULE / "static" / "src" / "scss" / "login.scss").read_text(
-        encoding="utf-8"
-    )
+    css_path = MODULE / "static" / "src" / "css" / "login.css"
+    try:
+        css_text = css_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        errors.append(f"cannot read login CSS: {exc}")
+        css_text = ""
+
     for token in ("#07080a", "#f4c223", "#f8fafc", "#a3a8b3"):
         require(
-            token in scss_text.lower(),
-            f"login SCSS missing brand token {token}",
+            token in css_text.lower(),
+            f"login CSS missing brand token {token}",
             errors,
         )
     require(
-        "@media (prefers-reduced-motion: reduce)" in scss_text,
-        "login SCSS lacks reduced-motion handling",
+        "@media (prefers-reduced-motion: reduce)" in css_text,
+        "login CSS lacks reduced-motion handling",
         errors,
     )
     require(
-        "width: min(" not in scss_text,
-        "login SCSS uses mixed-unit Sass min() instead of width/max-width",
+        "width: min(" not in css_text,
+        "login CSS uses mixed-unit min() instead of width/max-width",
+        errors,
+    )
+    require(
+        "$codestra-" not in css_text and "#{" not in css_text,
+        "login CSS contains Sass-only syntax",
+        errors,
+    )
+    require(
+        not (MODULE / "static" / "src" / "scss").exists(),
+        "legacy login SCSS directory still exists",
         errors,
     )
 
@@ -220,6 +240,71 @@ def main() -> int:
             errors,
         )
 
+    appointment_browser_path = (
+        ROOT
+        / "custom-addons"
+        / "codestra_appointments"
+        / "tests"
+        / "test_popouts_browser.py"
+    )
+    try:
+        appointment_browser_text = appointment_browser_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        errors.append(f"cannot read backend browser asset test: {exc}")
+        appointment_browser_text = ""
+    for required_text in (
+        '"/odoo",',
+        "style compilation failed",
+        "link[rel~=\"stylesheet\"]",
+        "ODOO_BACKEND_PRODUCTION_ASSET_BUNDLE=PASS",
+    ):
+        require(
+            required_text in appointment_browser_text,
+            f"backend production-bundle test missing {required_text!r}",
+            errors,
+        )
+    require(
+        "?debug=assets" not in appointment_browser_text,
+        "backend browser test still bypasses the production asset bundle",
+        errors,
+    )
+
+    login_test_path = (
+        ROOT
+        / "custom-addons"
+        / "codestra_login_branding"
+        / "tests"
+        / "test_login_branding.py"
+    )
+    try:
+        login_test_text = login_test_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        errors.append(f"cannot read login production-bundle test: {exc}")
+        login_test_text = ""
+    for required_text in (
+        "stylesheet_hrefs",
+        '"text/css"',
+        '".codestra-auth-body"',
+        "LOGIN_PRODUCTION_ASSET_BUNDLE=PASS",
+    ):
+        require(
+            required_text in login_test_text,
+            f"login production-bundle test missing {required_text!r}",
+            errors,
+        )
+
+    run_ci_path = ROOT / "scripts" / "run_ci.sh"
+    try:
+        run_ci_text = run_ci_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        errors.append(f"cannot read source CI script: {exc}")
+        run_ci_text = ""
+    require(
+        "python3 scripts/validate_asset_integrity.py" in run_ci_text,
+        "source CI does not run the repository-wide asset validator",
+        errors,
+    )
+
     workflow_path = ROOT / ".github" / "workflows" / "odoo-addons-ci.yml"
     try:
         workflow_text = workflow_path.read_text(encoding="utf-8")
@@ -248,6 +333,8 @@ def main() -> int:
 
     print("LOGIN_BRANDING_CONTRACT=PASS")
     print("LOGIN_ASSET_COMPATIBILITY_GUARD=PASS")
+    print("LOGIN_CUSTOM_PREPROCESSOR_STYLESHEETS=0")
+    print("REPOSITORY_ASSET_VALIDATOR_REQUIRED=PASS")
     print("ADMINISTRATOR_IDENTITY_POLICY=PASS")
     print("ADMINISTRATOR_BOOTSTRAP_SAFETY=PASS")
     print("ADMINISTRATOR_LOGIN_EMAIL_AUDIT=PASS")

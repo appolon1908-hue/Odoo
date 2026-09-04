@@ -1,0 +1,458 @@
+/* Codestra Odoo 19 authentication surface.
+ *
+ * This stylesheet is deliberately standards-based CSS. It has no Sass
+ * variables, nesting, imports, remote fonts, remote images, or runtime
+ * preprocessor dependency. Odoo can therefore concatenate/minify it without
+ * compiling custom SCSS during a production request.
+ */
+
+.codestra-auth-body {
+    --codestra-black: #07080a;
+    --codestra-black-soft: #0b0d0f;
+    --codestra-panel: #111316;
+    --codestra-panel-raised: #171a1f;
+    --codestra-border: #262b33;
+    --codestra-border-strong: #2a2f35;
+    --codestra-gold: #f4c223;
+    --codestra-text: #f8fafc;
+    --codestra-text-soft: #e6e7ea;
+    --codestra-muted: #a3a8b3;
+    --codestra-danger: #ff8f8f;
+    --codestra-success: #9be7b0;
+
+    min-height: 100%;
+    margin: 0;
+    background: var(--codestra-black);
+    color: var(--codestra-text);
+    font-family:
+        Inter,
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+}
+
+.codestra-auth-body #wrapwrap,
+.codestra-auth-body main {
+    min-height: 100vh;
+}
+
+.codestra-auth-body #wrapwrap {
+    background:
+        radial-gradient(
+            circle at 16% 12%,
+            rgba(244, 194, 35, 0.12),
+            transparent 28rem
+        ),
+        linear-gradient(
+            135deg,
+            var(--codestra-black) 0%,
+            var(--codestra-black-soft) 55%,
+            var(--codestra-panel) 100%
+        );
+}
+
+.codestra-auth-body .codestra-login-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(28rem, 0.8fr);
+    min-height: 100vh;
+}
+
+.codestra-auth-body .codestra-login-brand,
+.codestra-auth-body .codestra-login-stage {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    padding: clamp(2rem, 5vw, 5.5rem);
+}
+
+.codestra-auth-body .codestra-login-brand {
+    position: relative;
+    overflow: hidden;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.codestra-auth-body .codestra-login-brand::after {
+    position: absolute;
+    right: -8rem;
+    bottom: -8rem;
+    width: 28rem;
+    height: 28rem;
+    border: 1px solid rgba(244, 194, 35, 0.2);
+    border-radius: 50%;
+    box-shadow:
+        0 0 0 4rem rgba(244, 194, 35, 0.035),
+        0 0 0 8rem rgba(244, 194, 35, 0.02);
+    content: "";
+    pointer-events: none;
+}
+
+.codestra-auth-body .codestra-login-brand__inner {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 48rem;
+}
+
+.codestra-auth-body .codestra-wordmark,
+.codestra-auth-body .codestra-login-card__mobile-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.8rem;
+    color: var(--codestra-text);
+    text-decoration: none;
+}
+
+.codestra-auth-body .codestra-wordmark__mark {
+    display: inline-grid;
+    width: 2.75rem;
+    height: 2.75rem;
+    place-items: center;
+    border: 1px solid rgba(244, 194, 35, 0.6);
+    border-radius: 0.8rem;
+    background: var(--codestra-gold);
+    color: var(--codestra-black);
+    font-size: 1.25rem;
+    font-weight: 900;
+    line-height: 1;
+    box-shadow: 0 0.75rem 2.25rem rgba(244, 194, 35, 0.16);
+}
+
+.codestra-auth-body .codestra-wordmark__name {
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+}
+
+.codestra-auth-body .codestra-login-brand__copy {
+    margin-top: clamp(5rem, 11vh, 9rem);
+}
+
+.codestra-auth-body .codestra-login-brand__copy h1 {
+    max-width: 12ch;
+    margin: 0.8rem 0 1.4rem;
+    color: var(--codestra-text);
+    font-size: clamp(2.75rem, 5vw, 5.5rem);
+    font-weight: 650;
+    letter-spacing: -0.055em;
+    line-height: 0.98;
+}
+
+.codestra-auth-body .codestra-login-brand__copy > p:last-child {
+    max-width: 42rem;
+    margin: 0;
+    color: var(--codestra-muted);
+    font-size: clamp(1rem, 1.35vw, 1.2rem);
+    line-height: 1.75;
+}
+
+.codestra-auth-body .codestra-eyebrow {
+    margin: 0;
+    color: var(--codestra-gold);
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.codestra-auth-body .codestra-capabilities {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    margin: 3rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.codestra-auth-body .codestra-capabilities li {
+    padding: 0.55rem 0.9rem;
+    border: 1px solid var(--codestra-border);
+    border-radius: 999px;
+    background: rgba(17, 19, 22, 0.68);
+    color: var(--codestra-text-soft);
+    font-size: 0.8rem;
+    font-weight: 650;
+    letter-spacing: 0.03em;
+}
+
+.codestra-auth-body .codestra-access-notice {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin-top: 2.2rem;
+    color: var(--codestra-muted);
+    font-size: 0.82rem;
+}
+
+.codestra-auth-body .codestra-access-notice__indicator {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: var(--codestra-gold);
+    box-shadow: 0 0 0 0.3rem rgba(244, 194, 35, 0.11);
+}
+
+.codestra-auth-body .codestra-login-stage {
+    justify-content: center;
+    background: rgba(7, 8, 10, 0.56);
+    backdrop-filter: blur(1.25rem);
+}
+
+.codestra-auth-body .codestra-login-card {
+    width: 100%;
+    max-width: 30rem;
+    padding: clamp(1.7rem, 4vw, 2.6rem);
+    border: 1px solid var(--codestra-border-strong);
+    border-radius: 0.9rem;
+    background: rgba(17, 19, 22, 0.94);
+    box-shadow:
+        0 2rem 5rem rgba(0, 0, 0, 0.42),
+        inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.codestra-auth-body .codestra-login-card__header {
+    margin-bottom: 2rem;
+}
+
+.codestra-auth-body .codestra-login-card__header h2 {
+    margin: 0.65rem 0 0.45rem;
+    color: var(--codestra-text);
+    font-size: clamp(2rem, 4vw, 2.65rem);
+    font-weight: 650;
+    letter-spacing: -0.045em;
+}
+
+.codestra-auth-body .codestra-login-card__header > p:last-child {
+    margin: 0;
+    color: var(--codestra-muted);
+    line-height: 1.6;
+}
+
+.codestra-auth-body .codestra-login-card__mobile-brand {
+    display: none;
+    margin-bottom: 2.25rem;
+}
+
+.codestra-auth-body .oe_login_form,
+.codestra-auth-body .oe_reset_password_form,
+.codestra-auth-body .oe_signup_form {
+    width: 100%;
+    max-width: none;
+}
+
+.codestra-auth-body .form-label,
+.codestra-auth-body .col-form-label {
+    color: var(--codestra-text-soft);
+    font-size: 0.86rem;
+    font-weight: 650;
+}
+
+.codestra-auth-body .form-control,
+.codestra-auth-body .input-group > .form-control {
+    min-height: 3.1rem;
+    padding: 0.75rem 0.9rem;
+    border-color: var(--codestra-border-strong);
+    border-radius: 0.7rem;
+    background: var(--codestra-black);
+    color: var(--codestra-text);
+    box-shadow: none;
+}
+
+.codestra-auth-body .form-control::placeholder,
+.codestra-auth-body .input-group > .form-control::placeholder {
+    color: #707782;
+    opacity: 1;
+}
+
+.codestra-auth-body .form-control:hover,
+.codestra-auth-body .input-group > .form-control:hover {
+    border-color: #3a414c;
+}
+
+.codestra-auth-body .form-control:focus,
+.codestra-auth-body .input-group > .form-control:focus {
+    border-color: var(--codestra-gold);
+    background: var(--codestra-black-soft);
+    color: var(--codestra-text);
+    box-shadow: 0 0 0 0.22rem rgba(244, 194, 35, 0.14);
+}
+
+.codestra-auth-body .form-control:read-only,
+.codestra-auth-body .input-group > .form-control:read-only {
+    color: var(--codestra-text-soft);
+}
+
+.codestra-auth-body input:-webkit-autofill,
+.codestra-auth-body input:-webkit-autofill:hover,
+.codestra-auth-body input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--codestra-text);
+    caret-color: var(--codestra-text);
+    box-shadow: 0 0 0 1000px var(--codestra-black) inset;
+    transition: background-color 9999s ease-out;
+}
+
+.codestra-auth-body .input-group > .form-control:not(:last-child) {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.codestra-auth-body .input-group .btn {
+    min-width: 3rem;
+    border-color: var(--codestra-border-strong) !important;
+    border-radius: 0 0.7rem 0.7rem 0;
+    background: var(--codestra-panel-raised);
+    color: var(--codestra-muted);
+}
+
+.codestra-auth-body .input-group .btn:hover,
+.codestra-auth-body .input-group .btn:focus-visible {
+    color: var(--codestra-gold);
+}
+
+.codestra-auth-body .codestra-login-button {
+    min-height: 3.15rem;
+    border: 1px solid var(--codestra-gold);
+    border-radius: 0.7rem;
+    background: var(--codestra-gold);
+    color: var(--codestra-black);
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    box-shadow: 0 1rem 2rem rgba(244, 194, 35, 0.12);
+    transition:
+        transform 160ms ease,
+        box-shadow 160ms ease,
+        filter 160ms ease;
+}
+
+.codestra-auth-body .codestra-login-button:hover {
+    border-color: var(--codestra-gold);
+    background: var(--codestra-gold);
+    color: var(--codestra-black);
+    filter: brightness(1.05);
+    transform: translateY(-1px);
+    box-shadow: 0 1.25rem 2.4rem rgba(244, 194, 35, 0.18);
+}
+
+.codestra-auth-body .codestra-login-button:focus-visible {
+    border-color: var(--codestra-gold);
+    background: var(--codestra-gold);
+    color: var(--codestra-black);
+    outline: 3px solid rgba(244, 194, 35, 0.35);
+    outline-offset: 0.2rem;
+    box-shadow: none;
+}
+
+.codestra-auth-body .codestra-login-button:active {
+    transform: translateY(0);
+}
+
+.codestra-auth-body .btn-link,
+.codestra-auth-body a {
+    color: var(--codestra-gold);
+}
+
+.codestra-auth-body .btn-link:hover,
+.codestra-auth-body a:hover {
+    color: #ffd85c;
+}
+
+.codestra-auth-body .alert {
+    border-radius: 0.7rem;
+    font-size: 0.88rem;
+}
+
+.codestra-auth-body .alert-danger {
+    border-color: rgba(255, 143, 143, 0.32);
+    background: rgba(255, 143, 143, 0.08);
+    color: var(--codestra-danger);
+}
+
+.codestra-auth-body .alert-success {
+    border-color: rgba(155, 231, 176, 0.3);
+    background: rgba(155, 231, 176, 0.08);
+    color: var(--codestra-success);
+}
+
+.codestra-auth-body .codestra-login-help {
+    margin: 1.4rem 0 0;
+    color: var(--codestra-muted);
+    font-size: 0.78rem;
+    line-height: 1.6;
+    text-align: center;
+}
+
+.codestra-auth-body .codestra-login-card__footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.45rem;
+    margin-top: 1.8rem;
+    padding-top: 1.35rem;
+    border-top: 1px solid var(--codestra-border);
+    color: #7f8792;
+    font-size: 0.74rem;
+}
+
+.codestra-auth-body .o_login_auth em {
+    color: var(--codestra-muted) !important;
+}
+
+.codestra-auth-body .list-group-item {
+    border-color: var(--codestra-border);
+    background: var(--codestra-panel-raised);
+    color: var(--codestra-text-soft);
+}
+
+.codestra-auth-body .list-group-item:hover {
+    background: #1c2026;
+    color: var(--codestra-text);
+}
+
+@media (max-width: 991.98px) {
+    .codestra-auth-body .codestra-login-shell {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .codestra-auth-body .codestra-login-brand {
+        display: none;
+    }
+
+    .codestra-auth-body .codestra-login-stage {
+        min-height: 100vh;
+        padding: 1.25rem;
+    }
+
+    .codestra-auth-body .codestra-login-card__mobile-brand {
+        display: inline-flex;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .codestra-auth-body .codestra-login-stage {
+        align-items: flex-start;
+        padding: 1rem;
+    }
+
+    .codestra-auth-body .codestra-login-card {
+        margin-block: 1rem;
+        padding: 1.4rem;
+        border-radius: 0.8rem;
+    }
+
+    .codestra-auth-body .codestra-login-card__header h2 {
+        font-size: 2rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .codestra-auth-body *,
+    .codestra-auth-body *::before,
+    .codestra-auth-body *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}

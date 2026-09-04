@@ -54,6 +54,25 @@ class TestAppointmentPopoutsBrowser(HttpCase):
                 }
                 throw new Error(`Timed out waiting for ${label}`);
             };
+
+            const pageText = document.body?.innerText || "";
+            if (/style compilation failed/i.test(pageText)) {
+                throw new Error("Odoo displayed a style-compilation failure");
+            }
+
+            const stylesheets = Array.from(
+                document.querySelectorAll('link[rel~="stylesheet"]')
+            );
+            if (!stylesheets.length) {
+                throw new Error("The production web client loaded no stylesheet bundle");
+            }
+            for (const stylesheet of stylesheets) {
+                await waitFor(
+                    () => stylesheet.sheet,
+                    `stylesheet ${stylesheet.href || "without href"}`
+                );
+            }
+
             const buttons = [
                 ["Open appointment calendar pop-out", "Appointment Calendar"],
                 ["Open reminder pop-out", "Reminder Center"],
@@ -109,10 +128,11 @@ class TestAppointmentPopoutsBrowser(HttpCase):
         )
         with static_path_patch:
             self.browser_js(
-                "/odoo?debug=assets",
+                "/odoo",
                 code,
                 ready="odoo.isReady === true",
                 login="admin",
                 timeout=90,
             )
+        _logger.info("ODOO_BACKEND_PRODUCTION_ASSET_BUNDLE=PASS")
         _logger.info("APPOINTMENT_POPOUT_BROWSER=PASS")
