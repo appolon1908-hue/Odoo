@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <function model="codestra.mail.brand" name="_provision_klyrow_routing"/>
+</odoo>
