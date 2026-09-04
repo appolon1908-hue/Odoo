@@ -77,4 +77,54 @@
         sequence="30"
         groups="base.group_system,codestra_mail_inbox.group_mail_support_manager,codestra_mail_inbox.group_mail_admin_manager,codestra_mail_inbox.group_mail_auditor"
     />
+
+    <record id="view_cc_mail_thread_crm_search" model="ir.ui.view">
+        <field name="name">cc.mail.thread.crm.search</field>
+        <field name="model">cc.mail.thread</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="subject"/>
+                <field name="campaign_id"/>
+                <field name="route_id"/>
+                <field name="recipient"/>
+                <filter name="active_threads" string="Open or Waiting" domain="[('state', 'in', ['open', 'waiting'])]"/>
+                <filter name="open_threads" string="Open" domain="[('state', '=', 'open')]"/>
+                <filter name="waiting_threads" string="Waiting" domain="[('state', '=', 'waiting')]"/>
+                <filter name="closed_threads" string="Closed" domain="[('state', '=', 'closed')]"/>
+                <separator/>
+                <filter name="updated_today" string="Updated Today" domain="[('write_date', '&gt;=', context_today().strftime('%Y-%m-%d 00:00:00'))]"/>
+                <group>
+                    <filter name="group_campaign" string="Campaign" context="{'group_by': 'campaign_id'}"/>
+                    <filter name="group_route" string="Mail Route" context="{'group_by': 'route_id'}"/>
+                    <filter name="group_state" string="Status" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_crm_email_center" model="ir.actions.act_window">
+        <field name="name">Email Center</field>
+        <field name="res_model">cc.mail.thread</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_cc_mail_thread_crm_search"/>
+        <field name="context">{'search_default_active_threads': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No campaign email conversations are available.</p>
+            <p>
+                This CRM view reuses governed campaign-mail threads and their
+                existing campaign record rules. Outbound composition remains
+                disabled until the separate delivery workflow and runtime gates
+                are certified.
+            </p>
+        </field>
+    </record>
+
+    <menuitem
+        id="menu_crm_email_center"
+        name="Email Center"
+        parent="crm.crm_menu_root"
+        action="action_crm_email_center"
+        sequence="45"
+        groups="codestra_cc_security.group_cc_scoped_user,codestra_cc_security.group_cc_global_administrator"
+    />
 </odoo>
