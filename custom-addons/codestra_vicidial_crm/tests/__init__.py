@@ -4,6 +4,7 @@ from . import test_idempotency
 from . import test_permissions
 from . import test_call_control
 from . import test_call_event_api
+from . import test_call_event_readback
 from . import test_workspace
 from . import test_security
 from . import test_webhook
