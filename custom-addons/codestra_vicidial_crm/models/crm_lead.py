@@ -5,6 +5,22 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.modules.registry import Registry
 
 from .phone import normalize_phone
+from .middleware_client import OriginateOutcomeUnknown, OriginateRejected
+
+
+AUTHORITATIVE_TERMINAL_STATES = frozenset(
+    {"completed", "failed", "missed", "cancelled", "rejected", "transferred"}
+)
+
+
+def dispatch_reserved_call(database, call_id):
+    """Dispatch a committed reservation in an independent transaction."""
+    with Registry(database).cursor() as cursor:
+        dispatch_env = api.Environment(cursor, SUPERUSER_ID, {})
+        dispatch_env["codestra.vicidial.call"].browse(
+            call_id
+        )._dispatch_click_to_call()
+        cursor.commit()
 
 
 class CrmLead(models.Model):
@@ -175,7 +191,7 @@ class CrmLead(models.Model):
                     "state",
                     "in",
                     [
-                        "initiating", "ringing", "offered", "answering",
+                        "new", "initiating", "ringing", "offered", "answering",
                         "connected", "held", "transferring", "ending",
                     ],
                 ),
@@ -249,12 +265,7 @@ class CrmLead(models.Model):
         call_id = call.id
 
         def dispatch_after_commit():
-            with Registry(database).cursor() as cursor:
-                dispatch_env = api.Environment(cursor, SUPERUSER_ID, {})
-                dispatch_env["codestra.vicidial.call"].browse(
-                    call_id
-                )._dispatch_click_to_call()
-                cursor.commit()
+            dispatch_reserved_call(database, call_id)
 
         # The callback only runs after the reservation is committed. If this worker
         # exits first, another click finds the same key and schedules it again.
@@ -276,6 +287,41 @@ class ClickToCallDispatch(models.Model):
     _inherit = "codestra.vicidial.call"
 
     originate_payload = fields.Json(copy=False)
+    originate_result_class = fields.Selection(
+        [("accepted", "Accepted"), ("rejected", "Rejected"), ("unknown", "Unknown")],
+        copy=False,
+    )
+    originate_result_reason = fields.Char(copy=False)
+
+    def _notify_originate_result(self, outcome, reason):
+        if self.agent_id.odoo_user_id:
+            self.env["bus.bus"]._sendone(
+                self.agent_id.odoo_user_id.partner_id,
+                "codestra.call.result",
+                {
+                    "correlation_id": self.correlation_id,
+                    "outcome": outcome,
+                    "reason": reason,
+                },
+            )
+
+    def _record_dispatch_failure(self, classification, reason):
+        self.invalidate_recordset()
+        if self.state in AUTHORITATIVE_TERMINAL_STATES:
+            return
+        safe_reason = " ".join((reason or "Call dispatch failed.").split())[:240]
+        values = {
+            "originate_result_class": classification,
+            "originate_result_reason": safe_reason,
+        }
+        if classification == "rejected":
+            values.update(
+                {"state": "failed", "status": "rejected", "ended_at": fields.Datetime.now()}
+            )
+        else:
+            values["status"] = "outcome_unknown"
+        self.write(values)
+        self._notify_originate_result(classification, safe_reason)
 
     def _dispatch_click_to_call(self):
         self.ensure_one()
@@ -284,14 +330,39 @@ class ClickToCallDispatch(models.Model):
             "outcome_unknown",
         ):
             return
-        result = self.env["codestra.telephony.middleware.client"].originate_call(
-            self.correlation_id,
-            self.idempotency_key,
-            self.originate_payload,
-        )
+        try:
+            result = self.env["codestra.telephony.middleware.client"].originate_call(
+                self.correlation_id,
+                self.idempotency_key,
+                self.originate_payload,
+            )
+        except OriginateRejected as exc:
+            self._record_dispatch_failure("rejected", str(exc))
+            return
+        except OriginateOutcomeUnknown as exc:
+            self._record_dispatch_failure("unknown", str(exc))
+            return
+        except Exception:
+            # A request may have crossed the process boundary before an unexpected
+            # client failure. Keep it reconcilable and never expose exception detail.
+            self._record_dispatch_failure(
+                "unknown",
+                "Unexpected dispatch failure with an unknown call outcome; "
+                "reconcile this call before retrying.",
+            )
+            return
+        self.invalidate_recordset()
+        if self.state in AUTHORITATIVE_TERMINAL_STATES:
+            return
         attempting = result.get("dialing") == "attempting"
         unknown = result.get("dialing") == "unknown"
-        values = {"status": result.get("dialing") or "invalid_response"}
+        values = {
+            "status": result.get("dialing") or "invalid_response",
+            "originate_result_class": "accepted" if attempting else "unknown" if unknown else "rejected",
+            "originate_result_reason": " ".join(
+                (result.get("reason") or "Call dispatch result received.").split()
+            )[:240],
+        }
         if result.get("call_id"):
             values.update(
                 {
@@ -304,13 +375,8 @@ class ClickToCallDispatch(models.Model):
         elif not attempting:
             values.update({"state": "failed", "ended_at": fields.Datetime.now()})
         self.write(values)
-        if not attempting and self.agent_id.odoo_user_id:
-            self.env["bus.bus"]._sendone(
-                self.agent_id.odoo_user_id.partner_id,
-                "codestra.call.result",
-                {
-                    "correlation_id": self.correlation_id,
-                    "outcome": "unknown" if unknown else "blocked",
-                    "reason": result.get("reason") or "blocked by policy",
-                },
+        if not attempting:
+            self._notify_originate_result(
+                "unknown" if unknown else "rejected",
+                values["originate_result_reason"],
             )

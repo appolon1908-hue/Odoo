@@ -3,6 +3,9 @@ import uuid
 from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase
 
+from ..models import crm_lead
+from ..models.middleware_client import OriginateOutcomeUnknown, OriginateRejected
+
 
 class TestClickToCall(TransactionCase):
     def setUp(self):
@@ -91,6 +94,30 @@ class TestClickToCall(TransactionCase):
         self.assertEqual(captured["destination_country"], "DO")
         self.assertEqual(captured["caller_id"], "+18095550999")
         self.assertNotEqual(captured["caller_id"], self.agent.phone_login)
+
+    def test_action_defers_dispatch_to_postcommit_with_saved_identity(self):
+        dispatched = []
+        self.patch(
+            crm_lead,
+            "dispatch_reserved_call",
+            lambda database, call_id: dispatched.append((database, call_id)),
+        )
+        self.lead.action_click_to_call()
+        call = self.env["codestra.vicidial.call"].search(
+            [("crm_lead_id", "=", self.lead.id)], limit=1
+        )
+        original = (
+            call.correlation_id,
+            call.idempotency_key,
+            dict(call.originate_payload),
+        )
+        self.assertFalse(dispatched)
+        self.env.cr.postcommit.run()
+        self.assertEqual(dispatched, [(self.env.cr.dbname, call.id)])
+        self.assertEqual(
+            (call.correlation_id, call.idempotency_key, call.originate_payload),
+            original,
+        )
 
     def test_agent_acl_path_persists_lifecycle_bindings(self):
         user = self.env["res.users"].create(
@@ -194,6 +221,69 @@ class TestClickToCall(TransactionCase):
         self.assertEqual(call.normalized_number, self.lead.x_phone_e164)
         self.assertTrue(call.start_at)
 
+    def test_confirmed_http_rejection_is_terminal_and_visible(self):
+        def reject(*_args):
+            raise OriginateRejected("This request was rejected by policy.")
+
+        self.patch(
+            type(self.env["codestra.telephony.middleware.client"]),
+            "originate_call",
+            reject,
+        )
+        self.lead.action_click_to_call()
+        call = self.env["codestra.vicidial.call"].search(
+            [("crm_lead_id", "=", self.lead.id)], limit=1
+        )
+        call._dispatch_click_to_call()
+        self.assertEqual((call.state, call.status), ("failed", "rejected"))
+        self.assertEqual(call.originate_result_class, "rejected")
+        self.assertNotEqual(call.status, "requesting")
+
+    def test_connection_failure_and_malformed_response_remain_reconcilable(self):
+        failures = iter(
+            [
+                OriginateOutcomeUnknown("Connection failed; reconcile before retrying."),
+                OriginateOutcomeUnknown("Invalid response; reconcile before retrying."),
+            ]
+        )
+        requests = []
+
+        def fail(_client, correlation_id, idempotency_key, payload):
+            requests.append((correlation_id, idempotency_key, dict(payload)))
+            raise next(failures)
+
+        self.patch(
+            type(self.env["codestra.telephony.middleware.client"]),
+            "originate_call",
+            fail,
+        )
+        self.lead.action_click_to_call()
+        call = self.env["codestra.vicidial.call"].search(
+            [("crm_lead_id", "=", self.lead.id)], limit=1
+        )
+        call._dispatch_click_to_call()
+        call._dispatch_click_to_call()
+        self.assertEqual((call.state, call.status), ("initiating", "outcome_unknown"))
+        self.assertEqual(call.originate_result_class, "unknown")
+        self.assertEqual(requests[0], requests[1])
+
+    def test_authoritative_terminal_event_wins_over_late_dispatch_failure(self):
+        def reject(*_args):
+            raise OriginateRejected("Late rejection")
+
+        self.patch(
+            type(self.env["codestra.telephony.middleware.client"]),
+            "originate_call",
+            reject,
+        )
+        self.lead.action_click_to_call()
+        call = self.env["codestra.vicidial.call"].search(
+            [("crm_lead_id", "=", self.lead.id)], limit=1
+        )
+        call.write({"state": "completed", "status": "completed"})
+        call._dispatch_click_to_call()
+        self.assertEqual((call.state, call.status), ("completed", "completed"))
+
     def test_active_call_blocks_other_lead_for_same_agent(self):
         other = self.lead.copy({"name": "Other lead", "phone": "+18095550124"})
         self.env["codestra.vicidial.call"].create(
@@ -211,6 +301,30 @@ class TestClickToCall(TransactionCase):
         )
         with self.assertRaises(UserError):
             self.lead.action_click_to_call()
+
+    def test_new_incoming_call_blocks_another_originate_request(self):
+        other = self.lead.copy({"name": "Incoming lead", "phone": "+18095550124"})
+        self.env["codestra.vicidial.call"].create(
+            {
+                "name": "Incoming new call",
+                "crm_lead_id": other.id,
+                "agent_id": self.agent.id,
+                "campaign_id": self.agent.campaign_ids.id,
+                "tenant_id": self.agent.tenant_id,
+                "destination": other.phone,
+                "direction": "inbound",
+                "state": "new",
+                "status": "new",
+                "idempotency_key": str(uuid.uuid4()),
+            }
+        )
+        with self.assertRaises(UserError):
+            self.lead.action_click_to_call()
+        self.assertFalse(
+            self.env["codestra.vicidial.call"].search(
+                [("crm_lead_id", "=", self.lead.id)]
+            )
+        )
 
     def test_committed_requesting_placeholder_is_reclaimed_with_same_key(self):
         first = self.lead.action_click_to_call()
