@@ -1,0 +1,86 @@
+name: Prepare reviewed PR repair candidates
+on:
+  push:
+    branches: [codex/odoo-pr-repair-preparation-20260905]
+permissions:
+  contents: write
+jobs:
+  prepare:
+    if: github.repository == 'appolon1908-hue/Odoo' && github.ref == 'refs/heads/codex/odoo-pr-repair-preparation-20260905'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate supplied repair trees and publish isolated candidates only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p evidence
+          python3 - <<'PY'
+          import base64, hashlib, json, os, pathlib, subprocess, urllib.request, zlib
+          root = pathlib.Path.cwd()
+          expected = {
+              5: ('943e64c584a3929ae3132992baa3ff8b61173623', '4d76502287d9f93d04c70e4fd276d41371fbec11'),
+              67: ('ac1296fa102c7717d54c36f03308ec783b81e5ae', 'c8873e908587a0a65e57c514d740d0ae128d44c1'),
+              74: ('a05bd0fe2f85a03f60c424c7d7fd40e83116bb2c', 'd9701aa14b78a51a5570b31abc9d75c7e7e113c6'),
+              78: ('c2f8adba5653e93ab0aba02bcf5cbd7056769b45', '55cd40d3f839c0082635123f66b8a4ef9dbbfafb'),
+              79: ('5d2aec519e3f5c7c7d02658cdd3fb64d13f728f1', '16673113ababcc514bfedb8e70ac833f4846e13b'),
+          }
+          url = 'https://api.github.com/repos/appolon1908-hue/Odoo/git/blobs/8c554305e7ccd619466819a48de379da731f41da'
+          req = urllib.request.Request(url, headers={'Authorization': 'Bearer '+os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+          with urllib.request.urlopen(req, timeout=30) as response:
+              blob = json.load(response)
+          encoded = ''.join(blob['content'].split())
+          (root/'evidence/source-blob.b64').write_text(encoded)
+          corrections = root/'.github/odoo-repair-input-corrections.json'
+          if corrections.exists():
+              edits = json.loads(corrections.read_text())
+              for edit in sorted(edits, key=lambda e: e['start'], reverse=True):
+                  assert encoded[edit['start']:edit['end']] == edit['old']
+                  encoded = encoded[:edit['start']] + edit['new'] + encoded[edit['end']:]
+          packed = base64.b64decode(encoded, validate=True)
+          assert hashlib.sha256(packed).hexdigest() == 'acb13e58d476dcdccc552e6df8080743dda0a6de89feafa18fe93519f34e2db9', 'Repair input checksum mismatch'
+          repairs = json.loads(zlib.decompress(packed))
+          assert {r['pr'] for r in repairs} == set(expected)
+          results = []
+          def git(*args, cwd=root, input=None, env=None):
+              return subprocess.check_output(['git', *args], cwd=cwd, input=input, text=True, env=env).strip()
+          git('config', 'user.name', 'Odoo PR repair')
+          git('config', 'user.email', '275410064+appolon1908-hue@users.noreply.github.com')
+          token_env = dict(os.environ)
+          token_env['GIT_CONFIG_COUNT'] = '1'
+          token_env['GIT_CONFIG_KEY_0'] = 'http.https://github.com/.extraheader'
+          token_env['GIT_CONFIG_VALUE_0'] = 'AUTHORIZATION: basic ' + base64.b64encode(('x-access-token:'+os.environ['GH_TOKEN']).encode()).decode()
+          for repair in repairs:
+              number = repair['pr']
+              parent, tree = expected[number]
+              candidate = f'codex/odoo-repair-pr-{number}-20260905'
+              assert repair['parent'] == parent and repair['tree'] == tree and repair['candidate'] == candidate
+              work = root.parent/f'candidate-{number}'
+              git('worktree', 'add', '--detach', str(work), parent)
+              git('apply', '--index', '--unidiff-zero', '-', cwd=work, input=repair['patch'])
+              assert git('write-tree', cwd=work) == tree, f'PR {number}: unexpected resulting tree'
+              commit = git('commit-tree', tree, '-p', parent, '-m', f'fix: complete Odoo PR #{number} source and regression repairs')
+              git('checkout', '--detach', commit, cwd=work)
+              with (root/f'evidence/pr-{number}-source-ci.log').open('w') as log:
+                  check = subprocess.run(['bash', 'scripts/run_ci.sh'], cwd=work, stdout=log, stderr=subprocess.STDOUT)
+              record = {'pr':number, 'parent':parent, 'tree':tree, 'sha':commit, 'source_ci':check.returncode, 'candidate':candidate, 'published':False}
+              if check.returncode == 0:
+                  git('push', 'origin', f'{commit}:refs/heads/{candidate}', env=token_env)
+                  record['published'] = True
+              results.append(record)
+              (root/'evidence/results.json').write_text(json.dumps(results, indent=2))
+              print(json.dumps(record))
+          assert all(r['published'] for r in results), 'One or more source gates failed; no protected branch was changed'
+          PY
+      - name: Upload source preparation evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: odoo-repair-preparation-${{ github.run_id }}
+          path: evidence/
+          retention-days: 3
+          if-no-files-found: error
