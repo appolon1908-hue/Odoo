@@ -359,10 +359,10 @@ class TestCodestraAgentOnboarding(TransactionCase):
             )
         # Service role grants verification writes; the existing user role supplies
         # request access and company/business-unit rules, without approval power.
-        service_requests = self.env["codestra.provisioning.request"].with_user(
+        provisioning_model = self.env["codestra.provisioning.request"].with_user(
             self.identity_service
         )
-        self.assertFalse(service_requests.env.su)
+        self.assertFalse(provisioning_model.env.su)
         self.assertFalse(self.identity_service.has_group(
             "codestra_identity_provisioning.group_provisioning_approver"
         ))
@@ -382,14 +382,14 @@ class TestCodestraAgentOnboarding(TransactionCase):
             ],
         }
         self.assertEqual(
-            service_requests.apply_service_callback(callback), {"state": "accepted"}
+            provisioning_model.apply_service_callback(callback), {"state": "accepted"}
         )
         steps.invalidate_recordset(["state", "verification_state"])
         request_record.invalidate_recordset(["state", "mandatory_steps_complete"])
         self.assertEqual(request_record.state, "awaiting_user_activation")
         self.assertTrue(request_record.mandatory_steps_complete)
         self.assertEqual(
-            service_requests.apply_service_callback(callback), {"state": "replayed"}
+            provisioning_model.apply_service_callback(callback), {"state": "replayed"}
         )
 
         onboarding.with_user(self.approver).action_request_activation_email()
