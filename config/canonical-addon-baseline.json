@@ -151,7 +151,7 @@
     },
     "codestra_vicidial_crm": {
       "base_tree": "cf0783918b94c3e396d24ebe868c4fb04096e4a1",
-      "current_tree": "a91d6059a53a619369a0e4aa89336ec19f312a4f",
+      "current_tree": "0ae0f71a793f8f9b78226578e0f6f959b8fc3efb",
       "reason": "Bind CRM click-to-call to the exact governed Middleware originate path, require an independently approved outbound caller ID, durably reserve before post-commit transport, classify confirmed rejection separately from unknown outcomes, preserve reconciliation identity and payload across retries, and block a second originate for every active state including new, while preserving destination, DNC, agent, campaign, and business-unit controls.",
       "pull_request": 79,
       "integration_boundary_exceptions": [
