@@ -12,14 +12,24 @@ while IFS= read -r -d '' script; do
   bash -n "$script"
 done < <(find scripts -type f -name '*.sh' -print0 | sort -z)
 
+printf '==> Validating the canonical calling-contract pin\n'
+python3 scripts/validate_calling_contract_pin.py
+python3 scripts/validate_calling_contract_pin.py --self-test
+
 printf '==> Compiling Python files\n'
 python3 -m compileall -q custom-addons scripts tests/security
+
+printf '==> Validating campaign authority matrix\n'
+python3 scripts/validate_campaign_authority_matrix.py
 
 printf '==> Verifying the immutable canonical addon baseline\n'
 python3 scripts/validate_legacy_addon_baseline.py
 
 printf '==> Validating Odoo manifests\n'
 python3 scripts/validate_manifests.py
+
+printf '==> Validating every custom browser asset and stylesheet\n'
+python3 scripts/validate_asset_integrity.py
 
 printf '==> Validating the Middleware and Odoo write boundary\n'
 python3 scripts/validate_integration_boundary.py
@@ -41,6 +51,9 @@ python3 scripts/validate_mission_coverage.py
 
 printf '==> Validating mission security and closed capabilities\n'
 python3 scripts/validate_mission_security.py
+
+printf '==> Validating fail-closed Klyrow SMTP routing\n'
+python3 scripts/validate_klyrow_smtp_policy.py
 
 printf '==> Validating canonical API inventory\n'
 python3 scripts/validate_api_contracts.py

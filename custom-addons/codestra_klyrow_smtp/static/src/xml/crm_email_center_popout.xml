@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+  <t t-name="codestra_klyrow_smtp.CrmEmailCenterPopout">
+    <div
+      t-if="state.isDisplayed"
+      class="o_codestra_email_center_tool d-flex align-items-center"
+      t-on-keydown="onKeydown"
+    >
+      <button
+        class="o_navbar_item btn btn-link"
+        title="CRM Email Center"
+        aria-label="Open CRM Email Center pop-out"
+        t-att-aria-expanded="state.isOpen"
+        t-on-click="toggle"
+      >
+        <i class="fa fa-envelope-o" aria-hidden="true"/>
+        <span
+          t-if="state.openCount + state.waitingCount"
+          class="o_codestra_email_center_badge"
+          t-esc="state.openCount + state.waitingCount"
+        />
+      </button>
+    </div>
+
+    <section
+      t-if="state.isDisplayed &amp;&amp; state.isOpen"
+      class="o_codestra_email_center_popout"
+      role="dialog"
+      aria-modal="false"
+      aria-label="CRM Email Center"
+      t-on-keydown="onKeydown"
+    >
+      <header class="o_codestra_email_center_header">
+        <div>
+          <small>Campaign-scoped CRM</small>
+          <h2>Email Center</h2>
+        </div>
+        <div class="d-flex gap-1">
+          <button
+            class="btn btn-sm btn-light"
+            title="Refresh"
+            aria-label="Refresh CRM email data"
+            t-on-click="refresh"
+          >
+            <i class="fa fa-refresh" aria-hidden="true"/>
+          </button>
+          <button
+            class="btn btn-sm btn-light"
+            title="Close"
+            aria-label="Close CRM Email Center pop-out"
+            t-on-click="close"
+          >
+            <i class="fa fa-times" aria-hidden="true"/>
+          </button>
+        </div>
+      </header>
+
+      <div class="o_codestra_email_center_summary" aria-label="Email queue summary">
+        <span><strong t-esc="state.openCount"/> Open</span>
+        <span><strong t-esc="state.waitingCount"/> Waiting</span>
+        <span
+          t-att-class="state.deliveryReady ? 'text-success' : 'text-warning'"
+        >
+          <i
+            t-att-class="state.deliveryReady ? 'fa fa-check-circle' : 'fa fa-lock'"
+            aria-hidden="true"
+          />
+          <t t-esc="state.deliveryReady ? ' SMTP ready' : ' Delivery blocked'"/>
+        </span>
+      </div>
+
+      <div t-if="state.loading" class="o_codestra_email_center_loading" role="status">
+        <i class="fa fa-spinner fa-spin" aria-hidden="true"/> Loading email conversations...
+      </div>
+      <p
+        t-if="state.error"
+        class="alert alert-danger m-3"
+        role="alert"
+        t-esc="state.error"
+      />
+
+      <div
+        t-if="!state.loading &amp;&amp; !state.error"
+        class="o_codestra_email_center_body"
+      >
+        <p t-if="!state.items.length" class="o_codestra_email_center_empty">
+          No open or waiting campaign email conversations.
+        </p>
+        <button
+          t-foreach="state.items"
+          t-as="item"
+          t-key="item.id"
+          class="o_codestra_email_center_item"
+          t-on-click="() => this.openRecord(item.id)"
+        >
+          <span class="o_codestra_email_center_item_top">
+            <strong t-esc="item.subject"/>
+            <span
+              t-att-class="'badge ' + (item.state === 'waiting' ? 'text-bg-warning' : 'text-bg-info')"
+              t-esc="item.state"
+            />
+          </span>
+          <span class="o_codestra_email_center_meta">
+            <t t-esc="item.campaign"/> · <t t-esc="item.route"/>
+          </span>
+          <span class="o_codestra_email_center_meta">
+            <t t-esc="item.recipient"/> · <t t-esc="this.formatDateTime(item.write_date)"/>
+          </span>
+        </button>
+      </div>
+
+      <footer class="o_codestra_email_center_footer">
+        <button class="btn btn-primary" t-on-click="openFullCenter">
+          <i class="fa fa-inbox me-1" aria-hidden="true"/>Full Email Center
+        </button>
+        <button
+          class="btn btn-outline-secondary"
+          disabled="disabled"
+          title="Outbound composition remains disabled until the governed delivery workflow is certified."
+        >
+          <i class="fa fa-lock me-1" aria-hidden="true"/>Compose locked
+        </button>
+      </footer>
+    </section>
+  </t>
+</templates>

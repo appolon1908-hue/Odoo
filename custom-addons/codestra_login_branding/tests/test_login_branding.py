@@ -1,6 +1,11 @@
-from lxml import etree
+import logging
+
+from lxml import etree, html
 
 from odoo.tests.common import HttpCase, TransactionCase, tagged
+
+
+_logger = logging.getLogger(__name__)
 
 
 class TestCodestraLoginViews(TransactionCase):
@@ -41,7 +46,7 @@ class TestCodestraLoginWebsiteCompatibility(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestCodestraLoginHttp(HttpCase):
-    def test_login_page_renders_codestra_branding(self):
+    def test_login_page_renders_codestra_branding_and_compiles_css_bundle(self):
         response = self.url_open("/web/login")
         response.raise_for_status()
 
@@ -50,3 +55,36 @@ class TestCodestraLoginHttp(HttpCase):
         self.assertIn("codestra-login-shell", response.text)
         self.assertNotIn("Powered by <span>Odoo</span>", response.text)
         self.assertNotIn("/web/database/manager", response.text)
+
+        document = html.fromstring(response.content)
+        stylesheet_hrefs = document.xpath(
+            "//link["
+            "contains(concat(' ', normalize-space(@rel), ' '), ' stylesheet ')"
+            "]/@href"
+        )
+        self.assertTrue(
+            stylesheet_hrefs,
+            "The production login page did not declare a stylesheet bundle",
+        )
+
+        compiled_css: list[str] = []
+        for href in stylesheet_hrefs:
+            asset_response = self.url_open(href)
+            asset_response.raise_for_status()
+            content_type = asset_response.headers.get("Content-Type", "").lower()
+            self.assertIn(
+                "text/css",
+                content_type,
+                f"Login stylesheet returned unexpected content type: {href}",
+            )
+            self.assertNotIn("style compilation failed", asset_response.text.lower())
+            self.assertNotIn("sasserror", asset_response.text.lower())
+            compiled_css.append(asset_response.text)
+
+        css_text = "\n".join(compiled_css)
+        self.assertIn(
+            ".codestra-auth-body",
+            css_text,
+            "The compiled frontend bundle omitted Codestra login CSS",
+        )
+        _logger.info("LOGIN_PRODUCTION_ASSET_BUNDLE=PASS")

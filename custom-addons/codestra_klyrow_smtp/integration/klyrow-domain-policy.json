@@ -1,0 +1,91 @@
+{
+  "excluded_domains": {
+    "booked4seasons.com": {
+      "inbound": false,
+      "outbound": false,
+      "reason": "unverified_and_mailgun_managed",
+      "tracking": false
+    }
+  },
+  "inbound": {
+    "accepted_local_parts": [
+      "support",
+      "billing"
+    ],
+    "gmail_forwarding_drift": [
+      "beyvra.com",
+      "breero.com",
+      "breero.shop",
+      "codestra.agency",
+      "codestra.cloud",
+      "codestra.digital",
+      "codestra.media",
+      "kyqra.com",
+      "moneybee.loan",
+      "moneybeeloan.com",
+      "nativoenglish.com",
+      "telnexa.co"
+    ],
+    "prohibited_local_parts": [
+      "admin",
+      "appolon"
+    ],
+    "signed_adapter_active": [
+      "codestra.co",
+      "klyrow.com"
+    ],
+    "target": "signed_klyrow_middleware_odoo"
+  },
+  "profiles": {
+    "beyvra-production": {
+      "credential_state": "missing",
+      "domains": [
+        "beyvra.com"
+      ],
+      "priority": 20,
+      "username": "klyrow/beyvra-production"
+    },
+    "klyrow-production": {
+      "credential_state": "hold",
+      "domains": [
+        "breero.com",
+        "breero.shop",
+        "codestra.agency",
+        "codestra.cloud",
+        "codestra.co",
+        "codestra.digital",
+        "codestra.media",
+        "klyrow.com",
+        "kyqra.com",
+        "moneybee.loan",
+        "moneybeeloan.com",
+        "nativoenglish.com",
+        "telnexa.co"
+      ],
+      "priority": 10,
+      "username": "klyrow/klyrow-production"
+    }
+  },
+  "provider": "klyrow",
+  "schema_version": 1,
+  "smtp": {
+    "authentication": "login",
+    "encryption": "starttls_strict",
+    "host": "mail.klyrow.com",
+    "live_delivery_parameter": "codestra.mail.live_delivery_enabled",
+    "port": 25,
+    "required_environment_switches": [
+      "ENABLE_EXTERNAL_DELIVERY",
+      "EMAIL_DELIVERY",
+      "LIVE_EMAIL_DELIVERY"
+    ],
+    "secret_source": "/etc/klyrow/odoo-postal.env"
+  },
+  "tracking": {
+    "allowed_path_prefix": "/t/",
+    "custom_tracking_hosts_enabled": false,
+    "host": "track.klyrow.com",
+    "policy": "canonical_only",
+    "root_application_exposure": false
+  }
+}
