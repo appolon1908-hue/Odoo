@@ -83,6 +83,9 @@ class TestClickToCall(TransactionCase):
             fake_originate,
         )
         action = self.lead.action_click_to_call()
+        self.env["codestra.vicidial.call"].search(
+            [("crm_lead_id", "=", self.lead.id)], limit=1
+        )._dispatch_click_to_call()
         self.assertEqual(action["params"]["type"], "success")
         self.assertEqual(captured["campaign"], self.lead.x_vicidial_campaign_id)
         self.assertEqual(captured["destination_country"], "DO")
@@ -116,6 +119,9 @@ class TestClickToCall(TransactionCase):
             fake_originate,
         )
         action = self.lead.with_user(user).action_click_to_call()
+        self.env["codestra.vicidial.call"].search(
+            [("crm_lead_id", "=", self.lead.id)], limit=1
+        )._dispatch_click_to_call()
         self.assertEqual(action["params"]["type"], "success")
         call = self.env["codestra.vicidial.call"].search(
             [("call_id", "=", "acl-bound-call-id")]
@@ -143,8 +149,13 @@ class TestClickToCall(TransactionCase):
             fake_originate,
         )
         first = self.lead.action_click_to_call()
+        call = self.env["codestra.vicidial.call"].search(
+            [("crm_lead_id", "=", self.lead.id)], limit=1
+        )
+        call._dispatch_click_to_call()
         second = self.lead.action_click_to_call()
-        self.assertEqual(first["params"]["type"], "warning")
+        call._dispatch_click_to_call()
+        self.assertEqual(first["params"]["type"], "success")
         self.assertEqual(second["params"]["type"], "success")
         self.assertEqual(requests[0][0:2], requests[1][0:2])
         calls = self.env["codestra.vicidial.call"].search(
@@ -163,8 +174,13 @@ class TestClickToCall(TransactionCase):
             fake_originate,
         )
         action = self.lead.action_click_to_call()
-        self.assertEqual(action["params"]["type"], "info")
-        self.assertTrue(action["params"]["sticky"])
+        call = self.env["codestra.vicidial.call"].search(
+            [("crm_lead_id", "=", self.lead.id)], limit=1
+        )
+        call._dispatch_click_to_call()
+        self.assertEqual(action["params"]["type"], "success")
+        self.assertEqual(call.state, "failed")
+        self.assertEqual(call.status, "blocked")
 
     def test_active_call_blocks_other_lead_for_same_agent(self):
         other = self.lead.copy({"name": "Other lead", "phone": "+18095550124"})

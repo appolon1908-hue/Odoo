@@ -1,6 +1,6 @@
 import uuid
 
-from odoo import api, fields, models
+from odoo import SUPERUSER_ID, api, fields, models, registry
 from odoo.exceptions import UserError, ValidationError
 
 from .phone import normalize_phone
@@ -219,16 +219,7 @@ class CrmLead(models.Model):
                     "extension": agent.phone_login,
                 }
             )
-            # The remote request must never outrun its deduplication reservation.
-            # This RPC performs no unrelated writes: persist the narrowly scoped call
-            # row before crossing the HTTP boundary so a worker failure cannot roll it
-            # back and generate a new key on the next click.
-            self.env.flush_all()
-            self.env.cr.commit()
-        result = self.env["codestra.telephony.middleware.client"].originate_call(
-            correlation_id,
-            idempotency_key,
-            {
+        payload = {
                 "employee_id": agent.employee_code or agent.vicidial_user,
                 "campaign": campaign_code,
                 "business_unit": self.business_unit_id.code,
@@ -240,7 +231,51 @@ class CrmLead(models.Model):
                 "lead_model": "crm.lead",
                 "lead_id": self.id,
                 "recording_requested": False,
+            }
+        call.originate_payload = payload
+        database = self.env.cr.dbname
+        call_id = call.id
+
+        def dispatch_after_commit():
+            with registry(database).cursor() as cursor:
+                dispatch_env = api.Environment(cursor, SUPERUSER_ID, {})
+                dispatch_env["codestra.vicidial.call"].browse(
+                    call_id
+                )._dispatch_click_to_call()
+                cursor.commit()
+
+        # The callback only runs after the reservation is committed. If this worker
+        # exits first, another click finds the same key and schedules it again.
+        self.env.cr.postcommit.add(dispatch_after_commit)
+        message = "Call request queued with a durable duplicate-prevention key."
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": "Click-to-call",
+                "message": message,
+                "sticky": False,
+                "type": "success",
             },
+        }
+
+
+class ClickToCallDispatch(models.Model):
+    _inherit = "codestra.vicidial.call"
+
+    originate_payload = fields.Json(copy=False)
+
+    def _dispatch_click_to_call(self):
+        self.ensure_one()
+        if self.state not in ("initiating",) or self.status not in (
+            "requesting",
+            "outcome_unknown",
+        ):
+            return
+        result = self.env["codestra.telephony.middleware.client"].originate_call(
+            self.correlation_id,
+            self.idempotency_key,
+            self.originate_payload,
         )
         attempting = result.get("dialing") == "attempting"
         unknown = result.get("dialing") == "unknown"
@@ -256,26 +291,4 @@ class CrmLead(models.Model):
             values["status"] = "outcome_unknown"
         elif not attempting:
             values.update({"state": "failed", "ended_at": fields.Datetime.now()})
-        call.write(values)
-        message = (
-            "Call is being placed to %s." % destination
-            if attempting
-            else (
-                "Call outcome is unknown; use Call again to reconcile the same request."
-            )
-            if unknown
-            else "Call was not placed: %s."
-            % result.get("reason", "blocked by policy")
-        )
-        return {
-            "type": "ir.actions.client",
-            "tag": "display_notification",
-            "params": {
-                "title": "Click-to-call",
-                "message": message,
-                "sticky": not attempting,
-                "type": (
-                    "success" if attempting else "warning" if unknown else "info"
-                ),
-            },
-        }
+        self.write(values)
