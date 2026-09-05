@@ -263,3 +263,35 @@ class TestCallEventProjectionHttp(HttpCase):
                 [("idempotency_key", "=", completed["event_id"])]
             )
         )
+
+    def test_outbound_uses_destination_not_originating_caller_number(self):
+        payload = self.payload()
+        payload.update({
+            "direction": "outbound", "caller_number": "+18095550999",
+            "destination_number": "+18095550123",
+        })
+        self.assertEqual(self.post_payload(payload).status_code, 202)
+        call = self.env["codestra.vicidial.call"].search([
+            ("call_id", "=", payload["call_id"]),
+        ])
+        self.assertEqual(call.normalized_number, payload["destination_number"])
+
+    def test_inbound_uses_caller_even_when_destination_is_present(self):
+        payload = self.payload()
+        payload["destination_number"] = "+18095550999"
+        self.assertEqual(self.post_payload(payload).status_code, 202)
+        call = self.env["codestra.vicidial.call"].search([
+            ("call_id", "=", payload["call_id"]),
+        ])
+        self.assertEqual(call.normalized_number, payload["caller_number"])
+
+    def test_outbound_missing_destination_does_not_match_the_caller(self):
+        payload = self.payload()
+        payload["direction"] = "outbound"
+        self.assertEqual(self.post_payload(payload).status_code, 202)
+        call = self.env["codestra.vicidial.call"].search([
+            ("call_id", "=", payload["call_id"]),
+        ])
+        self.assertFalse(call.normalized_number)
+        self.assertFalse(call.customer_id)
+        self.assertFalse(call.crm_lead_id)

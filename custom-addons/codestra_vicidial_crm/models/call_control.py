@@ -101,9 +101,24 @@ class VicidialCallControl(models.Model):
             )
             partner_domain.append(("business_unit_id", "=", unit_id))
             lead_domain.append(("business_unit_id", "=", unit_id))
+        if campaign_code:
+            # A canonical assignment wins over stale legacy projection fields.
+            lead_domain.extend([
+                "|",
+                "&", ("call_center_campaign_id", "!=", False),
+                "|", ("call_center_campaign_id.code", "=", campaign_code),
+                     ("call_center_campaign_id.vicidial_campaign_id", "=", campaign_code),
+                "&", ("call_center_campaign_id", "=", False),
+                "|", ("vicidial_campaign_id", "=", campaign_code),
+                     ("x_vicidial_campaign_id", "=", campaign_code),
+            ])
+        leads = Lead.search(lead_domain)
+        if campaign_code:
+            # A shared-unit contact is not, by itself, campaign authorization.
+            partner_domain.append(("id", "in", leads.mapped("partner_id").ids))
         for partner in Partner.search(partner_domain):
             candidates.append(("partner", partner.id, partner.display_name, 2))
-        for lead in Lead.search(lead_domain):
+        for lead in leads:
             priority = 0 if campaign_code and lead.vicidial_campaign_id == campaign_code else 1
             candidates.append(("lead", lead.id, lead.display_name, priority))
         candidates.sort(key=lambda item: (item[3] if len(item) > 3 else 2, item[0], item[1]))

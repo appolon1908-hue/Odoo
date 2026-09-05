@@ -29,7 +29,8 @@ class ScopedCallControlAPI(CallControlAPI):
         )
         supplied_unit = str(business_unit_id or "").strip()
         if (
-            not call.business_unit_id
+            not canonical_campaign
+            or not call.business_unit_id
             or supplied_unit != call.business_unit_id
             or campaign_code != canonical_campaign
         ):
@@ -56,7 +57,9 @@ class ScopedCallControlAPI(CallControlAPI):
         normalized = Call.normalize_number(number)
         expected_number = call.normalized_number
         if not expected_number:
-            source_number = call.caller_id or call.destination
+            source_number = (
+                call.destination if call.direction == "outbound" else call.caller_id
+            )
             expected_number = (
                 Call.normalize_number(source_number)
                 if source_number

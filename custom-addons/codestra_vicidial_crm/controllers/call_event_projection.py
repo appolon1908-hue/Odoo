@@ -317,7 +317,11 @@ class CodestraCallEventProjectionAPI(http.Controller):
                     current_sequence=call.sequence if call else 0,
                 )
 
-        number = payload.get("caller_number") or payload.get("destination_number")
+        number = (
+            payload.get("destination_number")
+            if payload["direction"] == "outbound"
+            else payload.get("caller_number")
+        )
         match = (
             Call.match_customer(
                 number,
