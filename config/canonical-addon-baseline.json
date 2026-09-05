@@ -20,7 +20,6 @@
     "codestra_integration_hub": "f4db314a557fdf2a9e0aac81ed5543d1994f7f70",
     "codestra_ivr_control": "3b27a0bfe3501da52f205cacf756cd8741fdf9f5",
     "codestra_lead_automation": "30b65a165e91988e8be9edc0c97aef9c19059194",
-    "codestra_lead_ingestion": "071935b8becbaa636b656d05a040d4650b15ae24",
     "codestra_social_orchestration": "1850feb3a99c90babccb9a3ec79d30374f0c0bd9",
     "codestra_staging_campaign_design": "fd0fdb619d2f60a3e3dfcc4a0ccba7e7cd32abc7",
     "codestra_telephony_bridge": "b6b377e715ff4754e20d1e7a3dc8fcc9d75d18c0",
@@ -31,8 +30,8 @@
   "strict_mission_overrides": {
     "call_center_campaign": {
       "base_tree": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
-      "current_tree": "c22e7ab7477164c23d8525e4e19750221eb9c4db",
-      "reason": "Preserve the reviewed provider activity and Stage 3 compatibility boundaries while exposing canonical operational aliases through the same handlers, binding fail-closed capability readback to the exact governed deployment gate names, and retaining the isolated provider identity's business-unit-scoped read-only contact access without granting contact write permission. Preserve the scoped onboarding review repairs, explicit activation-result outcome evidence, optional service step/callback parity, and synthetic regression fixtures.",
+      "current_tree": "a700b46cfef172a71bab404dd07d9a6f6eec900b",
+      "reason": "Preserve the reviewed provider activity, Stage 3 compatibility, readiness, transactional outbox, and integration-boundary controls while adding the merged PR #67 automatic versioned campaign-design and fail-closed approval controls. Preserve PR #74 canonical operational aliases, governed deployment-gate readback, scoped onboarding review repairs, explicit activation-result evidence, optional service callback parity, and synthetic regression fixtures without authorizing direct VICIdial writes or live activation.",
       "pull_request": 74,
       "integration_boundary_exceptions": [
         {
@@ -44,6 +43,11 @@
           "path": "models/outbox.py",
           "kind": "odoo_cursor_locking",
           "reason": "Transactional outbox lease claims and campaign finalization use SELECT FOR UPDATE on Odoo's existing cursor to prevent duplicate delivery."
+        },
+        {
+          "path": "models/automatic_provisioning_campaign_core.py",
+          "kind": "odoo_cursor_locking",
+          "reason": "Automatic campaign-design revision, adoption, and approval operations serialize affected campaign rows with SELECT FOR UPDATE on Odoo's active cursor so concurrent requests cannot create duplicate revisions or approvals."
         },
         {
           "path": "models/result_inbox.py",
@@ -186,6 +190,12 @@
           "reason": "Click-to-call reservation creation locks the selected Odoo agent row with SELECT FOR UPDATE on the existing cursor so concurrent UI requests cannot originate two calls."
         }
       ]
+    },
+    "codestra_lead_ingestion": {
+      "base_tree": "071935b8becbaa636b656d05a040d4650b15ae24",
+      "current_tree": "8a3aceebe0ab64fa155139621ae6410a8b7f2bb7",
+      "reason": "Make the synthetic legacy lead-ingestion fixture explicitly unmanaged before its active-state setup; automatic design approval and live activation guards remain unchanged. Advance the addon patch version and subject this changed subtree to the full strict review. Preserve the existing authentication-reference field masking through an Odoo inherited-view attribute operation, avoiding a false hardcoded-password match without suppressing any scanner rule.",
+      "pull_request": 67
     },
     "codestra_moneybee_crm": {
       "base_tree": "31cebcead3176785e4d7e9f1f38be95c802ef03e",
