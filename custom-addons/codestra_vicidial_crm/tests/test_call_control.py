@@ -101,6 +101,16 @@ class TestCallControl(TransactionCase):
         with self.assertRaises(ValidationError):
             self.env["codestra.vicidial.call"].normalize_number("12+34567890")
 
+    def test_current_call_domain_excludes_unreconciled_reservation(self):
+        call = self.call("unreconciled")
+        call.call_id = False
+        with patch.object(
+            call_control_controller,
+            "request",
+            SimpleNamespace(env=self.env(user=self.agent_user.id)),
+        ):
+            self.assertIsNone(call_control_controller.CallControlAPI().current())
+
     def test_multiple_matches_are_ambiguous(self):
         self.env["res.partner"].create({"name": "First", "phone": "+1 809 555 0199"})
         self.env["res.partner"].create({"name": "Second", "phone": "809-555-0199"})
