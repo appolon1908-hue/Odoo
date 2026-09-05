@@ -214,7 +214,10 @@ class CrmLead(models.Model):
                     "campaign_id": campaign.id,
                     "direction": "outbound",
                     "destination": destination,
+                    "original_number": destination,
+                    "normalized_number": destination,
                     "caller_id": outbound_caller_id,
+                    "start_at": fields.Datetime.now(),
                     "state": "initiating",
                     "status": "requesting",
                     "idempotency_key": idempotency_key,
@@ -301,3 +304,13 @@ class ClickToCallDispatch(models.Model):
         elif not attempting:
             values.update({"state": "failed", "ended_at": fields.Datetime.now()})
         self.write(values)
+        if not attempting and self.agent_id.odoo_user_id:
+            self.env["bus.bus"]._sendone(
+                self.agent_id.odoo_user_id.partner_id,
+                "codestra.call.result",
+                {
+                    "correlation_id": self.correlation_id,
+                    "outcome": "unknown" if unknown else "blocked",
+                    "reason": result.get("reason") or "blocked by policy",
+                },
+            )

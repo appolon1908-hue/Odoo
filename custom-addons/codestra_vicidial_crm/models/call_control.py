@@ -28,7 +28,8 @@ ALLOWED_TRANSITIONS = {
     None: {"new", "initiating", "ringing", "offered"},
     "new": {"initiating", "ringing", "offered", "cancelled", "failed"},
     "initiating": {
-        "ringing", "connected", "completed", "missed", "rejected", "cancelled", "failed"
+        "ringing", "connected", "completed", "missed", "rejected", "cancelled",
+        "failed", "transferred",
     },
     "ringing": {"offered", "answering", "connected", "missed", "rejected", "cancelled", "failed"},
     "offered": {"answering", "connected", "missed", "rejected", "cancelled", "failed"},

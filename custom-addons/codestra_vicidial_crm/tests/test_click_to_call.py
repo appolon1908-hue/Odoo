@@ -191,6 +191,8 @@ class TestClickToCall(TransactionCase):
         self.assertEqual(action["params"]["type"], "success")
         self.assertEqual(call.state, "failed")
         self.assertEqual(call.status, "blocked")
+        self.assertEqual(call.normalized_number, self.lead.x_phone_e164)
+        self.assertTrue(call.start_at)
 
     def test_active_call_blocks_other_lead_for_same_agent(self):
         other = self.lead.copy({"name": "Other lead", "phone": "+18095550124"})
