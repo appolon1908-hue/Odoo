@@ -106,6 +106,7 @@ class TestClickToCall(TransactionCase):
             }
         )
         self.agent.odoo_user_id = user
+        self.lead.user_id = user
 
         def fake_originate(_self, correlation_id, idempotency_key, payload):
             return {
