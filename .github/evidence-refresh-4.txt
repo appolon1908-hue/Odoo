@@ -1,0 +1,1 @@
+Read-only current source bundle and exact-head runtime failures after Odoo PR 79 merge.
