@@ -349,5 +349,6 @@ class TestAutomaticCampaignProvisioning(TransactionCase):
             )
             ._claim_batch(limit=20)
         )
+        self.assertNotIn(self._event(campaign), claimed)
         self.assertNotIn(approval, claimed)
         self.assertEqual(approval.delivery_state, "pending")

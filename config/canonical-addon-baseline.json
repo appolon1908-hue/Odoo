@@ -20,7 +20,6 @@
     "codestra_integration_hub": "f4db314a557fdf2a9e0aac81ed5543d1994f7f70",
     "codestra_ivr_control": "3b27a0bfe3501da52f205cacf756cd8741fdf9f5",
     "codestra_lead_automation": "30b65a165e91988e8be9edc0c97aef9c19059194",
-    "codestra_lead_ingestion": "071935b8becbaa636b656d05a040d4650b15ae24",
     "codestra_social_orchestration": "1850feb3a99c90babccb9a3ec79d30374f0c0bd9",
     "codestra_staging_campaign_design": "fd0fdb619d2f60a3e3dfcc4a0ccba7e7cd32abc7",
     "codestra_telephony_bridge": "b6b377e715ff4754e20d1e7a3dc8fcc9d75d18c0",
@@ -31,7 +30,7 @@
   "strict_mission_overrides": {
     "call_center_campaign": {
       "base_tree": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
-      "current_tree": "c3aba26d57eee5da66843c67c79a407832e0976d",
+      "current_tree": "ed15c413121c053642613d5d023032420bbac8b9",
       "reason": "Preserve the reviewed provider activity, Stage 3 compatibility, readiness, transactional outbox, and integration-boundary controls while adding automatic versioned campaign-design requests, immutable Middleware preview validation, canonical business-unit allocation checks, and idempotent fail-closed approval events without authorizing direct VICIdial writes or live activation. The design-revision ACL rows are consolidated into Odoo's canonical ir.model.access.csv so the immutable Odoo 19 runtime imports them through the correct ir.model.access model.",
       "pull_request": 67,
       "integration_boundary_exceptions": [
@@ -176,6 +175,12 @@
           "reason": "The test imports only IntegrityError to assert call-record database constraints and does not open an external database connection."
         }
       ]
+    },
+    "codestra_lead_ingestion": {
+      "base_tree": "071935b8becbaa636b656d05a040d4650b15ae24",
+      "current_tree": "8a3aceebe0ab64fa155139621ae6410a8b7f2bb7",
+      "reason": "Make the synthetic legacy lead-ingestion fixture explicitly unmanaged before its active-state setup; automatic design approval and live activation guards remain unchanged. Advance the addon patch version and subject this changed subtree to the full strict review. Preserve the existing authentication-reference field masking through an Odoo inherited-view attribute operation, avoiding a false hardcoded-password match without suppressing any scanner rule.",
+      "pull_request": 67
     }
   }
 }
