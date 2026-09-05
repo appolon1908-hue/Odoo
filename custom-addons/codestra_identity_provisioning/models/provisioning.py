@@ -408,6 +408,8 @@ class IdentityLink(models.Model):
     system = fields.Selection(
         [("odoo", "Odoo"), ("keycloak", "Keycloak"), ("email", "Email"),
          ("vicidial", "VICIdial"), ("sip", "SIP"),
+         ("voicemail", "Voicemail"), ("recording", "Recording"),
+         ("monitoring", "Monitoring"),
          ("agent_desktop", "Agent Desktop")],
         required=True,
     )
@@ -1213,6 +1215,8 @@ class ProvisioningStep(models.Model):
     target_system = fields.Selection(
         [("odoo", "Odoo"), ("keycloak", "Keycloak"), ("email", "Email"),
          ("vicidial", "VICIdial"), ("sip", "SIP"),
+         ("voicemail", "Voicemail"), ("recording", "Recording"),
+         ("monitoring", "Monitoring"),
          ("agent_desktop", "Agent Desktop"),
          ("voicemail", "Voicemail"),
          ("recording_access", "Recording Access"),

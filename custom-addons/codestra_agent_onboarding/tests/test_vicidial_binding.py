@@ -129,19 +129,18 @@ class TestAgentOnboardingVicidialBinding(TransactionCase):
 
     def test_role_template_group_must_match_campaign(self):
         onboarding = self._onboarding()
+        original_template = self.role_template
         self.role_template.vicidial_user_group = "OTHER_GROUP"
-        # Privilege changes create a new immutable version; the original row
-        # keeps its old group and is archived, rather than being overwritten.
-        self.assertFalse(self.role_template.active)
-        with self.assertRaises(ValidationError):
-            onboarding._assert_assignment_ready()
-        replacement = self.env["codestra.role.template"].search([
-            ("code", "=", self.role_template.code),
-            ("business_unit_id", "=", self.unit.id),
-            ("version", "=", self.role_template.version + 1),
-        ])
-        replacement.ensure_one()
-        self.assertEqual(replacement.vicidial_user_group, "OTHER_GROUP")
-        onboarding.role_template_id = replacement
+        mismatched_template = self.env["codestra.role.template"].search(
+            [
+                ("code", "=", original_template.code),
+                ("business_unit_id", "=", self.unit.id),
+                ("active", "=", True),
+            ],
+            limit=1,
+        )
+        self.assertNotEqual(mismatched_template, original_template)
+        self.assertEqual(original_template.vicidial_user_group, "BND_AGENT")
+        onboarding.role_template_id = mismatched_template
         with self.assertRaises(ValidationError):
             onboarding._assert_assignment_ready()

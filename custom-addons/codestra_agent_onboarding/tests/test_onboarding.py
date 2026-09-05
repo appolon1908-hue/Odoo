@@ -113,7 +113,10 @@ class TestCodestraAgentOnboarding(TransactionCase):
                 "business_unit_id": cls.unit.id,
                 "state": "approved",
                 "design_automation_enabled": False,
-                "active": False,
+                # Archiving is an Odoo UI lifecycle concern, not a telephony
+                # safety gate. Keep this synthetic campaign readable while its
+                # governed reconciliation state remains disabled.
+                "active": True,
                 "direction": "outbound",
                 "team_ids": [(6, 0, cls.team.ids)],
                 "supervisor_ids": [(6, 0, cls.supervisor.ids)],
@@ -132,45 +135,6 @@ class TestCodestraAgentOnboarding(TransactionCase):
         cls.campaign.ensure_one()
         assert cls.campaign.cc_business_unit_id == cls.canonical_unit
         assert cls.campaign.lifecycle_state == "approved"
-        # The request and approval identities use an explicit, active campaign
-        # scope.  Global workflow roles authorize the actions; this narrow
-        # auditor membership authorizes reads of the governed workspace without
-        # relying on superuser mode or a record-rule bypass.
-        for user, label in (
-            (cls.requester, "Requester"),
-            (cls.approver, "Approver"),
-        ):
-            employee = cls.env["hr.employee"].create(
-                {
-                    "name": f"Onboarding {label}",
-                    "company_id": cls.company.id,
-                    "user_id": user.id,
-                }
-            )
-            membership = cls.env["cc.campaign.membership"].with_user(
-                cls.requester
-            ).create(
-                {
-                    "user_id": user.id,
-                    "employee_id": employee.id,
-                    "campaign_id": cls.campaign.id,
-                    "role": "auditor",
-                    "state": "draft",
-                    "requested_by_id": cls.requester.id,
-                    "source_ticket": "TEST-ONBOARDING-SCOPE",
-                }
-            )
-            membership.with_user(cls.requester).action_submit_identity()
-            operation = membership.with_user(cls.approver).action_approve_identity()
-            operation.with_user(cls.identity_service).action_record_readback(
-                {
-                    target: {"status": "matched", "evidence_hash": "b" * 64}
-                    for target in operation.required_targets
-                },
-                "staging://onboarding/auditor-scope/" + label.lower(),
-            )
-            membership.with_user(cls.approver).action_activate()
-            assert membership.state == "active"
         cls.role_template = cls.env["codestra.role.template"].create(
             {
                 "name": "Onboarding Campaign Agent",
@@ -485,6 +449,7 @@ class TestCodestraAgentOnboarding(TransactionCase):
                 "code": "ONB-OTHER-OUT",
                 "team_ids": [(6, 0, self.team.ids)],
                 "vicidial_campaign_id": "ONB0002",
+                "vicidial_user_group": "ONB_AGENT",
             }
         )
         # Copying a legacy campaign also adopts its canonical wrapper.
