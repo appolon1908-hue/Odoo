@@ -68,7 +68,7 @@ def _event_endpoint(value):
 def _iso_utc(value):
     if not value:
         value = fields.Datetime.now()
-    observed = fields.Datetime.to_datetime(value)
+    observed = value if isinstance(value, datetime) else fields.Datetime.to_datetime(value)
     if observed.tzinfo is None or observed.utcoffset() is None:
         observed = observed.replace(tzinfo=timezone.utc)
     else:

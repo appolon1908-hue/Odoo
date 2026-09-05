@@ -1,7 +1,7 @@
 import hashlib
 import hmac
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 from odoo.exceptions import ValidationError
@@ -13,6 +13,7 @@ from ..models.outbox_delivery import (
     _event_document,
     _event_endpoint,
     _signed_headers,
+    _iso_utc,
     _validate_ack,
 )
 
@@ -155,3 +156,14 @@ class TestAgentOnboardingOutboxDelivery(TransactionCase):
         self.assertEqual(_validate_ack(accepted, event), accepted)
         with self.assertRaises(ValidationError):
             _validate_ack({**accepted, "event_id": "different"}, event)
+
+    def test_timestamp_normalization_preserves_utc_instant(self):
+        cases = (
+            datetime(2026, 9, 4, 16, 0),
+            datetime(2026, 9, 4, 16, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 4, 12, 0, tzinfo=timezone(timedelta(hours=-4))),
+            "2026-09-04 16:00:00",
+        )
+        for value in cases:
+            with self.subTest(value=value):
+                self.assertEqual(_iso_utc(value), "2026-09-04T16:00:00Z")

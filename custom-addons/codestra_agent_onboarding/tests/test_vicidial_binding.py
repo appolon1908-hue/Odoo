@@ -17,9 +17,11 @@ class TestAgentOnboardingVicidialBinding(TransactionCase):
                 "company_id": cls.company.id,
             }
         )
-        cls.canonical_unit = cls.env["cc.business.unit"].create(
-            {"legacy_business_unit_id": cls.unit.id}
-        )
+        # Legacy creation already adopts one canonical wrapper.
+        cls.canonical_unit = cls.env["cc.business.unit"].with_context(
+            active_test=False
+        ).search([("legacy_business_unit_id", "=", cls.unit.id)])
+        cls.canonical_unit.ensure_one()
         cls.supervisor = cls.env["res.users"].create(
             {
                 "name": "Binding Supervisor",
@@ -50,6 +52,7 @@ class TestAgentOnboardingVicidialBinding(TransactionCase):
                 "code": "BND-OUT",
                 "business_unit_id": cls.unit.id,
                 "state": "approved",
+                "design_automation_enabled": False,
                 "active": False,
                 "direction": "outbound",
                 "team_ids": [(6, 0, cls.team.ids)],
@@ -63,15 +66,12 @@ class TestAgentOnboardingVicidialBinding(TransactionCase):
                 "reconciliation_status": "synced_disabled",
             }
         )
-        cls.campaign = cls.env["cc.campaign"].create(
-            {
-                "legacy_campaign_id": cls.legacy_campaign.id,
-                "cc_business_unit_id": cls.canonical_unit.id,
-                "environment": "staging",
-                "lifecycle_state": "approved",
-                "identifier_status": "canonical",
-            }
-        )
+        cls.campaign = cls.env["cc.campaign"].with_context(
+            active_test=False
+        ).search([("legacy_campaign_id", "=", cls.legacy_campaign.id)])
+        cls.campaign.ensure_one()
+        assert cls.campaign.cc_business_unit_id == cls.canonical_unit
+        assert cls.campaign.lifecycle_state == "approved"
         cls.role_template = cls.env["codestra.role.template"].create(
             {
                 "name": "Binding Agent",
