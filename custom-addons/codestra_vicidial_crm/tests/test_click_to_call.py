@@ -1,3 +1,5 @@
+import uuid
+
 from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase
 
@@ -23,6 +25,12 @@ class TestClickToCall(TransactionCase):
                 "phone_login": "61" + str(abs(hash(suffix)) % 10000),
                 "status": "ready",
                 "campaign_ids": [(6, 0, [campaign.id])],
+            }
+        )
+        self.env.user.write(
+            {
+                "codestra_tenant_id": "COD",
+                "keycloak_subject": str(uuid.uuid4()),
             }
         )
         self.lead = self.env["crm.lead"].create(
@@ -80,6 +88,41 @@ class TestClickToCall(TransactionCase):
         self.assertEqual(captured["destination_country"], "DO")
         self.assertEqual(captured["caller_id"], "+18095550999")
         self.assertNotEqual(captured["caller_id"], self.agent.phone_login)
+
+    def test_agent_acl_path_persists_lifecycle_bindings(self):
+        user = self.env["res.users"].create(
+            {
+                "name": "Synthetic click-to-call agent",
+                "login": "click-agent-" + self._testMethodName,
+                "codestra_tenant_id": "COD",
+                "keycloak_subject": str(uuid.uuid4()),
+                "group_ids": [
+                    (4, self.env.ref("codestra_vicidial_crm.group_agent").id)
+                ],
+            }
+        )
+        self.agent.odoo_user_id = user
+
+        def fake_originate(_self, correlation_id, idempotency_key, payload):
+            return {
+                "dialing": "attempting",
+                "reason": "accepted",
+                "call_id": "acl-bound-call-id",
+            }
+
+        self.patch(
+            type(self.env["codestra.telephony.middleware.client"]),
+            "originate_call",
+            fake_originate,
+        )
+        action = self.lead.with_user(user).action_click_to_call()
+        self.assertEqual(action["params"]["type"], "success")
+        call = self.env["codestra.vicidial.call"].search(
+            [("call_id", "=", "acl-bound-call-id")]
+        )
+        self.assertEqual(call.agent_id, self.agent)
+        self.assertEqual(call.tenant_id, "COD")
+        self.assertEqual(call.keycloak_subject, user.keycloak_subject)
 
     def test_unknown_timeout_reuses_request_instead_of_creating_duplicate(self):
         requests = []

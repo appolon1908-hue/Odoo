@@ -116,6 +116,14 @@ class CrmLead(models.Model):
                 "You must be Ready before placing a call (current status: %s)."
                 % status_label
             )
+        if (
+            not self.env.user.codestra_tenant_id
+            or self.env.user.codestra_tenant_id != agent.tenant_id
+            or not self.env.user.keycloak_subject
+        ):
+            raise UserError(
+                "Your browser identity is not bound to this VICIdial tenant."
+            )
         if self.x_do_not_call or self.do_not_call:
             raise UserError("This contact is on the do-not-call list.")
 
@@ -153,7 +161,8 @@ class CrmLead(models.Model):
             )
 
         campaign = campaigns_by_code[campaign_code]
-        pending = self.env["codestra.vicidial.call"].search(
+        Call = self.env["codestra.vicidial.call"].sudo()
+        pending = Call.search(
             [
                 ("crm_lead_id", "=", self.id),
                 ("agent_id", "=", agent.id),
@@ -180,7 +189,7 @@ class CrmLead(models.Model):
         else:
             correlation_id = str(uuid.uuid4())
             idempotency_key = correlation_id
-            call = self.env["codestra.vicidial.call"].create(
+            call = Call.create(
                 {
                     "name": "Click-to-call %s" % correlation_id,
                     "crm_lead_id": self.id,
@@ -196,6 +205,8 @@ class CrmLead(models.Model):
                     "correlation_id": correlation_id,
                     "campaign_code": campaign_code,
                     "business_unit_id": self.business_unit_id.code,
+                    "tenant_id": agent.tenant_id,
+                    "keycloak_subject": self.env.user.keycloak_subject,
                     "vicidial_user": agent.vicidial_user,
                     "extension": agent.phone_login,
                 }
