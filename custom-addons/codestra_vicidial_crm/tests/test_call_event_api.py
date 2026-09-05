@@ -205,6 +205,34 @@ class TestCallEventAPIContract(HttpCase):
         placeholder.invalidate_recordset()
         self.assertEqual(placeholder.state, "answering")
 
+    def test_event_populates_asterisk_identity_on_accepted_reservation(self):
+        call_id = f"accepted-{uuid.uuid4()}"
+        correlation_id = f"corr-{call_id}"
+        reservation = self.env["codestra.vicidial.call"].create(
+            {
+                "name": "Accepted originate reservation",
+                "call_id": call_id,
+                "external_call_id": call_id,
+                "agent_id": self.env["codestra.vicidial.agent"].search(
+                    [("vicidial_user", "=", "HTTP6101")], limit=1
+                ).id,
+                "campaign_id": self.campaign.id,
+                "tenant_id": "COD",
+                "keycloak_subject": self.subject,
+                "extension": "6101",
+                "correlation_id": correlation_id,
+                "idempotency_key": correlation_id,
+                "state": "initiating",
+                "status": "attempting",
+            }
+        )
+        payload = self.payload(call_id=call_id, correlation_id=correlation_id)
+        self.assertEqual(self.post(payload).status_code, 202)
+        reservation.invalidate_recordset()
+        self.assertEqual(reservation.asterisk_uniqueid, payload["asterisk_uniqueid"])
+        self.assertEqual(reservation.linkedid, payload["linkedid"])
+        self.assertEqual(reservation.source_system, "asterisk")
+
     def test_terminal_event_can_claim_placeholder_with_asterisk_identity(self):
         call_id = f"terminal-{uuid.uuid4()}"
         correlation_id = f"corr-{call_id}"

@@ -210,6 +210,11 @@ class CodestraAPI(http.Controller):
             or call.campaign_id != campaign
             or call.extension != str(payload["extension"])
             or call.keycloak_subject != str(payload["keycloak_subject"])
+            or (
+                call.asterisk_uniqueid
+                and call.asterisk_uniqueid != str(payload["asterisk_uniqueid"])
+            )
+            or (call.linkedid and call.linkedid != str(payload["linkedid"]))
         ):
             raise Forbidden("existing call binding conflict")
         if not call and payload["event_type"] in {
@@ -266,17 +271,21 @@ class CodestraAPI(http.Controller):
                 "idempotency_key": "call:" + str(payload["call_id"]),
             }
             call = Call.create(values)
-        elif not call.call_id:
-            call.write(
-                {
-                    "call_id": str(payload["call_id"]),
-                    "external_call_id": str(payload["call_id"]),
-                    "asterisk_uniqueid": payload["asterisk_uniqueid"],
-                    "uniqueid": payload["asterisk_uniqueid"],
-                    "linkedid": payload["linkedid"],
-                    "source_system": "asterisk",
-                }
-            )
+        elif not call.call_id or not call.asterisk_uniqueid:
+            identity = {
+                "asterisk_uniqueid": payload["asterisk_uniqueid"],
+                "uniqueid": payload["asterisk_uniqueid"],
+                "linkedid": payload["linkedid"],
+                "source_system": "asterisk",
+            }
+            if not call.call_id:
+                identity.update(
+                    {
+                        "call_id": str(payload["call_id"]),
+                        "external_call_id": str(payload["call_id"]),
+                    }
+                )
+            call.write(identity)
         try:
             result = call.apply_authoritative_event(
                 {
