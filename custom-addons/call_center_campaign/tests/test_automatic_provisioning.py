@@ -11,6 +11,9 @@ class TestAutomaticCampaignProvisioning(TransactionCase):
     def setUp(self):
         super().setUp()
         self.unit = self.env.ref("call_center_core.business_unit_digital")
+        # Use an explicitly active supervisor, not the test runner's system user.
+        self.supervisor = self.env.ref("base.user_admin")
+        self.assertTrue(self.supervisor.active)
         self.purpose = f"AP{uuid.uuid4().hex[:8].upper()}"
         self.design_input = {
             "default_language": "en",
@@ -34,7 +37,7 @@ class TestAutomaticCampaignProvisioning(TransactionCase):
             "business_unit_id": self.unit.id,
             "direction": "outbound",
             "purpose_code": self.purpose,
-            "supervisor_ids": [(6, 0, [self.env.user.id])],
+            "supervisor_ids": [(6, 0, [self.supervisor.id])],
             "design_input_json": self.design_input,
         }
         values.update(changes)
@@ -55,6 +58,7 @@ class TestAutomaticCampaignProvisioning(TransactionCase):
         )
 
     def _manifest(self, campaign, revision=1):
+        self.assertIn(self.supervisor, campaign.supervisor_ids)
         environment_code = {
             "test": "TEST",
             "staging": "STAGING",
@@ -147,9 +151,31 @@ class TestAutomaticCampaignProvisioning(TransactionCase):
         self.assertEqual(event.event_type, "campaign.design.requested.v1")
         self.assertEqual(event.design_request_revision, 1)
         self.assertEqual(event.delivery_state, "pending")
+        self.assertFalse(event.next_attempt_at)
         self.assertFalse(event.payload_json["feature_flags"]["production_dialing"])
         self.assertEqual(len(campaign.design_revision_ids), 1)
         self.assertEqual(campaign.automatic_design_state, "requested")
+
+    def test_new_design_event_is_immediately_claimable(self):
+        campaign = self._create_campaign()
+        event = self._event(campaign)
+        self.assertFalse(event.next_attempt_at)
+        claimed = self.env["codestra.runtime.integration.outbox"]._claim_batch(
+            limit=20,
+            record_environment="STAGING",
+            business_unit_codes=[campaign._business_unit_code()],
+            event_type_allowlist=["campaign.design.requested.v1"],
+        )
+        self.assertIn(event, claimed)
+        self.assertEqual(event.delivery_state, "processing")
+
+    def test_mismatched_supervisor_binding_is_rejected(self):
+        campaign = self._create_campaign()
+        revision = campaign.current_design_revision_id
+        manifest = self._manifest(campaign)
+        manifest["odoo"]["supervisor_user_id"] = False
+        with self.assertRaisesRegex(ValidationError, "Odoo binding mismatch"):
+            revision._validate_manifest(manifest)
 
     def test_explicit_true_cannot_bypass_managed_design(self):
         campaign = self._create_campaign(design_automation_enabled=True)
@@ -230,7 +256,9 @@ class TestAutomaticCampaignProvisioning(TransactionCase):
         digest = hashlib.sha256(
             json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
-        with self.assertRaises(ValidationError):
+        with self.assertRaisesRegex(
+            ValidationError, "VICIdial preview resources must remain disabled"
+        ):
             revision._record_preview(
                 {
                     "manifest_hash": digest,
@@ -243,7 +271,7 @@ class TestAutomaticCampaignProvisioning(TransactionCase):
         digest = hashlib.sha256(
             json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
-        with self.assertRaises(ValidationError):
+        with self.assertRaisesRegex(ValidationError, "secret-shaped key"):
             revision._record_preview(
                 {
                     "manifest_hash": digest,
@@ -285,7 +313,7 @@ class TestAutomaticCampaignProvisioning(TransactionCase):
         digest = hashlib.sha256(
             json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
-        with self.assertRaises(ValidationError):
+        with self.assertRaisesRegex(ValidationError, "outside its business-unit range"):
             revision._record_preview(
                 {
                     "manifest_hash": digest,

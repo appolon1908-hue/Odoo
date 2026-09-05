@@ -1,7 +1,7 @@
 import hashlib
 import uuid
 
-from odoo import fields, models
+from odoo import models
 from odoo.exceptions import AccessError, ValidationError
 
 from .automatic_provisioning_common import (
@@ -108,7 +108,10 @@ class CallCenterCampaignAutomaticProvisioningEvents(models.Model):
                 "payload_hash": digest,
                 "correlation_id": correlation_id,
                 "delivery_state": "pending",
-                "next_attempt_at": fields.Datetime.now(),
+                # A new event is due immediately; only retries need a deadline.
+                # A wall-clock deadline can be newer than PostgreSQL now()
+                # throughout the transaction that created the campaign.
+                "next_attempt_at": False,
             }
         )
         self._write_integration_state(
