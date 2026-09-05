@@ -1,0 +1,6 @@
+<odoo>
+  <record id="group_call_event_projection_service" model="res.groups">
+    <field name="name">Codestra Call Event Projection Service</field>
+    <field name="comment">Non-interactive, publish-only identity for signed Middleware call lifecycle projections.</field>
+  </record>
+</odoo>

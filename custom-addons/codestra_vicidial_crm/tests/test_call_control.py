@@ -88,7 +88,7 @@ class TestCallControl(TransactionCase):
 
     def test_number_normalization_and_exact_matching(self):
         partner = self.env["res.partner"].create({"name": "Synthetic Customer", "phone": "+1 (617) 555-0100"})
-        result = self.env["codestra.vicidial.call"].match_customer("617-555-0100", "TEST_SYN")
+        result = self.env["codestra.vicidial.call"].match_customer("617-555-0100")
         self.assertEqual(result["normalized_number"], "+16175550100")
         self.assertEqual(result["match"], "exact")
         self.assertEqual(result["matches"][0]["id"], partner.id)
@@ -114,7 +114,7 @@ class TestCallControl(TransactionCase):
     def test_multiple_matches_are_ambiguous(self):
         self.env["res.partner"].create({"name": "First", "phone": "+1 809 555 0199"})
         self.env["res.partner"].create({"name": "Second", "phone": "809-555-0199"})
-        result = self.env["codestra.vicidial.call"].match_customer("+18095550199", "TEST_SYN")
+        result = self.env["codestra.vicidial.call"].match_customer("+18095550199")
         self.assertEqual(result["match"], "ambiguous")
         self.assertEqual(len(result["matches"]), 2)
 
