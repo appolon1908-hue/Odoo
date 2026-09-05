@@ -49,7 +49,9 @@ class TelephonyMiddlewareClient(models.AbstractModel):
         call_id = result.get("call_id")
         if (
             not isinstance(dialing, str)
-            or not dialing
+            # An unrecognized outcome is not proof that no call was placed.
+            # Preserve the reservation and its idempotency key for reconciliation.
+            or dialing not in {"attempting", "unknown", "blocked"}
             or (reason is not None and not isinstance(reason, str))
             or (call_id is not None and (not isinstance(call_id, str) or not call_id))
         ):
