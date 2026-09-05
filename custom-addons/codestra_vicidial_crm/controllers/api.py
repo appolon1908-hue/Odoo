@@ -191,6 +191,12 @@ class CodestraAPI(http.Controller):
             or agent.odoo_user_id.keycloak_subject != str(payload["keycloak_subject"])
         ):
             raise Forbidden("agent campaign extension mapping rejected")
+        # Serialize lifecycle creation/claiming with Odoo-originated reservation
+        # creation so one agent cannot acquire two concurrent active calls.
+        request.env.cr.execute(
+            "SELECT id FROM codestra_vicidial_agent WHERE id = %s FOR UPDATE",
+            (agent.id,),
+        )
         call = Call.search([("call_id", "=", str(payload["call_id"]))], limit=1)
         if not call:
             call = Call.search(
