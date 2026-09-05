@@ -139,16 +139,70 @@ class CrmLead(models.Model):
         destination_country = params.get_param(
             "codestra.telephony.destination_country"
         )
-        if not destination_class or not destination_country:
+        outbound_caller_id = params.get_param(
+            "codestra.telephony.approved_outbound_caller_id"
+        )
+        if (
+            not destination_class
+            or not destination_country
+            or not outbound_caller_id
+        ):
             raise UserError(
                 "Click-to-call compliance is not configured. Set the approved "
-                "destination class and country system parameters."
+                "destination class, country, and outbound caller ID system parameters."
             )
 
-        correlation_id = str(uuid.uuid4())
+        campaign = campaigns_by_code[campaign_code]
+        pending = self.env["codestra.vicidial.call"].search(
+            [
+                ("crm_lead_id", "=", self.id),
+                ("agent_id", "=", agent.id),
+                ("campaign_id", "=", campaign.id),
+                ("destination", "=", destination),
+                (
+                    "state",
+                    "in",
+                    ["initiating", "ringing", "offered", "answering", "connected"],
+                ),
+            ],
+            order="create_date desc",
+            limit=1,
+        )
+        if pending and pending.status != "outcome_unknown":
+            raise UserError(
+                "A call request for this lead is already active. Wait for its outcome."
+            )
+
+        if pending:
+            call = pending
+            correlation_id = pending.correlation_id
+            idempotency_key = pending.idempotency_key
+        else:
+            correlation_id = str(uuid.uuid4())
+            idempotency_key = correlation_id
+            call = self.env["codestra.vicidial.call"].create(
+                {
+                    "name": "Click-to-call %s" % correlation_id,
+                    "crm_lead_id": self.id,
+                    "lead_id": self.id,
+                    "agent_id": agent.id,
+                    "campaign_id": campaign.id,
+                    "direction": "outbound",
+                    "destination": destination,
+                    "caller_id": outbound_caller_id,
+                    "state": "initiating",
+                    "status": "requesting",
+                    "idempotency_key": idempotency_key,
+                    "correlation_id": correlation_id,
+                    "campaign_code": campaign_code,
+                    "business_unit_id": self.business_unit_id.code,
+                    "vicidial_user": agent.vicidial_user,
+                    "extension": agent.phone_login,
+                }
+            )
         result = self.env["codestra.telephony.middleware.client"].originate_call(
             correlation_id,
-            correlation_id,
+            idempotency_key,
             {
                 "employee_id": agent.employee_code or agent.vicidial_user,
                 "campaign": campaign_code,
@@ -157,16 +211,34 @@ class CrmLead(models.Model):
                 "destination_class": destination_class,
                 "destination_country": destination_country,
                 "destination_timezone": self.x_timezone or self.env.user.tz or "UTC",
-                "caller_id": agent.phone_login or "",
+                "caller_id": outbound_caller_id,
                 "lead_model": "crm.lead",
                 "lead_id": self.id,
                 "recording_requested": False,
             },
         )
         attempting = result.get("dialing") == "attempting"
+        unknown = result.get("dialing") == "unknown"
+        values = {"status": result.get("dialing") or "invalid_response"}
+        if result.get("call_id"):
+            values.update(
+                {
+                    "call_id": result["call_id"],
+                    "external_call_id": result["call_id"],
+                }
+            )
+        if unknown:
+            values["status"] = "outcome_unknown"
+        elif not attempting:
+            values.update({"state": "failed", "ended_at": fields.Datetime.now()})
+        call.write(values)
         message = (
             "Call is being placed to %s." % destination
             if attempting
+            else (
+                "Call outcome is unknown; use Call again to reconcile the same request."
+            )
+            if unknown
             else "Call was not placed: %s."
             % result.get("reason", "blocked by policy")
         )
@@ -177,6 +249,8 @@ class CrmLead(models.Model):
                 "title": "Click-to-call",
                 "message": message,
                 "sticky": not attempting,
-                "type": "success" if attempting else "info",
+                "type": (
+                    "success" if attempting else "warning" if unknown else "info"
+                ),
             },
         }

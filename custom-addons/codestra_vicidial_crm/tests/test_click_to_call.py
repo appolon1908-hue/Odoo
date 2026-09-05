@@ -36,6 +36,9 @@ class TestClickToCall(TransactionCase):
         params = self.env["ir.config_parameter"].sudo()
         params.set_param("codestra.telephony.destination_class", "CONSENTED_PILOT")
         params.set_param("codestra.telephony.destination_country", "DO")
+        params.set_param(
+            "codestra.telephony.approved_outbound_caller_id", "+18095550999"
+        )
 
     def test_fail_closed_guards(self):
         self.agent.status = "paused"
@@ -44,12 +47,13 @@ class TestClickToCall(TransactionCase):
 
     def test_middleware_target_requires_credential_free_https(self):
         client = self.env["codestra.telephony.middleware.client"]
-        valid = "https://middleware.example.test/api/v1/telephony/originate"
+        valid = "https://middleware.example.test/v1/telephony/calls/originate"
         self.assertEqual(client._validated_target(valid), valid)
         for unsafe in (
             "http://middleware.example.test/api/v1/telephony/originate",
             "https://user:secret@middleware.example.test/api/v1/telephony/originate",
             "https://middleware.example.test/api/v1/telephony/originate?redirect=1",
+            "https://middleware.example.test/api/v1/telephony/originate",
         ):
             with self.subTest(unsafe=unsafe), self.assertRaises(UserError):
                 client._validated_target(unsafe)
@@ -74,6 +78,37 @@ class TestClickToCall(TransactionCase):
         self.assertEqual(action["params"]["type"], "success")
         self.assertEqual(captured["campaign"], self.lead.x_vicidial_campaign_id)
         self.assertEqual(captured["destination_country"], "DO")
+        self.assertEqual(captured["caller_id"], "+18095550999")
+        self.assertNotEqual(captured["caller_id"], self.agent.phone_login)
+
+    def test_unknown_timeout_reuses_request_instead_of_creating_duplicate(self):
+        requests = []
+
+        def fake_originate(_self, correlation_id, idempotency_key, payload):
+            requests.append((correlation_id, idempotency_key, payload))
+            if len(requests) == 1:
+                return {"dialing": "unknown", "reason": "timeout", "retry_safe": False}
+            return {
+                "dialing": "attempting",
+                "reason": "accepted",
+                "call_id": "synthetic-call-id",
+            }
+
+        self.patch(
+            type(self.env["codestra.telephony.middleware.client"]),
+            "originate_call",
+            fake_originate,
+        )
+        first = self.lead.action_click_to_call()
+        second = self.lead.action_click_to_call()
+        self.assertEqual(first["params"]["type"], "warning")
+        self.assertEqual(second["params"]["type"], "success")
+        self.assertEqual(requests[0][0:2], requests[1][0:2])
+        calls = self.env["codestra.vicidial.call"].search(
+            [("crm_lead_id", "=", self.lead.id)]
+        )
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls.call_id, "synthetic-call-id")
 
     def test_policy_denial_is_visible(self):
         def fake_originate(_self, correlation_id, idempotency_key, payload):

@@ -1,4 +1,5 @@
 import json
+import socket
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -21,6 +22,7 @@ class TelephonyMiddlewareClient(models.AbstractModel):
             or parsed.password
             or parsed.query
             or parsed.fragment
+            or parsed.path != "/v1/telephony/calls/originate"
         ):
             raise UserError(
                 "Click-to-call middleware must use a credential-free HTTPS endpoint."
@@ -45,6 +47,7 @@ class TelephonyMiddlewareClient(models.AbstractModel):
                 "Content-Type": "application/json",
                 "Authorization": "Bearer " + api_key,
                 "X-Correlation-ID": correlation_id,
+                "Idempotency-Key": idempotency_key,
             },
             method="POST",
         )
@@ -67,7 +70,19 @@ class TelephonyMiddlewareClient(models.AbstractModel):
             raise UserError(
                 detail or messages.get(exc.code, "Call could not be started.")
             ) from exc
+        except (TimeoutError, socket.timeout) as exc:
+            return {
+                "dialing": "unknown",
+                "reason": "timeout; reconcile this request before retrying",
+                "retry_safe": False,
+            }
         except urllib.error.URLError as exc:
+            if isinstance(exc.reason, (TimeoutError, socket.timeout)):
+                return {
+                    "dialing": "unknown",
+                    "reason": "timeout; reconcile this request before retrying",
+                    "retry_safe": False,
+                }
             raise UserError(
                 "The telephony service is unavailable. Try again shortly."
             ) from exc
