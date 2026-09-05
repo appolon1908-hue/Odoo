@@ -1,0 +1,2 @@
+Refresh evidence for the repaired heads of Odoo PRs 5, 67, 74, 78 and current 79.
+Read-only source and existing GitHub Actions results; no runtime deployment.
