@@ -155,19 +155,14 @@
     },
     "codestra_vicidial_crm": {
       "base_tree": "cf0783918b94c3e396d24ebe868c4fb04096e4a1",
-      "current_tree": "248c8b2133ea3bcb27fef373dcab91e3dd5f4d98",
-      "reason": "Bind CRM click-to-call to the exact governed Middleware originate path, require an independently approved outbound caller ID, durably reserve before post-commit transport, classify confirmed rejection separately from unknown outcomes, preserve reconciliation identity and payload across retries, and block a second originate for every active state including new, while preserving destination, DNC, agent, campaign, and business-unit controls.",
-      "pull_request": 79,
+      "current_tree": "2430f6eab410cd36cd10937f4c3e36ca601c57e7",
+      "reason": "Preserve the reviewed Odoo 19 VICIdial staging, reconciliation, idempotency, click-to-call, and constrained Middleware boundaries while adding the governed AMI lifecycle projection, transaction-scoped mapped-agent row serialization, business-unit-scoped customer matching, immutable identity binding, strict monotonic sequencing, exact retryable sequence-gap evidence, terminal stale/lifecycle/identity conflict evidence, retry-safe rejection, the existing assigned-agent Odoo Bus screen pop, immutable assigned-call business-unit/campaign/number rebinding for browser rematch, and the canonical offered-to-ringing progression without permitting terminal regression. Preserve merged PR #79 durable click-to-call reservations, dispatch failure handling, call-row locking and lifecycle terminal precedence alongside the governed projection and campaign-scoped rematch.",
+      "pull_request": 78,
       "integration_boundary_exceptions": [
         {
-          "path": "controllers/api.py",
+          "path": "controllers/call_event_projection.py",
           "kind": "odoo_cursor_locking",
-          "reason": "Lifecycle ingestion locks the mapped agent row with SELECT FOR UPDATE before call lookup or creation, sharing the click-to-call reservation boundary and preventing concurrent active-call creation."
-        },
-        {
-          "path": "models/crm_lead.py",
-          "kind": "odoo_cursor_locking",
-          "reason": "Click-to-call reservation creation locks the selected Odoo agent row with SELECT FOR UPDATE on the existing cursor so concurrent UI requests cannot originate two calls."
+          "reason": "A transaction-scoped SELECT FOR UPDATE lock on the authoritative mapped agent serializes all of that agent's call lifecycle mutations before authoritative call lookup and update, preventing concurrent at-least-once events from regressing or skipping state."
         },
         {
           "path": "models/reconciliation.py",
@@ -183,6 +178,16 @@
           "path": "tests/test_reconciliation.py",
           "kind": "odoo_test_driver_exception",
           "reason": "The test imports only IntegrityError to assert call-record database constraints and does not open an external database connection."
+        },
+        {
+          "path": "controllers/api.py",
+          "kind": "odoo_cursor_locking",
+          "reason": "Lifecycle ingestion locks the mapped agent row with SELECT FOR UPDATE before call lookup or creation, sharing the click-to-call reservation boundary and preventing concurrent active-call creation."
+        },
+        {
+          "path": "models/crm_lead.py",
+          "kind": "odoo_cursor_locking",
+          "reason": "Click-to-call reservation creation locks the selected Odoo agent row with SELECT FOR UPDATE on the existing cursor so concurrent UI requests cannot originate two calls."
         }
       ]
     },
