@@ -1,0 +1,60 @@
+name: Odoo repair evidence snapshot
+on:
+  push:
+    branches: [codex/odoo-pr-repair-evidence-20260905]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Snapshot repository and current failed CI jobs without executing addon code
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir evidence
+          git clone --mirror https://github.com/appolon1908-hue/Odoo.git source.git
+          git -C source.git bundle create "$GITHUB_WORKSPACE/evidence/odoo.bundle" --all
+          python3 - <<'PY'
+          import json, os, pathlib, re, urllib.error, urllib.request
+          root='https://api.github.com/repos/appolon1908-hue/Odoo'
+          headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'}
+          def api(path):
+              with urllib.request.urlopen(urllib.request.Request(root+path,headers=headers),timeout=45) as r:
+                  return json.load(r)
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs): return None
+          opener=urllib.request.build_opener(NoRedirect)
+          rows=[]
+          for p in api('/pulls?state=open&per_page=100'):
+              if p['number'] not in {5,67,74,78,79}: continue
+              runs=api('/actions/runs?event=pull_request&head_sha='+p['head']['sha']+'&per_page=30')['workflow_runs']
+              rows.append({'pr':p['number'],'head':p['head']['sha'],'branch':p['head']['ref'],'base':p['base']['sha'],'runs':[{'id':r['id'],'name':r['name'],'status':r['status'],'conclusion':r['conclusion']} for r in runs]})
+              for run in runs:
+                  if run['name']!='Odoo Addons CI' or run['conclusion']!='failure': continue
+                  for job in api(f"/actions/runs/{run['id']}/jobs?per_page=100")['jobs']:
+                      if job['conclusion']!='failure': continue
+                      try:
+                          response=opener.open(urllib.request.Request(root+f"/actions/jobs/{job['id']}/logs",headers=headers),timeout=45)
+                      except urllib.error.HTTPError as e:
+                          if e.code!=302: raise
+                          response=urllib.request.urlopen(e.headers['Location'],timeout=45)
+                      with response: text=response.read(20000000).decode('utf-8',errors='replace')
+                      stem=f"pr-{p['number']}-job-{job['id']}"
+                      pathlib.Path('evidence',stem+'.log').write_text(text)
+                      lines=text.splitlines(); selected=set()
+                      for i,line in enumerate(lines):
+                          if re.search(r'(?:ERROR|FAIL): (?:Test|[A-Za-z]+Test)|error\(s\) of|ERROR=|MODULE_REVIEW_ERRORS=[1-9]',line):
+                              selected.update(range(max(0,i-1),min(len(lines),i+40)))
+                      pathlib.Path('evidence',stem+'-failures.txt').write_text('\n'.join(lines[i] for i in sorted(selected)))
+          pathlib.Path('evidence/heads-and-ci.json').write_text(json.dumps(rows,indent=2))
+          print(json.dumps(rows))
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: odoo-repair-snapshot-${{ github.run_id }}
+          path: evidence/
+          retention-days: 3
+          if-no-files-found: error
