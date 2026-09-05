@@ -306,6 +306,10 @@ class ClickToCallDispatch(models.Model):
             )
 
     def _record_dispatch_failure(self, classification, reason):
+        self.env.cr.execute(
+            "SELECT id FROM codestra_vicidial_call WHERE id = %s FOR UPDATE",
+            (self.id,),
+        )
         self.invalidate_recordset()
         if self.state in AUTHORITATIVE_TERMINAL_STATES:
             return
@@ -351,6 +355,10 @@ class ClickToCallDispatch(models.Model):
                 "reconcile this call before retrying.",
             )
             return
+        self.env.cr.execute(
+            "SELECT id FROM codestra_vicidial_call WHERE id = %s FOR UPDATE",
+            (self.id,),
+        )
         self.invalidate_recordset()
         if self.state in AUTHORITATIVE_TERMINAL_STATES:
             return

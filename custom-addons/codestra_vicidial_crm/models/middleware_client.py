@@ -38,6 +38,28 @@ class TelephonyMiddlewareClient(models.AbstractModel):
         return value
 
     @api.model
+    def _validate_originate_response(self, result):
+        if not isinstance(result, dict):
+            raise OriginateOutcomeUnknown(
+                "Middleware returned an invalid response with an unknown call outcome; "
+                "reconcile this call before retrying."
+            )
+        dialing = result.get("dialing")
+        reason = result.get("reason")
+        call_id = result.get("call_id")
+        if (
+            not isinstance(dialing, str)
+            or not dialing
+            or (reason is not None and not isinstance(reason, str))
+            or (call_id is not None and (not isinstance(call_id, str) or not call_id))
+        ):
+            raise OriginateOutcomeUnknown(
+                "Middleware returned an invalid response with an unknown call outcome; "
+                "reconcile this call before retrying."
+            )
+        return result
+
+    @api.model
     def originate_call(self, correlation_id, idempotency_key, payload):
         params = self.env["ir.config_parameter"].sudo()
         target = params.get_param("codestra.middleware.telephony_originate_url")
@@ -94,9 +116,4 @@ class TelephonyMiddlewareClient(models.AbstractModel):
                 "The telephony connection failed with an unknown request outcome; "
                 "reconcile this call before retrying."
             ) from exc
-        if not isinstance(result, dict) or "dialing" not in result:
-            raise OriginateOutcomeUnknown(
-                "Middleware returned an invalid response with an unknown call outcome; "
-                "reconcile this call before retrying."
-            )
-        return result
+        return self._validate_originate_response(result)

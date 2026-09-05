@@ -267,6 +267,19 @@ class TestClickToCall(TransactionCase):
         self.assertEqual(call.originate_result_class, "unknown")
         self.assertEqual(requests[0], requests[1])
 
+    def test_middleware_response_rejects_malformed_scalar_fields(self):
+        client = self.env["codestra.telephony.middleware.client"]
+        for result in (
+            {"dialing": "attempting", "reason": []},
+            {"dialing": "attempting", "call_id": 6101},
+            {"dialing": []},
+            ["attempting"],
+        ):
+            with self.subTest(result=result), self.assertRaises(
+                OriginateOutcomeUnknown
+            ):
+                client._validate_originate_response(result)
+
     def test_authoritative_terminal_event_wins_over_late_dispatch_failure(self):
         def reject(*_args):
             raise OriginateRejected("Late rejection")
