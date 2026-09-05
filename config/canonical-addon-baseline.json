@@ -151,10 +151,15 @@
     },
     "codestra_vicidial_crm": {
       "base_tree": "cf0783918b94c3e396d24ebe868c4fb04096e4a1",
-      "current_tree": "43daec6db3f0639b6e7b754d3deb14e2f1d25053",
+      "current_tree": "04e7bf116b2a1324738962757995569fc97b1256",
       "reason": "Bind CRM click-to-call to the exact governed Middleware originate path, require an independently approved outbound caller ID, durably reserve before post-commit transport, classify confirmed rejection separately from unknown outcomes, preserve reconciliation identity and payload across retries, and block a second originate for every active state including new, while preserving destination, DNC, agent, campaign, and business-unit controls.",
       "pull_request": 79,
       "integration_boundary_exceptions": [
+        {
+          "path": "controllers/api.py",
+          "kind": "odoo_cursor_locking",
+          "reason": "Lifecycle ingestion locks the mapped agent row with SELECT FOR UPDATE before call lookup or creation, sharing the click-to-call reservation boundary and preventing concurrent active-call creation."
+        },
         {
           "path": "models/crm_lead.py",
           "kind": "odoo_cursor_locking",
