@@ -217,6 +217,24 @@ class CodestraAPI(http.Controller):
             or (call.linkedid and call.linkedid != str(payload["linkedid"]))
         ):
             raise Forbidden("existing call binding conflict")
+        if not call:
+            active = Call.search(
+                [
+                    ("agent_id", "=", agent.id),
+                    ("tenant_id", "=", payload["tenant_id"]),
+                    (
+                        "state",
+                        "in",
+                        [
+                            "new", "initiating", "ringing", "offered", "answering",
+                            "connected", "held", "transferring", "ending",
+                        ],
+                    ),
+                ],
+                limit=1,
+            )
+            if active:
+                raise Conflict("agent already has an active call")
         if not call and payload["event_type"] in {
             "call.answered",
             "call.connected",

@@ -201,6 +201,32 @@ class TestClickToCall(TransactionCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls.call_id, "synthetic-call-id")
 
+    def test_accepted_without_call_id_remains_reclaimable(self):
+        requests = []
+
+        def fake_originate(_self, correlation_id, idempotency_key, payload):
+            requests.append((correlation_id, idempotency_key, dict(payload)))
+            return {"dialing": "attempting", "reason": "accepted without identity"}
+
+        self.patch(
+            type(self.env["codestra.telephony.middleware.client"]),
+            "originate_call",
+            fake_originate,
+        )
+        self.lead.action_click_to_call()
+        call = self.env["codestra.vicidial.call"].search(
+            [("crm_lead_id", "=", self.lead.id)], limit=1
+        )
+        call._dispatch_click_to_call()
+        self.assertEqual(call.status, "outcome_unknown")
+        self.assertEqual(call.originate_result_class, "unknown")
+        self.assertFalse(call.call_id)
+
+        self.lead.action_click_to_call()
+        call._dispatch_click_to_call()
+        self.assertEqual(len(requests), 2)
+        self.assertEqual(requests[0], requests[1])
+
     def test_policy_denial_is_visible(self):
         def fake_originate(_self, correlation_id, idempotency_key, payload):
             return {"dialing": "blocked", "reason": "policy_decision:DENY"}

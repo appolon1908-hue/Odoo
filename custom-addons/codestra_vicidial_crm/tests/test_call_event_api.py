@@ -133,6 +133,18 @@ class TestCallEventAPIContract(HttpCase):
         payload = self.payload(event_type="call.completed", sequence=4)
         self.assertEqual(self.post(payload).status_code, 404)
 
+    def test_created_event_rejects_second_active_call_for_agent(self):
+        first = self.payload(call_id=f"active-{uuid.uuid4()}")
+        self.assertEqual(self.post(first).status_code, 202)
+        second = self.payload(call_id=f"second-{uuid.uuid4()}")
+        self.assertEqual(self.post(second).status_code, 409)
+        self.assertEqual(
+            self.env["codestra.vicidial.call"].search_count(
+                [("agent_id.vicidial_user", "=", "HTTP6101")]
+            ),
+            1,
+        )
+
     def test_out_of_order_and_conflicting_replay(self):
         call_id = f"ordered-{uuid.uuid4()}"
         created = self.payload(call_id=call_id, sequence=0)

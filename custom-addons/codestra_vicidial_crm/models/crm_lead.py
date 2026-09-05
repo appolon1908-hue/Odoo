@@ -363,7 +363,14 @@ class ClickToCallDispatch(models.Model):
         if self.state in AUTHORITATIVE_TERMINAL_STATES:
             return
         attempting = result.get("dialing") == "attempting"
-        unknown = result.get("dialing") == "unknown"
+        # An accepted transport response without a durable call identity cannot
+        # distinguish a placed call from a lost acknowledgement. Keep the original
+        # reservation reclaimable so a retry uses the same idempotency key.
+        unknown = result.get("dialing") == "unknown" or (
+            attempting and not result.get("call_id")
+        )
+        if unknown:
+            attempting = False
         values = {
             "status": result.get("dialing") or "invalid_response",
             "originate_result_class": "accepted" if attempting else "unknown" if unknown else "rejected",
