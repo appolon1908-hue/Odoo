@@ -16,6 +16,26 @@ class OriginateOutcomeUnknown(UserError):
     """The request may have reached Middleware; reconciliation is required."""
 
 
+def validate_originate_result(result):
+    """Malformed acknowledgements never prove that no call was dispatched."""
+    if not isinstance(result, dict):
+        raise OriginateOutcomeUnknown("Invalid Middleware call acknowledgement.")
+    dialing = result.get("dialing")
+    reason = result.get("reason")
+    call_id = result.get("call_id")
+    if (
+        not isinstance(dialing, str)
+        or dialing not in {"attempting", "unknown", "blocked", "rejected", "disabled", "denied"}
+        or (reason is not None and not isinstance(reason, str))
+        or (call_id is not None and (
+            not isinstance(call_id, str) or not 1 <= len(call_id) <= 255
+            or any(not (char.isascii() and (char.isalnum() or char in "._:-")) for char in call_id)
+        ))
+    ):
+        raise OriginateOutcomeUnknown("Invalid Middleware call acknowledgement.")
+    return dict(result, reason=" ".join((reason or "Call dispatch result received.").split())[:240])
+
+
 class TelephonyMiddlewareClient(models.AbstractModel):
     _name = "codestra.telephony.middleware.client"
     _description = "Governed Codestra Telephony Middleware Client"
@@ -64,7 +84,10 @@ class TelephonyMiddlewareClient(models.AbstractModel):
             with urllib.request.urlopen(  # nosec B310
                 outbound_request, timeout=10
             ) as response:
-                result = json.loads(response.read())
+                encoded_result = response.read(65537)
+                if len(encoded_result) > 65536:
+                    raise OriginateOutcomeUnknown("Oversized Middleware call acknowledgement.")
+                result = json.loads(encoded_result)
         except urllib.error.HTTPError as exc:
             messages = {
                 403: "You are not authorized to call from this campaign.",
@@ -99,4 +122,4 @@ class TelephonyMiddlewareClient(models.AbstractModel):
                 "Middleware returned an invalid response with an unknown call outcome; "
                 "reconcile this call before retrying."
             )
-        return result
+        return validate_originate_result(result)

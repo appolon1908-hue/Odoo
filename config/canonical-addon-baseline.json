@@ -151,14 +151,14 @@
     },
     "codestra_vicidial_crm": {
       "base_tree": "cf0783918b94c3e396d24ebe868c4fb04096e4a1",
-      "current_tree": "4e45edab144f6cd35d2d222e94ffd857db9fb305",
+      "current_tree": "05042709d4d127cfe3894cbd93e0dd1fe6f8a095",
       "reason": "Bind CRM click-to-call to the exact governed Middleware originate path, require an independently approved outbound caller ID, durably reserve before post-commit transport, classify confirmed rejection separately from unknown outcomes, preserve reconciliation identity and payload across retries, and block a second originate for every active state including new, while preserving destination, DNC, agent, campaign, and business-unit controls.",
       "pull_request": 79,
       "integration_boundary_exceptions": [
         {
           "path": "models/crm_lead.py",
           "kind": "odoo_cursor_locking",
-          "reason": "Click-to-call reservation creation locks the selected Odoo agent row with SELECT FOR UPDATE on the existing cursor so concurrent UI requests cannot originate two calls."
+          "reason": "Click-to-call creation locks the selected Odoo agent row, and post-commit result finalization locks and rereads the exact call row before conditionally updating a pending reservation. Both use SELECT FOR UPDATE on the existing Odoo cursor, preserving authoritative lifecycle progress without holding a lock across network I/O."
         },
         {
           "path": "models/reconciliation.py",

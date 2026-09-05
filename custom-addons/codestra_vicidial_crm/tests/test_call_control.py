@@ -192,3 +192,12 @@ class TestCallControl(TransactionCase):
         self.assertNotEqual(first["callback_id"], second["callback_id"])
         self.assertTrue(replay["duplicate"])
         self.assertEqual(replay["callback_id"], first["callback_id"])
+
+    def test_current_call_does_not_expose_unaddressable_reservation(self):
+        pending = self.call("pending-reservation")
+        pending.write({"call_id": False, "state": "initiating"})
+        controller = call_control_controller.CallControlAPI()
+        with patch.object(controller, "_agent", return_value=self.agent), patch.object(
+            call_control_controller, "request", SimpleNamespace(env=self.env),
+        ):
+            self.assertIsNone(controller.current())

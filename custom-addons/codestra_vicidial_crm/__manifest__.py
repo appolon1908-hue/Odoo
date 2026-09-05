@@ -1,6 +1,6 @@
 {
     "name": "Codestra VICIdial CRM",
-    "version": "19.0.3.2.1",
+    "version": "19.0.3.2.2",
     "summary": "Read-only VICIdial integration staging for CRM",
     "author": "Codestra",
     "license": "LGPL-3",

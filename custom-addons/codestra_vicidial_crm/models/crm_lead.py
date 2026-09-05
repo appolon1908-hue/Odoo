@@ -5,7 +5,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.modules.registry import Registry
 
 from .phone import normalize_phone
-from .middleware_client import OriginateOutcomeUnknown, OriginateRejected
+from .middleware_client import OriginateOutcomeUnknown, OriginateRejected, validate_originate_result
 
 
 AUTHORITATIVE_TERMINAL_STATES = frozenset(
@@ -305,9 +305,23 @@ class ClickToCallDispatch(models.Model):
                 },
             )
 
+    def _lock_pending_dispatch(self):
+        """Recheck the persisted reservation under the same row lock as writes."""
+        self.ensure_one()
+        self.flush_recordset(["state", "status", "call_id"])
+        self.env.cr.execute(
+            "SELECT id FROM codestra_vicidial_call WHERE id = %s FOR UPDATE",
+            [self.id],
+        )
+        self.invalidate_recordset(["state", "status", "call_id"])
+        # Authoritative lifecycle progress, and an already accepted dispatch,
+        # take precedence over a late response from a duplicate dispatcher.
+        return self.state == "initiating" and self.status in (
+            "requesting", "outcome_unknown",
+        )
+
     def _record_dispatch_failure(self, classification, reason):
-        self.invalidate_recordset()
-        if self.state in AUTHORITATIVE_TERMINAL_STATES:
+        if not self._lock_pending_dispatch():
             return
         safe_reason = " ".join((reason or "Call dispatch failed.").split())[:240]
         values = {
@@ -336,6 +350,7 @@ class ClickToCallDispatch(models.Model):
                 self.idempotency_key,
                 self.originate_payload,
             )
+            result = validate_originate_result(result)
         except OriginateRejected as exc:
             self._record_dispatch_failure("rejected", str(exc))
             return
@@ -351,8 +366,7 @@ class ClickToCallDispatch(models.Model):
                 "reconcile this call before retrying.",
             )
             return
-        self.invalidate_recordset()
-        if self.state in AUTHORITATIVE_TERMINAL_STATES:
+        if not self._lock_pending_dispatch():
             return
         attempting = result.get("dialing") == "attempting"
         unknown = result.get("dialing") == "unknown"

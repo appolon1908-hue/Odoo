@@ -335,3 +335,59 @@ class TestClickToCall(TransactionCase):
         self.assertEqual(first["params"]["type"], "success")
         self.assertEqual(second["params"]["type"], "success")
         self.assertEqual(call.status, "requesting")
+
+    def test_malformed_acknowledgement_keeps_same_reconcilable_reservation(self):
+        for malformed in (
+            {"dialing": "attempting", "reason": []},
+            {"dialing": []},
+            {"dialing": "attempting", "call_id": {"invalid": True}},
+            {"dialing": "unexpected-state"},
+        ):
+            with self.subTest(malformed=malformed):
+                self.patch(
+                    type(self.env["codestra.telephony.middleware.client"]),
+                    "originate_call", lambda *args: malformed,
+                )
+                self.lead.action_click_to_call()
+                call = self.env["codestra.vicidial.call"].search([
+                    ("crm_lead_id", "=", self.lead.id),
+                ], limit=1)
+                original_key = call.idempotency_key
+                call._dispatch_click_to_call()
+                self.assertEqual(call.state, "initiating")
+                self.assertEqual(call.status, "outcome_unknown")
+                self.assertEqual(call.idempotency_key, original_key)
+                self.assertFalse(call.call_id)
+
+    def test_lifecycle_progress_wins_at_dispatch_finalization_lock(self):
+        self.lead.action_click_to_call()
+        call = self.env["codestra.vicidial.call"].search([
+            ("crm_lead_id", "=", self.lead.id),
+        ], limit=1)
+        lock = type(call)._lock_pending_dispatch
+        observed = []
+
+        def completed_before_lock(record):
+            observed.append(record.id)
+            record.write({"state": "completed", "status": "completed"})
+            return lock(record)
+
+        self.patch(type(call), "_lock_pending_dispatch", completed_before_lock)
+        self.patch(
+            type(self.env["codestra.telephony.middleware.client"]),
+            "originate_call", lambda *args: {"dialing": "blocked"},
+        )
+        call._dispatch_click_to_call()
+        self.assertEqual(observed, [call.id])
+        self.assertEqual(call.state, "completed")
+        self.assertEqual(call.status, "completed")
+
+    def test_late_dispatch_failure_preserves_authoritative_active_call(self):
+        self.lead.action_click_to_call()
+        call = self.env["codestra.vicidial.call"].search([
+            ("crm_lead_id", "=", self.lead.id),
+        ], limit=1)
+        call.write({"state": "connected", "status": "connected"})
+        call._record_dispatch_failure("rejected", "Late duplicate response")
+        self.assertEqual(call.state, "connected")
+        self.assertEqual(call.status, "connected")
