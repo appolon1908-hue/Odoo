@@ -100,7 +100,8 @@ class TestClickToCall(TransactionCase):
                 "codestra_tenant_id": "COD",
                 "keycloak_subject": str(uuid.uuid4()),
                 "group_ids": [
-                    (4, self.env.ref("codestra_vicidial_crm.group_agent").id)
+                    (4, self.env.ref("codestra_vicidial_crm.group_agent").id),
+                    (4, self.env.ref("sales_team.group_sale_salesman").id),
                 ],
             }
         )
