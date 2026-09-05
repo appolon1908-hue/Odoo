@@ -151,7 +151,7 @@
     },
     "codestra_vicidial_crm": {
       "base_tree": "cf0783918b94c3e396d24ebe868c4fb04096e4a1",
-      "current_tree": "200ca101f81bc80ae047c671c73a503650077500",
+      "current_tree": "43ac84d63dc817b4fb058e1d18f14b3e8469017d",
       "reason": "Bind CRM click-to-call to the exact governed Middleware originate path, require an independently approved outbound caller ID, create a lead-associated call request before transport, and reuse its idempotency key when a timeout leaves the outcome unknown, while preserving destination, DNC, agent, campaign, and business-unit controls.",
       "pull_request": 79,
       "integration_boundary_exceptions": [
