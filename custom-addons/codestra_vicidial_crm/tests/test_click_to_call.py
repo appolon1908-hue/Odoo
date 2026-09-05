@@ -165,3 +165,21 @@ class TestClickToCall(TransactionCase):
         action = self.lead.action_click_to_call()
         self.assertEqual(action["params"]["type"], "info")
         self.assertTrue(action["params"]["sticky"])
+
+    def test_active_call_blocks_other_lead_for_same_agent(self):
+        other = self.lead.copy({"name": "Other lead", "phone": "+18095550124"})
+        self.env["codestra.vicidial.call"].create(
+            {
+                "name": "Existing active call",
+                "crm_lead_id": other.id,
+                "agent_id": self.agent.id,
+                "campaign_id": self.agent.campaign_ids.id,
+                "tenant_id": self.agent.tenant_id,
+                "destination": other.phone,
+                "state": "ringing",
+                "status": "ringing",
+                "idempotency_key": str(uuid.uuid4()),
+            }
+        )
+        with self.assertRaises(UserError):
+            self.lead.action_click_to_call()

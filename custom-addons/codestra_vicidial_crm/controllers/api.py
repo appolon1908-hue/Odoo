@@ -192,6 +192,12 @@ class CodestraAPI(http.Controller):
         ):
             raise Forbidden("agent campaign extension mapping rejected")
         call = Call.search([("call_id", "=", str(payload["call_id"]))], limit=1)
+        if not call:
+            call = Call.search(
+                [("correlation_id", "=", payload["correlation_id"])], limit=1
+            )
+            if call and call.call_id and call.call_id != str(payload["call_id"]):
+                raise Forbidden("existing call correlation conflict")
         if call and (
             call.tenant_id != payload["tenant_id"]
             or call.agent_id != agent
@@ -254,6 +260,13 @@ class CodestraAPI(http.Controller):
                 "idempotency_key": "call:" + str(payload["call_id"]),
             }
             call = Call.create(values)
+        elif not call.call_id:
+            call.write(
+                {
+                    "call_id": str(payload["call_id"]),
+                    "external_call_id": str(payload["call_id"]),
+                }
+            )
         try:
             result = call.apply_authoritative_event(
                 {

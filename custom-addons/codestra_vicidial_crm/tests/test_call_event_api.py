@@ -145,3 +145,33 @@ class TestCallEventAPIContract(HttpCase):
         self.assertFalse(stale_response.json()["applied"])
         conflict = dict(ringing, caller_number="+18095550999")
         self.assertEqual(self.post(conflict).status_code, 409)
+
+    def test_created_event_claims_timeout_placeholder_by_correlation(self):
+        call_id = f"timeout-{uuid.uuid4()}"
+        correlation_id = f"corr-{call_id}"
+        placeholder = self.env["codestra.vicidial.call"].create(
+            {
+                "name": "Timeout placeholder",
+                "agent_id": self.env["codestra.vicidial.agent"].search(
+                    [("vicidial_user", "=", "HTTP6101")], limit=1
+                ).id,
+                "campaign_id": self.campaign.id,
+                "tenant_id": "COD",
+                "keycloak_subject": self.subject,
+                "extension": "6101",
+                "correlation_id": correlation_id,
+                "idempotency_key": correlation_id,
+                "state": "initiating",
+                "status": "outcome_unknown",
+            }
+        )
+        payload = self.payload(call_id=call_id, correlation_id=correlation_id)
+        self.assertEqual(self.post(payload).status_code, 202)
+        placeholder.invalidate_recordset()
+        self.assertEqual(placeholder.call_id, call_id)
+        self.assertEqual(
+            self.env["codestra.vicidial.call"].search_count(
+                [("correlation_id", "=", correlation_id)]
+            ),
+            1,
+        )

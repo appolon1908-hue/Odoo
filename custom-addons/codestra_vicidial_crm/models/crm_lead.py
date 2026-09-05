@@ -164,10 +164,8 @@ class CrmLead(models.Model):
         Call = self.env["codestra.vicidial.call"].sudo()
         pending = Call.search(
             [
-                ("crm_lead_id", "=", self.id),
                 ("agent_id", "=", agent.id),
-                ("campaign_id", "=", campaign.id),
-                ("destination", "=", destination),
+                ("tenant_id", "=", agent.tenant_id),
                 (
                     "state",
                     "in",
@@ -179,7 +177,17 @@ class CrmLead(models.Model):
         )
         if pending and pending.status != "outcome_unknown":
             raise UserError(
-                "A call request for this lead is already active. Wait for its outcome."
+                "You already have an active call request. Wait for its outcome."
+            )
+
+        if pending and (
+            pending.crm_lead_id != self
+            or pending.campaign_id != campaign
+            or pending.destination != destination
+        ):
+            raise UserError(
+                "Your previous call has an unknown outcome. Reconcile it from its "
+                "original lead before placing another call."
             )
 
         if pending:
@@ -211,6 +219,12 @@ class CrmLead(models.Model):
                     "extension": agent.phone_login,
                 }
             )
+            # The remote request must never outrun its deduplication reservation.
+            # This RPC performs no unrelated writes: persist the narrowly scoped call
+            # row before crossing the HTTP boundary so a worker failure cannot roll it
+            # back and generate a new key on the next click.
+            self.env.flush_all()
+            self.env.cr.commit()
         result = self.env["codestra.telephony.middleware.client"].originate_call(
             correlation_id,
             idempotency_key,
