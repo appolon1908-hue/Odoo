@@ -205,6 +205,16 @@ class TestCallEventAPIContract(HttpCase):
         placeholder.invalidate_recordset()
         self.assertEqual(placeholder.state, "answering")
 
+        completed = self.payload(
+            call_id=call_id,
+            correlation_id=correlation_id,
+            event_type="call.completed",
+            sequence=3,
+        )
+        self.assertEqual(self.post(completed).status_code, 202)
+        placeholder.invalidate_recordset()
+        self.assertEqual(placeholder.state, "completed")
+
     def test_event_populates_asterisk_identity_on_accepted_reservation(self):
         call_id = f"accepted-{uuid.uuid4()}"
         correlation_id = f"corr-{call_id}"

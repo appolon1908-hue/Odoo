@@ -33,7 +33,7 @@ ALLOWED_TRANSITIONS = {
     },
     "ringing": {"offered", "answering", "connected", "missed", "rejected", "cancelled", "failed"},
     "offered": {"answering", "connected", "missed", "rejected", "cancelled", "failed"},
-    "answering": {"connected", "rejected", "failed"},
+    "answering": {"connected", "completed", "rejected", "failed"},
     "connected": {"held", "transferring", "ending", "completed", "failed"},
     "held": {"connected", "transferring", "ending", "completed", "failed"},
     "transferring": {"connected", "transferred", "ending", "completed", "failed"},
