@@ -24,6 +24,18 @@ IMMUTABLE_ASSIGNMENT_FIELDS = {
     "operational_team_id",
     "supervisor_id",
     "role_template_id",
+    "activation_email",
+    "preferred_language",
+    "timezone",
+    "target_start_date",
+    "needs_company_email",
+    "needs_sip_endpoint",
+    "needs_voicemail",
+    "needs_recording_access",
+    "needs_monitoring_access",
+    "needs_agent_desktop",
+    "needs_keycloak",
+    "needs_vicidial",
 }
 SYSTEM_LINK_FIELDS = {
     "campaign_membership_id",
@@ -291,6 +303,10 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 continue
             legacy = campaign.legacy_campaign_id
             unit = legacy.business_unit_id
+            if unit.company_id != record.company_id:
+                raise ValidationError(
+                    _("The campaign business unit belongs to another company.")
+                )
             if record.branch_id and unit not in record.branch_id.business_unit_ids:
                 raise ValidationError(
                     _("The branch is outside the campaign business unit.")
@@ -711,6 +727,12 @@ class CodestraAgentOnboardingProvisioning(models.Model):
             targets.append("sip")
         if self.needs_agent_desktop:
             targets.append("agent_desktop")
+        if self.needs_voicemail:
+            targets.append("voicemail")
+        if self.needs_recording_access:
+            targets.append("recording_access")
+        if self.needs_monitoring_access:
+            targets.append("monitoring_access")
         return {
             "schema_version": EVENT_SCHEMA_VERSION,
             "event_type": PROVISION_EVENT,
@@ -856,6 +878,10 @@ class CodestraAgentOnboardingProvisioning(models.Model):
         self._require_state("provisioning")
         self._require_global_administrator()
         for record in self:
+            if not record.needs_keycloak:
+                raise ValidationError(
+                    _("Secure activation email requires a provisioned Keycloak identity.")
+                )
             if record.activation_outbox_id:
                 continue
             request_record = record.provisioning_request_id
@@ -949,6 +975,18 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                     _(
                         "Activation requires completed secure-login email "
                         "evidence."
+                    )
+                )
+            successful_results = activation_event.result_inbox_ids.filtered(
+                lambda result: result.execution_status == "SUCCEEDED"
+                and result.reconciliation_status == "RECONCILED"
+                and result.processing_status == "PROCESSED"
+            )
+            if not successful_results:
+                raise ValidationError(
+                    _(
+                        "Activation requires a successful and reconciled "
+                        "secure-login email result."
                     )
                 )
             user = record.employee_id.user_id
