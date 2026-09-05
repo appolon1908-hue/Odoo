@@ -99,9 +99,13 @@ class TestClickToCall(TransactionCase):
                 "login": "click-agent-" + self._testMethodName,
                 "codestra_tenant_id": "COD",
                 "keycloak_subject": str(uuid.uuid4()),
+                "call_center_business_unit_ids": [
+                    (6, 0, self.lead.business_unit_id.ids)
+                ],
                 "group_ids": [
                     (4, self.env.ref("codestra_vicidial_crm.group_agent").id),
                     (4, self.env.ref("sales_team.group_sale_salesman").id),
+                    (4, self.env.ref("call_center_core.group_call_center_user").id),
                 ],
             }
         )
