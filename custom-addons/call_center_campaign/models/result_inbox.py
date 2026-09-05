@@ -31,6 +31,11 @@ class CodestraIntegrationResultInbox(models.Model):
         required=True,
         readonly=True,
     )
+    outcome_explicit = fields.Boolean(
+        default=False,
+        readonly=True,
+        help="Both outcome fields were explicitly supplied by the authenticated callback. Legacy inferred outcomes remain unverified.",
+    )
     result_classification = fields.Char(required=True, readonly=True)
     result_hash = fields.Char(required=True, size=64, readonly=True)
     organization_public_id = fields.Char(required=True, index=True, readonly=True)

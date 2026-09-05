@@ -7,7 +7,9 @@
       <list string="Agent Onboarding" default_order="target_start_date desc">
         <field name="name"/>
         <field name="employee_id"/>
-        <field name="manager_id"/>
+        <field name="campaign_id"/>
+        <field name="campaign_role"/>
+        <field name="supervisor_id"/>
         <field name="target_start_date"/>
         <field name="completion_percent"/>
         <field name="provisioning_request_id"/>
@@ -23,40 +25,143 @@
     <field name="arch" type="xml">
       <form string="Agent Onboarding">
         <header>
-          <button name="action_submit" type="object" string="Submit for Review" class="btn-primary" invisible="state != 'draft'"/>
-          <button name="action_approve" type="object" string="Approve" class="btn-primary" invisible="state != 'in_review'"/>
-          <button name="action_start_provisioning" type="object" string="Start Provisioning" class="btn-primary" invisible="state != 'approved'"/>
-          <button name="action_activate" type="object" string="Activate" class="btn-primary" invisible="state != 'provisioning'"/>
-          <button name="action_begin_offboarding" type="object" string="Begin Offboarding" invisible="state != 'active'"/>
-          <button name="action_close" type="object" string="Close" invisible="state not in ('offboarding', 'cancelled')"/>
-          <button name="action_fail" type="object" string="Mark Failed" invisible="state in ('closed', 'cancelled')"/>
-          <button name="action_cancel" type="object" string="Cancel" invisible="state not in ('draft', 'in_review', 'approved')"/>
-          <field name="state" widget="statusbar" statusbar_visible="draft,in_review,approved,provisioning,active,offboarding,closed"/>
+          <button name="action_submit" type="object" string="Submit for Review"
+                  class="btn-primary" invisible="state != 'draft'"/>
+          <button name="action_approve" type="object" string="Approve Readiness"
+                  class="btn-primary" invisible="state != 'in_review'"/>
+          <button name="action_prepare_access" type="object"
+                  string="Prepare Access Request" class="btn-primary"
+                  groups="codestra_cc_security.group_cc_global_administrator"
+                  invisible="state != 'approved' or provisioning_request_id"/>
+          <button name="action_start_provisioning" type="object"
+                  string="Start Disabled Provisioning" class="btn-primary"
+                  groups="codestra_cc_security.group_cc_global_administrator"
+                  invisible="state != 'approved' or not provisioning_request_id"/>
+          <button name="action_request_activation_email" type="object"
+                  string="Request Secure Login Email" class="btn-primary"
+                  groups="codestra_cc_security.group_cc_global_administrator"
+                  invisible="state != 'provisioning' or activation_outbox_id"/>
+          <button name="action_activate" type="object" string="Activate Agent"
+                  class="btn-primary" invisible="state != 'provisioning'"/>
+          <button name="action_begin_offboarding" type="object"
+                  string="Begin Offboarding" invisible="state != 'active'"/>
+          <button name="action_close" type="object" string="Close"
+                  invisible="state not in ('offboarding', 'cancelled')"/>
+          <button name="action_fail" type="object" string="Mark Failed"
+                  invisible="state in ('closed', 'cancelled')"/>
+          <button name="action_cancel" type="object" string="Cancel"
+                  invisible="state not in ('draft', 'in_review', 'approved')"/>
+          <field name="state" widget="statusbar"
+                 statusbar_visible="draft,in_review,approved,provisioning,active,offboarding,closed"/>
         </header>
+
         <sheet>
-          <div class="oe_title"><h1><field name="name"/></h1></div>
+          <div class="oe_title">
+            <h1><field name="name"/></h1>
+          </div>
+
           <group>
-            <group>
-              <field name="employee_id"/>
+            <group string="Person">
+              <field name="employee_id" readonly="campaign_membership_id"/>
               <field name="manager_id"/>
               <field name="target_start_date"/>
+              <field name="activation_email"
+                     readonly="campaign_membership_id"
+                     placeholder="agent@example.com"/>
+              <field name="preferred_language"/>
+              <field name="timezone"/>
               <field name="company_id" groups="base.group_multi_company"/>
             </group>
-            <group>
+            <group string="Control">
+              <field name="integration_uuid" readonly="1"/>
+              <field name="desired_state_version" readonly="1"/>
               <field name="completion_percent" readonly="1"/>
-              <field name="provisioning_request_id"/>
+              <field name="access_request_prepared_at" readonly="1"/>
+              <field name="provisioning_started_at" readonly="1"/>
+              <field name="activation_email_requested_at" readonly="1"/>
               <field name="failure_reason" invisible="state != 'failed'"/>
             </group>
           </group>
-          <group string="Readiness gates">
-            <field name="identity_verified"/>
-            <field name="employment_documents_complete"/>
-            <field name="approved_checks_complete"/>
-            <field name="equipment_ready"/>
-            <field name="training_complete"/>
-            <field name="compliance_approved"/>
-          </group>
-          <field name="notes"/>
+
+          <notebook>
+            <page string="Campaign Assignment">
+              <group>
+                <group>
+                  <field name="campaign_id"
+                         domain="[('is_human_staffed', '=', True), ('identifier_status', '=', 'canonical')]"
+                         readonly="campaign_membership_id"/>
+                  <field name="business_unit_id" readonly="1"/>
+                  <field name="campaign_role" readonly="campaign_membership_id"/>
+                  <field name="branch_id"
+                         domain="[('business_unit_ids', 'in', business_unit_id)]"
+                         readonly="campaign_membership_id"/>
+                </group>
+                <group>
+                  <field name="department_id"
+                         domain="[('business_unit_id', '=', business_unit_id)]"
+                         readonly="campaign_membership_id"/>
+                  <field name="operational_team_id"
+                         domain="[('business_unit_id', '=', business_unit_id), ('department_id', '=', department_id)]"
+                         readonly="campaign_membership_id"/>
+                  <field name="supervisor_id"
+                         domain="[('id', 'in', operational_team_id.supervisor_ids)]"
+                         readonly="campaign_membership_id"/>
+                  <field name="role_template_id"
+                         domain="[('business_unit_id', '=', business_unit_id), ('active', '=', True)]"
+                         readonly="campaign_membership_id"/>
+                </group>
+              </group>
+              <div class="alert alert-info" role="status">
+                An agent can hold only one active operational campaign membership.
+                Campaign changes use the governed revoke-then-grant workflow; the
+                campaign field cannot be switched in place after access is prepared.
+              </div>
+            </page>
+
+            <page string="Readiness Gates">
+              <group>
+                <field name="identity_verified"/>
+                <field name="employment_documents_complete"/>
+                <field name="approved_checks_complete"/>
+                <field name="equipment_ready"/>
+                <field name="training_complete"/>
+                <field name="compliance_approved"/>
+              </group>
+            </page>
+
+            <page string="Provisioning">
+              <group>
+                <group string="Requested Accounts">
+                  <field name="needs_keycloak"/>
+                  <field name="needs_vicidial"/>
+                  <field name="needs_sip_endpoint"/>
+                  <field name="needs_agent_desktop"/>
+                </group>
+                <group string="Requested Services">
+                  <field name="needs_company_email"/>
+                  <field name="needs_voicemail"/>
+                  <field name="needs_recording_access"/>
+                  <field name="needs_monitoring_access"/>
+                </group>
+              </group>
+              <group string="Durable Links">
+                <field name="campaign_membership_id" readonly="1"/>
+                <field name="provisioning_request_id" readonly="1"/>
+                <field name="provisioning_outbox_id" readonly="1"/>
+                <field name="activation_outbox_id" readonly="1"/>
+              </group>
+              <div class="alert alert-warning" role="status">
+                External identities are created disabled and verified before any
+                activation. The welcome email contains the approved login identifier
+                and a Keycloak one-time action flow. Odoo never stores or emails a
+                reusable plaintext password.
+              </div>
+            </page>
+
+            <page string="Notes">
+              <field name="notes"/>
+            </page>
+          </notebook>
         </sheet>
         <chatter/>
       </form>
@@ -69,5 +174,8 @@
     <field name="view_mode">list,form</field>
   </record>
 
-  <menuitem id="menu_codestra_agent_onboarding" name="Agent Onboarding" parent="call_center_core.menu_call_center_root" action="action_codestra_agent_onboarding" sequence="76" groups="call_center_core.group_call_center_manager"/>
+  <menuitem id="menu_codestra_agent_onboarding" name="Agent Onboarding"
+            parent="call_center_core.menu_call_center_root"
+            action="action_codestra_agent_onboarding" sequence="76"
+            groups="call_center_core.group_call_center_manager"/>
 </odoo>

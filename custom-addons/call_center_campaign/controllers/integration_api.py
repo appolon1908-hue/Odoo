@@ -445,6 +445,22 @@ def _handle_errors(callback):
         )
 
 
+
+def _explicit_result_outcome(event_type, body):
+    """Never infer successful activation delivery from omitted outcome fields."""
+    explicit = (
+        isinstance(body.get("execution_status"), str)
+        and body["execution_status"] in {"SUCCEEDED", "FAILED", "DEAD_LETTERED"}
+        and isinstance(body.get("reconciliation_status"), str)
+        and body["reconciliation_status"] in {
+            "RECONCILED", "DRIFTED", "REVIEW_REQUIRED"
+        }
+    )
+    if event_type == "agent.activation-email.requested.v1" and not explicit:
+        raise ValueError("activation email results require explicit valid outcomes")
+    return explicit
+
+
 class CodestraIntegrationApiController(http.Controller):
     @http.route(
         ["/api/v1/integration/capabilities", "/capabilities"],
@@ -700,6 +716,7 @@ class CodestraIntegrationApiController(http.Controller):
                 or outbox.campaign_id.code != body["campaign_public_id"]
             ):
                 raise IntegrationConflict("immutable outbox binding conflict")
+            outcome_explicit = _explicit_result_outcome(outbox.event_type, body)
             inbox_model = request.env["codestra.integration.result.inbox"].sudo()
             prior = inbox_model.search(
                 [
@@ -750,6 +767,7 @@ class CodestraIntegrationApiController(http.Controller):
                         "execution_id": body.get(
                             "execution_id", body["registration_id"]
                         ),
+                        "outcome_explicit": outcome_explicit,
                         "execution_status": body.get("execution_status", "SUCCEEDED"),
                         "result_classification": body.get(
                             "result_classification", "COMPLETED"

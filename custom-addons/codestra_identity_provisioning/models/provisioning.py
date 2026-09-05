@@ -408,6 +408,8 @@ class IdentityLink(models.Model):
     system = fields.Selection(
         [("odoo", "Odoo"), ("keycloak", "Keycloak"), ("email", "Email"),
          ("vicidial", "VICIdial"), ("sip", "SIP"),
+         ("voicemail", "Voicemail"), ("recording", "Recording"),
+         ("monitoring", "Monitoring"),
          ("agent_desktop", "Agent Desktop")],
         required=True,
     )
@@ -771,6 +773,12 @@ class ProvisioningRequest(models.Model):
                 operations.append(("sip", "upsert_endpoint"))
             if request.needs_agent_desktop:
                 operations.append(("agent_desktop", "assign_roles"))
+            if request.needs_voicemail:
+                operations.append(("voicemail", "provision_mailbox"))
+            if request.needs_recording_access:
+                operations.append(("recording_access", "grant_access"))
+            if request.needs_monitoring_access:
+                operations.append(("monitoring_access", "grant_access"))
             operations.append(("verification", "verify_all"))
             for sequence, (system, operation) in enumerate(operations, 1):
                 key = hashlib.sha256(
@@ -874,6 +882,8 @@ class ProvisioningRequest(models.Model):
             "email_provider": "email",
             "secret_storage": "secret_store",
             "reconciliation": "verification",
+            "recording": "recording_access",
+            "monitoring": "monitoring_access",
         }
         step_state_map = {
             "retry_wait": "retry_scheduled",
@@ -1205,7 +1215,12 @@ class ProvisioningStep(models.Model):
     target_system = fields.Selection(
         [("odoo", "Odoo"), ("keycloak", "Keycloak"), ("email", "Email"),
          ("vicidial", "VICIdial"), ("sip", "SIP"),
+         ("voicemail", "Voicemail"), ("recording", "Recording"),
+         ("monitoring", "Monitoring"),
          ("agent_desktop", "Agent Desktop"),
+         ("voicemail", "Voicemail"),
+         ("recording_access", "Recording Access"),
+         ("monitoring_access", "Monitoring Access"),
          ("secret_store", "Secret Store"), ("verification", "Verification")],
         required=True,
     )

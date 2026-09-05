@@ -30,9 +30,9 @@
   "strict_mission_overrides": {
     "call_center_campaign": {
       "base_tree": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
-      "current_tree": "ed15c413121c053642613d5d023032420bbac8b9",
-      "reason": "Preserve the reviewed provider activity, Stage 3 compatibility, readiness, transactional outbox, and integration-boundary controls while adding automatic versioned campaign-design requests, immutable Middleware preview validation, canonical business-unit allocation checks, and idempotent fail-closed approval events without authorizing direct VICIdial writes or live activation. The design-revision ACL rows are consolidated into Odoo's canonical ir.model.access.csv so the immutable Odoo 19 runtime imports them through the correct ir.model.access model.",
-      "pull_request": 67,
+      "current_tree": "a700b46cfef172a71bab404dd07d9a6f6eec900b",
+      "reason": "Preserve the reviewed provider activity, Stage 3 compatibility, readiness, transactional outbox, and integration-boundary controls while adding the merged PR #67 automatic versioned campaign-design and fail-closed approval controls. Preserve PR #74 canonical operational aliases, governed deployment-gate readback, scoped onboarding review repairs, explicit activation-result evidence, optional service callback parity, and synthetic regression fixtures without authorizing direct VICIdial writes or live activation.",
+      "pull_request": 74,
       "integration_boundary_exceptions": [
         {
           "path": "controllers/integration_api.py",
@@ -99,9 +99,9 @@
     },
     "codestra_identity_provisioning": {
       "base_tree": "245f4e9fc94f3447ecbaa22b17b4784d5b1c36cc",
-      "current_tree": "7f31cc4d6f40338aaaf800a42c6ed599c6d9fc5f",
-      "reason": "Update the duplicate-login regression to assert Odoo 19 ORM ValidationError behavior, document the provisioning boundary, retain concurrency-safe identity allocation, and explicitly bind reviewed provisioning network access to validated destinations.",
-      "pull_request": 38,
+      "current_tree": "1b2d7e14bcbe12394cc2ee53f9255939d55057fe",
+      "reason": "Retain concurrency-safe identity allocation and validated destinations while adding explicit voicemail, recording-access, and monitoring-access provisioning steps required by the governed onboarding request. Preserve the scoped onboarding review repairs, explicit activation-result outcome evidence, optional service step/callback parity, and synthetic regression fixtures.",
+      "pull_request": 74,
       "allow_post_init_hook": true,
       "integration_boundary_exceptions": [
         {
@@ -136,8 +136,8 @@
     },
     "codestra_middleware_bridge": {
       "base_tree": "d5f2785ea737689dfc1bdc88bb1eb1650a334e02",
-      "current_tree": "5484877c28c216d5356e5ad2ff890792215de23f",
-      "reason": "Preserve the reviewed Stage 3 destination and centralize tenant-bound intake identity plus fail-closed CRM consent and suppression handling in one canonical model authority.",
+      "current_tree": "21e8f0026dc69d62294c7b0d73450d43611cdea3",
+      "reason": "Preserve the reviewed Stage 3 destination, centralize tenant-bound intake identity plus fail-closed CRM consent and suppression handling, and bind the CRM upsert command to an explicit read/write cursor.",
       "pull_request": 57,
       "integration_boundary_exceptions": [
         {

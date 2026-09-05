@@ -642,6 +642,7 @@ class CodestraMiddlewareBridge(http.Controller):
         auth="none",
         methods=["POST"],
         csrf=False,
+        readonly=False,
     )
     def crm_lead_upsert_command(self):
         auth, command, error = self._begin(
