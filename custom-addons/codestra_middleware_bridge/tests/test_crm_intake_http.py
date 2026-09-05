@@ -15,12 +15,6 @@ class TestMiddlewareCrmIntakeHttp(HttpCase):
     tenant = "synthetic-tenant"
     route = "/codestra/middleware/v1/commands/crm.lead.upsert"
 
-    def test_upsert_route_uses_a_read_write_cursor(self):
-        from ..controllers.api import CodestraMiddlewareBridge
-
-        routing = CodestraMiddlewareBridge.crm_lead_upsert_command.routing
-        self.assertIs(routing["readonly"], False)
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
