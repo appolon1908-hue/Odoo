@@ -1,6 +1,6 @@
 {
     "name": "Codestra MoneyBee CRM Identity Mapping",
-    "version": "19.0.1.2.0",
+    "version": "19.0.1.2.1",
     "summary": "Tenant-bound, receipted MoneyBee account/contact mapping",
     "license": "LGPL-3",
     "depends": ["base", "contacts", "crm", "codestra_middleware_bridge"],

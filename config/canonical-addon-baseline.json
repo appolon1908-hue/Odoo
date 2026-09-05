@@ -174,7 +174,7 @@
     },
     "codestra_moneybee_crm": {
       "base_tree": "31cebcead3176785e4d7e9f1f38be95c802ef03e",
-      "current_tree": "b55011e6cbd527508b652a3b51099214650de0e2",
+      "current_tree": "8c85e596e840c4293deb64dc83c75c6d40d5818a",
       "reason": "Add the reviewed MoneyBee CRM identity and immutable command-receipt boundary, derive tenant scope from the authenticated principal's single Odoo company, reject direct RPC mutations with server-only capability tokens, and limit receipts to the exact principal and company.",
       "pull_request": 5,
       "integration_boundary_exceptions": [
@@ -182,6 +182,16 @@
           "path": "models/res_partner.py",
           "kind": "odoo_internal_driver_exception",
           "reason": "The model imports only IntegrityError to reconcile unique-constraint races inside Odoo savepoints and never opens an external database connection."
+        },
+        {
+          "path": "models/moneybee_identity_guard.py",
+          "kind": "odoo_internal_driver_exception",
+          "reason": "Imports only IntegrityError to classify a rolled-back Odoo unique-constraint race; the authenticated identity collision probe reads immutable bindings, including archived records, and never opens a database connection."
+        },
+        {
+          "path": "tests/test_moneybee_crm.py",
+          "kind": "odoo_test_driver_exception",
+          "reason": "Imports only IntegrityError to verify database uniqueness inside a rolled-back synthetic Odoo savepoint; no connection is opened."
         }
       ]
     }

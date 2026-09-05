@@ -1,5 +1,7 @@
 from copy import deepcopy
 
+from psycopg2 import IntegrityError
+
 from odoo import Command
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests.common import TransactionCase, tagged
@@ -322,3 +324,30 @@ class TestMoneyBeeCrm(TransactionCase):
         self.assertEqual(first["partner_id"], second["partner_id"])
         partner = self.env["res.partner"].browse(first["partner_id"])
         self.assertEqual(partner.name, "Synthetic MoneyBee Borrower")
+
+    def test_company_tenant_binding_is_unique_in_database(self):
+        with self.assertRaisesRegex(
+            (IntegrityError, ValidationError),
+            "moneybee_organization_id|MoneyBee organization",
+        ), self.env.cr.savepoint():
+            duplicate = self.env["res.company"].create({
+                "name": "Duplicate Synthetic MoneyBee Binding",
+                "moneybee_organization_id": self.TENANT_A,
+            })
+            duplicate.flush_recordset()
+
+    def test_archived_identity_is_reused_without_reactivation(self):
+        applied = self.partner_model_a.moneybee_apply_contact_command(self._command())
+        partner = self.env["res.partner"].browse(applied["partner_id"])
+        partner.active = False
+        result = self.partner_model_a.moneybee_apply_contact_command(self._command(
+            command_id="archived-update", source_event_id="archived-event",
+        ))
+        self.assertEqual(result["partner_id"], partner.id)
+        self.assertFalse(result["created"])
+        self.assertFalse(partner.active)
+        with self.assertRaisesRegex(ValidationError, "outside the authenticated tenant scope"):
+            self.partner_model_b.moneybee_apply_contact_command(self._command(
+                tenant_id=self.TENANT_B, command_id="archived-cross-tenant",
+                source_event_id="archived-cross-event",
+            ))

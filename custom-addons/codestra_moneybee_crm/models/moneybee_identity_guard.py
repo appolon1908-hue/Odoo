@@ -18,7 +18,7 @@ class ResPartnerMoneyBeeIdentityGuard(models.Model):
 
     @api.model
     def _moneybee_assert_global_identity_scope(self, user_id, company, tenant_id):
-        identities = self.sudo().search(
+        identities = self.sudo().with_context(active_test=False).search(
             [("moneybee_user_id", "=", user_id)],
             limit=2,
         )

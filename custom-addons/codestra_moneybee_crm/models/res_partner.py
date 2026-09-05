@@ -64,13 +64,10 @@ def _payload_hash(payload):
 class ResCompany(models.Model):
     _inherit = "res.company"
 
-    _sql_constraints = [
-        (
-            "moneybee_organization_id_uniq",
-            "unique(moneybee_organization_id)",
-            "A MoneyBee organization can be bound to only one Odoo company.",
-        ),
-    ]
+    _moneybee_organization_id_uniq = models.Constraint(
+        "unique(moneybee_organization_id)",
+        "A MoneyBee organization can be bound to only one Odoo company.",
+    )
 
     moneybee_organization_id = fields.Char(
         string="MoneyBee Organization ID",
@@ -86,13 +83,10 @@ class ResCompany(models.Model):
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
-    _sql_constraints = [
-        (
-            "moneybee_user_id_uniq",
-            "unique(moneybee_user_id)",
-            "A MoneyBee user can be mapped to only one Odoo contact.",
-        ),
-    ]
+    _moneybee_user_id_uniq = models.Constraint(
+        "unique(moneybee_user_id)",
+        "A MoneyBee user can be mapped to only one Odoo contact.",
+    )
 
     moneybee_user_id = fields.Char(
         string="MoneyBee User ID",
@@ -287,7 +281,7 @@ class ResPartner(models.Model):
                 "MoneyBee CRM sync requires a verified login email."
             )
 
-        partners = self.search([("moneybee_user_id", "=", user_id)], limit=2)
+        partners = self.with_context(active_test=False).search([("moneybee_user_id", "=", user_id)], limit=2)
         if len(partners) > 1:
             raise ValidationError(
                 "Duplicate MoneyBee identity mapping requires reconciliation."
@@ -327,7 +321,7 @@ class ResPartner(models.Model):
             with self.env.cr.savepoint():
                 partner = self.with_context(**write_context).create(create_values)
         except IntegrityError:
-            partner = self.search([("moneybee_user_id", "=", user_id)], limit=1)
+            partner = self.with_context(active_test=False).search([("moneybee_user_id", "=", user_id)], limit=1)
             if not partner:
                 raise
             if (

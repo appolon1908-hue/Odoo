@@ -11,13 +11,10 @@ class MoneyBeeIntegrationReceipt(models.Model):
     _order = "received_at desc, id desc"
     _check_company_auto = True
 
-    _sql_constraints = [
-        (
-            "moneybee_command_id_uniq",
-            "unique(command_id)",
-            "A MoneyBee Middleware command can be applied only once.",
-        ),
-    ]
+    _moneybee_command_id_uniq = models.Constraint(
+        "unique(command_id)",
+        "A MoneyBee Middleware command can be applied only once.",
+    )
 
     command_id = fields.Char(required=True, index=True, readonly=True)
     source_event_id = fields.Char(required=True, index=True, readonly=True)
