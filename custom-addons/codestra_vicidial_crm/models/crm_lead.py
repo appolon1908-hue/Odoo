@@ -1,7 +1,8 @@
 import uuid
 
-from odoo import SUPERUSER_ID, api, fields, models, registry
+from odoo import SUPERUSER_ID, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.modules.registry import Registry
 
 from .phone import normalize_phone
 
@@ -237,7 +238,7 @@ class CrmLead(models.Model):
         call_id = call.id
 
         def dispatch_after_commit():
-            with registry(database).cursor() as cursor:
+            with Registry(database).cursor() as cursor:
                 dispatch_env = api.Environment(cursor, SUPERUSER_ID, {})
                 dispatch_env["codestra.vicidial.call"].browse(
                     call_id
