@@ -63,6 +63,7 @@ class TestCodestraAgentOnboarding(TransactionCase):
             [
                 "base.group_user",
                 "codestra_identity_provisioning.group_provisioning_service",
+                "codestra_identity_provisioning.group_provisioning_user",
             ],
         )
         cls.supervisor = cls._create_user(
@@ -356,20 +357,39 @@ class TestCodestraAgentOnboarding(TransactionCase):
             steps.with_user(self.requester).write(
                 {"state": "verified", "verification_state": "verified"}
             )
-        service_steps = steps.with_user(self.identity_service)
-        self.assertFalse(service_steps.env.su)
-        service_steps.write(
-            {
-                "state": "verified",
-                "verification_state": "verified",
-            }
+        # Service role grants verification writes; the existing user role supplies
+        # request access and company/business-unit rules, without approval power.
+        service_requests = self.env["codestra.provisioning.request"].with_user(
+            self.identity_service
         )
-        # Request writes use the existing scoped approver ACL, not superuser.
-        approved_request = request_record.with_user(self.approver)
-        self.assertFalse(approved_request.env.su)
-        approved_request.write({"state": "awaiting_user_activation"})
-        request_record.invalidate_recordset(
-            ["state", "mandatory_steps_complete"]
+        self.assertFalse(service_requests.env.su)
+        self.assertFalse(self.identity_service.has_group(
+            "codestra_identity_provisioning.group_provisioning_approver"
+        ))
+        callback = {
+            "event_id": "onboarding-verified-" + onboarding.integration_uuid,
+            "request_id": str(request_record.id),
+            "correlation_id": request_record.correlation_id,
+            "state": "completed",
+            "timestamp": fields.Datetime.to_string(fields.Datetime.now()),
+            "step_results": [
+                {
+                    "target_system": step.target_system,
+                    "state": "verified",
+                    "evidence_hash": "a" * 64,
+                }
+                for step in steps
+            ],
+        }
+        self.assertEqual(
+            service_requests.apply_service_callback(callback), {"state": "accepted"}
+        )
+        steps.invalidate_recordset(["state", "verification_state"])
+        request_record.invalidate_recordset(["state", "mandatory_steps_complete"])
+        self.assertEqual(request_record.state, "awaiting_user_activation")
+        self.assertTrue(request_record.mandatory_steps_complete)
+        self.assertEqual(
+            service_requests.apply_service_callback(callback), {"state": "replayed"}
         )
 
         onboarding.with_user(self.approver).action_request_activation_email()
