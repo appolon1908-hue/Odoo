@@ -22,6 +22,13 @@ export class CodestraCallPopup extends Component {
             for (const item of detail || []) {
                 const type = item.type || item[1];
                 const payload = item.payload || item[2];
+                if (type === "codestra.call.result" && payload) {
+                    this.notification.add(payload.reason || "Call request was not accepted", {
+                        type: payload.outcome === "unknown" ? "warning" : "danger",
+                        sticky: true,
+                    });
+                    continue;
+                }
                 if (type === "codestra.call" && payload) {
                     this.handleCall(payload);
                 }

@@ -151,8 +151,8 @@
     },
     "codestra_vicidial_crm": {
       "base_tree": "cf0783918b94c3e396d24ebe868c4fb04096e4a1",
-      "current_tree": "88573f86e74fe0b04ce48a51e1cd1f2c105c362d",
-      "reason": "Preserve the reviewed Odoo 19 VICIdial staging, reconciliation, idempotency, click-to-call, and constrained Middleware boundaries while adding the governed AMI lifecycle projection, transaction-scoped mapped-agent row serialization, business-unit-scoped customer matching, immutable identity binding, strict monotonic sequencing, exact retryable sequence-gap evidence, terminal stale/lifecycle/identity conflict evidence, retry-safe rejection, the existing assigned-agent Odoo Bus screen pop, immutable assigned-call business-unit/campaign/number rebinding for browser rematch, and the canonical offered-to-ringing progression without permitting terminal regression.",
+      "current_tree": "2430f6eab410cd36cd10937f4c3e36ca601c57e7",
+      "reason": "Preserve the reviewed Odoo 19 VICIdial staging, reconciliation, idempotency, click-to-call, and constrained Middleware boundaries while adding the governed AMI lifecycle projection, transaction-scoped mapped-agent row serialization, business-unit-scoped customer matching, immutable identity binding, strict monotonic sequencing, exact retryable sequence-gap evidence, terminal stale/lifecycle/identity conflict evidence, retry-safe rejection, the existing assigned-agent Odoo Bus screen pop, immutable assigned-call business-unit/campaign/number rebinding for browser rematch, and the canonical offered-to-ringing progression without permitting terminal regression. Preserve merged PR #79 durable click-to-call reservations, dispatch failure handling, call-row locking and lifecycle terminal precedence alongside the governed projection and campaign-scoped rematch.",
       "pull_request": 78,
       "integration_boundary_exceptions": [
         {
@@ -174,6 +174,16 @@
           "path": "tests/test_reconciliation.py",
           "kind": "odoo_test_driver_exception",
           "reason": "The test imports only IntegrityError to assert call-record database constraints and does not open an external database connection."
+        },
+        {
+          "path": "controllers/api.py",
+          "kind": "odoo_cursor_locking",
+          "reason": "Lifecycle ingestion locks the mapped agent row with SELECT FOR UPDATE before call lookup or creation, sharing the click-to-call reservation boundary and preventing concurrent active-call creation."
+        },
+        {
+          "path": "models/crm_lead.py",
+          "kind": "odoo_cursor_locking",
+          "reason": "Click-to-call reservation creation locks the selected Odoo agent row with SELECT FOR UPDATE on the existing cursor so concurrent UI requests cannot originate two calls."
         }
       ]
     },

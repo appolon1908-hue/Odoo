@@ -191,15 +191,50 @@ class CodestraAPI(http.Controller):
             or agent.odoo_user_id.keycloak_subject != str(payload["keycloak_subject"])
         ):
             raise Forbidden("agent campaign extension mapping rejected")
+        # Serialize lifecycle creation/claiming with Odoo-originated reservation
+        # creation so one agent cannot acquire two concurrent active calls.
+        request.env.cr.execute(
+            "SELECT id FROM codestra_vicidial_agent WHERE id = %s FOR UPDATE",
+            (agent.id,),
+        )
         call = Call.search([("call_id", "=", str(payload["call_id"]))], limit=1)
+        if not call:
+            call = Call.search(
+                [("correlation_id", "=", payload["correlation_id"])], limit=1
+            )
+            if call and call.call_id and call.call_id != str(payload["call_id"]):
+                raise Forbidden("existing call correlation conflict")
         if call and (
             call.tenant_id != payload["tenant_id"]
             or call.agent_id != agent
             or call.campaign_id != campaign
             or call.extension != str(payload["extension"])
             or call.keycloak_subject != str(payload["keycloak_subject"])
+            or (
+                call.asterisk_uniqueid
+                and call.asterisk_uniqueid != str(payload["asterisk_uniqueid"])
+            )
+            or (call.linkedid and call.linkedid != str(payload["linkedid"]))
         ):
             raise Forbidden("existing call binding conflict")
+        if not call:
+            active = Call.search(
+                [
+                    ("agent_id", "=", agent.id),
+                    ("tenant_id", "=", payload["tenant_id"]),
+                    (
+                        "state",
+                        "in",
+                        [
+                            "new", "initiating", "ringing", "offered", "answering",
+                            "connected", "held", "transferring", "ending",
+                        ],
+                    ),
+                ],
+                limit=1,
+            )
+            if active:
+                raise Conflict("agent already has an active call")
         if not call and payload["event_type"] in {
             "call.answered",
             "call.connected",
@@ -254,6 +289,21 @@ class CodestraAPI(http.Controller):
                 "idempotency_key": "call:" + str(payload["call_id"]),
             }
             call = Call.create(values)
+        elif not call.call_id or not call.asterisk_uniqueid:
+            identity = {
+                "asterisk_uniqueid": payload["asterisk_uniqueid"],
+                "uniqueid": payload["asterisk_uniqueid"],
+                "linkedid": payload["linkedid"],
+                "source_system": "asterisk",
+            }
+            if not call.call_id:
+                identity.update(
+                    {
+                        "call_id": str(payload["call_id"]),
+                        "external_call_id": str(payload["call_id"]),
+                    }
+                )
+            call.write(identity)
         try:
             result = call.apply_authoritative_event(
                 {

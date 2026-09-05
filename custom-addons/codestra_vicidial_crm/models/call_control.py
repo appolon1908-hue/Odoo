@@ -27,10 +27,13 @@ TERMINAL_STATES = {"completed", "failed", "missed", "rejected", "cancelled", "tr
 ALLOWED_TRANSITIONS = {
     None: {"new", "initiating", "ringing", "offered"},
     "new": {"initiating", "ringing", "offered", "cancelled", "failed"},
-    "initiating": {"ringing", "connected", "cancelled", "failed"},
+    "initiating": {
+        "ringing", "answering", "connected", "completed", "missed", "rejected", "cancelled",
+        "failed", "transferred",
+    },
     "ringing": {"offered", "answering", "connected", "missed", "rejected", "cancelled", "failed"},
     "offered": {"answering", "connected", "missed", "rejected", "cancelled", "failed"},
-    "answering": {"connected", "rejected", "failed"},
+    "answering": {"connected", "completed", "rejected", "failed"},
     "connected": {"held", "transferring", "ending", "completed", "failed"},
     "held": {"connected", "transferring", "ending", "completed", "failed"},
     "transferring": {"connected", "transferred", "ending", "completed", "failed"},
