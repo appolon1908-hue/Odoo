@@ -1,7 +1,11 @@
+import uuid
+
 from odoo import SUPERUSER_ID, fields
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
+
+from ..models.provisioning import IMMUTABLE_ASSIGNMENT_FIELDS
 
 
 def _nested_keys(value):
@@ -143,17 +147,30 @@ class TestCodestraAgentOnboarding(TransactionCase):
                     "user_id": user.id,
                 }
             )
-            cls.env["cc.campaign.membership"].create(
+            membership = cls.env["cc.campaign.membership"].with_user(
+                cls.requester
+            ).create(
                 {
                     "user_id": user.id,
                     "employee_id": employee.id,
                     "campaign_id": cls.campaign.id,
                     "role": "auditor",
-                    "state": "active",
-                    "requested_by_id": cls.env.user.id,
+                    "state": "draft",
+                    "requested_by_id": cls.requester.id,
                     "source_ticket": "TEST-ONBOARDING-SCOPE",
                 }
             )
+            membership.with_user(cls.requester).action_submit_identity()
+            operation = membership.with_user(cls.approver).action_approve_identity()
+            operation.with_user(cls.identity_service).action_record_readback(
+                {
+                    target: {"status": "matched", "evidence_hash": "b" * 64}
+                    for target in operation.required_targets
+                },
+                "staging://onboarding/auditor-scope/" + label.lower(),
+            )
+            membership.with_user(cls.approver).action_activate()
+            assert membership.state == "active"
         cls.role_template = cls.env["codestra.role.template"].create(
             {
                 "name": "Onboarding Campaign Agent",
@@ -183,7 +200,7 @@ class TestCodestraAgentOnboarding(TransactionCase):
         groups = cls.env["res.groups"].browse(
             [cls.env.ref(xmlid).id for xmlid in group_xmlids]
         )
-        return cls.env["res.users"].create(
+        return cls.env["res.users"].with_context(no_reset_password=True).create(
             {
                 "name": name,
                 "login": login,
@@ -478,3 +495,120 @@ class TestCodestraAgentOnboarding(TransactionCase):
         self.assertEqual(other_campaign.cc_business_unit_id, self.canonical_unit)
         with self.assertRaises(AccessError):
             onboarding.write({"campaign_id": other_campaign.id})
+
+
+    def test_prepared_request_inputs_cannot_be_changed_even_with_rpc_context(self):
+        onboarding = self._new_onboarding()
+        self._prepare(onboarding)
+        actor = onboarding.with_user(self.requester).with_context(
+            codestra_onboarding_scope_migration=True
+        )
+        self.assertFalse(actor.env.su)
+        for name in sorted(IMMUTABLE_ASSIGNMENT_FIELDS):
+            value = onboarding[name]
+            if onboarding._fields[name].type == "many2one":
+                value = value.id
+            with self.subTest(field=name), self.assertRaises(AccessError):
+                actor.write({name: value})
+
+    def test_secure_onboarding_rejects_disabled_keycloak_before_preparation(self):
+        onboarding = self._new_onboarding()
+        onboarding.needs_keycloak = False
+        with self.assertRaisesRegex(ValidationError, "requires Keycloak"):
+            onboarding.with_user(self.requester).action_submit()
+        self.assertFalse(onboarding.provisioning_request_id)
+        self.assertFalse(onboarding.provisioning_outbox_id)
+
+    def test_campaign_from_another_company_is_rejected(self):
+        onboarding = self._new_onboarding()
+        company = self.env["res.company"].create({"name": "Other Onboarding Tenant"})
+        unit = self.env["call.center.business.unit"].create({
+            "name": "Other Onboarding Unit", "code": "ONB-OTHER",
+            "company_id": company.id,
+        })
+        legacy = self.env["call.center.campaign"].create({
+            "name": "Other Company Campaign", "code": "ONB-OTHER-CO",
+            "business_unit_id": unit.id, "direction": "outbound",
+            "design_automation_enabled": False,
+        })
+        campaign = self.env["cc.campaign"].with_context(active_test=False).search([
+            ("legacy_campaign_id", "=", legacy.id),
+        ])
+        campaign.ensure_one()
+        with self.assertRaisesRegex(ValidationError, "belongs to another company"):
+            onboarding.write({"campaign_id": campaign.id})
+
+    def test_optional_targets_have_matching_mandatory_steps_and_callbacks(self):
+        onboarding = self._new_onboarding()
+        onboarding.write({"needs_recording_access": True, "needs_monitoring_access": True})
+        provision = self._start(onboarding)
+        targets = set(onboarding.provisioning_outbox_id.payload_json["targets"])
+        optional = {"voicemail", "recording_access", "monitoring_access"}
+        self.assertTrue(optional <= targets)
+        self.assertTrue(optional <= set(provision.step_ids.mapped("target_system")))
+        for step in provision.step_ids.filtered(lambda row: row.target_system in optional):
+            self.assertTrue(step.mandatory)
+        # Use the target identifiers that Middleware actually receives, including
+        # email_provider's existing explicit alias. Nothing is silently skipped.
+        results = [
+            {"target_system": target, "state": "verified", "evidence_hash": "d" * 64}
+            for target in sorted(targets | {"reconciliation"})
+        ]
+        callback = {
+            "event_id": str(uuid.uuid4()), "request_id": str(provision.id),
+            "correlation_id": provision.correlation_id, "state": "completed",
+            "timestamp": fields.Datetime.to_string(fields.Datetime.now()),
+            "step_results": results,
+        }
+        service = provision.with_user(self.identity_service)
+        self.assertFalse(service.env.su)
+        self.assertEqual(service.apply_service_callback(callback), {"state": "accepted"})
+        provision.invalidate_recordset(["mandatory_steps_complete", "state"])
+        self.assertTrue(provision.mandatory_steps_complete)
+        self.assertEqual(provision.state, "awaiting_user_activation")
+        self.assertFalse(onboarding.activation_outbox_id)
+
+    def test_activation_evidence_rejects_inferred_failed_and_drifted_results(self):
+        onboarding = self._new_onboarding()
+        event = self.env["codestra.runtime.integration.outbox"].create_event(
+            event_type="agent.activation-email.requested.v1", aggregate=onboarding,
+            payload={"controls": {"activate_immediately": False}},
+            correlation_id=str(uuid.uuid4()), idempotency_key=uuid.uuid4().hex,
+            schema_version="1.0", aggregate_version=1, environment="staging",
+            campaign=self.legacy_campaign,
+        )
+        onboarding._write_system_links({"activation_outbox_id": event.id})
+        # A missing explicit-outcome marker covers pre-upgrade, defaulted receipts.
+        for explicit, execution, reconciliation in (
+            (False, "SUCCEEDED", "RECONCILED"),
+            (True, "FAILED", "RECONCILED"),
+            (True, "SUCCEEDED", "DRIFTED"),
+            (True, "DEAD_LETTERED", "REVIEW_REQUIRED"),
+            (True, "SUCCEEDED", "RECONCILED"),
+        ):
+            values = {
+                "name": str(uuid.uuid4()), "result_public_id": str(uuid.uuid4()),
+                "schema_version": "1.0", "delivery_id": str(uuid.uuid4()),
+                "event_id": event.event_uuid, "registration_id": str(uuid.uuid4()),
+                "acknowledgement_id": str(uuid.uuid4()), "correlation_id": event.correlation_id,
+                "workflow_id": "onboarding-test", "workflow_version": "1.0",
+                "execution_id": str(uuid.uuid4()), "execution_status": execution,
+                "result_classification": "COMPLETED", "result_hash": "a" * 64,
+                "organization_public_id": "codestra-test", "business_unit_id": self.unit.id,
+                "campaign_id": self.legacy_campaign.id, "source_system": "codestra-middleware",
+                "source_environment": "staging", "policy_hash": "b" * 64,
+                "originating_outbox_id": event.id, "originating_model": onboarding._name,
+                "originating_res_id": onboarding.id, "received_at": fields.Datetime.now(),
+                "acknowledged_at": fields.Datetime.now(), "processing_status": "RECEIVED",
+                "reconciliation_status": reconciliation, "payload_json_redacted": {},
+                "request_hash": uuid.uuid4().hex * 2, "created_by_service": "synthetic",
+            }
+            if explicit:
+                values["outcome_explicit"] = True
+            result = self.env["codestra.integration.result.inbox"]._create_from_callback(values)
+            self.assertFalse(onboarding._successful_activation_results())
+            result._mark_processed()
+            self.assertEqual(
+                bool(onboarding._successful_activation_results()),
+                explicit and execution == "SUCCEEDED" and reconciliation == "RECONCILED",
+            )

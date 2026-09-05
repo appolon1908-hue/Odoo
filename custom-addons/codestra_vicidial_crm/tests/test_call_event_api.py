@@ -133,6 +133,18 @@ class TestCallEventAPIContract(HttpCase):
         payload = self.payload(event_type="call.completed", sequence=4)
         self.assertEqual(self.post(payload).status_code, 404)
 
+    def test_created_event_rejects_second_active_call_for_agent(self):
+        first = self.payload(call_id=f"active-{uuid.uuid4()}")
+        self.assertEqual(self.post(first).status_code, 202)
+        second = self.payload(call_id=f"second-{uuid.uuid4()}")
+        self.assertEqual(self.post(second).status_code, 409)
+        self.assertEqual(
+            self.env["codestra.vicidial.call"].search_count(
+                [("agent_id.vicidial_user", "=", "HTTP6101")]
+            ),
+            1,
+        )
+
     def test_out_of_order_and_conflicting_replay(self):
         call_id = f"ordered-{uuid.uuid4()}"
         created = self.payload(call_id=call_id, sequence=0)
@@ -145,3 +157,131 @@ class TestCallEventAPIContract(HttpCase):
         self.assertFalse(stale_response.json()["applied"])
         conflict = dict(ringing, caller_number="+18095550999")
         self.assertEqual(self.post(conflict).status_code, 409)
+
+    def test_created_event_claims_timeout_placeholder_by_correlation(self):
+        call_id = f"timeout-{uuid.uuid4()}"
+        correlation_id = f"corr-{call_id}"
+        placeholder = self.env["codestra.vicidial.call"].create(
+            {
+                "name": "Timeout placeholder",
+                "agent_id": self.env["codestra.vicidial.agent"].search(
+                    [("vicidial_user", "=", "HTTP6101")], limit=1
+                ).id,
+                "campaign_id": self.campaign.id,
+                "tenant_id": "COD",
+                "keycloak_subject": self.subject,
+                "extension": "6101",
+                "correlation_id": correlation_id,
+                "idempotency_key": correlation_id,
+                "state": "initiating",
+                "status": "outcome_unknown",
+            }
+        )
+        payload = self.payload(call_id=call_id, correlation_id=correlation_id)
+        self.assertEqual(self.post(payload).status_code, 202)
+        placeholder.invalidate_recordset()
+        self.assertEqual(placeholder.call_id, call_id)
+        self.assertEqual(
+            self.env["codestra.vicidial.call"].search_count(
+                [("correlation_id", "=", correlation_id)]
+            ),
+            1,
+        )
+
+    def test_answered_event_advances_initiating_placeholder(self):
+        call_id = f"answered-{uuid.uuid4()}"
+        correlation_id = f"corr-{call_id}"
+        placeholder = self.env["codestra.vicidial.call"].create(
+            {
+                "name": "Answered timeout placeholder",
+                "agent_id": self.env["codestra.vicidial.agent"].search(
+                    [("vicidial_user", "=", "HTTP6101")], limit=1
+                ).id,
+                "campaign_id": self.campaign.id,
+                "tenant_id": "COD",
+                "keycloak_subject": self.subject,
+                "extension": "6101",
+                "correlation_id": correlation_id,
+                "idempotency_key": correlation_id,
+                "state": "initiating",
+                "status": "outcome_unknown",
+            }
+        )
+        payload = self.payload(
+            call_id=call_id,
+            correlation_id=correlation_id,
+            event_type="call.answered",
+            sequence=2,
+        )
+        self.assertEqual(self.post(payload).status_code, 202)
+        placeholder.invalidate_recordset()
+        self.assertEqual(placeholder.state, "answering")
+
+        completed = self.payload(
+            call_id=call_id,
+            correlation_id=correlation_id,
+            event_type="call.completed",
+            sequence=3,
+        )
+        self.assertEqual(self.post(completed).status_code, 202)
+        placeholder.invalidate_recordset()
+        self.assertEqual(placeholder.state, "completed")
+
+    def test_event_populates_asterisk_identity_on_accepted_reservation(self):
+        call_id = f"accepted-{uuid.uuid4()}"
+        correlation_id = f"corr-{call_id}"
+        reservation = self.env["codestra.vicidial.call"].create(
+            {
+                "name": "Accepted originate reservation",
+                "call_id": call_id,
+                "external_call_id": call_id,
+                "agent_id": self.env["codestra.vicidial.agent"].search(
+                    [("vicidial_user", "=", "HTTP6101")], limit=1
+                ).id,
+                "campaign_id": self.campaign.id,
+                "tenant_id": "COD",
+                "keycloak_subject": self.subject,
+                "extension": "6101",
+                "correlation_id": correlation_id,
+                "idempotency_key": correlation_id,
+                "state": "initiating",
+                "status": "attempting",
+            }
+        )
+        payload = self.payload(call_id=call_id, correlation_id=correlation_id)
+        self.assertEqual(self.post(payload).status_code, 202)
+        reservation.invalidate_recordset()
+        self.assertEqual(reservation.asterisk_uniqueid, payload["asterisk_uniqueid"])
+        self.assertEqual(reservation.linkedid, payload["linkedid"])
+        self.assertEqual(reservation.source_system, "asterisk")
+
+    def test_terminal_event_can_claim_placeholder_with_asterisk_identity(self):
+        call_id = f"terminal-{uuid.uuid4()}"
+        correlation_id = f"corr-{call_id}"
+        placeholder = self.env["codestra.vicidial.call"].create(
+            {
+                "name": "Terminal timeout placeholder",
+                "agent_id": self.env["codestra.vicidial.agent"].search(
+                    [("vicidial_user", "=", "HTTP6101")], limit=1
+                ).id,
+                "campaign_id": self.campaign.id,
+                "tenant_id": "COD",
+                "keycloak_subject": self.subject,
+                "extension": "6101",
+                "correlation_id": correlation_id,
+                "idempotency_key": correlation_id,
+                "state": "initiating",
+                "status": "outcome_unknown",
+            }
+        )
+        payload = self.payload(
+            call_id=call_id,
+            correlation_id=correlation_id,
+            event_type="call.completed",
+            sequence=4,
+        )
+        self.assertEqual(self.post(payload).status_code, 202)
+        placeholder.invalidate_recordset()
+        self.assertEqual(placeholder.state, "completed")
+        self.assertEqual(placeholder.asterisk_uniqueid, payload["asterisk_uniqueid"])
+        self.assertEqual(placeholder.linkedid, payload["linkedid"])

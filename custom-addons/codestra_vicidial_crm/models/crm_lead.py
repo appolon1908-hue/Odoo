@@ -1,9 +1,26 @@
 import uuid
 
-from odoo import api, fields, models
+from odoo import SUPERUSER_ID, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.modules.registry import Registry
 
 from .phone import normalize_phone
+from .middleware_client import OriginateOutcomeUnknown, OriginateRejected
+
+
+AUTHORITATIVE_TERMINAL_STATES = frozenset(
+    {"completed", "failed", "missed", "cancelled", "rejected", "transferred"}
+)
+
+
+def dispatch_reserved_call(database, call_id):
+    """Dispatch a committed reservation in an independent transaction."""
+    with Registry(database).cursor() as cursor:
+        dispatch_env = api.Environment(cursor, SUPERUSER_ID, {})
+        dispatch_env["codestra.vicidial.call"].browse(
+            call_id
+        )._dispatch_click_to_call()
+        cursor.commit()
 
 
 class CrmLead(models.Model):
@@ -116,6 +133,14 @@ class CrmLead(models.Model):
                 "You must be Ready before placing a call (current status: %s)."
                 % status_label
             )
+        if (
+            not self.env.user.codestra_tenant_id
+            or self.env.user.codestra_tenant_id != agent.tenant_id
+            or not self.env.user.keycloak_subject
+        ):
+            raise UserError(
+                "Your browser identity is not bound to this VICIdial tenant."
+            )
         if self.x_do_not_call or self.do_not_call:
             raise UserError("This contact is on the do-not-call list.")
 
@@ -139,17 +164,89 @@ class CrmLead(models.Model):
         destination_country = params.get_param(
             "codestra.telephony.destination_country"
         )
-        if not destination_class or not destination_country:
+        outbound_caller_id = params.get_param(
+            "codestra.telephony.approved_outbound_caller_id"
+        )
+        if (
+            not destination_class
+            or not destination_country
+            or not outbound_caller_id
+        ):
             raise UserError(
                 "Click-to-call compliance is not configured. Set the approved "
-                "destination class and country system parameters."
+                "destination class, country, and outbound caller ID system parameters."
             )
 
-        correlation_id = str(uuid.uuid4())
-        result = self.env["codestra.telephony.middleware.client"].originate_call(
-            correlation_id,
-            correlation_id,
-            {
+        campaign = campaigns_by_code[campaign_code]
+        Call = self.env["codestra.vicidial.call"].sudo()
+        self.env.cr.execute(
+            "SELECT id FROM codestra_vicidial_agent WHERE id = %s FOR UPDATE",
+            (agent.id,),
+        )
+        pending = Call.search(
+            [
+                ("agent_id", "=", agent.id),
+                ("tenant_id", "=", agent.tenant_id),
+                (
+                    "state",
+                    "in",
+                    [
+                        "new", "initiating", "ringing", "offered", "answering",
+                        "connected", "held", "transferring", "ending",
+                    ],
+                ),
+            ],
+            order="create_date desc",
+            limit=1,
+        )
+        if pending and pending.status not in ("requesting", "outcome_unknown"):
+            raise UserError(
+                "You already have an active call request. Wait for its outcome."
+            )
+
+        if pending and (
+            pending.crm_lead_id != self
+            or pending.campaign_id != campaign
+            or pending.destination != destination
+        ):
+            raise UserError(
+                "Your previous call has an unknown outcome. Reconcile it from its "
+                "original lead before placing another call."
+            )
+
+        if pending:
+            call = pending
+            correlation_id = pending.correlation_id
+            idempotency_key = pending.idempotency_key
+        else:
+            correlation_id = str(uuid.uuid4())
+            idempotency_key = correlation_id
+            call = Call.create(
+                {
+                    "name": "Click-to-call %s" % correlation_id,
+                    "crm_lead_id": self.id,
+                    "lead_id": self.id,
+                    "agent_id": agent.id,
+                    "campaign_id": campaign.id,
+                    "direction": "outbound",
+                    "destination": destination,
+                    "original_number": destination,
+                    "normalized_number": destination,
+                    "caller_id": outbound_caller_id,
+                    "start_at": fields.Datetime.now(),
+                    "state": "initiating",
+                    "status": "requesting",
+                    "idempotency_key": idempotency_key,
+                    "correlation_id": correlation_id,
+                    "campaign_code": campaign_code,
+                    "business_unit_id": self.business_unit_id.code,
+                    "tenant_id": agent.tenant_id,
+                    "keycloak_subject": self.env.user.keycloak_subject,
+                    "vicidial_user": agent.vicidial_user,
+                    "extension": agent.phone_login,
+                }
+            )
+        payload = pending.originate_payload if pending else {
                 "employee_id": agent.employee_code or agent.vicidial_user,
                 "campaign": campaign_code,
                 "business_unit": self.business_unit_id.code,
@@ -157,26 +254,144 @@ class CrmLead(models.Model):
                 "destination_class": destination_class,
                 "destination_country": destination_country,
                 "destination_timezone": self.x_timezone or self.env.user.tz or "UTC",
-                "caller_id": agent.phone_login or "",
+                "caller_id": outbound_caller_id,
                 "lead_model": "crm.lead",
                 "lead_id": self.id,
                 "recording_requested": False,
-            },
-        )
-        attempting = result.get("dialing") == "attempting"
-        message = (
-            "Call is being placed to %s." % destination
-            if attempting
-            else "Call was not placed: %s."
-            % result.get("reason", "blocked by policy")
-        )
+            }
+        if not pending:
+            call.originate_payload = payload
+        database = self.env.cr.dbname
+        call_id = call.id
+
+        def dispatch_after_commit():
+            dispatch_reserved_call(database, call_id)
+
+        # The callback only runs after the reservation is committed. If this worker
+        # exits first, another click finds the same key and schedules it again.
+        self.env.cr.postcommit.add(dispatch_after_commit)
+        message = "Call request queued with a durable duplicate-prevention key."
         return {
             "type": "ir.actions.client",
             "tag": "display_notification",
             "params": {
                 "title": "Click-to-call",
                 "message": message,
-                "sticky": not attempting,
-                "type": "success" if attempting else "info",
+                "sticky": False,
+                "type": "success",
             },
         }
+
+
+class ClickToCallDispatch(models.Model):
+    _inherit = "codestra.vicidial.call"
+
+    originate_payload = fields.Json(copy=False)
+    originate_result_class = fields.Selection(
+        [("accepted", "Accepted"), ("rejected", "Rejected"), ("unknown", "Unknown")],
+        copy=False,
+    )
+    originate_result_reason = fields.Char(copy=False)
+
+    def _notify_originate_result(self, outcome, reason):
+        if self.agent_id.odoo_user_id:
+            self.env["bus.bus"]._sendone(
+                self.agent_id.odoo_user_id.partner_id,
+                "codestra.call.result",
+                {
+                    "correlation_id": self.correlation_id,
+                    "outcome": outcome,
+                    "reason": reason,
+                },
+            )
+
+    def _record_dispatch_failure(self, classification, reason):
+        self.env.cr.execute(
+            "SELECT id FROM codestra_vicidial_call WHERE id = %s FOR UPDATE",
+            (self.id,),
+        )
+        self.invalidate_recordset()
+        if self.state in AUTHORITATIVE_TERMINAL_STATES:
+            return
+        safe_reason = " ".join((reason or "Call dispatch failed.").split())[:240]
+        values = {
+            "originate_result_class": classification,
+            "originate_result_reason": safe_reason,
+        }
+        if classification == "rejected":
+            values.update(
+                {"state": "failed", "status": "rejected", "ended_at": fields.Datetime.now()}
+            )
+        else:
+            values["status"] = "outcome_unknown"
+        self.write(values)
+        self._notify_originate_result(classification, safe_reason)
+
+    def _dispatch_click_to_call(self):
+        self.ensure_one()
+        if self.state not in ("initiating",) or self.status not in (
+            "requesting",
+            "outcome_unknown",
+        ):
+            return
+        try:
+            result = self.env["codestra.telephony.middleware.client"].originate_call(
+                self.correlation_id,
+                self.idempotency_key,
+                self.originate_payload,
+            )
+        except OriginateRejected as exc:
+            self._record_dispatch_failure("rejected", str(exc))
+            return
+        except OriginateOutcomeUnknown as exc:
+            self._record_dispatch_failure("unknown", str(exc))
+            return
+        except Exception:
+            # A request may have crossed the process boundary before an unexpected
+            # client failure. Keep it reconcilable and never expose exception detail.
+            self._record_dispatch_failure(
+                "unknown",
+                "Unexpected dispatch failure with an unknown call outcome; "
+                "reconcile this call before retrying.",
+            )
+            return
+        self.env.cr.execute(
+            "SELECT id FROM codestra_vicidial_call WHERE id = %s FOR UPDATE",
+            (self.id,),
+        )
+        self.invalidate_recordset()
+        if self.state in AUTHORITATIVE_TERMINAL_STATES:
+            return
+        attempting = result.get("dialing") == "attempting"
+        # An accepted transport response without a durable call identity cannot
+        # distinguish a placed call from a lost acknowledgement. Keep the original
+        # reservation reclaimable so a retry uses the same idempotency key.
+        unknown = result.get("dialing") == "unknown" or (
+            attempting and not result.get("call_id")
+        )
+        if unknown:
+            attempting = False
+        values = {
+            "status": result.get("dialing") or "invalid_response",
+            "originate_result_class": "accepted" if attempting else "unknown" if unknown else "rejected",
+            "originate_result_reason": " ".join(
+                (result.get("reason") or "Call dispatch result received.").split()
+            )[:240],
+        }
+        if result.get("call_id"):
+            values.update(
+                {
+                    "call_id": result["call_id"],
+                    "external_call_id": result["call_id"],
+                }
+            )
+        if unknown:
+            values["status"] = "outcome_unknown"
+        elif not attempting:
+            values.update({"state": "failed", "ended_at": fields.Datetime.now()})
+        self.write(values)
+        if not attempting:
+            self._notify_originate_result(
+                "unknown" if unknown else "rejected",
+                values["originate_result_reason"],
+            )

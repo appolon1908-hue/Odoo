@@ -98,3 +98,21 @@ The tests cover readiness, disabled user creation, one-campaign membership,
 independent approval, identifier reservation, idempotent outbox production,
 credential-free activation-email payloads, read-back gating, and immutable
 campaign assignment.
+
+
+### September 5 source reconciliation
+
+Prepared onboarding inputs, company and integration identity are immutable; an RPC
+context flag cannot bypass this boundary. Secure onboarding requires Keycloak
+before preparation and an active role-template version. Campaign/company scope is
+revalidated before preparing access.
+
+Optional voicemail, recording_access and monitoring_access targets have matching
+mandatory steps and callback identifiers. Secure-login activation requires a
+processed, explicitly successful and reconciled result bound to its outbox event.
+Historical receipts without explicit outcomes remain insufficient for activation;
+they must be reconciled through authenticated, explicit result evidence. The new
+`outcome_explicit` field defaults to false on existing rows.
+
+These are source changes only. Module upgrades, database migration, account
+provisioning, email delivery and production activation require separate approval.

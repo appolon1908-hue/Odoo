@@ -16,6 +16,8 @@ ROLE_GROUP_XMLIDS = {
 }
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 IMMUTABLE_ASSIGNMENT_FIELDS = {
+    "company_id",
+    "integration_uuid",
     "employee_id",
     "campaign_id",
     "campaign_role",
@@ -228,10 +230,7 @@ class CodestraAgentOnboardingProvisioning(models.Model):
 
     def write(self, values):
         protected = IMMUTABLE_ASSIGNMENT_FIELDS & values.keys()
-        if (
-            protected
-            and not self.env.context.get("codestra_onboarding_scope_migration")
-        ):
+        if protected:
             for record in self:
                 if record.campaign_membership_id or record.provisioning_request_id:
                     raise AccessError(
@@ -283,6 +282,7 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 record.timezone = legacy.timezone
 
     @api.constrains(
+        "company_id",
         "campaign_id",
         "branch_id",
         "department_id",
@@ -376,6 +376,13 @@ class CodestraAgentOnboardingProvisioning(models.Model):
 
     def _assert_assignment_ready(self):
         for record in self:
+            record._check_assignment_scope()
+            if not record.needs_keycloak:
+                raise ValidationError(
+                    _("Secure onboarding requires Keycloak before access preparation.")
+                )
+            if record.role_template_id and not record.role_template_id.active:
+                raise ValidationError(_("Select an active role-template version."))
             missing = [
                 label
                 for value, label in (
@@ -949,6 +956,15 @@ class CodestraAgentOnboardingProvisioning(models.Model):
             )
         return True
 
+    def _successful_activation_results(self):
+        self.ensure_one()
+        return self.activation_outbox_id.result_inbox_ids.filtered(
+            lambda result: result.outcome_explicit
+            and result.execution_status == "SUCCEEDED"
+            and result.reconciliation_status == "RECONCILED"
+            and result.processing_status == "PROCESSED"
+        )
+
     def action_activate(self):
         self._require_state("provisioning")
         for record in self:
@@ -977,11 +993,7 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                         "evidence."
                     )
                 )
-            successful_results = activation_event.result_inbox_ids.filtered(
-                lambda result: result.execution_status == "SUCCEEDED"
-                and result.reconciliation_status == "RECONCILED"
-                and result.processing_status == "PROCESSED"
-            )
+            successful_results = record._successful_activation_results()
             if not successful_results:
                 raise ValidationError(
                     _(
