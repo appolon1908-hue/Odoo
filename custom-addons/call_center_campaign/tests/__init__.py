@@ -1,3 +1,4 @@
+from . import test_automatic_provisioning
 from . import test_campaign
 from . import test_controller_registration
 from . import test_foundation
