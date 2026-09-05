@@ -95,8 +95,8 @@
     },
     "codestra_identity_provisioning": {
       "base_tree": "245f4e9fc94f3447ecbaa22b17b4784d5b1c36cc",
-      "current_tree": "7f31cc4d6f40338aaaf800a42c6ed599c6d9fc5f",
-      "reason": "Update the duplicate-login regression to assert Odoo 19 ORM ValidationError behavior, document the provisioning boundary, retain concurrency-safe identity allocation, and explicitly bind reviewed provisioning network access to validated destinations.",
+      "current_tree": "c15769e7138f34f57605ab7585322c4da63fba23",
+      "reason": "Retain concurrency-safe identity allocation and validated destinations while adding explicit voicemail, recording-access, and monitoring-access provisioning steps required by the governed onboarding request.",
       "pull_request": 38,
       "allow_post_init_hook": true,
       "integration_boundary_exceptions": [
