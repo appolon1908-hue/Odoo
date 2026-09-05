@@ -273,6 +273,7 @@ class TestClickToCall(TransactionCase):
             {"dialing": "attempting", "reason": []},
             {"dialing": "attempting", "call_id": 6101},
             {"dialing": []},
+            {"dialing": "answered"},
             ["attempting"],
         ):
             with self.subTest(result=result), self.assertRaises(
