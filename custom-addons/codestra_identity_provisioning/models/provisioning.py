@@ -771,6 +771,12 @@ class ProvisioningRequest(models.Model):
                 operations.append(("sip", "upsert_endpoint"))
             if request.needs_agent_desktop:
                 operations.append(("agent_desktop", "assign_roles"))
+            if request.needs_voicemail:
+                operations.append(("voicemail", "provision_mailbox"))
+            if request.needs_recording_access:
+                operations.append(("recording", "grant_access"))
+            if request.needs_monitoring_access:
+                operations.append(("monitoring", "grant_access"))
             operations.append(("verification", "verify_all"))
             for sequence, (system, operation) in enumerate(operations, 1):
                 key = hashlib.sha256(
