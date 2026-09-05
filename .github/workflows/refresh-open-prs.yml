@@ -1,0 +1,95 @@
+name: Validate Odoo PR refresh candidates
+on:
+  push:
+    branches: [codex/odoo-pr-repair-preparation-20260905]
+    paths: [.github/workflows/refresh-open-prs.yml]
+permissions:
+  contents: write
+jobs:
+  prepare:
+    if: github.repository == 'appolon1908-hue/Odoo' && github.ref == 'refs/heads/codex/odoo-pr-repair-preparation-20260905'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reproduce exact merge trees and validate without updating PRs or main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p evidence
+          python3 - <<'PY'
+          import base64, hashlib, json, os, pathlib, subprocess, urllib.request, zlib
+          root = pathlib.Path.cwd()
+          main = '202a80d5a77cd6b0a715bebf7817628d21301359'
+          expected = {
+              67: ('f997783985b729c5807b5dafb4cd893d3dce6d58', '2d6a6ad6119f50edfa101129b64b6a901c330ddf', 'feat/automatic-campaign-provisioning'),
+              74: ('da9b7055bed5583048498a1e9480811ae7bc98e5', 'a61bc66c2e40220802de94e140138bfeef304f7b', 'feat/agent-onboarding-provisioning-v1-20260904'),
+              78: ('bb1f352e649396c31bf379b9e8920acec0393019', '0c92894d95c7f530359bc13af4e847aae6a64b48', 'feat/vicidial-realtime-screen-pop-gate-v1'),
+          }
+          def git(*args, cwd=root, input=None, env=None):
+              return subprocess.check_output(['git', *args], cwd=cwd, input=input, text=True, env=env).strip()
+          def remote(ref):
+              text = git('ls-remote', '--heads', 'origin', 'refs/heads/' + ref)
+              return text.split()[0] if text else None
+          assert remote('main') == main, 'Main advanced: refresh the plan instead of overwriting newer work'
+          url = 'https://api.github.com/repos/appolon1908-hue/Odoo/git/blobs/64d9556fba837f02906f2defce95be3035d3e4b6'
+          request = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+          with urllib.request.urlopen(request, timeout=45) as response:
+              packed = base64.b64decode(json.load(response)['content'])
+          assert hashlib.sha256(packed).hexdigest() == '1c90e17077f234541119ad1e9c95c73bff3a1fe90272c4614bdb9ba7a46ae0bd', 'Repair transport checksum mismatch'
+          plans = json.loads(zlib.decompress(packed))
+          assert len(plans) == 3 and {p['pr'] for p in plans} == set(expected)
+          git('config', 'user.name', 'Odoo PR repair')
+          git('config', 'user.email', '275410064+appolon1908-hue@users.noreply.github.com')
+          clean_env = {key: value for key, value in os.environ.items() if key not in {'GH_TOKEN', 'GITHUB_TOKEN'}}
+          push_env = dict(clean_env)
+          push_env.update(GIT_CONFIG_COUNT='1', GIT_CONFIG_KEY_0='http.https://github.com/.extraheader', GIT_CONFIG_VALUE_0='AUTHORIZATION: basic ' + base64.b64encode(('x-access-token:' + os.environ['GH_TOKEN']).encode()).decode())
+          results = []
+          (root/'evidence/results.json').write_text('[]')
+          for plan in plans:
+              number = plan['pr']
+              parent, tree, branch = expected[number]
+              assert plan['parent'] == parent and plan['main'] == main and plan['tree'] == tree
+              assert remote(branch) == parent, f'PR {number} advanced: preserve newer work'
+              work = root.parent/f'refresh-{number}'
+              git('worktree', 'add', '--detach', str(work), parent)
+              merged = subprocess.run(['git', 'merge', '--no-commit', '--no-ff', main], cwd=work, env=clean_env)
+              conflicts = git('diff', '--name-only', '--diff-filter=U', cwd=work).splitlines()
+              assert sorted(conflicts) == sorted(plan['conflicts']), f'PR {number}: unexpected conflicts'
+              assert merged.returncode == (1 if conflicts else 0), f'PR {number}: unexpected merge failure'
+              for path in conflicts:
+                  assert number == 78 and path in {'config/canonical-addon-baseline.json', 'custom-addons/codestra_vicidial_crm/models/__init__.py'}
+                  git('checkout', '--ours', '--', path, cwd=work)
+                  git('add', '--', path, cwd=work)
+              assert git('write-tree', cwd=work) == plan['pre_tree'], f'PR {number}: unexpected merge tree'
+              if plan['patch']:
+                  git('apply', '--index', '-', cwd=work, input=plan['patch'])
+              assert git('write-tree', cwd=work) == tree, f'PR {number}: unexpected repair tree'
+              git('diff', '--cached', '--check', cwd=work)
+              commit = git('commit-tree', tree, '-p', parent, '-p', main, '-m', f'fix: refresh Odoo PR #{number} against main and preserve governed integration boundaries')
+              git('reset', '--hard', commit, cwd=work)
+              with (root/f'evidence/pr-{number}-source-ci.log').open('w') as log:
+                  check = subprocess.run(['bash', 'scripts/run_ci.sh'], cwd=work, env=clean_env, stdout=log, stderr=subprocess.STDOUT)
+              candidate = f'codex/odoo-refresh-pr-{number}-20260905'
+              row = {'pr': number, 'parent': parent, 'main': main, 'tree': tree, 'sha': commit, 'candidate': candidate, 'source_ci': check.returncode, 'published': False}
+              if check.returncode == 0:
+                  assert remote('main') == main and remote(branch) == parent, f'PR {number}: authority advanced during validation'
+                  assert remote(candidate) is None, 'Candidate already exists: inspect it rather than replacing history'
+                  git('push', 'origin', f'{commit}:refs/heads/{candidate}', env=push_env)
+                  row['published'] = True
+              results.append(row)
+              (root/'evidence/results.json').write_text(json.dumps(results, indent=2))
+              print(json.dumps(row))
+          assert all(row['published'] for row in results), 'One or more source gates failed; PR branches and main were not changed'
+          PY
+      - name: Upload exact-tree source validation evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: odoo-pr-refresh-${{ github.run_id }}
+          path: evidence/
+          retention-days: 3
+          if-no-files-found: error
