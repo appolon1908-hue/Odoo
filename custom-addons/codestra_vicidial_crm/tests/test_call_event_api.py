@@ -175,3 +175,34 @@ class TestCallEventAPIContract(HttpCase):
             ),
             1,
         )
+
+    def test_terminal_event_can_claim_placeholder_with_asterisk_identity(self):
+        call_id = f"terminal-{uuid.uuid4()}"
+        correlation_id = f"corr-{call_id}"
+        placeholder = self.env["codestra.vicidial.call"].create(
+            {
+                "name": "Terminal timeout placeholder",
+                "agent_id": self.env["codestra.vicidial.agent"].search(
+                    [("vicidial_user", "=", "HTTP6101")], limit=1
+                ).id,
+                "campaign_id": self.campaign.id,
+                "tenant_id": "COD",
+                "keycloak_subject": self.subject,
+                "extension": "6101",
+                "correlation_id": correlation_id,
+                "idempotency_key": correlation_id,
+                "state": "initiating",
+                "status": "outcome_unknown",
+            }
+        )
+        payload = self.payload(
+            call_id=call_id,
+            correlation_id=correlation_id,
+            event_type="call.completed",
+            sequence=4,
+        )
+        self.assertEqual(self.post(payload).status_code, 202)
+        placeholder.invalidate_recordset()
+        self.assertEqual(placeholder.state, "completed")
+        self.assertEqual(placeholder.asterisk_uniqueid, payload["asterisk_uniqueid"])
+        self.assertEqual(placeholder.linkedid, payload["linkedid"])

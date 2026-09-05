@@ -265,6 +265,10 @@ class CodestraAPI(http.Controller):
                 {
                     "call_id": str(payload["call_id"]),
                     "external_call_id": str(payload["call_id"]),
+                    "asterisk_uniqueid": payload["asterisk_uniqueid"],
+                    "uniqueid": payload["asterisk_uniqueid"],
+                    "linkedid": payload["linkedid"],
+                    "source_system": "asterisk",
                 }
             )
         try:

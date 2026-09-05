@@ -159,11 +159,15 @@ class TestClickToCall(TransactionCase):
             [("crm_lead_id", "=", self.lead.id)], limit=1
         )
         call._dispatch_click_to_call()
+        self.env["ir.config_parameter"].sudo().set_param(
+            "codestra.telephony.approved_outbound_caller_id", "+18095550888"
+        )
         second = self.lead.action_click_to_call()
         call._dispatch_click_to_call()
         self.assertEqual(first["params"]["type"], "success")
         self.assertEqual(second["params"]["type"], "success")
         self.assertEqual(requests[0][0:2], requests[1][0:2])
+        self.assertEqual(requests[0][2], requests[1][2])
         calls = self.env["codestra.vicidial.call"].search(
             [("crm_lead_id", "=", self.lead.id)]
         )
@@ -198,10 +202,20 @@ class TestClickToCall(TransactionCase):
                 "campaign_id": self.agent.campaign_ids.id,
                 "tenant_id": self.agent.tenant_id,
                 "destination": other.phone,
-                "state": "ringing",
-                "status": "ringing",
+                "state": "held",
+                "status": "held",
                 "idempotency_key": str(uuid.uuid4()),
             }
         )
         with self.assertRaises(UserError):
             self.lead.action_click_to_call()
+
+    def test_committed_requesting_placeholder_is_reclaimed_with_same_key(self):
+        first = self.lead.action_click_to_call()
+        call = self.env["codestra.vicidial.call"].search(
+            [("crm_lead_id", "=", self.lead.id)], limit=1
+        )
+        second = self.lead.action_click_to_call()
+        self.assertEqual(first["params"]["type"], "success")
+        self.assertEqual(second["params"]["type"], "success")
+        self.assertEqual(call.status, "requesting")

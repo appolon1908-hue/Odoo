@@ -163,6 +163,10 @@ class CrmLead(models.Model):
 
         campaign = campaigns_by_code[campaign_code]
         Call = self.env["codestra.vicidial.call"].sudo()
+        self.env.cr.execute(
+            "SELECT id FROM codestra_vicidial_agent WHERE id = %s FOR UPDATE",
+            (agent.id,),
+        )
         pending = Call.search(
             [
                 ("agent_id", "=", agent.id),
@@ -170,13 +174,16 @@ class CrmLead(models.Model):
                 (
                     "state",
                     "in",
-                    ["initiating", "ringing", "offered", "answering", "connected"],
+                    [
+                        "initiating", "ringing", "offered", "answering",
+                        "connected", "held", "transferring", "ending",
+                    ],
                 ),
             ],
             order="create_date desc",
             limit=1,
         )
-        if pending and pending.status != "outcome_unknown":
+        if pending and pending.status not in ("requesting", "outcome_unknown"):
             raise UserError(
                 "You already have an active call request. Wait for its outcome."
             )
@@ -220,7 +227,7 @@ class CrmLead(models.Model):
                     "extension": agent.phone_login,
                 }
             )
-        payload = {
+        payload = pending.originate_payload if pending else {
                 "employee_id": agent.employee_code or agent.vicidial_user,
                 "campaign": campaign_code,
                 "business_unit": self.business_unit_id.code,
@@ -233,7 +240,8 @@ class CrmLead(models.Model):
                 "lead_id": self.id,
                 "recording_requested": False,
             }
-        call.originate_payload = payload
+        if not pending:
+            call.originate_payload = payload
         database = self.env.cr.dbname
         call_id = call.id
 
