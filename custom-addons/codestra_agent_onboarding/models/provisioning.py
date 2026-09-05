@@ -564,13 +564,21 @@ class CodestraAgentOnboardingProvisioning(models.Model):
 
     def _provisioning_idempotency_key(self):
         self.ensure_one()
+        # ``action_prepare_access`` has already required the global contact-center
+        # administrator role and validated this exact campaign assignment.  Read
+        # the immutable canonical identifier in that governed system context so
+        # a caller does not need a circular pre-existing campaign membership in
+        # order to create their first membership request.
+        campaign_workspace_uuid = self.with_user(
+            SUPERUSER_ID
+        ).campaign_id.workspace_uuid
         return _sha256(
             "|".join(
                 (
                     "agent-onboarding-v1",
                     self.integration_uuid,
                     str(self.employee_id.id),
-                    self.campaign_id.workspace_uuid,
+                    campaign_workspace_uuid,
                     self.campaign_role,
                     fields.Date.to_string(self.target_start_date),
                 )
@@ -588,13 +596,19 @@ class CodestraAgentOnboardingProvisioning(models.Model):
             if (
                 existing.employee_id != self.employee_id
                 or existing.cc_membership_id != membership
-                or self.campaign_id.legacy_campaign_id not in existing.campaign_ids
+                or self.with_user(SUPERUSER_ID).campaign_id.legacy_campaign_id
+                not in existing.with_user(SUPERUSER_ID).campaign_ids
             ):
                 raise ValidationError(
                     _("The provisioning idempotency key is already bound.")
                 )
             return existing
-        return Request.create(
+        # Creation is a governed system transition reached only through
+        # ``action_prepare_access`` after global-admin and assignment checks.
+        # The system-user scope is limited to materializing this disabled
+        # request so the first campaign membership does not depend on already
+        # having one.
+        return Request.with_user(SUPERUSER_ID).create(
             {
                 "request_type": "onboard",
                 "employee_id": self.employee_id.id,
@@ -608,7 +622,12 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 "operational_team_id": self.operational_team_id.id,
                 "role_template_id": self.role_template_id.id,
                 "campaign_ids": [
-                    (6, 0, self.campaign_id.legacy_campaign_id.ids)
+                    (
+                        6,
+                        0,
+                        self.with_user(SUPERUSER_ID)
+                        .campaign_id.legacy_campaign_id.ids,
+                    )
                 ],
                 "start_date": self.target_start_date,
                 "preferred_language": self.preferred_language,
@@ -624,10 +643,12 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 "idempotency_key": key,
                 "cc_membership_id": membership.id,
             }
-        )
+        ).with_user(self.env.user)
 
     def _event_context(self):
         self.ensure_one()
+        employee = self.with_user(SUPERUSER_ID).employee_id
+        campaign = self.with_user(SUPERUSER_ID).campaign_id
         return {
             "onboarding_uuid": self.integration_uuid,
             "onboarding_number": self.name,
@@ -637,13 +658,13 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 self.provisioning_request_id.request_number
             ),
             "membership_uuid": self.campaign_membership_id.identity_uuid,
-            "employee_id": self.employee_id.codestra_employee_number,
-            "odoo_user_id": self.employee_id.user_id.id,
-            "login_identifier": self.employee_id.user_id.login,
+            "employee_id": employee.codestra_employee_number,
+            "odoo_user_id": employee.user_id.id,
+            "login_identifier": employee.user_id.login,
             "business_unit_code": self.business_unit_id.code,
-            "campaign_code": self.campaign_id.code,
-            "campaign_workspace_uuid": self.campaign_id.workspace_uuid,
-            "campaign_scope_version": self.campaign_id.scope_version,
+            "campaign_code": campaign.code,
+            "campaign_workspace_uuid": campaign.workspace_uuid,
+            "campaign_scope_version": campaign.scope_version,
             "role": self.campaign_role,
             "role_template": {
                 "code": self.role_template_id.code,
@@ -673,9 +694,9 @@ class CodestraAgentOnboardingProvisioning(models.Model):
         self._require_state("approved")
         self._require_global_administrator()
         for record in self:
-            record._assert_assignment_ready()
             if record.provisioning_request_id and record.campaign_membership_id:
                 continue
+            record._assert_assignment_ready()
             user = record._ensure_agent_user()
             membership = record._ensure_membership(user)
             provision_request = record._ensure_provisioning_request(

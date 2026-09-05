@@ -95,7 +95,7 @@
     },
     "codestra_identity_provisioning": {
       "base_tree": "245f4e9fc94f3447ecbaa22b17b4784d5b1c36cc",
-      "current_tree": "d482ebf0c78b6c083768ab52effd3bfed0a04316",
+      "current_tree": "1b2d7e14bcbe12394cc2ee53f9255939d55057fe",
       "reason": "Retain concurrency-safe identity allocation and validated destinations while adding explicit voicemail, recording-access, and monitoring-access provisioning steps required by the governed onboarding request. Preserve the scoped onboarding review repairs, explicit activation-result outcome evidence, optional service step/callback parity, and synthetic regression fixtures.",
       "pull_request": 74,
       "allow_post_init_hook": true,
