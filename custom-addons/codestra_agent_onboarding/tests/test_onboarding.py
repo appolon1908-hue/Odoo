@@ -249,7 +249,7 @@ class TestCodestraAgentOnboarding(TransactionCase):
         onboarding.with_user(self.approver).action_approve()
         self.assertEqual(onboarding.state, "approved")
 
-    def test_preparation_creates_disabled_user_membership_and_request(self):
+    def test_preparation_creates_disabled_user_members_and_request(self):
         onboarding = self._new_onboarding()
         request_record = self._prepare(onboarding)
         user = onboarding.employee_id.with_context(active_test=False).user_id
@@ -338,13 +338,25 @@ class TestCodestraAgentOnboarding(TransactionCase):
             onboarding.with_user(self.approver).action_request_activation_email()
 
         self._match_membership(onboarding)
-        request_record.step_ids.with_user(SUPERUSER_ID).write(
+        steps = request_record.step_ids
+        self.assertTrue(steps, "Provisioning must create steps before verification.")
+        # The requester must not be able to forge service verification evidence.
+        with self.assertRaises(AccessError):
+            steps.with_user(self.requester).write(
+                {"state": "verified", "verification_state": "verified"}
+            )
+        service_steps = steps.with_user(self.identity_service)
+        self.assertFalse(service_steps.env.su)
+        service_steps.write(
             {
                 "state": "verified",
                 "verification_state": "verified",
             }
         )
-        request_record.with_user(SUPERUSER_ID).write({"state": "awaiting_user_activation"})
+        # Request writes use the existing scoped approver ACL, not superuser.
+        approved_request = request_record.with_user(self.approver)
+        self.assertFalse(approved_request.env.su)
+        approved_request.write({"state": "awaiting_user_activation"})
         request_record.invalidate_recordset(
             ["state", "mandatory_steps_complete"]
         )
@@ -401,14 +413,11 @@ class TestCodestraAgentOnboarding(TransactionCase):
                 "vicidial_campaign_id": "ONB0002",
             }
         )
-        other_campaign = self.env["cc.campaign"].create(
-            {
-                "legacy_campaign_id": other_legacy.id,
-                "cc_business_unit_id": self.canonical_unit.id,
-                "environment": "staging",
-                "lifecycle_state": "approved",
-                "identifier_status": "canonical",
-            }
-        )
+        # Copying a legacy campaign also adopts its canonical wrapper.
+        other_campaign = self.env["cc.campaign"].with_context(
+            active_test=False
+        ).search([("legacy_campaign_id", "=", other_legacy.id)])
+        other_campaign.ensure_one()
+        self.assertEqual(other_campaign.cc_business_unit_id, self.canonical_unit)
         with self.assertRaises(AccessError):
             onboarding.write({"campaign_id": other_campaign.id})
