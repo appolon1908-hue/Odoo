@@ -132,8 +132,8 @@
     },
     "codestra_middleware_bridge": {
       "base_tree": "d5f2785ea737689dfc1bdc88bb1eb1650a334e02",
-      "current_tree": "5484877c28c216d5356e5ad2ff890792215de23f",
-      "reason": "Preserve the reviewed Stage 3 destination and centralize tenant-bound intake identity plus fail-closed CRM consent and suppression handling in one canonical model authority.",
+      "current_tree": "26dac5ab96ba006dffdfa1b7774c05b9e0459fde",
+      "reason": "Preserve the reviewed Stage 3 destination, centralize tenant-bound intake identity plus fail-closed CRM consent and suppression handling, and bind the CRM upsert command to an explicit read/write cursor.",
       "pull_request": 57,
       "integration_boundary_exceptions": [
         {
