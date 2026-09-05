@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_partner_form_moneybee_identity" model="ir.ui.view">
+    <field name="name">res.partner.form.moneybee.identity</field>
+    <field name="model">res.partner</field>
+    <field name="inherit_id" ref="base.view_partner_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//sheet/notebook" position="inside">
+        <page string="MoneyBee" name="moneybee_identity">
+          <group>
+            <field name="moneybee_user_id"/>
+            <field name="moneybee_organization_id"/>
+            <field name="moneybee_email_verified"/>
+            <field name="moneybee_membership_type"/>
+          </group>
+          <div class="text-muted">
+            Authentication credentials and verification codes are owned by Keycloak and are never stored in Odoo.
+          </div>
+        </page>
+      </xpath>
+    </field>
+  </record>
+</odoo>
