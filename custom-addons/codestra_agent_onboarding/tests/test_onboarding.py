@@ -128,6 +128,32 @@ class TestCodestraAgentOnboarding(TransactionCase):
         cls.campaign.ensure_one()
         assert cls.campaign.cc_business_unit_id == cls.canonical_unit
         assert cls.campaign.lifecycle_state == "approved"
+        # The request and approval identities use an explicit, active campaign
+        # scope.  Global workflow roles authorize the actions; this narrow
+        # auditor membership authorizes reads of the governed workspace without
+        # relying on superuser mode or a record-rule bypass.
+        for user, label in (
+            (cls.requester, "Requester"),
+            (cls.approver, "Approver"),
+        ):
+            employee = cls.env["hr.employee"].create(
+                {
+                    "name": f"Onboarding {label}",
+                    "company_id": cls.company.id,
+                    "user_id": user.id,
+                }
+            )
+            cls.env["cc.campaign.membership"].create(
+                {
+                    "user_id": user.id,
+                    "employee_id": employee.id,
+                    "campaign_id": cls.campaign.id,
+                    "role": "auditor",
+                    "state": "active",
+                    "requested_by_id": cls.env.user.id,
+                    "source_ticket": "TEST-ONBOARDING-SCOPE",
+                }
+            )
         cls.role_template = cls.env["codestra.role.template"].create(
             {
                 "name": "Onboarding Campaign Agent",
