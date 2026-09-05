@@ -416,7 +416,12 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                         "adoption workflow instead of attaching it automatically."
                     )
                 )
-            user = Users.with_context(no_reset_password=True).create(
+            # Archived identities participate in collision lookup, not creation.
+            # Odoo synchronizes the new inactive user to its partner and that
+            # archive guard must search only active linked users.
+            user = Users.with_context(
+                active_test=True, no_reset_password=True
+            ).create(
                 {
                     "name": employee.name,
                     "login": email,

@@ -274,6 +274,17 @@ class TestCodestraAgentOnboarding(TransactionCase):
         self.assertEqual(onboarding.campaign_membership_id, existing_membership)
         self.assertEqual(onboarding.provisioning_request_id, existing_request)
 
+    def test_inactive_user_creation_is_safe_under_archived_lookup_context(self):
+        onboarding = self._new_onboarding().with_context(active_test=False)
+        request_record = self._prepare(onboarding)
+        user = onboarding.employee_id.with_context(active_test=False).user_id
+        self.assertTrue(user)
+        self.assertFalse(user.active)
+        self.assertFalse(user.partner_id.active)
+        self.assertEqual(request_record.state, "pending_approval")
+        self.assertFalse(onboarding.provisioning_outbox_id)
+        self.assertFalse(onboarding.activation_outbox_id)
+
     def test_requester_cannot_approve_the_same_access(self):
         onboarding = self._new_onboarding()
         self._prepare(onboarding)
