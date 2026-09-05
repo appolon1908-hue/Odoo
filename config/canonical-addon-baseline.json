@@ -2,7 +2,7 @@
   "schema_version": 2,
   "source_commit": "9674951f4b2c9c53f88412885ed5c96fcb0769cc",
   "source_pull_request": 9,
-  "module_count": 32,
+  "module_count": 33,
   "policy": "An unchanged pinned subtree may retain its separately reviewed Odoo hook and local ORM-locking implementation. Any subtree change removes the exception, must be declared as a strict mission override, and must pass the current strict module review at its exact tree SHA. Narrow integration-boundary exceptions must be path-specific, reasoned, structurally validated, and invalidated by any subtree change.",
   "modules": {
     "call_center_compliance": "85610757c8f9bd140611b6ca99e435283b803e63",
@@ -179,6 +179,29 @@
           "path": "tests/test_reconciliation.py",
           "kind": "odoo_test_driver_exception",
           "reason": "The test imports only IntegrityError to assert call-record database constraints and does not open an external database connection."
+        }
+      ]
+    },
+    "codestra_moneybee_crm": {
+      "base_tree": "31cebcead3176785e4d7e9f1f38be95c802ef03e",
+      "current_tree": "8c85e596e840c4293deb64dc83c75c6d40d5818a",
+      "reason": "Add the reviewed MoneyBee CRM identity and immutable command-receipt boundary, derive tenant scope from the authenticated principal's single Odoo company, reject direct RPC mutations with server-only capability tokens, and limit receipts to the exact principal and company.",
+      "pull_request": 5,
+      "integration_boundary_exceptions": [
+        {
+          "path": "models/res_partner.py",
+          "kind": "odoo_internal_driver_exception",
+          "reason": "The model imports only IntegrityError to reconcile unique-constraint races inside Odoo savepoints and never opens an external database connection."
+        },
+        {
+          "path": "models/moneybee_identity_guard.py",
+          "kind": "odoo_internal_driver_exception",
+          "reason": "Imports only IntegrityError to classify a rolled-back Odoo unique-constraint race; the authenticated identity collision probe reads immutable bindings, including archived records, and never opens a database connection."
+        },
+        {
+          "path": "tests/test_moneybee_crm.py",
+          "kind": "odoo_test_driver_exception",
+          "reason": "Imports only IntegrityError to verify database uniqueness inside a rolled-back synthetic Odoo savepoint; no connection is opened."
         }
       ]
     }
