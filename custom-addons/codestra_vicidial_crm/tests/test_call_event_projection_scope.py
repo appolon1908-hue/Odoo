@@ -1,6 +1,6 @@
 import uuid
 
-from odoo.tests.common import TransactionCase
+from odoo.tests.common import TransactionCase, tagged
 
 
 class TestCallEventProjectionScope(TransactionCase):
@@ -71,6 +71,10 @@ class TestCallEventProjectionScope(TransactionCase):
         self.assertEqual(allowed["match"], "exact")
         self.assertEqual([row["id"] for row in allowed["matches"]], owned.ids)
 
+
+
+@tagged("post_install", "-at_install")
+class TestCanonicalCampaignProjectionScope(TransactionCase):
     def test_canonical_campaign_cannot_be_overridden_by_stale_alias(self):
         unit = self.env.ref("call_center_core.business_unit_digital")
         campaign = self.env["call.center.campaign"].create({

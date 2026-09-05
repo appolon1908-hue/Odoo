@@ -102,16 +102,23 @@ class VicidialCallControl(models.Model):
             partner_domain.append(("business_unit_id", "=", unit_id))
             lead_domain.append(("business_unit_id", "=", unit_id))
         if campaign_code:
-            # A canonical assignment wins over stale legacy projection fields.
-            lead_domain.extend([
-                "|",
-                "&", ("call_center_campaign_id", "!=", False),
-                "|", ("call_center_campaign_id.code", "=", campaign_code),
-                     ("call_center_campaign_id.vicidial_campaign_id", "=", campaign_code),
-                "&", ("call_center_campaign_id", "=", False),
+            # Canonical assignments win when the campaign addon is installed.
+            # The CRM addon also installs independently, before that extension.
+            legacy_campaign = [
                 "|", ("vicidial_campaign_id", "=", campaign_code),
+                "&", ("vicidial_campaign_id", "=", False),
                      ("x_vicidial_campaign_id", "=", campaign_code),
-            ])
+            ]
+            if "call_center_campaign_id" in Lead._fields:
+                lead_domain.extend([
+                    "|", "&", ("call_center_campaign_id", "!=", False),
+                    "|", ("call_center_campaign_id.code", "=", campaign_code),
+                         ("call_center_campaign_id.vicidial_campaign_id", "=", campaign_code),
+                    "&", ("call_center_campaign_id", "=", False),
+                    *legacy_campaign,
+                ])
+            else:
+                lead_domain.extend(legacy_campaign)
         leads = Lead.search(lead_domain)
         if campaign_code:
             # A shared-unit contact is not, by itself, campaign authorization.
