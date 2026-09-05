@@ -101,6 +101,7 @@ class TestAgentOnboardingVicidialBinding(TransactionCase):
                 "operational_team_id": self.team.id,
                 "supervisor_id": self.supervisor.id,
                 "role_template_id": self.role_template.id,
+                "needs_vicidial": True,
                 "activation_email": "bounded.agent@example.invalid",
                 "identity_verified": True,
                 "employment_documents_complete": True,
