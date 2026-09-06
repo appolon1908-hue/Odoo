@@ -707,7 +707,10 @@ class TestIdentityProvisioning(TransactionCase):
             self._request_values("monitoring-rules")
         )
         self.assertEqual(provision.with_user(self.monitoring_user).monitoring_snapshot()["count"], 1)
-        self.monitoring_user.call_center_business_unit_ids = [(5, 0, 0)]
+        self.monitoring_user.write({
+            "call_center_default_business_unit_id": False,
+            "call_center_business_unit_ids": [(5, 0, 0)],
+        })
         self.assertEqual(provision.with_user(self.monitoring_user).monitoring_snapshot()["count"], 0)
         self.monitoring_user.group_ids = [(6, 0, self.env.ref("base.group_user").ids)]
         with self.assertRaises(AccessError):
