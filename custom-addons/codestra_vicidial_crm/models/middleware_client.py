@@ -16,6 +16,13 @@ class OriginateOutcomeUnknown(UserError):
     """The request may have reached Middleware; reconciliation is required."""
 
 
+class _NoTelephonyRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        # Even a redirect on the same host can escape the reviewed API route.
+        # In particular, never forward the bearer credential to a new origin.
+        return None
+
+
 class TelephonyMiddlewareClient(models.AbstractModel):
     _name = "codestra.telephony.middleware.client"
     _description = "Governed Codestra Telephony Middleware Client"
@@ -84,11 +91,16 @@ class TelephonyMiddlewareClient(models.AbstractModel):
             method="POST",
         )
         try:
-            # _validated_target rejects non-HTTPS and credential-bearing authorities.
-            with urllib.request.urlopen(  # nosec B310
+            # Revalidate the initial target and forbid all redirect hops. Default
+            # urllib handling can copy Authorization to an unreviewed origin.
+            opener = urllib.request.build_opener(_NoTelephonyRedirect())
+            with opener.open(  # nosec B310
                 outbound_request, timeout=10
             ) as response:
-                result = json.loads(response.read())
+                raw_result = response.read(131073)
+                if len(raw_result) > 131072:
+                    raise ValueError("response exceeds maximum size")
+                result = json.loads(raw_result)
         except urllib.error.HTTPError as exc:
             messages = {
                 403: "You are not authorized to call from this campaign.",
@@ -116,6 +128,11 @@ class TelephonyMiddlewareClient(models.AbstractModel):
                 }
             raise OriginateOutcomeUnknown(
                 "The telephony connection failed with an unknown request outcome; "
+                "reconcile this call before retrying."
+            ) from exc
+        except (ValueError, UnicodeError) as exc:
+            raise OriginateOutcomeUnknown(
+                "Middleware returned an invalid response with an unknown call outcome; "
                 "reconcile this call before retrying."
             ) from exc
         return self._validate_originate_response(result)

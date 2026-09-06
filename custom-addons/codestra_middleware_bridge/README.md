@@ -55,6 +55,12 @@ The signing secret and the service identity are resolved per tenant:
 A tenant must also appear in `codestra.crm.tenant_ids` (comma separated) or be
 `codestra.middleware.tenant_id`. Timestamps outside ±300s are rejected.
 
+Global fallback parameters belong only to `codestra.middleware.tenant_id`.
+Every additional allowlisted tenant needs its own explicit secret and service
+user mapping. Missing tenant configuration fails closed; it cannot borrow the
+default tenant's credential or principal. Event replay lookup is tenant-scoped,
+including when an operator explicitly assigns the same principal to two tenants.
+
 ## Reconciliation
 
 ```text
