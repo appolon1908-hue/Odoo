@@ -710,6 +710,8 @@ class CodestraMiddlewareBridge(http.Controller):
         auth="none",
         methods=["GET"],
         csrf=False,
+        # The status read records an idempotent integration audit event.
+        readonly=False,
     )
     def crm_command_status(self, command_id):
         """Report the recorded outcome of an earlier command.

@@ -196,13 +196,6 @@ fi
 
 printf 'POSTGRESQL_CONTAINER_HEALTH=PASS\n'
 docker exec "$DB_CONTAINER" postgres --version
-# The module suite performs inserts, sequence allocation, and row locks.  Keep
-# this disposable CI database explicitly writable; production read-only/canary
-# profiles are configured elsewhere and are not affected by this setting.
-docker exec "$DB_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d postgres \
-  -c "ALTER DATABASE \"$DATABASE\" SET default_transaction_read_only = off;" \
-  >/dev/null
-printf 'POSTGRESQL_CI_WRITABLE=PASS\n'
 
 printf '==> Installing and testing every reviewed custom module on Odoo 19\n'
 mapfile -t module_names < <(
@@ -239,7 +232,6 @@ if ! docker run --rm \
   -e PORT=5432 \
   -e USER="$DB_USER" \
   -e PASSWORD="$DB_PASSWORD" \
-  -e PGOPTIONS='-c default_transaction_read_only=off' \
   -v "$CI_PYTHON_DIR:/opt/codestra-ci-python:ro" \
   -v "$ROOT_DIR/custom-addons:/mnt/extra-addons:ro" \
   -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
@@ -295,7 +287,6 @@ if ! docker run --rm \
   -e PORT=5432 \
   -e USER="$DB_USER" \
   -e PASSWORD="$DB_PASSWORD" \
-  -e PGOPTIONS='-c default_transaction_read_only=off' \
   -v "$ROOT_DIR/custom-addons:/mnt/extra-addons:ro" \
   -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
   "$ODOO_IMAGE" \

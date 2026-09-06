@@ -40,6 +40,15 @@
     <field name="groups" eval="[(4, ref('group_provisioning_user'))]"/>
     <field name="domain_force">[('request_id.business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
   </record>
+  <record id="rule_provisioning_campaign_scope" model="ir.rule">
+    <field name="name">Provisioning campaign catalog company and unit scope</field>
+    <field name="model_id" ref="call_center_campaign.model_call_center_campaign"/>
+    <field name="groups" eval="[(4, ref('group_provisioning_user'))]"/>
+    <field name="domain_force">[('business_unit_id.company_id', 'in', company_ids), ('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+    <field name="perm_write" eval="False"/>
+    <field name="perm_create" eval="False"/>
+    <field name="perm_unlink" eval="False"/>
+  </record>
   <record id="rule_identity_scope" model="ir.rule">
     <field name="name">Identity link business-unit scope</field>
     <field name="model_id" ref="model_codestra_identity_link"/>

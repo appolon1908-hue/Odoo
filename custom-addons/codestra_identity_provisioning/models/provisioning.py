@@ -523,6 +523,15 @@ class ProvisioningRequest(models.Model):
     )
     state = fields.Selection(REQUEST_STATES, default="draft", required=True, tracking=True)
     employee_id = fields.Many2one("hr.employee", required=True, ondelete="restrict")
+    # Only these non-sensitive employee attributes are projected through the
+    # request ACL. Monitoring users do not need access to private HR records.
+    monitoring_employee_number = fields.Char(
+        related="employee_id.codestra_employee_number", compute_sudo=True,
+        readonly=True,
+    )
+    monitoring_employee_name = fields.Char(
+        related="employee_id.name", compute_sudo=True, readonly=True,
+    )
     personal_email = fields.Char()
     recovery_phone = fields.Char()
     requested_by = fields.Many2one(
@@ -1153,6 +1162,15 @@ class ProvisioningRequest(models.Model):
         """Use the campaign registry as the reusable source for dependent values."""
         for request in self:
             campaign = request.primary_campaign_id
+            # Never carry values from the previous campaign into an ambiguous
+            # or empty mapping. Required choices must be selected again.
+            request.branch_id = False
+            request.operational_team_id = False
+            request.department_id = False
+            request.supervisor_id = False
+            request.extension_pool_id = False
+            request.calling_hours_policy_id = False
+            request.inbound_group_ids = [(5, 0, 0)]
             if not campaign:
                 request.campaign_ids = [(5, 0, 0)]
                 continue
@@ -1196,14 +1214,17 @@ class ProvisioningRequest(models.Model):
             raise AccessError("Provisioning monitoring permission is required.")
         limit = max(1, min(int(limit or 200), 200))
         domain = [("request_type", "=", "onboard")]
-        requests = self.search(domain, order="employee_id, create_date desc", limit=limit)
         if campaign_code:
-            # Apply the code match after the tenant-scoped request search.  A
-            # dotted relational domain is not portable across the supported
-            # Odoo registry variants and can incorrectly return no rows.
-            requests = requests.filtered(
-                lambda item: item.primary_campaign_id.code == campaign_code
-            )
+            # Filter before limiting, including pre-upgrade requests whose
+            # campaign assignment exists only in the legacy relation.
+            domain += [
+                "|", ("primary_campaign_id.code", "=", campaign_code),
+                "&", ("primary_campaign_id", "=", False),
+                ("campaign_ids.code", "=", campaign_code),
+            ]
+        requests = self.search(
+            domain, order="employee_id, create_date desc, id desc", limit=limit
+        )
         seen = set()
         agents = []
         for provision in requests:
@@ -1211,11 +1232,15 @@ class ProvisioningRequest(models.Model):
             if employee.id in seen:
                 continue
             seen.add(employee.id)
-            links = employee.identity_link_ids
+            links = self.env["codestra.identity.link"].search([
+                ("employee_id", "=", employee.id),
+                ("business_unit_id", "=", provision.business_unit_id.id),
+                ("is_primary", "=", True),
+            ], order="created_at desc, id desc")
             keycloak = links.filtered(lambda link: link.system == "keycloak" and link.is_primary)[:1]
             vicidial = links.filtered(lambda link: link.system == "vicidial" and link.is_primary)[:1]
             sip = links.filtered(lambda link: link.system == "sip" and link.is_primary)[:1]
-            campaigns = provision.campaign_ids or provision.primary_campaign_id
+            campaigns = provision.primary_campaign_id or provision.campaign_ids
             active = bool(
                 provision.state == "active"
                 and provision.employment_status == "active"
@@ -1223,8 +1248,8 @@ class ProvisioningRequest(models.Model):
                 and vicidial.state == "active"
             )
             agents.append({
-                "employee_id": employee.codestra_employee_number or str(employee.id),
-                "display_name": employee.name,
+                "employee_id": provision.monitoring_employee_number or str(employee.id),
+                "display_name": provision.monitoring_employee_name,
                 "keycloak_username": keycloak.external_username or False,
                 "vicidial_username": vicidial.external_username or False,
                 "campaigns": [
@@ -1282,6 +1307,16 @@ class ProvisioningRequest(models.Model):
                 raise ValidationError("Primary campaign crosses a business unit.")
             if request.primary_campaign_id and request.campaign_ids != request.primary_campaign_id:
                 raise ValidationError("Campaign selection must match the primary campaign.")
+            if (
+                request.primary_campaign_id.team_ids
+                and request.operational_team_id not in request.primary_campaign_id.team_ids
+            ):
+                raise ValidationError("Operational team is outside the primary campaign.")
+            if (
+                request.primary_campaign_id.supervisor_ids
+                and request.supervisor_id not in request.primary_campaign_id.supervisor_ids
+            ):
+                raise ValidationError("Supervisor is outside the primary campaign.")
             if any(c.business_unit_id != unit for c in request.campaign_ids):
                 raise ValidationError("Campaign assignment crosses a business unit.")
             if request.branch_id and any(

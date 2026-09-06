@@ -22,3 +22,4 @@ access_audit_user,audit user,model_codestra_provisioning_audit,group_provisionin
 access_audit_service,audit service,model_codestra_provisioning_audit,group_provisioning_service,1,0,1,0
 access_inbound_group_user,inbound group user,model_codestra_provisioning_inbound_group,group_provisioning_user,1,0,0,0
 access_inbound_group_admin,inbound group admin,model_codestra_provisioning_inbound_group,group_provisioning_security_admin,1,1,1,0
+access_provisioning_campaign_read,provisioning campaign read,call_center_campaign.model_call_center_campaign,group_provisioning_user,1,0,0,0
