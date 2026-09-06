@@ -614,7 +614,7 @@ class TestIdentityProvisioning(TransactionCase):
         })
         provision._onchange_primary_campaign_id()
         self.assertEqual(provision.business_unit_id, self.unit)
-        self.assertEqual(provision.campaign_ids, campaign)
+        self.assertEqual(provision.campaign_ids._origin.ids, campaign.ids)
         self.assertEqual(provision.operational_team_id, self.team)
         self.assertEqual(provision.department_id, self.department)
         self.assertEqual(provision.supervisor_id, self.supervisor)
@@ -654,7 +654,7 @@ class TestIdentityProvisioning(TransactionCase):
             "business_unit_id": self.unit.id,
             "state": "active",
         })
-        result = provision.monitoring_snapshot(campaign_code="SYN-MONITOR")
+        result = provision.with_user(\n            self.env.ref("base.user_admin")\n        ).monitoring_snapshot(campaign_code="SYN-MONITOR")
         self.assertEqual(result["count"], 1)
         agent = result["agents"][0]
         self.assertEqual(agent["vicidial_username"], "syn00001")
