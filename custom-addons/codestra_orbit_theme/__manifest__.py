@@ -7,6 +7,7 @@
     "license": "LGPL-3",
     "depends": ["auth_oauth", "portal", "website", "web"],
     "data": [
+        "security/ir.model.access.csv",
         "data/oauth_provider.xml",
         "views/res_config_settings_views.xml",
         "views/login_templates.xml",
