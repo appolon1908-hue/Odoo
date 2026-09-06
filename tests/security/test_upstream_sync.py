@@ -377,6 +377,45 @@ class UpstreamSyncTests(unittest.TestCase):
             self.assertTrue((destination / "docs/item").is_file())
             self.assertEqual("second-file\n", (destination / "docs/item").read_text())
 
+    def test_unmanaged_file_ancestor_is_rejected_before_overlay(self) -> None:
+        for prior_sync in (False, True):
+            for child in ("docs/item/child.txt", "docs/item/sub/child.txt"):
+                with self.subTest(prior_sync=prior_sync, child=child):
+                    with tempfile.TemporaryDirectory() as directory:
+                        root = Path(directory)
+                        source = root / "source"
+                        destination = root / "destination"
+                        source.mkdir()
+                        destination.mkdir()
+                        self.initialize_source(source)
+                        self.add_module(source, "addons", "module_a", "first")
+                        self.commit(source, "initial source")
+                        policy = self.prepare_destination(destination)
+                        if prior_sync:
+                            sync.synchronize(
+                                upstream=source, destination=destination,
+                                policy_path=policy, source_ref="main",
+                            )
+                        self.write(destination, "docs/item", "destination-only\n")
+                        self.initialize_source(destination)
+                        self.commit(destination, "tracked destination-only file")
+                        self.write(source, "aaa.txt", "must not overlay\n")
+                        self.write(source, child, "upstream directory content\n")
+                        self.commit(source, "directory collides with local file")
+
+                        with self.assertRaisesRegex(
+                            sync.SyncError, "would delete unmanaged ancestor"
+                        ):
+                            sync.synchronize(
+                                upstream=source, destination=destination,
+                                policy_path=policy, source_ref="main",
+                            )
+                        self.assertEqual(
+                            "destination-only\n",
+                            (destination / "docs/item").read_text(),
+                        )
+                        self.assertFalse((destination / "aaa.txt").exists())
+
     def test_nested_directory_replacement_recreates_removed_ancestor(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

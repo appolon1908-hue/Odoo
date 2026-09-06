@@ -468,6 +468,12 @@ def overlay_source(
                 not ancestor.is_symlink(),
                 f"destination symlink ancestor is prohibited: {relative}",
             )
+            require(
+                not ancestor.exists()
+                or ancestor.is_dir()
+                or ancestor.relative_to(destination).as_posix() in previous_managed,
+                f"node replacement would delete unmanaged ancestor: {relative}",
+            )
 
     for relative, source in entries:
         target = destination / relative
