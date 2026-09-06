@@ -654,7 +654,9 @@ class TestIdentityProvisioning(TransactionCase):
             "business_unit_id": self.unit.id,
             "state": "active",
         })
-        result = provision.with_user(\n            self.env.ref("base.user_admin")\n        ).monitoring_snapshot(campaign_code="SYN-MONITOR")
+        result = provision.with_user(
+            self.env.ref("base.user_admin")
+        ).monitoring_snapshot(campaign_code="SYN-MONITOR")
         self.assertEqual(result["count"], 1)
         agent = result["agents"][0]
         self.assertEqual(agent["vicidial_username"], "syn00001")
