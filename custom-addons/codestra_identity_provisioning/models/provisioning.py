@@ -1196,17 +1196,14 @@ class ProvisioningRequest(models.Model):
             raise AccessError("Provisioning monitoring permission is required.")
         limit = max(1, min(int(limit or 200), 200))
         domain = [("request_type", "=", "onboard")]
-        if campaign_code:
-            # Resolve the campaign first, then filter by its relational id.  This
-            # keeps the projection deterministic across Odoo versions where a
-            # related campaign code is not searchable through a dotted domain.
-            campaign = self.env["call.center.campaign"].search(
-                [("code", "=", campaign_code)], limit=1
-            )
-            if not campaign:
-                return {"agents": [], "count": 0}
-            domain.append(("primary_campaign_id", "=", campaign.id))
         requests = self.search(domain, order="employee_id, create_date desc", limit=limit)
+        if campaign_code:
+            # Apply the code match after the tenant-scoped request search.  A
+            # dotted relational domain is not portable across the supported
+            # Odoo registry variants and can incorrectly return no rows.
+            requests = requests.filtered(
+                lambda item: item.primary_campaign_id.code == campaign_code
+            )
         seen = set()
         agents = []
         for provision in requests:
