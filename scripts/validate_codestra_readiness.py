@@ -300,7 +300,7 @@ def main() -> int:
         errors.append(f"cannot read source CI script: {exc}")
         run_ci_text = ""
     require(
-        "python3 scripts/validate_asset_integrity.py" in run_ci_text,
+        "python3 -I scripts/validate_asset_integrity.py" in run_ci_text,
         "source CI does not run the repository-wide asset validator",
         errors,
     )
