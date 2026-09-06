@@ -23,7 +23,7 @@
             "codestra_orbit_theme/static/src/css/backend.css",
             "codestra_orbit_theme/static/src/js/session_expired.js",
         ],
-        "web.assets_tests": [
+        "web.assets_unit_tests": [
             "codestra_orbit_theme/static/tests/session_expired.test.js",
         ],
     },
