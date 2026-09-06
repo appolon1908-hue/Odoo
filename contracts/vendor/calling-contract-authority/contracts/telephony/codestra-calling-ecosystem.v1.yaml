@@ -1,0 +1,258 @@
+version: 1.0.0
+authority:
+  repository: appolon1908-hue/codestra-production-platform
+  issue: https://github.com/appolon1908-hue/codestra-production-platform/issues/257
+public:
+  api_origin: https://api.codestra.co
+  websocket_url: wss://api.codestra.co/ws/agent
+identity:
+  issuer: https://auth.codestra.co/realms/codestra
+  audiences:
+  - middleware-api
+  - codestra-agent-realtime
+  browser_client: odoo-agent
+  service_clients:
+  - odoo-middleware
+  - websocket-middleware
+  - vicidial-adapter
+  - middleware-event-publisher
+  - websocket-event-subscriber
+  roles:
+  - telephony_agent
+  - telephony_supervisor
+  - telephony_admin
+  scopes:
+  - telephony:command
+  - telephony:status
+  - telephony:events
+  - realtime:session:create
+  - realtime:connect
+  - metrics:read
+  - telephony:admin
+required_headers:
+  correlation: X-Correlation-ID
+  idempotency: Idempotency-Key
+vicidial_event_ingress:
+  method: POST
+  canonical_path: /internal/v1/adapters/vicidial/events
+  forbidden_legacy_paths:
+  - /api/v1/vicidial/events
+  - /v1/webhooks/vicidial
+  query_string_allowed: false
+  transport_authentication: mutual_tls
+  signature:
+    version: v1
+    algorithm: HMAC-SHA-256
+    header: X-Codestra-Signature
+    format: v1=<64 lowercase hexadecimal HMAC characters>
+    timestamp_header: X-Codestra-Timestamp
+    timestamp_format: YYYY-MM-DDTHH:MM:SSZ
+    maximum_absolute_clock_skew_seconds: 300
+    content_digest_header: X-Codestra-Content-SHA256
+    content_digest_format: lowercase_hex_sha256_exact_body_bytes
+    signing_input_encoding: UTF-8
+    signing_input_has_final_lf: true
+    signing_input_fields:
+    - v1
+    - X-Codestra-Timestamp
+    - POST
+    - /internal/v1/adapters/vicidial/events
+    - Idempotency-Key
+    - payload.event_id
+    - X-Codestra-Content-SHA256
+  idempotency:
+    identity_fields:
+    - source_system
+    - envelope.tenant_id
+    - payload.event_id
+    - envelope.idempotency_key
+    source_system: vicidial
+    minimum_retention_seconds: 604800
+    identical_identity_and_digest: return_original_202_without_second_append
+    identical_identity_different_digest: reject_409_IDEMPOTENCY_CONFLICT
+  required_equalities:
+  - envelope.event_type == payload.type
+  - envelope.occurred_at == payload.occurred_at
+  - envelope.tenant_id == payload.tenant_id
+  - envelope.correlation_id == payload.correlation_id
+  - envelope.idempotency_key == Idempotency-Key
+  - X-Correlation-ID == envelope.correlation_id
+odoo_call_event_projection:
+  delivery:
+    method: POST
+    canonical_path: /codestra/api/v1/call-events
+    query_string_allowed: false
+    request_body_required: true
+    transport_authentication: mutual_tls
+    service_account: odoo-call-event-delivery
+    tenant_scoped_secret_required: true
+    signature:
+      version: v1
+      algorithm: HMAC-SHA-256
+      header: X-Codestra-Signature
+      timestamp_header: X-Codestra-Timestamp
+      timestamp_format: YYYY-MM-DDTHH:MM:SSZ
+      maximum_absolute_clock_skew_seconds: 300
+      content_digest_header: X-Codestra-Content-SHA256
+      signing_input_has_final_lf: true
+      signing_input_fields:
+      - v1
+      - X-Codestra-Timestamp
+      - POST
+      - /codestra/api/v1/call-events
+      - X-Codestra-Tenant-ID
+      - X-Codestra-Event-ID
+      - Idempotency-Key
+      - X-Correlation-ID
+      - X-Codestra-Content-SHA256
+    idempotency:
+      identity_fields:
+      - tenant_id
+      - event_id
+      - idempotency_key
+      idempotency_key_equals_event_id: true
+      minimum_retention_seconds: 604800
+      identical_identity_and_digest: return_original_receipt_without_second_transition
+      identical_identity_different_digest: reject_409_IDEMPOTENCY_CONFLICT
+  readback:
+    method: GET
+    canonical_path_template: /codestra/api/v1/call-events/{event_id}
+    query_string_allowed: false
+    request_body_allowed: false
+    transport_authentication: mutual_tls
+    service_account: odoo-call-event-readback
+    tenant_scoped_secret_required: true
+    empty_body_sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    signature:
+      version: v1
+      algorithm: HMAC-SHA-256
+      header: X-Codestra-Signature
+      timestamp_header: X-Codestra-Timestamp
+      timestamp_format: YYYY-MM-DDTHH:MM:SSZ
+      maximum_absolute_clock_skew_seconds: 300
+      signing_input_has_final_lf: true
+      signing_input_fields:
+      - v1
+      - X-Codestra-Timestamp
+      - GET
+      - /codestra/api/v1/call-events/{event_id}
+      - X-Codestra-Tenant-ID
+      - X-Codestra-Event-ID
+      - empty
+      - X-Correlation-ID
+      - empty_body_sha256
+    authorization_scope: tenant_id plus event_id
+    cross_tenant_result: non_enumerating_404
+    outcomes:
+      '200': exact_event_evidence_exists
+      '404': authorized_scope_proves_non_delivery_and_same_identity_retry_is_safe
+      other_or_timeout: indeterminate_no_blind_retry
+realtime:
+  session_creation:
+    method: POST
+    canonical_path: /api/v1/realtime/sessions
+    required_scope: realtime:session:create
+    idempotency_required: true
+    ticket_ttl_seconds: 60
+    ticket_one_use: true
+    browser_request_fields:
+    - campaign_id
+    - resume_cursor
+    server_derived_claims:
+    - tenant_id
+    - campaign_id
+    - agent_id
+    - role
+    - authorization_epoch
+    campaign_id_input: authorized selection hint only
+    client_supplied_identity_claims: forbidden
+  ticket_consumption:
+    method: POST
+    canonical_path: /internal/v1/realtime/tickets/consume
+    exposure: private
+    service_account: websocket-middleware
+    authentication: mutual_tls_plus_short_lived_service_token
+    replay_result: 409
+    expired_result: 410
+  event_transport:
+    protocol: nats_jetstream
+    server: codestra-nats:4222
+    stream: CODESTRA_CALLING_AGENT_EVENTS
+    subjects:
+      agent: telephony.agent.{tenant_id}.{campaign_id}.{agent_id}
+      supervisor: telephony.supervisor.{tenant_id}.{campaign_id}
+    publisher: middleware-event-publisher
+    subscriber: websocket-event-subscriber
+    browser_direct_access: false
+    cursor: jetstream_stream_sequence
+    replay_window_seconds: 900
+    duplicate_window_seconds: 300
+    message_id: event_id
+    per_connection_queue_messages: 256
+    global_queue_messages: 10000
+    maximum_connections: 1000
+    maximum_connections_per_agent: 1
+    websocket_write_timeout_seconds: 5
+    heartbeat_interval_seconds: 30
+    idle_timeout_seconds: 75
+    slow_consumer_close_code: 1013
+    replay_gap: emit_control_event_then_require_rest_reconciliation
+    restart_recovery: reconnect_from_browser_cursor_with_new_ordered_consumer
+    subject_token_pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$
+  authorization:
+    identity_source: atomically_consumed_middleware_ticket
+    agent_scope: exact tenant_campaign_agent subject
+    supervisor_scope: exact tenant_campaign supervisor subject
+    browser_headers_or_query_identity_authoritative: false
+    cross_tenant_campaign_agent_delivery: forbidden
+    revalidation_endpoint: /internal/v1/realtime/authorizations/revalidate
+    revalidation_interval_seconds: 30
+    maximum_disconnect_delay_seconds: 30
+    compare:
+    - ticket authorization epoch
+    - current OIDC session state
+    - active role
+    - active campaign assignment
+    - ticket expiry
+    denied_or_expired_behavior: stop delivery and close with code 1008
+    indeterminate_behavior: stop delivery and close with code 1011
+    role_or_assignment_removal: revoke immediately and reject ticket reuse
+    reconnect_requires_new_ticket: true
+events:
+  schema_version: 1
+  families:
+  - telephony.call.originate.v1
+  - telephony.call.cancel.v1
+  - telephony.call.transfer.v1
+  - telephony.agent.login.v1
+  - telephony.agent.ready.v1
+  - telephony.agent.pause.v1
+  - telephony.agent.logout.v1
+  - telephony.call.ringing.v1
+  - telephony.call.answered.v1
+  - telephony.call.connected.v1
+  - telephony.call.transferred.v1
+  - telephony.call.completed.v1
+  - telephony.call.missed.v1
+  - telephony.call.dispositioned.v1
+  - telephony.agent.status-changed.v1
+activation_defaults:
+  VICIDIAL_WRITES: false
+  LIVE_CALL_CONTROL: false
+  PRODUCTION_DIALING: false
+  LIVE_PSTN_DIALING: false
+  TELEPHONY_ADMIN_WRITE: false
+authorities:
+  orchestration: appolon1908-hue/codestra-production-platform
+  command_boundary: appolon1908-hue/Middleware-
+  vicidial_adapter: appolon1908-hue/Vicidialer-Codestra
+  realtime_gateway: appolon1908-hue/Websocket-
+  agent_workspace: appolon1908-hue/Odoo
+  tls_edge: appolon1908-hue/Caddy
+  api_policy: appolon1908-hue/Kong
+  identity: appolon1908-hue/Keycloak
+  generated_clients: appolon1908-hue/SDK-repository
+  deployment: appolon1908-hue/Infustruction-repo
+  automation: appolon1908-hue/N8N
+  operator_ui: appolon1908-hue/Codestra-Communication-CC
+  analytics_only: appolon1908-hue/Superset

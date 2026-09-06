@@ -1,0 +1,357 @@
+asyncapi: 3.0.0
+info:
+  title: Codestra Calling Events
+  version: 1.0.0
+  description: 'Durable Middleware-to-agent event distribution. The browser never connects to NATS directly; the authenticated
+    WebSocket gateway consumes only the subject authorized by a one-use Middleware ticket and forwards bounded event envelopes
+    to the matching Odoo agent or supervisor session.
+
+    '
+defaultContentType: application/json
+servers:
+  callingJetStream:
+    host: codestra-nats:4222
+    protocol: nats
+    description: Private TLS-authenticated NATS JetStream authority
+    security:
+    - $ref: '#/components/securitySchemes/serviceCredentials'
+channels:
+  agentEvents:
+    address: telephony.agent.{tenant_id}.{campaign_id}.{agent_id}
+    servers:
+    - $ref: '#/servers/callingJetStream'
+    parameters:
+      tenant_id:
+        description: Ticket-authorized opaque tenant subject token
+        schema:
+          $ref: '#/components/schemas/NatsSubjectToken'
+      campaign_id:
+        description: Ticket-authorized opaque campaign subject token
+        schema:
+          $ref: '#/components/schemas/NatsSubjectToken'
+      agent_id:
+        description: Ticket-authorized opaque agent subject token
+        schema:
+          $ref: '#/components/schemas/NatsSubjectToken'
+    messages:
+      agentEvent:
+        $ref: '#/components/messages/AgentEvent'
+      realtimeControl:
+        $ref: '#/components/messages/RealtimeControl'
+  supervisorEvents:
+    address: telephony.supervisor.{tenant_id}.{campaign_id}
+    servers:
+    - $ref: '#/servers/callingJetStream'
+    parameters:
+      tenant_id:
+        description: Ticket-authorized opaque tenant subject token
+        schema:
+          $ref: '#/components/schemas/NatsSubjectToken'
+      campaign_id:
+        description: Ticket-authorized opaque campaign subject token
+        schema:
+          $ref: '#/components/schemas/NatsSubjectToken'
+    messages:
+      agentEvent:
+        $ref: '#/components/messages/AgentEvent'
+      realtimeControl:
+        $ref: '#/components/messages/RealtimeControl'
+operations:
+  publishAgentEvent:
+    action: send
+    channel:
+      $ref: '#/channels/agentEvents'
+    summary: Middleware publishes one authorized agent event after durable inbox acceptance
+    security:
+    - $ref: '#/components/securitySchemes/serviceCredentials'
+  receiveAgentEvent:
+    action: receive
+    channel:
+      $ref: '#/channels/agentEvents'
+    summary: WebSocket gateway receives only the exact ticket-bound agent subject
+    security:
+    - $ref: '#/components/securitySchemes/serviceCredentials'
+  publishSupervisorEvent:
+    action: send
+    channel:
+      $ref: '#/channels/supervisorEvents'
+    summary: Middleware publishes campaign-scoped supervisor observations
+    security:
+    - $ref: '#/components/securitySchemes/serviceCredentials'
+  receiveSupervisorEvent:
+    action: receive
+    channel:
+      $ref: '#/channels/supervisorEvents'
+    summary: WebSocket gateway receives campaign scope only for an authorized supervisor ticket
+    security:
+    - $ref: '#/components/securitySchemes/serviceCredentials'
+components:
+  securitySchemes:
+    serviceCredentials:
+      type: userPassword
+      description: 'OpenBao-rendered, service-specific NATS credentials combined with private-network TLS. Middleware has
+        publish-only permissions and the WebSocket gateway has subscribe-only permissions for the declared calling subjects.
+
+        '
+  messages:
+    AgentEvent:
+      name: AgentEvent
+      title: Ordered agent calling event
+      correlationId:
+        location: $message.payload#/event/correlation_id
+      headers:
+        $ref: '#/components/schemas/AgentEventHeaders'
+      payload:
+        $ref: '#/components/schemas/AgentEventEnvelope'
+    RealtimeControl:
+      name: RealtimeControl
+      title: Gateway control event
+      correlationId:
+        location: $message.payload#/correlation_id
+      payload:
+        $ref: '#/components/schemas/RealtimeControlEvent'
+  schemas:
+    AgentEventHeaders:
+      type: object
+      additionalProperties: false
+      required:
+      - Nats-Msg-Id
+      - Codestra-Contract-Digest
+      properties:
+        Nats-Msg-Id:
+          type: string
+          format: uuid
+          description: Stable event ID used by the JetStream duplicate window
+        Codestra-Contract-Digest:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+    AgentEventEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+      - cursor
+      - event
+      properties:
+        cursor:
+          type: integer
+          minimum: 1
+          description: Monotonic JetStream stream sequence exposed as the replay cursor
+        event:
+          $ref: '#/components/schemas/CallingEvent'
+    CallingEvent:
+      type: object
+      additionalProperties: false
+      required:
+      - event_id
+      - type
+      - tenant_id
+      - business_unit_id
+      - campaign_id
+      - agent_id
+      - operation_id
+      - correlation_id
+      - schema_version
+      - occurred_at
+      - sequence
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum:
+          - telephony.call.ringing.v1
+          - telephony.call.answered.v1
+          - telephony.call.connected.v1
+          - telephony.call.transferred.v1
+          - telephony.call.completed.v1
+          - telephony.call.missed.v1
+          - telephony.call.dispositioned.v1
+          - telephony.agent.status-changed.v1
+        tenant_id:
+          $ref: '#/components/schemas/NatsSubjectToken'
+        business_unit_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        campaign_id:
+          $ref: '#/components/schemas/NatsSubjectToken'
+        agent_id:
+          $ref: '#/components/schemas/NatsSubjectToken'
+        odoo_user_id:
+          type: string
+          maxLength: 128
+        odoo_lead_id:
+          type: string
+          maxLength: 128
+        vicidial_user_id:
+          type: string
+          maxLength: 128
+        vicidial_campaign_id:
+          type: string
+          maxLength: 128
+        vicidial_lead_id:
+          type: string
+          maxLength: 128
+        call_unique_id:
+          type: string
+          maxLength: 255
+        linked_id:
+          type: string
+          maxLength: 255
+        operation_id:
+          type: string
+          format: uuid
+        correlation_id:
+          type: string
+          format: uuid
+        schema_version:
+          const: 1
+        occurred_at:
+          type: string
+          format: date-time
+        sequence:
+          type: integer
+          minimum: 1
+        disposition:
+          type: string
+          maxLength: 96
+        duration_seconds:
+          type: integer
+          minimum: 0
+        hangup_cause:
+          type: string
+          maxLength: 96
+    RealtimeControlEvent:
+      type: object
+      additionalProperties: false
+      required:
+      - type
+      - correlation_id
+      - occurred_at
+      properties:
+        type:
+          type: string
+          enum:
+          - realtime.connected.v1
+          - realtime.replay-gap.v1
+          - realtime.draining.v1
+          - realtime.slow-consumer.v1
+          - realtime.authorization-revoked.v1
+        correlation_id:
+          type: string
+          format: uuid
+        occurred_at:
+          type: string
+          format: date-time
+        requested_cursor:
+          type: integer
+          minimum: 0
+        first_available_cursor:
+          type: integer
+          minimum: 1
+        last_available_cursor:
+          type: integer
+          minimum: 0
+        reconciliation_required:
+          type: boolean
+    NatsSubjectToken:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$
+      description: One NATS subject token. Dots, wildcards, whitespace, slashes, and other separators are forbidden.
+x-codestra-jetstream:
+  stream: CODESTRA_CALLING_AGENT_EVENTS
+  subjects:
+  - telephony.agent.*.*.*
+  - telephony.supervisor.*.*
+  storage: file
+  replicas: 3
+  retention: limits
+  maximum_age_seconds: 900
+  maximum_messages: 1000000
+  maximum_message_bytes: 262144
+  duplicate_window_seconds: 300
+  discard_policy: old
+  publish_ack_required: true
+  message_id_header: Nats-Msg-Id
+x-codestra-authorization:
+  publisher:
+    service_account: middleware-event-publisher
+    permissions:
+      publish:
+      - telephony.agent.*.*.*
+      - telephony.supervisor.*.*
+      subscribe: []
+  subscriber:
+    service_account: websocket-event-subscriber
+    permissions:
+      publish: []
+      subscribe:
+      - telephony.agent.*.*.*
+      - telephony.supervisor.*.*
+  browser_nats_access: forbidden
+  subject_authority: 'Tenant, campaign, agent, and role come only from the atomically consumed Middleware ticket. Browser
+    query parameters and headers are never identity authority.
+
+    '
+  agent_scope: one exact telephony.agent tenant/campaign/agent subject
+  supervisor_scope: one exact telephony.supervisor tenant/campaign subject
+  cross_tenant_or_campaign_delivery: forbidden
+  server_derived_claims:
+  - tenant_id
+  - campaign_id
+  - agent_id
+  - role
+  - authorization_epoch
+  authorization_revalidation: Compare the consumed authorization epoch, current OIDC session, role, and campaign assignment
+    at least every 30 seconds.
+  authorization_loss_behavior: Stop delivery and close with code 1008 within 30 seconds; an indeterminate check closes with
+    code 1011.
+x-codestra-delivery:
+  consumer_type: ephemeral ordered pull consumer per authenticated WebSocket connection
+  start_position: first message strictly after the ticket-authorized resume cursor
+  cursor: JetStream stream sequence
+  cursor_monotonic: true
+  event_deduplication_key: event.event_id
+  duplicate_delivery: suppress identical event IDs and retain the highest cursor
+  out_of_order_delivery: buffer within 64 events, then emit replay-gap and reconcile
+  replay_window_seconds: 900
+  replay_gap_behavior: 'Emit realtime.replay-gap.v1, stop state advancement for the affected call, and require REST operation/CDR
+    reconciliation before resuming.
+
+    '
+  acknowledgement: acknowledge only after the event is queued to the socket writer
+  per_connection_queue_messages: 256
+  global_queue_messages: 10000
+  websocket_write_timeout_seconds: 5
+  slow_consumer_close_code: 1013
+  slow_consumer_behavior: emit metric, attempt control event, close, and require cursor replay
+  heartbeat_interval_seconds: 30
+  idle_timeout_seconds: 75
+  maximum_connections: 1000
+  maximum_connections_per_agent: 1
+  authorization_revalidation_interval_seconds: 30
+  authorization_loss_close_code: 1008
+  authorization_indeterminate_close_code: 1011
+  authorization_loss_max_disconnect_seconds: 30
+  delivery_during_revalidation_failure: forbidden
+x-codestra-recovery:
+  broker_persistence_required: true
+  gateway_restart_behavior: reconnect with browser cursor and create a new ordered consumer
+  middleware_publish_retry: retry identical event ID only after publish acknowledgement is absent
+  browser_reconnect_backoff_seconds:
+  - 1
+  - 2
+  - 4
+  - 8
+  - 15
+  - 30
+  ambiguous_or_missing_event: reconcile through authorized REST operation and CDR reads
+  shutdown:
+    stop_accepting_new_connections: true
+    publish_draining_control_event: true
+    drain_timeout_seconds: 10
+    forced_close_metric_required: true
+  authorization_loss_behavior: Reconnect only with a newly minted ticket after current authorization is restored.
