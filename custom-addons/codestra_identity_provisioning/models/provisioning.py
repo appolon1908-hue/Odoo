@@ -545,7 +545,13 @@ class ProvisioningRequest(models.Model):
         "codestra.role.template", required=True, ondelete="restrict"
     )
     role_template_version = fields.Integer(related="role_template_id.version", store=True)
+    primary_campaign_id = fields.Many2one(
+        "call.center.campaign", string="Campaign", ondelete="restrict", index=True
+    )
     campaign_ids = fields.Many2many("call.center.campaign")
+    extension_pool_id = fields.Many2one(
+        "codestra.extension.pool", string="Extension Pool", ondelete="restrict"
+    )
     inbound_group_ids = fields.Many2many(
         "codestra.provisioning.inbound.group",
         "codestra_request_inbound_group_rel",
@@ -1123,9 +1129,121 @@ class ProvisioningRequest(models.Model):
                 for step in mandatory
             )
 
+    @api.onchange("business_unit_id")
+    def _onchange_business_unit_id(self):
+        """Clear dependent choices that are outside the selected authority scope."""
+        for request in self:
+            unit = request.business_unit_id
+            if request.primary_campaign_id.business_unit_id != unit:
+                request.primary_campaign_id = False
+                request.campaign_ids = [(5, 0, 0)]
+            if request.role_template_id.business_unit_id != unit:
+                request.role_template_id = False
+            if request.extension_pool_id.business_unit_id != unit:
+                request.extension_pool_id = False
+            if request.department_id.business_unit_id != unit:
+                request.department_id = False
+            if request.operational_team_id.business_unit_id != unit:
+                request.operational_team_id = False
+            if request.supervisor_id and request.supervisor_id not in request.operational_team_id.supervisor_ids:
+                request.supervisor_id = False
+
+    @api.onchange("primary_campaign_id")
+    def _onchange_primary_campaign_id(self):
+        """Use the campaign registry as the reusable source for dependent values."""
+        for request in self:
+            campaign = request.primary_campaign_id
+            if not campaign:
+                request.campaign_ids = [(5, 0, 0)]
+                continue
+            request.business_unit_id = campaign.business_unit_id
+            request.branch_id = campaign.branch_id
+            request.campaign_ids = [(6, 0, campaign.ids)]
+            request.calling_hours_policy_id = (
+                campaign.calling_hours_policy_id.display_name
+                if campaign.calling_hours_policy_id else False
+            )
+            teams = campaign.team_ids.filtered("active")
+            if len(teams) == 1:
+                request.operational_team_id = teams
+                request.department_id = teams.department_id
+            supervisors = campaign.supervisor_ids & request.operational_team_id.supervisor_ids
+            if len(supervisors) == 1:
+                request.supervisor_id = supervisors
+            pools = request.env["codestra.extension.pool"].search([
+                ("business_unit_id", "=", campaign.business_unit_id.id),
+                ("active", "=", True),
+            ], limit=2)
+            if len(pools) == 1:
+                request.extension_pool_id = pools
+
+    @api.onchange("operational_team_id")
+    def _onchange_operational_team_id(self):
+        for request in self:
+            team = request.operational_team_id
+            if team:
+                request.business_unit_id = team.business_unit_id
+                request.department_id = team.department_id
+            if request.supervisor_id not in team.supervisor_ids:
+                request.supervisor_id = False
+
+    @api.model
+    def monitoring_snapshot(self, campaign_code=None, limit=200):
+        """Return a tenant-scoped, secret-free identity and campaign projection."""
+        if not self.env.user.has_group(
+            "codestra_identity_provisioning.group_provisioning_user"
+        ):
+            raise AccessError("Provisioning monitoring permission is required.")
+        limit = max(1, min(int(limit or 200), 200))
+        domain = [("request_type", "=", "onboard")]
+        if campaign_code:
+            domain.append(("primary_campaign_id.code", "=", campaign_code))
+        requests = self.search(domain, order="employee_id, create_date desc", limit=limit)
+        seen = set()
+        agents = []
+        for provision in requests:
+            employee = provision.employee_id
+            if employee.id in seen:
+                continue
+            seen.add(employee.id)
+            links = employee.identity_link_ids
+            keycloak = links.filtered(lambda link: link.system == "keycloak" and link.is_primary)[:1]
+            vicidial = links.filtered(lambda link: link.system == "vicidial" and link.is_primary)[:1]
+            sip = links.filtered(lambda link: link.system == "sip" and link.is_primary)[:1]
+            campaigns = provision.campaign_ids or provision.primary_campaign_id
+            active = bool(
+                provision.state == "active"
+                and provision.employment_status == "active"
+                and keycloak.state == "active"
+                and vicidial.state == "active"
+            )
+            agents.append({
+                "employee_id": employee.codestra_employee_number or str(employee.id),
+                "display_name": employee.name,
+                "keycloak_username": keycloak.external_username or False,
+                "vicidial_username": vicidial.external_username or False,
+                "campaigns": [
+                    {"id": campaign.id, "code": campaign.code, "name": campaign.name}
+                    for campaign in campaigns
+                ],
+                "role": provision.role_template_id.code,
+                "extension": sip.extension or False,
+                "provisioning_state": provision.state,
+                "employment_status": provision.employment_status,
+                "identity_state": keycloak.state or "missing",
+                "telephony_state": vicidial.state or "missing",
+                "phone_registration_state": sip.state or "missing",
+                "is_active": active,
+                "last_reconciled_at": fields.Datetime.to_string(
+                    provision.last_reconciled_at
+                ) if provision.last_reconciled_at else False,
+            })
+        return {"agents": agents, "count": len(agents)}
+
     @api.constrains(
         "business_unit_id", "branch_id", "department_id", "operational_team_id",
-        "supervisor_id", "campaign_ids", "inbound_group_ids", "role_template_id"
+        "supervisor_id", "primary_campaign_id", "campaign_ids", "inbound_group_ids",
+        "role_template_id", "extension_pool_id"
     )
     def _check_scope_and_approvals(self):
         for request in self:
@@ -1152,6 +1270,13 @@ class ProvisioningRequest(models.Model):
                 raise ValidationError("Operational team is outside the department.")
             if request.supervisor_id not in request.operational_team_id.supervisor_ids:
                 raise ValidationError("Supervisor is not approved for this team.")
+            if (
+                request.primary_campaign_id
+                and request.primary_campaign_id.business_unit_id != unit
+            ):
+                raise ValidationError("Primary campaign crosses a business unit.")
+            if request.primary_campaign_id and request.campaign_ids != request.primary_campaign_id:
+                raise ValidationError("Campaign selection must match the primary campaign.")
             if any(c.business_unit_id != unit for c in request.campaign_ids):
                 raise ValidationError("Campaign assignment crosses a business unit.")
             if request.branch_id and any(
@@ -1163,6 +1288,11 @@ class ProvisioningRequest(models.Model):
                 raise ValidationError("Inbound-group assignment crosses a business unit.")
             if request.role_template_id.business_unit_id != unit:
                 raise ValidationError("Role template crosses a business unit.")
+            if (
+                request.extension_pool_id
+                and request.extension_pool_id.business_unit_id != unit
+            ):
+                raise ValidationError("Extension pool crosses a business unit.")
 
     def action_submit(self):
         self.filtered(lambda r: r.state != "draft") and (_ for _ in ()).throw(
