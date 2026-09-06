@@ -136,9 +136,9 @@
     },
     "codestra_middleware_bridge": {
       "base_tree": "d5f2785ea737689dfc1bdc88bb1eb1650a334e02",
-      "current_tree": "99703dc74c8238bd6281b7a5003a4d58c4edd774",
-      "reason": "Preserve the reviewed Stage 3 destination, centralize tenant-bound intake identity plus fail-closed CRM consent and suppression handling, and bind the CRM upsert command to an explicit read/write cursor. PR #80 also binds audited CRM command-status reconciliation to a writable request cursor to avoid read-only retries.",
-      "pull_request": 80,
+      "current_tree": "6f4f0301ac3c49b90a6079cfedcc1c5cdb181083",
+      "reason": "Preserve the reviewed Stage 3 destination, centralize tenant-bound intake identity plus fail-closed CRM consent and suppression handling, and bind the CRM upsert command to an explicit read/write cursor. PR #80 also binds audited CRM command-status reconciliation to a writable request cursor to avoid read-only retries. PR #84 additionally confines global credential/principal fallback to the named default tenant, requires explicit mappings for secondary tenants, and binds stored replay responses to their tenant while preserving controlled global event-ID collision rejection before business mutation.",
+      "pull_request": 84,
       "integration_boundary_exceptions": [
         {
           "path": "tests/test_bridge_schema.py",
@@ -155,9 +155,9 @@
     },
     "codestra_vicidial_crm": {
       "base_tree": "cf0783918b94c3e396d24ebe868c4fb04096e4a1",
-      "current_tree": "7d02f5bfb6dd4dc79fb0c211d51374958f55fc47",
-      "reason": "Preserve the reviewed Odoo 19 VICIdial staging, reconciliation, idempotency, click-to-call, and constrained Middleware boundaries while adding the governed AMI lifecycle projection, transaction-scoped mapped-agent row serialization, business-unit-scoped customer matching, immutable identity binding, strict monotonic sequencing, exact retryable sequence-gap evidence, terminal stale/lifecycle/identity conflict evidence, retry-safe rejection, the existing assigned-agent Odoo Bus screen pop, immutable assigned-call business-unit/campaign/number rebinding for browser rematch, and the canonical offered-to-ringing progression without permitting terminal regression. Preserve merged PR #79 durable click-to-call reservations, dispatch failure handling, call-row locking and lifecycle terminal precedence alongside the governed projection and campaign-scoped rematch. PR #80 also declares the authenticated row-locking event projection writable to avoid read-only retries.",
-      "pull_request": 80,
+      "current_tree": "2e2bf94a71967ef71c71566bacdee5e5f9f2d9ba",
+      "reason": "Preserve the reviewed Odoo 19 VICIdial staging, reconciliation, idempotency, click-to-call, and constrained Middleware boundaries while adding the governed AMI lifecycle projection, transaction-scoped mapped-agent row serialization, business-unit-scoped customer matching, immutable identity binding, strict monotonic sequencing, exact retryable sequence-gap evidence, terminal stale/lifecycle/identity conflict evidence, retry-safe rejection, the existing assigned-agent Odoo Bus screen pop, immutable assigned-call business-unit/campaign/number rebinding for browser rematch, and the canonical offered-to-ringing progression without permitting terminal regression. Preserve merged PR #79 durable click-to-call reservations, dispatch failure handling, call-row locking and lifecycle terminal precedence alongside the governed projection and campaign-scoped rematch. PR #80 also declares the authenticated row-locking event projection writable to avoid read-only retries. PR #84 additionally rejects every telephony HTTP redirect and bounds response parsing, preserving unknown-outcome reconciliation and preventing bearer forwarding outside the reviewed endpoint.",
+      "pull_request": 84,
       "integration_boundary_exceptions": [
         {
           "path": "controllers/call_event_projection.py",

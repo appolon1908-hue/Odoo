@@ -1,9 +1,15 @@
+import contextlib
+import io
+import urllib.request
+import urllib.response
 import uuid
+from email.message import Message
+from unittest import mock
 
 from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase
 
-from ..models import crm_lead
+from ..models import crm_lead, middleware_client
 from ..models.middleware_client import OriginateOutcomeUnknown, OriginateRejected
 
 
@@ -94,6 +100,72 @@ class TestClickToCall(TransactionCase):
         self.assertEqual(captured["destination_country"], "DO")
         self.assertEqual(captured["caller_id"], "+18095550999")
         self.assertNotEqual(captured["caller_id"], self.agent.phone_login)
+
+    @contextlib.contextmanager
+    def middleware_response(self, body, *, redirect_code=None, location=None):
+        """Exercise the real urllib redirect chain with an in-memory transport."""
+        seen = []
+        original_build = urllib.request.build_opener
+        params = self.env["ir.config_parameter"].sudo()
+        params.set_param("codestra.middleware.telephony_originate_url", "https://middleware.example.test/v1/telephony/calls/originate")
+        params.set_param("codestra.middleware.api_key", "synthetic-call-client")
+
+        def respond(handler, request):
+            seen.append(request)
+            headers = Message()
+            code = 200
+            if len(seen) == 1 and redirect_code:
+                code = redirect_code
+                headers["Location"] = location
+            response = urllib.response.addinfourl(io.BytesIO(body), headers, request.full_url, code)
+            response.msg = "Synthetic response"
+            return response
+
+        class SyntheticHTTPS(urllib.request.HTTPSHandler):
+            https_open = respond
+
+        class SyntheticHTTP(urllib.request.HTTPHandler):
+            http_open = respond
+
+        def build(*handlers):
+            return original_build(*handlers, SyntheticHTTPS(), SyntheticHTTP())
+
+        with mock.patch.object(middleware_client.urllib.request, "build_opener", side_effect=build):
+            yield seen
+
+    def test_originate_redirects_never_forward_credentials_or_leave_reviewed_route(self):
+        client = self.env["codestra.telephony.middleware.client"]
+        for status in (301, 302, 303, 307, 308):
+            for location in (
+                "https://other.example.test/collect",
+                "http://other.example.test/collect",
+                "https://middleware.example.test/unreviewed",
+            ):
+                with self.subTest(status=status, location=location), self.middleware_response(
+                    b'{"dialing":"attempting"}', redirect_code=status, location=location,
+                ) as seen:
+                    with self.assertRaises(OriginateOutcomeUnknown):
+                        client.originate_call("synthetic-correlation", "synthetic-idempotency", {})
+                    self.assertEqual(len(seen), 1)
+                    self.assertEqual(seen[0].get_method(), "POST")
+                    self.assertEqual(seen[0].get_header("Authorization"), "Bearer synthetic-call-client")
+
+    def test_originate_nonredirect_response_keeps_idempotency_headers(self):
+        client = self.env["codestra.telephony.middleware.client"]
+        with self.middleware_response(b'{"dialing":"attempting","call_id":"synthetic-call"}') as seen:
+            result = client.originate_call("synthetic-correlation", "synthetic-idempotency", {})
+        self.assertEqual(result["dialing"], "attempting")
+        self.assertEqual(len(seen), 1)
+        self.assertEqual(seen[0].get_header("X-correlation-id"), "synthetic-correlation")
+        self.assertEqual(seen[0].get_header("Idempotency-key"), "synthetic-idempotency")
+
+    def test_invalid_originate_response_remains_unknown_and_bounded(self):
+        client = self.env["codestra.telephony.middleware.client"]
+        for body in (b"not JSON", b"\xff", b"x" * 131073):
+            with self.subTest(size=len(body)), self.middleware_response(body) as seen:
+                with self.assertRaises(OriginateOutcomeUnknown):
+                    client.originate_call("synthetic-correlation", "synthetic-idempotency", {})
+                self.assertEqual(len(seen), 1)
 
     def test_action_defers_dispatch_to_postcommit_with_saved_identity(self):
         dispatched = []

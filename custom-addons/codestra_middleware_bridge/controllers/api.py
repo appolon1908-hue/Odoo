@@ -93,12 +93,14 @@ class CodestraMiddlewareBridge(http.Controller):
         if not any(hmac.compare_digest(tenant, item) for item in allowed_tenants):
             return None, self._json(403, {"error": "tenant_rejected"})
         # Each tenant is bound to its own secret and its own service identity,
-        # so one tenant's credential cannot authenticate another. A global value
-        # remains the fallback for single-tenant installations.
+        # so one tenant's credential cannot authenticate another. Global values
+        # belong only to the explicitly configured default tenant; adding an
+        # allowlist entry must never lend it that tenant's credential/principal.
         tenant_scope = "codestra.middleware.tenant." + tenant + "."
+        default_tenant = bool(expected_tenant) and hmac.compare_digest(tenant, expected_tenant)
         secret = (
             params.get_param(tenant_scope + "inbound_hmac_secret")
-            or params.get_param("codestra.middleware.inbound_hmac_secret")
+            or (params.get_param("codestra.middleware.inbound_hmac_secret") if default_tenant else None)
         )
         # The security headers are covered by the signature; otherwise they can
         # be swapped freely on an otherwise valid signed body.
@@ -111,10 +113,14 @@ class CodestraMiddlewareBridge(http.Controller):
         expected = hmac.new((secret or "").encode(), canonical, hashlib.sha256).hexdigest()
         if not secret or not hmac.compare_digest(expected, supplied):
             return None, self._json(401, {"error": "invalid_signature"})
-        user_id = int(
+        configured_user = (
             params.get_param(tenant_scope + service_user_parameter)
-            or params.get_param(service_user_parameter, "0")
+            or (params.get_param(service_user_parameter, "0") if default_tenant else "0")
         )
+        try:
+            user_id = int(configured_user)
+        except (TypeError, ValueError):
+            return None, self._json(403, {"error": "service_identity_rejected"})
         user = request.env["res.users"].sudo().browse(user_id).exists()
         group_xmlid = "codestra_middleware_bridge.group_codestra_crm_api" if service_user_parameter == "codestra.crm.service_user_id" else "codestra_middleware_bridge.group_codestra_middleware_bridge"
         group = request.env.ref(group_xmlid)
@@ -135,8 +141,12 @@ class CodestraMiddlewareBridge(http.Controller):
         if error:
             return None, None, error
         evidence = request.env["codestra.middleware.request"].with_user(auth["user"])
+        # Event IDs are globally unique in the ledger. Preserve that collision
+        # check, but never return another tenant's recorded response.
         replay = evidence.search([("event_id", "=", auth["event_id"])], limit=1)
         if replay:
+            if replay.tenant_id != auth["tenant_id"]:
+                return None, None, self._json(409, {"error": "replayed_event_id"})
             if allow_event_replay and replay.request_hash == auth["request_hash"] and replay.operation == operation:
                 value = json.loads(replay.response_json)
                 value["duplicate"] = True
