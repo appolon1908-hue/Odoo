@@ -239,6 +239,7 @@ if ! docker run --rm \
   -e PORT=5432 \
   -e USER="$DB_USER" \
   -e PASSWORD="$DB_PASSWORD" \
+  -e PGOPTIONS='-c default_transaction_read_only=off' \
   -v "$CI_PYTHON_DIR:/opt/codestra-ci-python:ro" \
   -v "$ROOT_DIR/custom-addons:/mnt/extra-addons:ro" \
   -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
@@ -294,6 +295,7 @@ if ! docker run --rm \
   -e PORT=5432 \
   -e USER="$DB_USER" \
   -e PASSWORD="$DB_PASSWORD" \
+  -e PGOPTIONS='-c default_transaction_read_only=off' \
   -v "$ROOT_DIR/custom-addons:/mnt/extra-addons:ro" \
   -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
   "$ODOO_IMAGE" \
