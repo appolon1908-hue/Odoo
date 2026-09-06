@@ -1197,7 +1197,15 @@ class ProvisioningRequest(models.Model):
         limit = max(1, min(int(limit or 200), 200))
         domain = [("request_type", "=", "onboard")]
         if campaign_code:
-            domain.append(("primary_campaign_id.code", "=", campaign_code))
+            # Resolve the campaign first, then filter by its relational id.  This
+            # keeps the projection deterministic across Odoo versions where a
+            # related campaign code is not searchable through a dotted domain.
+            campaign = self.env["call.center.campaign"].search(
+                [("code", "=", campaign_code)], limit=1
+            )
+            if not campaign:
+                return {"agents": [], "count": 0}
+            domain.append(("primary_campaign_id", "=", campaign.id))
         requests = self.search(domain, order="employee_id, create_date desc", limit=limit)
         seen = set()
         agents = []
