@@ -99,7 +99,7 @@
     },
     "codestra_identity_provisioning": {
       "base_tree": "245f4e9fc94f3447ecbaa22b17b4784d5b1c36cc",
-      "current_tree": "14a85de6faff415caadd593d0b20902ebf74ae43",
+      "current_tree": "55d0633c4529854c6d59e66aa71b4a2169a379b5",
       "reason": "Retain concurrency-safe identity allocation and validated destinations while adding authoritative campaign, role, supervisor, and extension-pool dropdown constraints plus the tenant-scoped, secret-free agent monitoring projection. Preserve explicit voicemail, recording-access, and monitoring-access provisioning steps, fail-closed external-effect flags, scoped onboarding review repairs, activation-result evidence, service callback parity, and synthetic regression fixtures. Fix PR #80 monitoring access without HR grants, pre-limit legacy campaign filtering, deterministic ordering, and clearing and validating stale campaign-derived assignments; include scoped regression tests.",
       "pull_request": 80,
       "allow_post_init_hook": true,

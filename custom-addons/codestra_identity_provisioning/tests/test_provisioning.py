@@ -706,6 +706,8 @@ class TestIdentityProvisioning(TransactionCase):
         provision = self.env["codestra.provisioning.request"].create(
             self._request_values("monitoring-rules")
         )
+        # Individual request access must not expand the monitoring unit scope.
+        provision.requested_by = self.monitoring_user
         self.assertEqual(provision.with_user(self.monitoring_user).monitoring_snapshot()["count"], 1)
         self.monitoring_user.write({
             "call_center_default_business_unit_id": False,

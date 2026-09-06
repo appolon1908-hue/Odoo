@@ -1217,7 +1217,14 @@ class ProvisioningRequest(models.Model):
         ):
             raise AccessError("Provisioning monitoring permission is required.")
         limit = max(1, min(int(limit or 200), 200))
-        domain = [("request_type", "=", "onboard")]
+        # Re-evaluate the monitor's current scope on every call. Request record
+        # rules also allow individual requesters/approvers and cache user-based
+        # domains, neither of which should expand the monitoring workspace.
+        domain = [
+            ("request_type", "=", "onboard"),
+            ("company_id", "in", self.env.companies.ids),
+            ("business_unit_id", "in", self.env.user.call_center_business_unit_ids.ids),
+        ]
         if campaign_code:
             # Filter before limiting, including pre-upgrade requests whose
             # campaign assignment exists only in the legacy relation.
