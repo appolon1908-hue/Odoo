@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import copy
+import contextlib
 import hashlib
+import importlib.util
+import io
 import json
 import subprocess
-import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -24,6 +27,12 @@ SIGSTORE_BUNDLE = {
         "signatures": [{"sig": "AA=="}],
     },
 }
+# These are deliberately unsigned unit fixtures, never release evidence. Positive
+# orchestration tests mock the external verifier, whose rejection is tested below.
+SPEC = importlib.util.spec_from_file_location("production_validator", VALIDATOR)
+assert SPEC is not None and SPEC.loader is not None
+validator = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(validator)
 
 
 class ProductionEvidenceControlsTest(unittest.TestCase):
@@ -190,19 +199,18 @@ class ProductionEvidenceControlsTest(unittest.TestCase):
         )
 
     def _run(self, *extra: str) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [
-                sys.executable,
-                str(VALIDATOR),
-                "--file",
-                self._relative(self.evidence_path),
-                *extra,
-            ],
-            cwd=ROOT,
-            text=True,
-            capture_output=True,
-            check=False,
+        stdout, stderr = io.StringIO(), io.StringIO()
+        args = ["--file", self._relative(self.evidence_path), *extra]
+        response = subprocess.CompletedProcess(
+            [], 0, json.dumps([{"verificationResult": {"statement": {}}}]), ""
         )
+        with (
+            mock.patch.object(validator.subprocess, "run", return_value=response) as verify,
+            contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr),
+        ):
+            code = validator.main(args)
+        self.verifier_calls = verify.call_args_list
+        return subprocess.CompletedProcess(args, code, stdout.getvalue(), stderr.getvalue())
 
     def _assert_rejected(self, expected: str) -> None:
         self._write_evidence()
@@ -210,10 +218,32 @@ class ProductionEvidenceControlsTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0, result.stdout)
         self.assertIn(expected, result.stderr)
 
-    def test_valid_production_evidence_is_bound_to_signed_candidate(self) -> None:
+    def test_candidate_requires_both_cryptographic_verifications(self) -> None:
         result = self._run()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("SIGNED_CANDIDATE_BINDING=PASS", result.stdout)
+        self.assertEqual(len(self.verifier_calls), 2)
+        for call, bundle, predicate in zip(
+            self.verifier_calls, (self.provenance, self.sbom),
+            ("https://slsa.dev/provenance/v1", "https://spdx.dev/Document"),
+        ):
+            command = call.args[0]
+            self.assertEqual(command[:4], [
+                "gh", "attestation", "verify", f"oci://{EXPECTED_IMAGE}@{IMAGE_DIGEST}",
+            ])
+            expected = {
+                "--bundle": str(bundle), "--repo": "appolon1908-hue/Odoo",
+                "--source-digest": SOURCE_SHA, "--signer-digest": SOURCE_SHA,
+                "--source-ref": "refs/heads/main", "--predicate-type": predicate,
+                "--cert-oidc-issuer": "https://token.actions.githubusercontent.com",
+                "--cert-identity": "https://github.com/appolon1908-hue/Odoo/.github/workflows/cc-release-candidate.yml@refs/heads/main",
+                "--signer-workflow": "appolon1908-hue/Odoo/.github/workflows/cc-release-candidate.yml",
+            }
+            for flag, value in expected.items():
+                self.assertEqual(command[command.index(flag) + 1], value)
+            self.assertIn("--deny-self-hosted-runners", command)
+            self.assertEqual(call.kwargs["timeout"], 120)
+            self.assertNotIn("shell", call.kwargs)
 
     def test_zero_source_sha_is_rejected_outside_blocked_template(self) -> None:
         self.document["source_sha"] = "0" * 40
@@ -246,12 +276,91 @@ class ProductionEvidenceControlsTest(unittest.TestCase):
         self.manifest.write_text("{}\n", encoding="utf-8")
         self._assert_rejected("candidate checksum mismatch")
 
-    def test_unsigned_bundle_is_rejected(self) -> None:
+    def test_self_reported_signature_flags_cannot_override_verifier_failure(self) -> None:
+        for kind in ("provenance", "sbom"):
+            with self.subTest(kind=kind):
+                failure = subprocess.CompletedProcess([], 1, "", "sensitive verifier detail")
+                success = subprocess.CompletedProcess([], 0, '[{"verificationResult":{"statement":{}}}]', "")
+                responses = [failure, success] if kind == "provenance" else [success, failure]
+                errors: list[str] = []
+                with mock.patch.object(validator.subprocess, "run", side_effect=responses):
+                    validator.validate_candidate_binding(self.document, SOURCE_SHA, IMAGE_DIGEST, errors)
+                self.assertIn(f"candidate.{kind} cryptographic attestation verification failed", errors)
+                self.assertNotIn("sensitive verifier detail", " ".join(errors))
+
+    def test_unavailable_timeout_or_empty_verifier_fails_closed(self) -> None:
+        for failure in (FileNotFoundError(), subprocess.TimeoutExpired("gh", 120)):
+            errors: list[str] = []
+            with mock.patch.object(validator.subprocess, "run", side_effect=failure):
+                validator.verify_attestation(self.provenance, "provenance", SOURCE_SHA, IMAGE_DIGEST, errors)
+            self.assertTrue(errors)
+        for output in ("[]", "{}", "not json", '[{"verificationResult":null}]'):
+            errors = []
+            with mock.patch.object(validator.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, output, "")):
+                validator.verify_attestation(self.provenance, "provenance", SOURCE_SHA, IMAGE_DIGEST, errors)
+            self.assertTrue(errors)
+
+    def test_checksum_failure_never_reaches_cryptographic_verifier(self) -> None:
         self.provenance.write_text("{}\n", encoding="utf-8")
+        self._assert_rejected("candidate checksum mismatch")
+        self.assertEqual(self.verifier_calls, [])
+
+    def test_duplicate_keys_are_rejected_in_evidence_and_manifest(self) -> None:
+        for target in (self.evidence_path, self.manifest):
+            with self.subTest(target=target.name):
+                original = target.read_text(encoding="utf-8")
+                target.write_text(original.replace('{', '{"schema_version":0,', 1), encoding="utf-8")
+                if target == self.manifest:
+                    self._write_checksums()
+                result = self._run()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("duplicate JSON object key", result.stderr)
+                self.assertEqual(self.verifier_calls, [])
+                target.write_text(original, encoding="utf-8")
         self._write_checksums()
-        self._assert_rejected(
-            "candidate.provenance_bundle_path does not contain signed attestation material"
-        )
+
+    def test_nonfinite_durations_cannot_satisfy_certification(self) -> None:
+        for number in (float("nan"), float("inf"), -float("inf")):
+            self.document["canary"]["duration_minutes"] = number
+            self._assert_rejected("non-finite JSON number")
+        self.document = self._valid_document()
+        self._write_evidence()
+        text = self.evidence_path.read_text(encoding="utf-8").replace('"duration_minutes": 15', '"duration_minutes": 1e999')
+        self.evidence_path.write_text(text, encoding="utf-8")
+        result = self._run()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("canary.duration_minutes must be a positive number", result.stderr)
+
+    def test_boolean_counters_and_placeholder_backups_are_rejected(self) -> None:
+        self.document["integration"]["unexpected_external_effects"] = False
+        self._assert_rejected("integration.unexpected_external_effects must be 0")
+        self.document = self._valid_document()
+        self.document["backup"]["database_sha256"] = "0" * 64
+        self._assert_rejected("backup.database_sha256 must be a non-zero")
+        self.document = self._valid_document()
+        self.document["backup"]["paired_backup_completed_at"] = "2026-02-31T12:00:00Z"
+        self._assert_rejected("backup.paired_backup_completed_at must be a valid UTC timestamp")
+
+    def test_github_login_case_does_not_allow_self_approval(self) -> None:
+        self.document["activation_approval"]["approver"] = "CANDIDATE-BUILDER"
+        self._assert_rejected("activation approval must be independent")
+
+    def test_wrong_identity_types_report_errors_without_assertions(self) -> None:
+        for key, value in (("source_sha", None), ("verdict", []), ("environment", {})):
+            self.document = self._valid_document()
+            self.document[key] = value
+            self._write_evidence()
+            result = self._run()
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(self.verifier_calls, [])
+
+    def test_blocked_template_needs_no_registry_or_verifier(self) -> None:
+        self.document = json.loads((ROOT / "release/production-evidence-template.json").read_text())
+        self._write_evidence()
+        result = self._run("--allow-blocked-template")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.verifier_calls, [])
+        self.assertIn("SIGNED_CANDIDATE_BINDING=BLOCKED", result.stdout)
 
     def test_negative_authorization_gate_is_required(self) -> None:
         self.document["integration"]["negative_authorization_passed"] = False
@@ -284,6 +393,11 @@ class ProductionEvidenceControlsTest(unittest.TestCase):
         build = text.index("Build deterministic source evidence")
         self.assertLess(source, runtime)
         self.assertLess(runtime, build)
+        signed = text.index("Create signed SBOM attestation")
+        verified = text.index("Cryptographically verify published candidate attestations")
+        finalized = text.index("Finalize production-candidate evidence")
+        self.assertLess(signed, verified)
+        self.assertLess(verified, finalized)
 
 
 if __name__ == "__main__":
