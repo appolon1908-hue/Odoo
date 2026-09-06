@@ -64,7 +64,8 @@
                 <field name="branch_id" domain="[('business_unit_ids', 'in', business_unit_id)]" options="{'no_create': True, 'no_open': True}"/>
                 <field name="department_id" domain="[('business_unit_id', '=', business_unit_id)]" options="{'no_create': True, 'no_open': True}"/>
                 <field name="operational_team_id" domain="[('business_unit_id', '=', business_unit_id), ('department_id', '=', department_id), ('active', '=', True)]" options="{'no_create': True, 'no_open': True}"/>
-                <field name="supervisor_id" domain="[('id', 'in', operational_team_id.supervisor_ids)]" options="{'no_create': True, 'no_open': True}"/>
+                <field name="supervisor_choice_ids" invisible="1"/>
+                <field name="supervisor_id" domain="[('id', 'in', supervisor_choice_ids)]" options="{'no_create': True, 'no_open': True}"/>
                 <field name="work_schedule_id" options="{'no_create': True, 'no_open': True}"/>
                 <field name="calling_hours_policy_id"/>
               </group>

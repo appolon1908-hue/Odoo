@@ -550,6 +550,10 @@ class ProvisioningRequest(models.Model):
     operational_team_id = fields.Many2one(
         "call.center.team", required=True, ondelete="restrict"
     )
+    supervisor_choice_ids = fields.Many2many(
+        related="operational_team_id.supervisor_ids", readonly=True,
+        compute_sudo=False,
+    )
     role_template_id = fields.Many2one(
         "codestra.role.template", required=True, ondelete="restrict"
     )
