@@ -34,7 +34,7 @@ class TestOrbitHttp(HttpCase):
     def test_login_is_responsive_and_preserves_csrf(self):
         response = self.url_open("/web/login")
         response.raise_for_status()
-        self.assertIn("Continue with Codestra", response.text)
+        self.assertNotIn("Continue with Codestra", response.text)
         self.assertIn('name="csrf_token"', response.text)
         css = self.url_open("/codestra_orbit_theme/static/src/css/frontend.css")
         css.raise_for_status()
@@ -46,6 +46,7 @@ class TestOrbitHttp(HttpCase):
         parameters.set_param("codestra_orbit_theme.keycloak_issuer", "https://id.example/realms/codestra")
         parameters.set_param("codestra_orbit_theme.keycloak_client_id", "odoo")
         parameters.set_param("codestra_orbit_theme.keycloak_client_secret", "test-only-secret")
+        self.env.ref("codestra_orbit_theme.provider_codestra_keycloak").write({"enabled": True})
         response = self.url_open("/codestra/sso/login", allow_redirects=False)
         self.assertEqual(response.status_code, 303)
         query = parse_qs(urlparse(response.headers["Location"]).query)

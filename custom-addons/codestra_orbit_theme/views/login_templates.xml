@@ -9,10 +9,10 @@
         <span class="cs-orbit-kicker">Codestra Orbit</span>
         <h1>Welcome back</h1>
         <p>Continue to your secure operations workspace.</p>
-        <a class="btn btn-primary cs-orbit-sso" href="/codestra/sso/login">
+        <a t-if="codestra_sso_enabled" class="btn btn-primary cs-orbit-sso" t-att-href="codestra_sso_url">
           Continue with Codestra
         </a>
-        <div class="cs-orbit-divider" role="separator"><span>or use local recovery access</span></div>
+        <div t-if="codestra_sso_enabled" class="cs-orbit-divider" role="separator"><span>or use local recovery access</span></div>
       </div>
     </xpath>
   </template>
