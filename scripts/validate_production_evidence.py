@@ -190,7 +190,6 @@ def verify_attestation(
         "--repo", EXPECTED_REPOSITORY,
         "--cert-oidc-issuer", "https://token.actions.githubusercontent.com",
         "--cert-identity", f"https://github.com/{EXPECTED_WORKFLOW}@refs/heads/main",
-        "--signer-workflow", EXPECTED_WORKFLOW,
         "--signer-digest", source_sha,
         "--source-digest", source_sha,
         "--source-ref", "refs/heads/main",

@@ -237,11 +237,14 @@ class ProductionEvidenceControlsTest(unittest.TestCase):
                 "--source-ref": "refs/heads/main", "--predicate-type": predicate,
                 "--cert-oidc-issuer": "https://token.actions.githubusercontent.com",
                 "--cert-identity": "https://github.com/appolon1908-hue/Odoo/.github/workflows/cc-release-candidate.yml@refs/heads/main",
-                "--signer-workflow": "appolon1908-hue/Odoo/.github/workflows/cc-release-candidate.yml",
             }
             for flag, value in expected.items():
                 self.assertEqual(command[command.index(flag) + 1], value)
             self.assertIn("--deny-self-hosted-runners", command)
+            # gh rejects multiple identity selectors; the exact SAN above pins
+            # both the signer workflow path and its protected main ref.
+            self.assertNotIn("--signer-workflow", command)
+            self.assertNotIn("--cert-identity-regex", command)
             self.assertEqual(call.kwargs["timeout"], 120)
             self.assertNotIn("shell", call.kwargs)
 
