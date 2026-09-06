@@ -98,7 +98,7 @@ class CodestraAPI(http.Controller):
         )
         return request.make_json_response({"status": "accepted", "id": record.id}, status=202)
 
-    @http.route("/codestra/api/v1/call-events", type="http", auth="none", methods=["POST"], csrf=False)
+    @http.route("/codestra/api/v1/call-events", type="http", auth="none", methods=["POST"], csrf=False, readonly=False)
     def call_events(self):
         key, body = self._verify()
         if len(body) > 262144:

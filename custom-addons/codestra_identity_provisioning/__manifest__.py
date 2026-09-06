@@ -1,6 +1,6 @@
 {
     "name": "Codestra Identity Provisioning",
-    "version": "19.0.1.1.3",
+    "version": "19.0.1.2.1",
     "category": "Administration",
     "summary": "Fail-closed, audited multi-system identity provisioning",
     "license": "LGPL-3",

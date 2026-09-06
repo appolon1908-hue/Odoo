@@ -218,7 +218,8 @@ class CodestraCallEventProjectionAPI(http.Controller):
         )
         return value
 
-    @http.route(PATH, type="http", auth="none", methods=["POST"], csrf=False)
+    # Projection takes a row lock before applying the authenticated event.
+    @http.route(PATH, type="http", auth="none", methods=["POST"], csrf=False, readonly=False)
     def project(self):
         body = request.httprequest.get_data()
         auth = self._authenticate(body)

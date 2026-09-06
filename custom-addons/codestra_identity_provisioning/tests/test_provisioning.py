@@ -45,6 +45,16 @@ class TestIdentityProvisioning(TransactionCase):
             "business_unit_id": cls.unit.id,
             "company_id": cls.env.company.id,
         })
+        cls.monitoring_user = cls.env["res.users"].create({
+            "name": "Scoped Monitoring User",
+            "login": "synthetic.monitoring",
+            "group_ids": [(6, 0, (
+                cls.env.ref("base.group_user")
+                | cls.env.ref("codestra_identity_provisioning.group_provisioning_user")
+            ).ids)],
+            "call_center_business_unit_ids": [(6, 0, cls.unit.ids)],
+            "call_center_default_business_unit_id": cls.unit.id,
+        })
 
     def _request_values(self, key="synthetic-idempotency"):
         return {
@@ -600,3 +610,212 @@ class TestIdentityProvisioning(TransactionCase):
         )
         with self.assertRaises(AccessError):
             request_model.check_access("read")
+
+    def test_campaign_dropdown_derives_authoritative_scope(self):
+        campaign = self.env["call.center.campaign"].create({
+            "name": "Synthetic Campaign",
+            "code": "SYN-CAMPAIGN",
+            "business_unit_id": self.unit.id,
+            "team_ids": [(6, 0, self.team.ids)],
+            "supervisor_ids": [(6, 0, self.supervisor.ids)],
+        })
+        provision = self.env["codestra.provisioning.request"].new({
+            "primary_campaign_id": campaign.id,
+        })
+        provision._onchange_primary_campaign_id()
+        self.assertEqual(provision.business_unit_id, self.unit)
+        self.assertEqual(provision.campaign_ids._origin.ids, campaign.ids)
+        self.assertEqual(provision.operational_team_id, self.team)
+        self.assertEqual(provision.department_id, self.department)
+        self.assertEqual(provision.supervisor_id, self.supervisor)
+
+    def test_monitoring_snapshot_is_secret_free(self):
+        self.employee.codestra_employee_number = "SYN-MON-0001"
+        campaign = self.env["call.center.campaign"].create({
+            "name": "Synthetic Monitoring Campaign",
+            "code": "SYN-MONITOR",
+            "business_unit_id": self.unit.id,
+        })
+        provision = self.env["codestra.provisioning.request"].create({
+            **self._request_values("monitoring-snapshot"),
+            "primary_campaign_id": campaign.id,
+            "campaign_ids": [(6, 0, campaign.ids)],
+            "state": "active",
+            "employment_status": "active",
+        })
+        for system, username in (
+            ("keycloak", "synthetic.keycloak"),
+            ("vicidial", "syn00001"),
+        ):
+            self.env["codestra.identity.link"].create({
+                "employee_id": self.employee.id,
+                "system": system,
+                "provider": "synthetic",
+                "external_id": "%s-external" % system,
+                "external_username": username,
+                "business_unit_id": self.unit.id,
+                "state": "active",
+            })
+        self.env["codestra.identity.link"].create({
+            "employee_id": self.employee.id,
+            "system": "sip",
+            "provider": "synthetic",
+            "external_id": "sip-external",
+            "extension": "6198",
+            "business_unit_id": self.unit.id,
+            "state": "active",
+        })
+        self.assertFalse(self.monitoring_user.has_group("hr.group_hr_user"))
+        self.assertFalse(self.monitoring_user.has_group("base.group_system"))
+        result = provision.with_user(self.monitoring_user).monitoring_snapshot(
+            campaign_code="SYN-MONITOR"
+        )
+        self.assertEqual(result["count"], 1)
+        agent = result["agents"][0]
+        self.assertEqual(agent["employee_id"], "SYN-MON-0001")
+        self.assertEqual(agent["display_name"], self.employee.name)
+        self.assertEqual(agent["vicidial_username"], "syn00001")
+        self.assertEqual(agent["campaigns"][0]["code"], "SYN-MONITOR")
+        self.assertTrue(agent["is_active"])
+        self.assertFalse({"password", "token", "sip_secret"} & set(agent))
+
+    def test_monitoring_filters_legacy_campaign_before_limit(self):
+        campaign = self.env["call.center.campaign"].create({
+            "name": "Legacy Monitoring Campaign", "code": "SYN-LEGACY-MON",
+            "business_unit_id": self.unit.id,
+        })
+        self.env["codestra.provisioning.request"].create(
+            self._request_values("monitoring-unrelated-first")
+        )
+        employee = self.env["hr.employee"].create({"name": "Legacy Employee"})
+        provision = self.env["codestra.provisioning.request"].create({
+            **self._request_values("monitoring-legacy"),
+            "employee_id": employee.id,
+            "campaign_ids": [(6, 0, campaign.ids)],
+        })
+        self.assertFalse(provision.primary_campaign_id)
+        result = provision.with_user(self.monitoring_user).monitoring_snapshot(
+            campaign_code=campaign.code, limit=1
+        )
+        self.assertEqual(result["count"], 1)
+        self.assertEqual(result["agents"][0]["employee_id"], str(employee.id))
+        self.assertEqual(result["agents"][0]["campaigns"][0]["code"], campaign.code)
+        self.assertFalse(result["agents"][0]["is_active"])
+
+    def test_monitoring_respects_request_scope_and_requires_permission(self):
+        provision = self.env["codestra.provisioning.request"].create(
+            self._request_values("monitoring-rules")
+        )
+        # Individual request access must not expand the monitoring unit scope.
+        provision.requested_by = self.monitoring_user
+        self.assertEqual(provision.with_user(self.monitoring_user).monitoring_snapshot()["count"], 1)
+        self.monitoring_user.write({
+            "call_center_default_business_unit_id": False,
+            "call_center_business_unit_ids": [(5, 0, 0)],
+        })
+        self.assertEqual(provision.with_user(self.monitoring_user).monitoring_snapshot()["count"], 0)
+        self.monitoring_user.group_ids = [(6, 0, self.env.ref("base.group_user").ids)]
+        with self.assertRaises(AccessError):
+            provision.with_user(self.monitoring_user).monitoring_snapshot()
+
+    def test_monitoring_does_not_reuse_other_unit_identity(self):
+        provision = self.env["codestra.provisioning.request"].create({
+            **self._request_values("monitoring-link-scope"),
+            "state": "active", "employment_status": "active",
+        })
+        other_unit = self.env["call.center.business.unit"].create({
+            "name": "Other Identity Unit", "code": "OTHER-IDENTITY",
+        })
+        # Even a monitor assigned to both units must not report an identity
+        # from the other unit as this request's active identity.
+        self.monitoring_user.call_center_business_unit_ids = [(4, other_unit.id)]
+        for system in ("keycloak", "vicidial"):
+            self.env["codestra.identity.link"].create({
+                "employee_id": self.employee.id, "system": system,
+                "external_id": "other-unit-" + system,
+                "external_username": "other-unit-user",
+                "business_unit_id": other_unit.id, "state": "active",
+            })
+        result = provision.with_user(self.monitoring_user).monitoring_snapshot()
+        self.assertEqual(result["count"], 1)
+        self.assertFalse(result["agents"][0]["is_active"])
+        self.assertFalse(result["agents"][0]["keycloak_username"])
+        self.assertFalse(result["agents"][0]["vicidial_username"])
+
+    def test_campaign_change_clears_ambiguous_and_empty_assignments(self):
+        campaign = self.env["call.center.campaign"].create({
+            "name": "Mapped Campaign", "code": "SYN-MAPPED",
+            "business_unit_id": self.unit.id,
+            "team_ids": [(6, 0, self.team.ids)],
+            "supervisor_ids": [(6, 0, self.supervisor.ids)],
+        })
+        other_team = self.team.copy({"name": "Other Team", "code": "SYN-T2"})
+        ambiguous = campaign.copy({
+            "name": "Ambiguous Campaign", "code": "SYN-AMBIGUOUS",
+            "team_ids": [(6, 0, (self.team | other_team).ids)],
+        })
+        empty = campaign.copy({
+            "name": "Empty Campaign", "code": "SYN-EMPTY",
+            "team_ids": [(5, 0, 0)], "supervisor_ids": [(5, 0, 0)],
+        })
+        pool = self.env["codestra.extension.pool"].create({
+            "name": "Mapped Pool", "code": "SYN-MAPPED-POOL",
+            "business_unit_id": self.unit.id, "start_extension": 6102,
+            "end_extension": 6110, "context": "synthetic", "active": True,
+        })
+        provision = self.env["codestra.provisioning.request"].new({
+            "primary_campaign_id": campaign.id,
+        })
+        for target in (ambiguous, empty, self.env["call.center.campaign"]):
+            with self.subTest(target=target.code or "cleared"):
+                pool.active = True
+                provision.primary_campaign_id = campaign
+                provision._onchange_primary_campaign_id()
+                self.assertEqual(provision.operational_team_id, self.team)
+                self.assertEqual(provision.extension_pool_id, pool)
+                pool.active = False
+                provision.primary_campaign_id = target
+                provision._onchange_primary_campaign_id()
+                for field in ("operational_team_id", "department_id", "supervisor_id", "extension_pool_id"):
+                    self.assertFalse(provision[field], field)
+        self.assertFalse(provision.campaign_ids)
+        self.assertFalse(provision.calling_hours_policy_id)
+
+    def test_campaign_change_clears_multiple_supervisors_and_pools(self):
+        second_supervisor = self.supervisor.copy({"login": "synthetic.second.supervisor"})
+        campaign = self.env["call.center.campaign"].create({
+            "name": "Multiple Choices", "code": "SYN-MULTIPLE",
+            "business_unit_id": self.unit.id,
+            "team_ids": [(6, 0, self.team.ids)],
+            "supervisor_ids": [(6, 0, self.supervisor.ids)],
+        })
+        pool = self.env["codestra.extension.pool"].create({
+            "name": "First Pool", "code": "SYN-FIRST-POOL",
+            "business_unit_id": self.unit.id, "start_extension": 6120,
+            "end_extension": 6130, "context": "synthetic", "active": True,
+        })
+        provision = self.env["codestra.provisioning.request"].new({"primary_campaign_id": campaign.id})
+        provision._onchange_primary_campaign_id()
+        self.assertEqual(provision.supervisor_id, self.supervisor)
+        self.assertEqual(provision.extension_pool_id, pool)
+        self.team.supervisor_ids = [(4, second_supervisor.id)]
+        campaign.supervisor_ids = [(4, second_supervisor.id)]
+        pool.copy({"name": "Second Pool", "code": "SYN-SECOND-POOL"})
+        provision._onchange_primary_campaign_id()
+        self.assertEqual(provision.operational_team_id, self.team)
+        self.assertFalse(provision.supervisor_id)
+        self.assertFalse(provision.extension_pool_id)
+
+    def test_primary_campaign_rejects_team_from_same_unit(self):
+        other_team = self.team.copy({"name": "Different Campaign Team", "code": "SYN-T3"})
+        campaign = self.env["call.center.campaign"].create({
+            "name": "Different Team Campaign", "code": "SYN-DIFFERENT-TEAM",
+            "business_unit_id": self.unit.id,
+            "team_ids": [(6, 0, other_team.ids)],
+        })
+        with self.assertRaisesRegex(ValidationError, "outside the primary campaign"), self.cr.savepoint():
+            self.env["codestra.provisioning.request"].create({
+                **self._request_values("campaign-team-mismatch"),
+                "primary_campaign_id": campaign.id,
+                "campaign_ids": [(6, 0, campaign.ids)],
+            })
