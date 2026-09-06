@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <template id="website_header" inherit_id="website.layout" name="Codestra Orbit website shell" priority="70">
+    <xpath expr="//header" position="attributes">
+      <attribute name="class" add="cs-orbit-header" separator=" "/>
+    </xpath>
+    <xpath expr="//footer" position="attributes">
+      <attribute name="class" add="cs-orbit-footer" separator=" "/>
+    </xpath>
+  </template>
+
+  <template id="portal_layout" inherit_id="portal.portal_layout" name="Codestra Orbit portal shell" priority="70">
+    <xpath expr="//div[@id='wrap']" position="attributes">
+      <attribute name="class" add="cs-orbit-portal" separator=" "/>
+    </xpath>
+  </template>
+</odoo>

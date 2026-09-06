@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <template id="login" inherit_id="web.login" name="Codestra Orbit login" priority="80">
+    <xpath expr="//form" position="before">
+      <div t-if="request.params.get('session_expired')" class="alert alert-warning cs-orbit-auth-status" role="alert">
+        Your session expired. Sign in again to continue safely.
+      </div>
+      <div class="cs-orbit-auth-intro">
+        <span class="cs-orbit-kicker">Codestra Orbit</span>
+        <h1>Welcome back</h1>
+        <p>Continue to your secure operations workspace.</p>
+        <a t-if="codestra_sso_enabled" class="btn btn-primary cs-orbit-sso" t-att-href="codestra_sso_url">
+          Continue with Codestra
+        </a>
+        <div t-if="codestra_sso_enabled" class="cs-orbit-divider" role="separator"><span>or use local recovery access</span></div>
+      </div>
+    </xpath>
+  </template>
+
+  <template id="logout_message" inherit_id="web.login" name="Codestra logout message" priority="81">
+    <xpath expr="//form" position="before">
+      <div t-if="request.params.get('logout')" class="alert alert-success cs-orbit-auth-status" role="status">
+        You have been securely signed out.
+      </div>
+    </xpath>
+  </template>
+</odoo>
