@@ -58,8 +58,10 @@ A tenant must also appear in `codestra.crm.tenant_ids` (comma separated) or be
 Global fallback parameters belong only to `codestra.middleware.tenant_id`.
 Every additional allowlisted tenant needs its own explicit secret and service
 user mapping. Missing tenant configuration fails closed; it cannot borrow the
-default tenant's credential or principal. Event replay lookup is tenant-scoped,
-including when an operator explicitly assigns the same principal to two tenants.
+default tenant's credential or principal. Stored replay responses are returned
+only to their original tenant, including when an operator explicitly assigns the
+same principal to two tenants. Event IDs remain globally unique; a collision
+from another tenant returns `409 replayed_event_id` before any business mutation.
 
 ## Reconciliation
 

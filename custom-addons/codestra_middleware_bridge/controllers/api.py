@@ -141,11 +141,12 @@ class CodestraMiddlewareBridge(http.Controller):
         if error:
             return None, None, error
         evidence = request.env["codestra.middleware.request"].with_user(auth["user"])
-        replay = evidence.search([
-            ("tenant_id", "=", auth["tenant_id"]),
-            ("event_id", "=", auth["event_id"]),
-        ], limit=1)
+        # Event IDs are globally unique in the ledger. Preserve that collision
+        # check, but never return another tenant's recorded response.
+        replay = evidence.search([("event_id", "=", auth["event_id"])], limit=1)
         if replay:
+            if replay.tenant_id != auth["tenant_id"]:
+                return None, None, self._json(409, {"error": "replayed_event_id"})
             if allow_event_replay and replay.request_hash == auth["request_hash"] and replay.operation == operation:
                 value = json.loads(replay.response_json)
                 value["duplicate"] = True

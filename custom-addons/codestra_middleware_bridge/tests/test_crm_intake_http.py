@@ -384,11 +384,24 @@ class TestMiddlewareCrmIntakeHttp(HttpCase):
         secret = "synthetic-secondary-secret"
         tenant = self.configure_second_tenant(secret=secret, user=self.service_user.id)
         # The signed header belongs to B; the repeated raw body belongs to A.
-        # Replay lookup must not return A's stored response before body validation.
+        # The global ledger collision must not return A's stored response.
         response = self.post(command, tenant=tenant, secret=secret)
-        self.assertEqual(response.status_code, 422, response.text)
-        self.assertEqual(response.json()["error"], "command_header_mismatch")
+        self.assertEqual(response.status_code, 409, response.text)
+        self.assertEqual(response.json()["error"], "replayed_event_id")
         self.assertNotIn("lead_id", response.json())
+
+    def test_cross_tenant_event_collision_is_controlled_before_business_write(self):
+        original = self.command()
+        self.assertEqual(self.post(original).status_code, 201)
+        secret = "synthetic-secondary-secret"
+        tenant = self.configure_second_tenant(secret=secret, user=self.service_user.id)
+        command = self.command()
+        command["command_id"] = original["command_id"]
+        command["tenant_id"] = tenant
+        response = self.post(command, tenant=tenant, secret=secret)
+        self.assertEqual(response.status_code, 409, response.text)
+        self.assertEqual(response.json()["error"], "replayed_event_id")
+        self.assertFalse(self.lead_for(command))
 
     def test_invalid_tenant_service_user_fails_closed(self):
         secret = "synthetic-secondary-secret"

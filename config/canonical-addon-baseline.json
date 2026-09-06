@@ -136,8 +136,8 @@
     },
     "codestra_middleware_bridge": {
       "base_tree": "d5f2785ea737689dfc1bdc88bb1eb1650a334e02",
-      "current_tree": "39541d8658f38511ebc8c1cb692086d608be50ca",
-      "reason": "Preserve the reviewed Stage 3 destination, centralize tenant-bound intake identity plus fail-closed CRM consent and suppression handling, and bind the CRM upsert command to an explicit read/write cursor. PR #80 also binds audited CRM command-status reconciliation to a writable request cursor to avoid read-only retries. PR #84 additionally confines global credential/principal fallback to the named default tenant, requires explicit mappings for secondary tenants, and scopes event replay before returning stored response data.",
+      "current_tree": "6f4f0301ac3c49b90a6079cfedcc1c5cdb181083",
+      "reason": "Preserve the reviewed Stage 3 destination, centralize tenant-bound intake identity plus fail-closed CRM consent and suppression handling, and bind the CRM upsert command to an explicit read/write cursor. PR #80 also binds audited CRM command-status reconciliation to a writable request cursor to avoid read-only retries. PR #84 additionally confines global credential/principal fallback to the named default tenant, requires explicit mappings for secondary tenants, and binds stored replay responses to their tenant while preserving controlled global event-ID collision rejection before business mutation.",
       "pull_request": 84,
       "integration_boundary_exceptions": [
         {
