@@ -1,0 +1,11 @@
+:root {
+    --cs-color-ink: #111827;
+    --cs-color-muted: #667085;
+    --cs-color-surface: #ffffff;
+    --cs-color-canvas: #f6f7fb;
+    --cs-color-primary: #5b4cf0;
+    --cs-color-primary-hover: #4939db;
+    --cs-color-border: #e3e7ef;
+    --cs-radius-md: 0.875rem;
+    --cs-shadow-card: 0 1rem 3rem rgba(17, 24, 39, 0.09);
+}

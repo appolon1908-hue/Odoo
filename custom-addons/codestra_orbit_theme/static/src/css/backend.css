@@ -1,0 +1,8 @@
+.o_web_client { --primary: var(--cs-color-primary); background: var(--cs-color-canvas); }
+.o_main_navbar { border-bottom: 1px solid rgba(255,255,255,.12); background: var(--cs-color-ink); }
+.o_main_navbar .o_menu_brand, .o_main_navbar .o_nav_entry, .o_main_navbar .dropdown-toggle { color: #fff; }
+.o_main_navbar .o_nav_entry:hover, .o_main_navbar .dropdown-toggle:hover { background: rgba(255,255,255,.1); }
+.o_control_panel { border-bottom: 1px solid var(--cs-color-border); background: var(--cs-color-surface); }
+.o_action_manager .o_content { background: var(--cs-color-canvas); }
+.o_kanban_renderer .o_kanban_record, .o_form_view .o_form_sheet_bg .o_form_sheet { border-color: var(--cs-color-border); border-radius: var(--cs-radius-md); box-shadow: var(--cs-shadow-card); }
+.btn-primary { --btn-bg: var(--cs-color-primary); --btn-border-color: var(--cs-color-primary); --btn-hover-bg: var(--cs-color-primary-hover); --btn-hover-border-color: var(--cs-color-primary-hover); }

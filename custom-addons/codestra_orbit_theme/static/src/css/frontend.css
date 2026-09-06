@@ -1,0 +1,15 @@
+.cs-orbit-auth-intro { margin-bottom: 1.25rem; color: var(--cs-color-ink); }
+.cs-orbit-auth-intro h1 { margin: .35rem 0; font-size: clamp(1.65rem, 5vw, 2.2rem); }
+.cs-orbit-auth-intro p { color: var(--cs-color-muted); }
+.cs-orbit-kicker { color: var(--cs-color-primary); font-size: .75rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.cs-orbit-sso { display: block; width: 100%; margin-top: 1rem; border-color: var(--cs-color-primary); background: var(--cs-color-primary); }
+.cs-orbit-sso:hover, .cs-orbit-sso:focus { border-color: var(--cs-color-primary-hover); background: var(--cs-color-primary-hover); }
+.cs-orbit-sso:focus-visible, .cs-orbit-header a:focus-visible, .cs-orbit-footer a:focus-visible { outline: none; box-shadow: var(--cs-focus-ring); }
+.cs-orbit-divider { display: flex; align-items: center; gap: .75rem; margin: 1.25rem 0; color: var(--cs-color-muted); font-size: .75rem; }
+.cs-orbit-divider::before, .cs-orbit-divider::after { height: 1px; flex: 1; background: var(--cs-color-border); content: ""; }
+.cs-orbit-header { border-bottom: 1px solid var(--cs-color-border); background: color-mix(in srgb, var(--cs-color-surface) 94%, transparent); backdrop-filter: blur(.75rem); }
+.cs-orbit-footer { border-top: 1px solid var(--cs-color-border); background: var(--cs-color-ink); color: #fff; }
+.cs-orbit-portal { min-height: 60vh; background: var(--cs-color-canvas); }
+.cs-orbit-auth-status { border-radius: var(--cs-radius-sm); }
+@media (max-width: 575.98px) { .cs-orbit-auth-intro h1 { font-size: 1.65rem; } .cs-orbit-divider span { max-width: 12rem; text-align: center; } }
+@media (prefers-reduced-motion: reduce) { .cs-orbit-sso { transition: none; } }

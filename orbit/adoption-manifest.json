@@ -2,7 +2,7 @@
   "schemaVersion": "2.0.0",
   "repository": "appolon1908-hue/Odoo",
   "classification": "vendor-operator-ui",
-  "targetBranch": "codex/codestra-orbit-v2-odoo",
+  "targetBranch": "main",
   "adoptionMode": "operator-theme-sso",
   "domain": "crm.codestra.agency",
   "domainStatus": "registered",
@@ -19,10 +19,10 @@
     "audit": true,
     "rollback": true
   },
-  "status": "branch-created",
+  "status": "implementation-in-review",
   "blockers": [
-    "Use the approved Codestra identity, token, color, and operator-theme contracts after SDK-repository pull request 75 is protected-merged.",
-    "Implement branding and navigation only through supported Odoo modules and assets; do not fork vendor internals merely to copy the customer-site shell.",
-    "Verify crm.codestra.agency, redirect allowlists, session and logout behavior, role isolation, monitoring, upgrades, and rollback evidence before promotion."
+    "Merge the supported codestra_orbit_theme addon after exact-head review and CI.",
+    "Verify crm.codestra.agency redirect allowlists, session and logout behavior, role isolation, monitoring, upgrades, and rollback in isolated staging.",
+    "Promote the exact staging-certified SHA and image digest through the protected production workflow."
   ]
 }
