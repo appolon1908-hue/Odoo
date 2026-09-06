@@ -340,6 +340,79 @@ class TestMiddlewareCrmIntakeHttp(HttpCase):
         self.assertEqual(response.json()["error"], "tenant_rejected")
         self.assertFalse(self.lead_for(command))
 
+    def configure_second_tenant(self, *, secret=None, user=None):
+        tenant = "synthetic-tenant-b"
+        params = self.env["ir.config_parameter"].sudo()
+        params.set_param("codestra.crm.tenant_ids", f"{self.tenant},{tenant}")
+        if secret is not None:
+            params.set_param(f"codestra.middleware.tenant.{tenant}.inbound_hmac_secret", secret)
+        if user is not None:
+            params.set_param(f"codestra.middleware.tenant.{tenant}.codestra.crm.service_user_id", user)
+        return tenant
+
+    def test_allowlist_alone_cannot_borrow_default_tenant_credentials(self):
+        tenant = self.configure_second_tenant()
+        command = self.command()
+        command["tenant_id"] = tenant
+        response = self.post(command, tenant=tenant)
+        self.assertEqual(response.status_code, 401, response.text)
+        self.assertEqual(response.json()["error"], "invalid_signature")
+        self.assertFalse(self.lead_for(command))
+
+    def test_secondary_tenant_needs_explicit_service_identity(self):
+        secret = "synthetic-secondary-secret"
+        tenant = self.configure_second_tenant(secret=secret)
+        command = self.command()
+        command["tenant_id"] = tenant
+        response = self.post(command, tenant=tenant, secret=secret)
+        self.assertEqual(response.status_code, 403, response.text)
+        self.assertEqual(response.json()["error"], "service_identity_rejected")
+        self.assertFalse(self.lead_for(command))
+
+    def test_secondary_tenant_explicit_credentials_preserve_authorized_intake(self):
+        secret = "synthetic-secondary-secret"
+        tenant = self.configure_second_tenant(secret=secret, user=self.service_user.id)
+        command = self.command()
+        command["tenant_id"] = tenant
+        response = self.post(command, tenant=tenant, secret=secret)
+        self.assertEqual(response.status_code, 201, response.text)
+        self.assertTrue(self.lead_for(command))
+
+    def test_secondary_tenant_cannot_replay_default_tenant_response(self):
+        command = self.command()
+        self.assertEqual(self.post(command).status_code, 201)
+        secret = "synthetic-secondary-secret"
+        tenant = self.configure_second_tenant(secret=secret, user=self.service_user.id)
+        # The signed header belongs to B; the repeated raw body belongs to A.
+        # The global ledger collision must not return A's stored response.
+        response = self.post(command, tenant=tenant, secret=secret)
+        self.assertEqual(response.status_code, 409, response.text)
+        self.assertEqual(response.json()["error"], "replayed_event_id")
+        self.assertNotIn("lead_id", response.json())
+
+    def test_cross_tenant_event_collision_is_controlled_before_business_write(self):
+        original = self.command()
+        self.assertEqual(self.post(original).status_code, 201)
+        secret = "synthetic-secondary-secret"
+        tenant = self.configure_second_tenant(secret=secret, user=self.service_user.id)
+        command = self.command()
+        command["command_id"] = original["command_id"]
+        command["tenant_id"] = tenant
+        response = self.post(command, tenant=tenant, secret=secret)
+        self.assertEqual(response.status_code, 409, response.text)
+        self.assertEqual(response.json()["error"], "replayed_event_id")
+        self.assertFalse(self.lead_for(command))
+
+    def test_invalid_tenant_service_user_fails_closed(self):
+        secret = "synthetic-secondary-secret"
+        tenant = self.configure_second_tenant(secret=secret, user="invalid-user-id")
+        command = self.command()
+        command["tenant_id"] = tenant
+        response = self.post(command, tenant=tenant, secret=secret)
+        self.assertEqual(response.status_code, 403, response.text)
+        self.assertEqual(response.json()["error"], "service_identity_rejected")
+        self.assertFalse(self.lead_for(command))
+
     def get(self, path):
         timestamp = str(int(time.time()))
         event_id = str(uuid.uuid4())
