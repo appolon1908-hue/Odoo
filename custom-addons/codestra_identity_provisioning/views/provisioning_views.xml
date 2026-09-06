@@ -59,22 +59,24 @@
             </page>
             <page string="Organization">
               <group>
-                <field name="company_id"/>
-                <field name="business_unit_id"/>
-                <field name="branch_id"/>
-                <field name="department_id"/>
-                <field name="operational_team_id"/>
-                <field name="supervisor_id"/>
-                <field name="work_schedule_id"/>
+                <field name="company_id" options="{'no_create': True, 'no_open': True}"/>
+                <field name="business_unit_id" options="{'no_create': True, 'no_open': True}"/>
+                <field name="branch_id" domain="[('business_unit_ids', 'in', business_unit_id)]" options="{'no_create': True, 'no_open': True}"/>
+                <field name="department_id" domain="[('business_unit_id', '=', business_unit_id)]" options="{'no_create': True, 'no_open': True}"/>
+                <field name="operational_team_id" domain="[('business_unit_id', '=', business_unit_id), ('department_id', '=', department_id), ('active', '=', True)]" options="{'no_create': True, 'no_open': True}"/>
+                <field name="supervisor_id" domain="[('id', 'in', operational_team_id.supervisor_ids)]" options="{'no_create': True, 'no_open': True}"/>
+                <field name="work_schedule_id" options="{'no_create': True, 'no_open': True}"/>
                 <field name="calling_hours_policy_id"/>
               </group>
             </page>
             <page string="Access">
               <group>
-                <field name="role_template_id"/>
-                <field name="role_template_version"/>
-                <field name="campaign_ids" widget="many2many_tags"/>
-                <field name="inbound_group_ids" widget="many2many_tags"/>
+                <field name="primary_campaign_id" domain="[('business_unit_id', '=', business_unit_id), ('is_template', '=', False)]" options="{'no_create': True, 'no_open': True}"/>
+                <field name="role_template_id" domain="[('business_unit_id', '=', business_unit_id), ('active', '=', True)]" options="{'no_create': True, 'no_open': True}"/>
+                <field name="role_template_version" readonly="1"/>
+                <field name="extension_pool_id" domain="[('business_unit_id', '=', business_unit_id), ('active', '=', True)]" options="{'no_create': True, 'no_open': True}"/>
+                <field name="campaign_ids" invisible="1"/>
+                <field name="inbound_group_ids" widget="many2many_tags" domain="[('business_unit_id', '=', business_unit_id), ('active', '=', True)]" options="{'no_create': True, 'no_open': True}"/>
                 <field name="needs_recording_access"/>
                 <field name="needs_monitoring_access"/>
               </group>
