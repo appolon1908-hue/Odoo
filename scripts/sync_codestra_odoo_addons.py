@@ -33,6 +33,8 @@ REQUIRED_PRESERVED_ROOTS = (
     Path("tests/security"),
     Path("README.md"),
     Path(".gitleaks.toml"),
+    Path(".codestra/calling-contract.lock.json"),
+    Path("contracts/vendor/calling-contract-authority"),
 )
 
 

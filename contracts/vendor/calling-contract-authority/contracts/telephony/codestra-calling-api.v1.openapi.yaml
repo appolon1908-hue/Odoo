@@ -1,0 +1,1171 @@
+openapi: 3.1.0
+info:
+  title: Codestra Calling API
+  version: 1.0.0
+servers:
+- url: https://api.codestra.co
+security:
+- oidc:
+  - telephony:status
+paths:
+  /v1/telephony/commands:
+    post:
+      operationId: createTelephonyCommand
+      security:
+      - oidc:
+        - telephony:command
+      parameters:
+      - $ref: '#/components/parameters/CorrelationId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Command'
+      responses:
+        '202':
+          description: Command intent was durably persisted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Operation'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+      description: Persist command intent only. Middleware MUST evaluate every applicable activation gate immediately before
+        creating an adapter outbox item and again before every dispatch attempt. A false, missing, stale, or indeterminate
+        gate persists POLICY_DENIED, creates no external effect, and leaves calls_placed unchanged.
+      x-codestra-dispatch-preconditions:
+        evaluation_point: immediately before outbox creation and every adapter dispatch attempt
+        all_applicable_gates_must_be_true: true
+        false_missing_stale_or_indeterminate_result: persist POLICY_DENIED and do not dispatch
+        external_effect_on_denial: false
+        calls_placed_delta_on_denial: 0
+        command_gate_matrix:
+          telephony.call.originate.v1:
+          - VICIDIAL_WRITES
+          - LIVE_CALL_CONTROL
+          - PRODUCTION_DIALING
+          - LIVE_PSTN_DIALING
+          telephony.call.cancel.v1:
+          - VICIDIAL_WRITES
+          - LIVE_CALL_CONTROL
+          telephony.call.transfer.v1:
+          - VICIDIAL_WRITES
+          - LIVE_CALL_CONTROL
+          telephony.agent.login.v1:
+          - VICIDIAL_WRITES
+          telephony.agent.ready.v1:
+          - VICIDIAL_WRITES
+          telephony.agent.pause.v1:
+          - VICIDIAL_WRITES
+          telephony.agent.logout.v1:
+          - VICIDIAL_WRITES
+        administrative_reconciliation_gate: TELEPHONY_ADMIN_WRITE
+        activation_is_separate_release: true
+  /v1/telephony/operations/{operation_id}:
+    get:
+      operationId: getTelephonyOperation
+      parameters:
+      - $ref: '#/components/parameters/OperationId'
+      - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Authoritative operation state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Operation'
+        '404':
+          $ref: '#/components/responses/Error'
+  /v1/telephony/operations/{operation_id}/cancel:
+    post:
+      operationId: cancelTelephonyOperation
+      security:
+      - oidc:
+        - telephony:command
+      parameters:
+      - $ref: '#/components/parameters/OperationId'
+      - $ref: '#/components/parameters/CorrelationId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Cancellation intent was durably persisted
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/telephony/operations/{operation_id}/reconcile:
+    post:
+      operationId: reconcileTelephonyOperation
+      security:
+      - oidc:
+        - telephony:status
+      parameters:
+      - $ref: '#/components/parameters/OperationId'
+      - $ref: '#/components/parameters/CorrelationId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: Reconciliation intent was durably persisted
+        '409':
+          $ref: '#/components/responses/Error'
+  /internal/v1/adapters/vicidial/events:
+    post:
+      operationId: ingestVicidialEvent
+      description: 'Single authoritative private VICIdial event-ingress path. The receiver verifies the scoped client certificate,
+        exact body digest, byte-exact HMAC profile, freshness window, cross-field equalities, and durable idempotency before
+        acknowledging the event.
+
+        '
+      x-codestra-exposure: private
+      security:
+      - adapterMtls: []
+        adapterSignature: []
+      parameters:
+      - $ref: '#/components/parameters/CorrelationId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/IntegrationTimestamp'
+      - $ref: '#/components/parameters/ContentSha256'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VicidialEventEnvelope'
+      x-codestra-signing-profile:
+        version: v1
+        algorithm: HMAC-SHA-256
+        secret: per-adapter scoped secret reference
+        signature_header: X-Codestra-Signature
+        signature_header_format: v1=<64 lowercase hexadecimal HMAC characters>
+        encoding: UTF-8
+        timestamp_format: YYYY-MM-DDTHH:MM:SSZ
+        maximum_absolute_clock_skew_seconds: 300
+        canonical_method: POST
+        canonical_path: /internal/v1/adapters/vicidial/events
+        query_string_allowed: false
+        content_digest: lowercase hexadecimal SHA-256 of the exact request-body bytes
+        signing_input: 'v1
+
+          {X-Codestra-Timestamp}
+
+          POST
+
+          /internal/v1/adapters/vicidial/events
+
+          {Idempotency-Key}
+
+          {payload.event_id}
+
+          {X-Codestra-Content-SHA256}
+
+          '
+        signing_input_has_final_lf: true
+      x-codestra-idempotency:
+        source_system: vicidial
+        identity_fields:
+        - source_system
+        - envelope.tenant_id
+        - payload.event_id
+        - envelope.idempotency_key
+        minimum_retention_seconds: 604800
+        identical_identity_and_digest: return the original 202 receipt without a second append
+        identical_identity_different_digest: return 409 IDEMPOTENCY_CONFLICT without mutation
+      x-codestra-cross-field-constraints:
+      - envelope.event_type == payload.type
+      - envelope.occurred_at == payload.occurred_at
+      - envelope.tenant_id == payload.tenant_id
+      - envelope.correlation_id == payload.correlation_id
+      - envelope.idempotency_key == Idempotency-Key header
+      - X-Correlation-ID header == envelope.correlation_id
+      responses:
+        '202':
+          description: First durable acceptance or identical idempotent retry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterEventReceipt'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+  /codestra/api/v1/call-events:
+    post:
+      operationId: applyOdooCallEvent
+      description: 'Private Middleware-to-Odoo call-event projection. Odoo must persist and apply the event idempotently before
+        acknowledging it. HTTP acceptance proves only the Odoo projection result; it does not prove that a PSTN call occurred.
+
+        '
+      servers:
+      - url: https://codestra-odoo-internal-proxy:8443
+      x-codestra-exposure: private
+      security:
+      - internalMtls: []
+        internalSignature: []
+      parameters:
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/EventIdHeader'
+      - $ref: '#/components/parameters/CorrelationId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      - $ref: '#/components/parameters/IntegrationTimestamp'
+      - $ref: '#/components/parameters/ContentSha256'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OdooCallEvent'
+      x-codestra-signing-profile:
+        version: v1
+        algorithm: HMAC-SHA-256
+        secret: per-tenant Odoo call-event secret reference
+        signature_header: X-Codestra-Signature
+        signature_header_format: v1=<64 lowercase hexadecimal HMAC characters>
+        encoding: UTF-8
+        timestamp_format: YYYY-MM-DDTHH:MM:SSZ
+        maximum_absolute_clock_skew_seconds: 300
+        canonical_method: POST
+        canonical_path: /codestra/api/v1/call-events
+        query_string_allowed: false
+        content_digest: lowercase hexadecimal SHA-256 of the exact request-body bytes
+        signing_input: 'v1
+
+          {X-Codestra-Timestamp}
+
+          POST
+
+          /codestra/api/v1/call-events
+
+          {X-Codestra-Tenant-ID}
+
+          {X-Codestra-Event-ID}
+
+          {Idempotency-Key}
+
+          {X-Correlation-ID}
+
+          {X-Codestra-Content-SHA256}
+
+          '
+        signing_input_has_final_lf: true
+      x-codestra-idempotency:
+        identity_fields:
+        - tenant_id
+        - event_id
+        - idempotency_key
+        minimum_retention_seconds: 604800
+        identical_identity_and_digest: return original receipt without a second state transition
+        identical_identity_different_digest: return 409 IDEMPOTENCY_CONFLICT without mutation
+      x-codestra-cross-field-constraints:
+      - X-Codestra-Tenant-ID == body.tenant_id
+      - X-Codestra-Event-ID == body.event_id
+      - Idempotency-Key == body.event_id
+      - X-Correlation-ID == body.correlation_id
+      responses:
+        '200':
+          description: Identical event was already applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OdooCallEventReceipt'
+        '202':
+          description: Event was durably applied for the first time
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OdooCallEventReceipt'
+        '400':
+          $ref: '#/components/responses/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '422':
+          $ref: '#/components/responses/Error'
+  /codestra/api/v1/call-events/{event_id}:
+    get:
+      operationId: getOdooCallEventEvidence
+      description: 'Private read-back used only after an ambiguous POST outcome. A matching 200 proves that Odoo recorded
+        the event. A tenant-scoped 404 proves that no matching event was recorded and permits retry with the same event identity.
+        Every timeout, transport failure, 401, 403, 409, 429, or 5xx result remains indeterminate and must not cause a blind
+        retry.
+
+        '
+      servers:
+      - url: https://codestra-odoo-internal-proxy:8443
+      x-codestra-exposure: private
+      security:
+      - internalMtls: []
+        internalSignature: []
+      parameters:
+      - $ref: '#/components/parameters/EventIdPath'
+      - $ref: '#/components/parameters/TenantId'
+      - $ref: '#/components/parameters/EventIdHeader'
+      - $ref: '#/components/parameters/CorrelationId'
+      - $ref: '#/components/parameters/IntegrationTimestamp'
+      - $ref: '#/components/parameters/EmptyContentSha256'
+      x-codestra-signing-profile:
+        version: v1
+        algorithm: HMAC-SHA-256
+        secret: per-tenant Odoo call-event secret reference
+        signature_header: X-Codestra-Signature
+        signature_header_format: v1=<64 lowercase hexadecimal HMAC characters>
+        encoding: UTF-8
+        timestamp_format: YYYY-MM-DDTHH:MM:SSZ
+        maximum_absolute_clock_skew_seconds: 300
+        canonical_method: GET
+        canonical_path_template: /codestra/api/v1/call-events/{event_id}
+        event_id_path_encoding: lowercase UUID text with no percent-encoding
+        query_string_allowed: false
+        request_body_allowed: false
+        content_digest: SHA-256 of empty bytes
+        signing_input: 'v1
+
+          {X-Codestra-Timestamp}
+
+          GET
+
+          /codestra/api/v1/call-events/{event_id}
+
+          {X-Codestra-Tenant-ID}
+
+          {X-Codestra-Event-ID}
+
+          {empty line}
+
+          {X-Correlation-ID}
+
+          e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+
+          '
+        signing_input_has_final_lf: true
+      x-codestra-authorization:
+        lookup_scope: tenant_id plus event_id
+        cross_tenant_result: return the same non-enumerating 404 used for absent events
+        browser_access: forbidden
+      responses:
+        '200':
+          description: Matching event evidence exists in Odoo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OdooCallEventEvidence'
+        '404':
+          description: No authorized tenant-scoped event evidence exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '502':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '504':
+          $ref: '#/components/responses/Error'
+  /api/v1/realtime/sessions:
+    post:
+      operationId: createRealtimeSession
+      security:
+      - oidc:
+        - realtime:session:create
+      parameters:
+      - $ref: '#/components/parameters/CorrelationId'
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RealtimeSessionRequest'
+      responses:
+        '201':
+          description: One-use short-lived ticket minted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RealtimeSession'
+        '400':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+      description: Mint a one-use ticket for an authenticated Odoo principal. The browser may submit only a campaign selection
+        hint and optional replay cursor. Middleware derives tenant, agent, and role from the validated OIDC subject plus current
+        server-side assignments; client identity claims are never copied into the ticket.
+      x-codestra-exposure: kong_protected
+      x-codestra-authorization:
+        tenant_id_source: validated OIDC subject plus server-side tenant membership
+        agent_id_source: server-side Odoo-user to agent mapping
+        role_source: validated token roles intersected with current server-side assignments
+        campaign_id_input: selection hint only
+        campaign_id_rule: must match an active assignment for the derived principal
+        client_supplied_identity_claims: forbidden
+        mismatch_or_stale_assignment_result: return 403 and mint no ticket
+        ticket_claims_source: derived server-side authorization result only
+  /internal/v1/realtime/tickets/consume:
+    post:
+      operationId: consumeRealtimeTicket
+      description: 'Private WebSocket-gateway operation that atomically consumes one short-lived ticket and returns its immutable
+        principal. Browsers cannot call this operation directly.
+
+        '
+      x-codestra-exposure: private
+      security:
+      - internalMtls: []
+        internalBearer: []
+      parameters:
+      - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RealtimeTicketConsumeRequest'
+      responses:
+        '200':
+          description: Ticket consumed exactly once
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RealtimePrincipal'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '410':
+          $ref: '#/components/responses/Error'
+  /healthz:
+    get:
+      operationId: health
+      security: []
+      responses:
+        '200':
+          description: Liveness
+  /readyz:
+    get:
+      operationId: readiness
+      security: []
+      responses:
+        '200':
+          description: Ready
+        '503':
+          description: Not ready
+  /version:
+    get:
+      operationId: version
+      security: []
+      responses:
+        '200':
+          description: Exact source
+          image: null
+          and contract identity: null
+  /metrics:
+    get:
+      operationId: metrics
+      security:
+      - oidc:
+        - metrics:read
+      responses:
+        '200':
+          description: Prometheus metrics
+        '403':
+          $ref: '#/components/responses/Error'
+  /internal/v1/realtime/authorizations/revalidate:
+    post:
+      operationId: revalidateRealtimeAuthorization
+      description: Private WebSocket-gateway check of the consumed ticket principal against current OIDC session state, role,
+        campaign assignment, authorization epoch, and expiry. The gateway performs this check at least every 30 seconds. Any
+        denial, expiry, transport error, timeout, or indeterminate result stops delivery and closes the socket within 30 seconds.
+      x-codestra-exposure: private
+      x-codestra-failure-policy:
+        maximum_authorization_age_seconds: 30
+        denied_or_expired_close_code: 1008
+        indeterminate_close_code: 1011
+        maximum_disconnect_delay_seconds: 30
+        delivery_during_revalidation_failure: forbidden
+        reconnect_requires_new_ticket: true
+      security:
+      - internalMtls: []
+        internalBearer: []
+      parameters:
+      - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RealtimeAuthorizationRevalidateRequest'
+      responses:
+        '200':
+          description: Principal remains active and assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RealtimeAuthorizationStatus'
+        '401':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '410':
+          $ref: '#/components/responses/Error'
+        '429':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '502':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+        '504':
+          $ref: '#/components/responses/Error'
+components:
+  securitySchemes:
+    oidc:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://auth.codestra.co/realms/codestra/protocol/openid-connect/auth
+          tokenUrl: https://auth.codestra.co/realms/codestra/protocol/openid-connect/token
+          scopes:
+            telephony:command: Submit bounded telephony commands
+            telephony:status: Read authorized telephony state
+            realtime:session:create: Mint a one-use real-time ticket
+            metrics:read: Read protected metrics
+    adapterMtls:
+      type: mutualTLS
+      description: Scoped VICIdial adapter client certificate
+    adapterSignature:
+      type: apiKey
+      in: header
+      name: X-Codestra-Signature
+      description: Versioned HMAC signature defined by the adapter operation
+    internalMtls:
+      type: mutualTLS
+      description: Scoped Middleware, Odoo, or WebSocket service certificate
+    internalSignature:
+      type: apiKey
+      in: header
+      name: X-Codestra-Signature
+      description: Versioned per-tenant HMAC signature defined by the Odoo operation
+    internalBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Short-lived service token with exact internal real-time audience and scope
+  parameters:
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+    IntegrationTimestamp:
+      name: X-Codestra-Timestamp
+      in: header
+      required: true
+      description: UTC RFC3339 timestamp in exact YYYY-MM-DDTHH:MM:SSZ form
+      schema:
+        type: string
+        pattern: ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$
+    ContentSha256:
+      name: X-Codestra-Content-SHA256
+      in: header
+      required: true
+      description: Lowercase hexadecimal SHA-256 of exact request-body bytes
+      schema:
+        type: string
+        pattern: ^[a-f0-9]{64}$
+    EmptyContentSha256:
+      name: X-Codestra-Content-SHA256
+      in: header
+      required: true
+      description: Must equal the SHA-256 digest of empty bytes
+      schema:
+        type: string
+        const: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    TenantId:
+      name: X-Codestra-Tenant-ID
+      in: header
+      required: true
+      schema:
+        $ref: '#/components/schemas/NatsSubjectToken'
+    EventIdHeader:
+      name: X-Codestra-Event-ID
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    EventIdPath:
+      name: event_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    OperationId:
+      name: operation_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    Command:
+      type: object
+      additionalProperties: false
+      required:
+      - type
+      - tenant_id
+      - business_unit_id
+      - campaign_id
+      - agent_id
+      - odoo_user_id
+      - operation_id
+      - correlation_id
+      - schema_version
+      - requested_at
+      properties:
+        type:
+          type: string
+          enum:
+          - telephony.call.originate.v1
+          - telephony.call.cancel.v1
+          - telephony.call.transfer.v1
+          - telephony.agent.login.v1
+          - telephony.agent.ready.v1
+          - telephony.agent.pause.v1
+          - telephony.agent.logout.v1
+        tenant_id:
+          $ref: '#/components/schemas/NatsSubjectToken'
+        business_unit_id:
+          type: string
+        campaign_id:
+          $ref: '#/components/schemas/NatsSubjectToken'
+        agent_id:
+          $ref: '#/components/schemas/NatsSubjectToken'
+        odoo_user_id:
+          type: string
+        odoo_lead_id:
+          type: string
+        vicidial_user_id:
+          type: string
+        vicidial_campaign_id:
+          type: string
+        vicidial_lead_id:
+          type: string
+        operation_id:
+          type: string
+          format: uuid
+        correlation_id:
+          type: string
+          format: uuid
+        schema_version:
+          const: 1
+        requested_at:
+          type: string
+          format: date-time
+    VicidialEventEnvelope:
+      description: Canonical integration envelope specialized to CallingEvent
+      allOf:
+      - $ref: ../../schemas/integration-event-envelope-v1.schema.json
+      - type: object
+        required:
+        - correlation_id
+        properties:
+          payload:
+            $ref: '#/components/schemas/CallingEvent'
+    CallingEvent:
+      type: object
+      additionalProperties: false
+      required:
+      - event_id
+      - type
+      - tenant_id
+      - business_unit_id
+      - campaign_id
+      - agent_id
+      - operation_id
+      - correlation_id
+      - schema_version
+      - occurred_at
+      - sequence
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum:
+          - telephony.call.ringing.v1
+          - telephony.call.answered.v1
+          - telephony.call.connected.v1
+          - telephony.call.transferred.v1
+          - telephony.call.completed.v1
+          - telephony.call.missed.v1
+          - telephony.call.dispositioned.v1
+          - telephony.agent.status-changed.v1
+        tenant_id:
+          $ref: '#/components/schemas/NatsSubjectToken'
+        business_unit_id:
+          type: string
+        campaign_id:
+          $ref: '#/components/schemas/NatsSubjectToken'
+        agent_id:
+          $ref: '#/components/schemas/NatsSubjectToken'
+        odoo_user_id:
+          type: string
+        odoo_lead_id:
+          type: string
+        vicidial_user_id:
+          type: string
+        vicidial_campaign_id:
+          type: string
+        vicidial_lead_id:
+          type: string
+        call_unique_id:
+          type: string
+        linked_id:
+          type: string
+        operation_id:
+          type: string
+          format: uuid
+        correlation_id:
+          type: string
+          format: uuid
+        schema_version:
+          const: 1
+        occurred_at:
+          type: string
+          format: date-time
+        sequence:
+          type: integer
+          minimum: 1
+        disposition:
+          type: string
+        duration_seconds:
+          type: integer
+          minimum: 0
+        hangup_cause:
+          type: string
+    OdooCallEvent:
+      type: object
+      additionalProperties: false
+      required:
+      - schema_version
+      - event_id
+      - event_type
+      - timestamp
+      - correlation_id
+      - tenant_id
+      - business_unit_id
+      - campaign_id
+      - call_id
+      - asterisk_uniqueid
+      - linkedid
+      - agent_id
+      - extension
+      - sequence
+      - keycloak_subject
+      properties:
+        schema_version:
+          const: '1.0'
+        event_id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+          enum:
+          - call.created
+          - call.offered
+          - call.ringing
+          - call.answered
+          - call.connected
+          - call.held
+          - call.resumed
+          - call.transfer.started
+          - call.transfer.completed
+          - call.hangup
+          - call.completed
+          - call.ended
+          - call.failed
+          - call.missed
+          - call.recording_available
+          - call.disposition_required
+        timestamp:
+          type: string
+          format: date-time
+        correlation_id:
+          type: string
+          format: uuid
+        tenant_id:
+          $ref: '#/components/schemas/NatsSubjectToken'
+        business_unit_id:
+          type: string
+          minLength: 1
+          maxLength: 255
+        campaign_id:
+          $ref: '#/components/schemas/NatsSubjectToken'
+        call_id:
+          type: string
+          minLength: 1
+          maxLength: 255
+        asterisk_uniqueid:
+          type: string
+          minLength: 1
+          maxLength: 255
+        linkedid:
+          type: string
+          minLength: 1
+          maxLength: 255
+        agent_id:
+          $ref: '#/components/schemas/NatsSubjectToken'
+        extension:
+          type: string
+          minLength: 1
+          maxLength: 255
+        sequence:
+          type: integer
+          minimum: 0
+        keycloak_subject:
+          type: string
+          minLength: 1
+          maxLength: 255
+        direction:
+          type: string
+          enum:
+          - inbound
+          - outbound
+        caller_number:
+          type: string
+          maxLength: 64
+        destination_number:
+          type: string
+          maxLength: 64
+        duration:
+          type: integer
+          minimum: 0
+        talk_duration:
+          type: integer
+          minimum: 0
+    AdapterEventReceipt:
+      type: object
+      additionalProperties: false
+      required:
+      - event_id
+      - idempotency_key
+      - accepted_at
+      - outcome
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        idempotency_key:
+          type: string
+        accepted_at:
+          type: string
+          format: date-time
+        outcome:
+          const: DURABLY_ACCEPTED
+    OdooCallEventReceipt:
+      type: object
+      additionalProperties: false
+      required:
+      - event_id
+      - status
+      - call_id
+      - sequence
+      - payload_sha256
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+          - accepted
+          - duplicate
+        call_id:
+          type: string
+        sequence:
+          type: integer
+          minimum: 0
+        payload_sha256:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+    OdooCallEventEvidence:
+      type: object
+      additionalProperties: false
+      required:
+      - event_id
+      - event_type
+      - call_id
+      - sequence
+      - state
+      - payload_sha256
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+        call_id:
+          type: string
+        sequence:
+          type: integer
+          minimum: 0
+        state:
+          type: string
+          enum:
+          - new
+          - offered
+          - ringing
+          - answering
+          - connected
+          - held
+          - transferring
+          - transferred
+          - ending
+          - completed
+          - failed
+          - missed
+        payload_sha256:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+    RealtimeSessionRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - campaign_id
+      properties:
+        campaign_id:
+          allOf:
+          - $ref: '#/components/schemas/NatsSubjectToken'
+          description: Selection hint that must match a current server-side assignment.
+        resume_cursor:
+          type: integer
+          minimum: 0
+    RealtimeSession:
+      type: object
+      additionalProperties: false
+      required:
+      - ticket
+      - expires_at
+      - websocket_url
+      - contract_digest
+      properties:
+        ticket:
+          type: string
+          minLength: 32
+          maxLength: 512
+        expires_at:
+          type: string
+          format: date-time
+        websocket_url:
+          const: wss://api.codestra.co/ws/agent
+        contract_digest:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+    RealtimeTicketConsumeRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - ticket
+      properties:
+        ticket:
+          type: string
+          minLength: 32
+          maxLength: 512
+    RealtimePrincipal:
+      type: object
+      additionalProperties: false
+      required:
+      - active
+      - tenant_id
+      - campaign_id
+      - agent_id
+      - role
+      - expires_at
+      - maximum_replay_cursor
+      - authorization_epoch
+      - revalidate_after_seconds
+      properties:
+        active:
+          const: true
+        tenant_id:
+          $ref: '#/components/schemas/NatsSubjectToken'
+        campaign_id:
+          $ref: '#/components/schemas/NatsSubjectToken'
+        agent_id:
+          $ref: '#/components/schemas/NatsSubjectToken'
+        role:
+          type: string
+          enum:
+          - telephony_agent
+          - telephony_supervisor
+        expires_at:
+          type: string
+          format: date-time
+        maximum_replay_cursor:
+          type: integer
+          minimum: 0
+        authorization_epoch:
+          type: integer
+          minimum: 1
+        revalidate_after_seconds:
+          type: integer
+          minimum: 1
+          maximum: 30
+    Operation:
+      type: object
+      additionalProperties: false
+      required:
+      - operation_id
+      - state
+      - external_effect
+      - calls_placed
+      properties:
+        operation_id:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum:
+          - PERSISTED
+          - POLICY_DENIED
+          - DISPATCH_PENDING
+          - DISPATCHED
+          - INDETERMINATE
+          - RECONCILING
+          - COMPLETED
+          - CANCELLED
+          - FAILED
+        external_effect:
+          type: boolean
+        calls_placed:
+          type: integer
+          minimum: 0
+    Error:
+      type: object
+      additionalProperties: false
+      required:
+      - code
+      - message
+      - correlation_id
+      properties:
+        code:
+          type: string
+          enum:
+          - INVALID_REQUEST
+          - UNAUTHENTICATED
+          - UNAUTHORIZED
+          - CAMPAIGN_SCOPE_DENIED
+          - IDEMPOTENCY_CONFLICT
+          - REPLAY_DETECTED
+          - SIGNATURE_INVALID
+          - TIMESTAMP_EXPIRED
+          - PAYLOAD_DIGEST_MISMATCH
+          - POLICY_DENIED
+          - PROVIDER_UNAVAILABLE
+          - OUTCOME_INDETERMINATE
+          - NOT_FOUND
+          - RATE_LIMITED
+        message:
+          type: string
+        correlation_id:
+          type: string
+    NatsSubjectToken:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$
+      description: One NATS subject token. Dots, wildcards, whitespace, slashes, and other separators are forbidden.
+    RealtimeAuthorizationRevalidateRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - tenant_id
+      - campaign_id
+      - agent_id
+      - role
+      - authorization_epoch
+      properties:
+        tenant_id:
+          $ref: '#/components/schemas/NatsSubjectToken'
+        campaign_id:
+          $ref: '#/components/schemas/NatsSubjectToken'
+        agent_id:
+          $ref: '#/components/schemas/NatsSubjectToken'
+        role:
+          type: string
+          enum:
+          - telephony_agent
+          - telephony_supervisor
+        authorization_epoch:
+          type: integer
+          minimum: 1
+    RealtimeAuthorizationStatus:
+      type: object
+      additionalProperties: false
+      required:
+      - active
+      - authorization_epoch
+      - expires_at
+      - revalidate_after_seconds
+      properties:
+        active:
+          const: true
+        authorization_epoch:
+          type: integer
+          minimum: 1
+        expires_at:
+          type: string
+          format: date-time
+        revalidate_after_seconds:
+          type: integer
+          minimum: 1
+          maximum: 30
+  responses:
+    Error:
+      description: Fail-closed error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

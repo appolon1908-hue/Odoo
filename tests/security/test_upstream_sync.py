@@ -85,6 +85,8 @@ class UpstreamSyncTests(unittest.TestCase):
                 "scripts",
                 "tests/security",
                 "docs/UPSTREAM-SYNC.md",
+                ".codestra/calling-contract.lock.json",
+                "contracts/vendor/calling-contract-authority",
             ],
             "excluded_source_paths": [".git"],
             "runtime_activation": False,
@@ -119,6 +121,8 @@ class UpstreamSyncTests(unittest.TestCase):
         self.write(destination, "scripts/sync_codestra_odoo_addons.py", "# preserved\n")
         self.write(destination, "tests/security/test_guard.py", "# preserved\n")
         self.write(destination, "docs/UPSTREAM-SYNC.md", "destination sync docs\n")
+        self.write(destination, ".codestra/calling-contract.lock.json", '{"role": "agent_workspace"}\n')
+        self.write(destination, "contracts/vendor/calling-contract-authority/component.yaml", "destination authority\n")
         self.add_module(destination, "custom-addons", "target_only", "target")
         return self.policy(destination)
 
@@ -167,6 +171,8 @@ class UpstreamSyncTests(unittest.TestCase):
             self.write(source, "config/mission.json", '{"source": true}\n')
             self.write(source, "scripts/run_ci.sh", "#!/bin/sh\necho untrusted\n")
             self.write(source, "tests/security/test_guard.py", "raise SystemExit(1)\n")
+            self.write(source, ".codestra/calling-contract.lock.json", '{"role": "untrusted"}\n')
+            self.write(source, "contracts/vendor/calling-contract-authority/component.yaml", "upstream authority\n")
             self.write(source, "docs/source.md", "upstream document\n")
             self.add_module(source, "ci_addons", "module_a", "upstream-a")
             source_sha = self.commit(source, "initial source")
@@ -200,6 +206,13 @@ class UpstreamSyncTests(unittest.TestCase):
             self.assertEqual("upstream readme\n", (snapshot / "README.md").read_text())
             self.assertTrue((snapshot / ".github/workflows/source.yml").is_file())
             self.assertTrue((snapshot / "scripts/run_ci.sh").is_file())
+            for relative, expected, upstream_expected in (
+                (".codestra/calling-contract.lock.json", '{"role": "agent_workspace"}\n', '{"role": "untrusted"}\n'),
+                ("contracts/vendor/calling-contract-authority/component.yaml", "destination authority\n", "upstream authority\n"),
+            ):
+                self.assertEqual(expected, (destination / relative).read_text())
+                self.assertEqual(upstream_expected, (snapshot / relative).read_text())
+                self.assertNotIn(relative, state["managed_overlay_files"])
             self.assertTrue(
                 (destination / "custom-addons/module_a/__manifest__.py").is_file()
             )
@@ -990,6 +1003,20 @@ class UpstreamSyncTests(unittest.TestCase):
                     policy_path=policy,
                     source_ref="main",
                 )
+
+    def test_policy_requires_preserved_calling_contract_authority(self) -> None:
+        for required in (
+            ".codestra/calling-contract.lock.json",
+            "contracts/vendor/calling-contract-authority",
+        ):
+            with self.subTest(path=required), tempfile.TemporaryDirectory() as directory:
+                document = self.policy_document()
+                document["preserve_destination_paths"].remove(required)
+                path = self.write(
+                    Path(directory), "config/upstream-sync-policy.json", json.dumps(document)
+                )
+                with self.assertRaisesRegex(sync.SyncError, "governance path is not preserved"):
+                    sync.load_policy(path)
 
     def test_policy_rejects_replaceable_destination_validation_roots(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
