@@ -600,3 +600,65 @@ class TestIdentityProvisioning(TransactionCase):
         )
         with self.assertRaises(AccessError):
             request_model.check_access("read")
+
+    def test_campaign_dropdown_derives_authoritative_scope(self):
+        campaign = self.env["call.center.campaign"].create({
+            "name": "Synthetic Campaign",
+            "code": "SYN-CAMPAIGN",
+            "business_unit_id": self.unit.id,
+            "team_ids": [(6, 0, self.team.ids)],
+            "supervisor_ids": [(6, 0, self.supervisor.ids)],
+        })
+        provision = self.env["codestra.provisioning.request"].new({
+            "primary_campaign_id": campaign.id,
+        })
+        provision._onchange_primary_campaign_id()
+        self.assertEqual(provision.business_unit_id, self.unit)
+        self.assertEqual(provision.campaign_ids, campaign)
+        self.assertEqual(provision.operational_team_id, self.team)
+        self.assertEqual(provision.department_id, self.department)
+        self.assertEqual(provision.supervisor_id, self.supervisor)
+
+    def test_monitoring_snapshot_is_secret_free(self):
+        campaign = self.env["call.center.campaign"].create({
+            "name": "Synthetic Monitoring Campaign",
+            "code": "SYN-MONITOR",
+            "business_unit_id": self.unit.id,
+        })
+        provision = self.env["codestra.provisioning.request"].create({
+            **self._request_values("monitoring-snapshot"),
+            "primary_campaign_id": campaign.id,
+            "campaign_ids": [(6, 0, campaign.ids)],
+            "state": "active",
+            "employment_status": "active",
+        })
+        for system, username in (
+            ("keycloak", "synthetic.keycloak"),
+            ("vicidial", "syn00001"),
+        ):
+            self.env["codestra.identity.link"].create({
+                "employee_id": self.employee.id,
+                "system": system,
+                "provider": "synthetic",
+                "external_id": "%s-external" % system,
+                "external_username": username,
+                "business_unit_id": self.unit.id,
+                "state": "active",
+            })
+        self.env["codestra.identity.link"].create({
+            "employee_id": self.employee.id,
+            "system": "sip",
+            "provider": "synthetic",
+            "external_id": "sip-external",
+            "extension": "6198",
+            "business_unit_id": self.unit.id,
+            "state": "active",
+        })
+        result = provision.monitoring_snapshot(campaign_code="SYN-MONITOR")
+        self.assertEqual(result["count"], 1)
+        agent = result["agents"][0]
+        self.assertEqual(agent["vicidial_username"], "syn00001")
+        self.assertEqual(agent["campaigns"][0]["code"], "SYN-MONITOR")
+        self.assertTrue(agent["is_active"])
+        self.assertFalse({"password", "token", "sip_secret"} & set(agent))
+
