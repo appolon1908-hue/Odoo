@@ -103,7 +103,9 @@ modules. The controlled sync therefore:
    `custom-addons/<module_name>`;
 10. lets upstream source win on non-governance collisions;
 11. preserves destination `.github`, `config`, `scripts`, `tests/security`,
-    README, secret-scanning policy, and sync-controller files;
+    README, secret-scanning policy, sync-controller files,
+    `.codestra/calling-contract.lock.json`, and
+    `contracts/vendor/calling-contract-authority`;
 12. verifies the preserved validation-file hashes before running CI;
 13. removes only paths recorded as managed by an earlier successful sync;
 14. retains target-only addons until a separate disposition is reviewed;

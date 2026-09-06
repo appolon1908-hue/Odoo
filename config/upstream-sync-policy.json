@@ -20,7 +20,9 @@
     "config",
     "scripts",
     "tests/security",
-    "docs/UPSTREAM-SYNC.md"
+    "docs/UPSTREAM-SYNC.md",
+    ".codestra/calling-contract.lock.json",
+    "contracts/vendor/calling-contract-authority"
   ],
   "excluded_source_paths": [
     ".git"
