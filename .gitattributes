@@ -1,0 +1,28 @@
+# Byte-identical checkouts on every platform.
+#
+# Twelve scripts hash file bytes rather than git blob contents, among them
+# validate_calling_contract_pin.py, generate_release_manifest.py and
+# generate_source_sbom.py. Without this file a Windows clone applies
+# core.autocrlf and rewrites line endings on checkout, so those digests differ
+# from the ones Linux CI computes and the gates fail on a tree that is actually
+# correct. No file content changes: every tracked file is already stored LF.
+* text=auto eol=lf
+
+# Never touch binary payloads.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.zip  binary
+*.gz   binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.eot  binary
+*.mp3  binary
+*.mp4  binary
+*.xls  binary
+*.xlsx binary
+*.ods  binary
