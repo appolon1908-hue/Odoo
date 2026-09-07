@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+  <record id="provider_codestra_keycloak" model="auth.oauth.provider">
+    <field name="name">Codestra</field>
+    <field name="enabled" eval="False"/>
+    <field name="auth_endpoint">https://identity.invalid/realms/codestra/protocol/openid-connect/auth</field>
+    <field name="validation_endpoint">https://identity.invalid/realms/codestra/protocol/openid-connect/userinfo</field>
+    <field name="scope">openid profile email</field>
+    <field name="body">Sign in with Codestra</field>
+  </record>
+</odoo>
