@@ -14,3 +14,4 @@ from . import test_call_event_projection_policy
 from . import test_call_event_projection_http
 from . import test_call_event_projection_scope
 from . import test_call_rematch_scope
+from . import test_telephony_trust_boundary
