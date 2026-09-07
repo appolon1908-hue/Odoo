@@ -2,15 +2,40 @@
 
 ## Decision
 
-`appolon1908-hue/Odoo` is the destination repository that will be reviewed,
-protected, released, and used. `Codestra-SRL/codestra-odoo-addons` is a private
-upstream source repository whose complete contents are imported through a pull
-request.
+`appolon1908-hue/Odoo` is the primary repository for development, pull requests,
+reviewed releases, and deployment source. `Codestra-SRL/codestra-odoo-addons`
+is the private legacy source to duplicate through the controlled import.
 
-The sync does not make the organization repository a deployment authority. It
-makes the personal Odoo repository contain the upstream source, preserves exact
-upstream provenance, and promotes every discovered addon into the destination's
-canonical `custom-addons` runtime path.
+After the complete import is accepted, retain the Codestra repository as a
+historical backup and continue all Odoo development in Appolon. Do not run
+routine upstream imports after that handover: the importer intentionally lets
+upstream source win on non-governance collisions, which could overwrite newer
+Appolon work. Any later recovery from the legacy repository needs its own
+reviewed source SHA and import plan.
+
+The word `upstream` in controller paths identifies historical provenance.
+It does not make Codestra a release or deployment authority. The workflow is
+manually dispatched; it does not configure a continuous reverse backup or
+archive the source repository.
+
+## Copy layout and acceptance
+
+| Content | Appolon destination |
+| --- | --- |
+| Complete source tree, including legacy governance files | `upstream/codestra-odoo-addons/` |
+| Every discovered Odoo addon | `custom-addons/<module_name>/` |
+| Other source files outside preserved governance paths | Matching destination-relative paths |
+| Exact source commit, tree, file inventory, and addon digests | `config/upstream-sync-state.json` |
+
+Keep existing addon technical names, Python imports, model names, and XML IDs.
+Changing repository ownership does not require renaming the `codestra_*`
+modules, which would need separate database migrations and dependency review.
+
+The handover is complete only after the private import PR is merged, source
+and module provenance verify against the recorded source SHA/tree, and all
+required validation and review gates pass. Existing Appolon source remains
+authoritative while this import is pending. Runtime reconciliation and
+activation retain their separate staging and production gates.
 
 ## Confidentiality gate
 
@@ -151,7 +176,7 @@ After the sync-controller PR is merged:
 9. Run again with:
 
    ```text
-   upstream_ref=<reviewed exact SHA or main>
+   upstream_ref=<reviewed exact 40-character source SHA>
    operation=pull-request
    ```
 
