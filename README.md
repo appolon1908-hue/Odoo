@@ -1,7 +1,20 @@
-# Codestra Odoo 19 Custom Addons
+# Appolon Odoo 19 Custom Addons
 
-This repository is the source of truth for Codestra's self-hosted Odoo 19
-custom modules.
+`appolon1908-hue/Odoo` is the primary repository and source of truth for
+Codestra's self-hosted Odoo 19 custom modules. New development, pull requests,
+reviewed releases, and deployment source references belong here.
+
+`Codestra-SRL/codestra-odoo-addons` is the legacy source for the controlled
+migration. After its complete source has been imported and accepted, retain
+that repository as a historical backup. Develop and release from Appolon.
+
+The import places runnable modules in `custom-addons/` and preserves the
+complete source snapshot in `upstream/codestra-odoo-addons/`. Keep existing
+addon technical names and XML IDs so the repository move does not break
+installed modules or their dependencies. See
+[`docs/UPSTREAM-SYNC.md`](docs/UPSTREAM-SYNC.md) for the import and provenance
+requirements. The private-source copy is still pending; declaring Appolon
+primary does not establish that the repositories are synchronized.
 
 > The repository is currently public. Keep it limited to non-secret code and
 > bootstrap controls until its visibility is changed to private. Never commit
