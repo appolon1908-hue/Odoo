@@ -8,3 +8,9 @@ from . import script
 from . import foundation
 from . import outbox
 from . import result_inbox
+from . import automatic_provisioning_common
+from . import automatic_provisioning_revision
+from . import automatic_provisioning_campaign_core
+from . import automatic_provisioning_campaign_events
+from . import automatic_provisioning_campaign_approval
+from . import automatic_provisioning_outbox

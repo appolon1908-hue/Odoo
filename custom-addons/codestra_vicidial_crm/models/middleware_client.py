@@ -1,10 +1,26 @@
 import json
+import socket
 import urllib.error
 import urllib.parse
 import urllib.request
 
 from odoo import api, models
 from odoo.exceptions import UserError
+
+
+class OriginateRejected(UserError):
+    """The request was rejected before a call could be dispatched."""
+
+
+class OriginateOutcomeUnknown(UserError):
+    """The request may have reached Middleware; reconciliation is required."""
+
+
+class _NoTelephonyRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        # Even a redirect on the same host can escape the reviewed API route.
+        # In particular, never forward the bearer credential to a new origin.
+        return None
 
 
 class TelephonyMiddlewareClient(models.AbstractModel):
@@ -21,11 +37,36 @@ class TelephonyMiddlewareClient(models.AbstractModel):
             or parsed.password
             or parsed.query
             or parsed.fragment
+            or parsed.path != "/v1/telephony/calls/originate"
         ):
-            raise UserError(
+            raise OriginateRejected(
                 "Click-to-call middleware must use a credential-free HTTPS endpoint."
             )
         return value
+
+    @api.model
+    def _validate_originate_response(self, result):
+        if not isinstance(result, dict):
+            raise OriginateOutcomeUnknown(
+                "Middleware returned an invalid response with an unknown call outcome; "
+                "reconcile this call before retrying."
+            )
+        dialing = result.get("dialing")
+        reason = result.get("reason")
+        call_id = result.get("call_id")
+        if (
+            not isinstance(dialing, str)
+            # An unrecognized outcome is not proof that no call was placed.
+            # Preserve the reservation and its idempotency key for reconciliation.
+            or dialing not in {"attempting", "unknown", "blocked"}
+            or (reason is not None and not isinstance(reason, str))
+            or (call_id is not None and (not isinstance(call_id, str) or not call_id))
+        ):
+            raise OriginateOutcomeUnknown(
+                "Middleware returned an invalid response with an unknown call outcome; "
+                "reconcile this call before retrying."
+            )
+        return result
 
     @api.model
     def originate_call(self, correlation_id, idempotency_key, payload):
@@ -33,7 +74,7 @@ class TelephonyMiddlewareClient(models.AbstractModel):
         target = params.get_param("codestra.middleware.telephony_originate_url")
         api_key = params.get_param("codestra.middleware.api_key")
         if not target or not api_key:
-            raise UserError("Click-to-call middleware is not configured.")
+            raise OriginateRejected("Click-to-call middleware is not configured.")
         target = self._validated_target(target)
         raw = json.dumps(
             dict(payload, idempotency_key=idempotency_key), separators=(",", ":")
@@ -45,32 +86,53 @@ class TelephonyMiddlewareClient(models.AbstractModel):
                 "Content-Type": "application/json",
                 "Authorization": "Bearer " + api_key,
                 "X-Correlation-ID": correlation_id,
+                "Idempotency-Key": idempotency_key,
             },
             method="POST",
         )
         try:
-            # _validated_target rejects non-HTTPS and credential-bearing authorities.
-            with urllib.request.urlopen(  # nosec B310
+            # Revalidate the initial target and forbid all redirect hops. Default
+            # urllib handling can copy Authorization to an unreviewed origin.
+            opener = urllib.request.build_opener(_NoTelephonyRedirect())
+            with opener.open(  # nosec B310
                 outbound_request, timeout=10
             ) as response:
-                result = json.loads(response.read())
+                raw_result = response.read(131073)
+                if len(raw_result) > 131072:
+                    raise ValueError("response exceeds maximum size")
+                result = json.loads(raw_result)
         except urllib.error.HTTPError as exc:
-            try:
-                detail = json.loads(exc.read()).get("detail")
-            except (AttributeError, ValueError):
-                detail = None
             messages = {
                 403: "You are not authorized to call from this campaign.",
                 422: "This phone number could not be validated.",
                 429: "Too many call attempts; wait a moment and try again.",
             }
-            raise UserError(
-                detail or messages.get(exc.code, "Call could not be started.")
+            if exc.code in messages:
+                raise OriginateRejected(messages[exc.code]) from exc
+            raise OriginateOutcomeUnknown(
+                "Middleware returned an error after receiving the call request; "
+                "reconcile its correlation ID before retrying."
             ) from exc
+        except (TimeoutError, socket.timeout) as exc:
+            return {
+                "dialing": "unknown",
+                "reason": "timeout; reconcile this request before retrying",
+                "retry_safe": False,
+            }
         except urllib.error.URLError as exc:
-            raise UserError(
-                "The telephony service is unavailable. Try again shortly."
+            if isinstance(exc.reason, (TimeoutError, socket.timeout)):
+                return {
+                    "dialing": "unknown",
+                    "reason": "timeout; reconcile this request before retrying",
+                    "retry_safe": False,
+                }
+            raise OriginateOutcomeUnknown(
+                "The telephony connection failed with an unknown request outcome; "
+                "reconcile this call before retrying."
             ) from exc
-        if not isinstance(result, dict) or "dialing" not in result:
-            raise UserError("The telephony service returned an invalid response.")
-        return result
+        except (ValueError, UnicodeError) as exc:
+            raise OriginateOutcomeUnknown(
+                "Middleware returned an invalid response with an unknown call outcome; "
+                "reconcile this call before retrying."
+            ) from exc
+        return self._validate_originate_response(result)

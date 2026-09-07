@@ -12,6 +12,7 @@ from ..controllers.integration_api import (
     _b64url,
     _capability_state,
     _effective_service_key,
+    _explicit_result_outcome,
     _runtime_flag,
     _validated_jwks_url,
 )
@@ -170,3 +171,25 @@ class TestIntegrationApiContract(TransactionCase):
         nonce_model._cron_purge_expired()
         self.assertFalse(expired.exists())
         self.assertTrue(current.exists())
+
+
+    def test_activation_result_requires_explicit_valid_outcomes(self):
+        event = "agent.activation-email.requested.v1"
+        for body in (
+            {}, {"execution_status": "SUCCEEDED"},
+            {"reconciliation_status": "RECONCILED"},
+            {"execution_status": None, "reconciliation_status": "RECONCILED"},
+            {"execution_status": [], "reconciliation_status": "RECONCILED"},
+            {"execution_status": "SUCCEEDED", "reconciliation_status": {}},
+            {"execution_status": "UNKNOWN", "reconciliation_status": "RECONCILED"},
+        ):
+            with self.subTest(body=body), self.assertRaises(ValueError):
+                _explicit_result_outcome(event, body)
+        for execution in ("SUCCEEDED", "FAILED", "DEAD_LETTERED"):
+            for reconciliation in ("RECONCILED", "DRIFTED", "REVIEW_REQUIRED"):
+                self.assertTrue(_explicit_result_outcome(event, {
+                    "execution_status": execution, "reconciliation_status": reconciliation,
+                }))
+        # Compatibility for unrelated historical callbacks does not turn their
+        # inferred success values into explicit activation evidence.
+        self.assertFalse(_explicit_result_outcome("campaign.updated.v1", {}))

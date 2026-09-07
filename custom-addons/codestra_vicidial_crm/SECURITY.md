@@ -6,3 +6,4 @@
 - The event endpoint is independently protected by timestamped HMAC-SHA256 verification and idempotency. Its reviewed `sudo()` is limited to the verified integration ledger path.
 - No source contacts VICIdial/Asterisk, executes shell commands, stores plaintext credentials, or enables a live capability.
 - Existing core XML IDs and database columns must not be renamed or removed without an explicit tested migration.
+- Click-to-call transport never follows HTTP redirects, including same-host redirects. A redirect or malformed/oversized response leaves the call outcome unknown and its idempotency reservation intact for reconciliation. Bearer credentials remain on the configured HTTPS request only.

@@ -362,6 +362,12 @@ class CodestraIntegrationOutbox(models.Model):
             raise ValidationError(
                 "Outbox lease TTL must be between 10 and 300 seconds."
             )
+        # ORM writes are deferred: a delivered event may still look pending to
+        # raw SQL until these exact predicate/order fields have been flushed.
+        self.flush_model([
+            "delivery_state", "next_attempt_at", "lease_expires_at",
+            "record_environment", "business_unit_code", "event_type", "created_at",
+        ])
         business_unit_codes = list(business_unit_codes or ())
         event_type_allowlist = list(event_type_allowlist or ())
         self.env.cr.execute(

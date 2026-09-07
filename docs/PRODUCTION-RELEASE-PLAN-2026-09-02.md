@@ -14,6 +14,13 @@
 
 `main` is a tested source baseline and the intake/CRM layer is merged. It is not yet a production-certified runtime.
 
+Source checkpoint on 2026-09-06: PRs #53, #55, #58, #61, #62, #67, #74,
+#80, #81, and #82 are merged. The importer deleted during earlier consolidation
+was restored by #81; #82 protects and verifies calling-contract authority bytes.
+The dated links and implementation rows below describe earlier release planning,
+not outstanding source merges. Resolve current protected `main` before selecting
+a candidate; no production image or runtime certification follows from this list.
+
 The production release chain is:
 
 ```text
@@ -108,6 +115,28 @@ python3 scripts/validate_production_evidence.py \
 ```
 
 The validator fails closed unless the selected verdict has all required evidence. A `BLOCKED` template is accepted only for repository CI with `--allow-blocked-template`.
+
+The operator must have a current trusted GitHub CLI supporting
+[`gh attestation verify`](https://cli.github.com/manual/gh_attestation_verify),
+read access to the candidate registry, and access to Sigstore trust material.
+For every non-blocked verdict, the validator independently verifies both retained
+bundles against the exact OCI digest, GitHub OIDC issuer, this repository's
+`cc-release-candidate.yml` workflow on `refs/heads/main`, and the selected source
+and signer commit. It requires separate SLSA provenance and SPDX predicates and
+rejects attestations from self-hosted runners. The publication workflow performs
+the same verification before finalizing candidate evidence.
+
+`provenance_verified` and `sbom_verified` are required records of the operator's
+checks; setting them to true cannot replace cryptographic verification. Missing
+CLI, registry/trust access, invalid signatures, verification timeout, or empty
+verification results stop certification. Credentials must come from the approved
+credential mechanism, never a manifest or CLI argument. Verifier diagnostics are
+not echoed into public evidence.
+
+Local unit fixtures exercise the verifier boundary with mocked success/failure;
+they do not certify an actual signed image. Runtime, backup, restore, canary, and
+approval records must still come from the protected execution chain and remain
+independently reviewable. Schema validation alone does not create that evidence.
 
 ### Staging certification
 

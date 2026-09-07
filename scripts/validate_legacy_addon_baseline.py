@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -14,14 +15,15 @@ ROOT = Path(__file__).resolve().parents[1]
 BASELINE = ROOT / "config" / "canonical-addon-baseline.json"
 CANONICAL_SOURCE_COMMIT = "9674951f4b2c9c53f88412885ed5c96fcb0769cc"
 CANONICAL_SOURCE_PULL_REQUEST = 9
-CANONICAL_MODULE_COUNT = 32
+CANONICAL_MODULE_COUNT = 33
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 MODULE_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
 def git_tree_sha(relative: Path) -> str | None:
+    treeish = os.environ.get("ODOO_VALIDATION_TREEISH", "HEAD")
     result = subprocess.run(
-        ["git", "rev-parse", f"HEAD:{relative.as_posix()}"],
+        ["git", "rev-parse", f"{treeish}:{relative.as_posix()}"],
         cwd=ROOT,
         check=False,
         capture_output=True,

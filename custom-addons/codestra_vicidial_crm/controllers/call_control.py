@@ -61,6 +61,7 @@ class CallControlAPI(http.Controller):
         call = request.env["codestra.vicidial.call"].search(
             [
                 ("agent_id", "=", agent.id),
+                ("call_id", "!=", False),
                 ("state", "not in", ["completed", "failed", "missed", "rejected", "cancelled", "transferred"]),
             ],
             order="write_date desc",

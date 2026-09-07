@@ -1,6 +1,6 @@
 {
     "name": "Codestra Lead Ingestion",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.0.1",
     "summary": "Governed CRM lead ingestion and middleware delivery control",
     "category": "Sales/CRM",
     "author": "Codestra",

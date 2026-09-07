@@ -258,6 +258,36 @@ jobs:
           sbom-path: dist/container-sbom.spdx.json
           push-to-registry: true
 
+      - name: Cryptographically verify published candidate attestations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+          PROVENANCE_BUNDLE_PATH: ${{ steps.provenance.outputs.bundle-path }}
+          SBOM_BUNDLE_PATH: ${{ steps.sbom.outputs.bundle-path }}
+        run: |
+          set -Eeuo pipefail
+          command -v gh >/dev/null
+          python3 -I - <<'PY'
+          import os
+          import runpy
+          from pathlib import Path
+
+          verify = runpy.run_path("scripts/validate_production_evidence.py")["verify_attestation"]
+          errors = []
+          for kind, variable in (
+              ("provenance", "PROVENANCE_BUNDLE_PATH"),
+              ("sbom", "SBOM_BUNDLE_PATH"),
+          ):
+              verify(
+                  Path(os.environ[variable]), kind,
+                  os.environ["EXPECTED_SOURCE_SHA"], os.environ["IMAGE_DIGEST"], errors,
+              )
+          if errors:
+              raise SystemExit("\n".join(errors))
+          print("PUBLISHED_CANDIDATE_ATTESTATIONS_VERIFIED=PASS")
+          PY
+
       - name: Finalize production-candidate evidence
         env:
           EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}

@@ -24,7 +24,9 @@ The protected file must:
 
 - be a regular file, not a symlink;
 - be owned and permissioned so no group or world bit is set;
-- contain `KLYROW_ODOO_SMTP_PASSWORD=<value>`;
+- contain exactly the approved exporter records `SMTP_HOST`, `SMTP_PORT`,
+  `SMTP_SECURITY`, `SMTP_USERNAME`, and `SMTP_PASSWORD` (plus the separately
+  approved optional Beyvra password key);
 - optionally contain `KLYROW_BEYVRA_SMTP_PASSWORD=<value>` only after the dedicated Postal credential exists.
 
 The helper never prints either value. It loads passwords, leaves both servers archived, leaves the shared credential state held, leaves the Beyvra state missing unless explicitly changed by an operator, and sets `codestra.mail.live_delivery_enabled=false`.

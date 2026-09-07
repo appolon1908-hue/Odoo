@@ -22,6 +22,13 @@ export class CodestraCallPopup extends Component {
             for (const item of detail || []) {
                 const type = item.type || item[1];
                 const payload = item.payload || item[2];
+                if (type === "codestra.call.result" && payload) {
+                    this.notification.add(payload.reason || "Call request was not accepted", {
+                        type: payload.outcome === "unknown" ? "warning" : "danger",
+                        sticky: true,
+                    });
+                    continue;
+                }
                 if (type === "codestra.call" && payload) {
                     this.handleCall(payload);
                 }
@@ -46,7 +53,10 @@ export class CodestraCallPopup extends Component {
         this.ui.matches = [];
         if (!payload.customer && !payload.lead && payload.caller_number) {
             const result = await this.rpc("/codestra/call-control/v1/match", {
-                number: payload.caller_number, campaign_code: payload.campaign,
+                number: payload.caller_number,
+                call_id: payload.call_id,
+                campaign_code: payload.campaign,
+                business_unit_id: payload.business_unit,
             });
             this.ui.matches = result.matches || [];
             if (result.match === "exact") await this.openRecord(result.matches[0].model, result.matches[0].id, true);

@@ -14,15 +14,25 @@ from odoo.exceptions import UserError
 SECRET_PATH = Path(
     os.environ.get("KLYROW_ODOO_SMTP_ENV_FILE", "/etc/klyrow/odoo-postal.env")
 )
-SHARED_SECRET_KEY = os.environ.get(
-    "KLYROW_ODOO_SMTP_PASSWORD_KEY",
-    "KLYROW_ODOO_SMTP_PASSWORD",
-)
+SHARED_SECRET_KEY = "SMTP_PASSWORD"
 BEYVRA_SECRET_KEY = os.environ.get(
     "KLYROW_BEYVRA_SMTP_PASSWORD_KEY",
     "KLYROW_BEYVRA_SMTP_PASSWORD",
 )
 MAX_SECRET_FILE_SIZE = 64 * 1024
+EXPORT_KEYS = {
+    "SMTP_HOST",
+    "SMTP_PORT",
+    "SMTP_SECURITY",
+    "SMTP_USERNAME",
+    "SMTP_PASSWORD",
+}
+EXPECTED_EXPORT_VALUES = {
+    "SMTP_HOST": "mail.klyrow.com",
+    "SMTP_PORT": "25",
+    "SMTP_SECURITY": "STARTTLS",
+    "SMTP_USERNAME": "klyrow/klyrow-production",
+}
 
 
 def _parse_protected_env(path):
@@ -62,6 +72,15 @@ def _parse_protected_env(path):
         if key in values:
             raise UserError(f"Duplicate key on secret file line {number}.")
         values[key] = value
+    unexpected = set(values) - (EXPORT_KEYS | {BEYVRA_SECRET_KEY})
+    if unexpected:
+        raise UserError("The Klyrow SMTP secret file contains an unexpected key.")
+    missing = EXPORT_KEYS - set(values)
+    if missing:
+        raise UserError("The Klyrow SMTP credential export is incomplete.")
+    for key, expected in EXPECTED_EXPORT_VALUES.items():
+        if values[key] != expected:
+            raise UserError(f"The Klyrow SMTP credential has an unexpected {key} value.")
     return values
 
 

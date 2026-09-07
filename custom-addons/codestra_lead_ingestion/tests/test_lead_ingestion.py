@@ -19,6 +19,9 @@ class TestLeadIngestion(TransactionCase):
             "name": "Synthetic Manual Campaign", "code": "SYN_IMPORT",
             "business_unit_id": cls.unit.id, "state": "active",
             "consent_required": False,
+            # This suite exercises an existing synthetic manual campaign, not
+            # the separately governed automatic-design approval workflow.
+            "design_automation_enabled": False,
         })
         cls.importer = cls.env["res.users"].with_context(no_reset_password=True).create({
             "name": "Synthetic Importer", "login": "synthetic-importer",
