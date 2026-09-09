@@ -34,7 +34,7 @@ Required runtime order:
 source authority
   -> current paired backup
   -> isolated staging upgrade/restart
-  -> Caddy -> Kong -> Middleware -> Odoo certification
+  -> Caddy -> Kong -> Keycloak -> Middleware -> Odoo certification
   -> representative paired restore
   -> rollback rehearsal
   -> production read-only canary
@@ -43,3 +43,23 @@ source authority
 ```
 
 Every live capability defaults false. A signed image is an artifact candidate, not production authorization.
+
+## Issue #73 integration evidence
+
+Every non-BLOCKED certification report must record literal `true` for these
+additional `integration` results:
+
+- `keycloak_passed`: exact issuer, audience, authorized party and scope/claim checks.
+- `campaign_isolation_passed`: cross-campaign requests are denied.
+- `stale_version_denial_passed`: stale expected versions are rejected without mutation.
+- `callback_replay_passed`: duplicate result callbacks produce no duplicate effects.
+- `command_result_readback_passed`: a synthetic command, durable Middleware operation,
+  Odoo record and result callback/read-back agree on the same identity.
+
+Missing results, numeric values and strings cannot certify an integration.
+Previously prepared reports must add actual results before validation; do not
+copy `true` from another deployment. The committed template leaves them false.
+Canary evidence must explicitly declare `mode: read-only`. These completeness
+checks supplement signed candidate verification; they do not independently
+perform or authenticate live runtime tests. Keep live-write flags false until
+separate activation approval and deployment-specific restore/rollback evidence.

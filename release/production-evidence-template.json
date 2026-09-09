@@ -39,11 +39,16 @@
   },
   "integration": {
     "caddy_passed": false,
+    "callback_replay_passed": false,
+    "campaign_isolation_passed": false,
+    "command_result_readback_passed": false,
     "idempotency_passed": false,
+    "keycloak_passed": false,
     "kong_passed": false,
     "middleware_passed": false,
     "negative_authorization_passed": false,
     "odoo_passed": false,
+    "stale_version_denial_passed": false,
     "tenant_isolation_passed": false,
     "unexpected_external_effects": 0
   },

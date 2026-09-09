@@ -57,7 +57,8 @@ def main() -> int:
         "production server source and image authority have not been reconciled to this exact SHA",
         "a current paired database-plus-filestore backup with off-host verification is absent",
         "isolated staging upgrade, interrupted-restart, negative-authorization, and tenant-isolation evidence is absent",
-        "Caddy, Kong, Middleware, and Odoo have not been certified together against this exact image digest",
+        "Caddy, Kong, Keycloak, Middleware, and Odoo have not been certified together against this exact image digest",
+        "campaign isolation, stale-version denial, callback replay protection, and command/result read-back evidence is absent",
         "representative paired restore and rollback rehearsal have not run",
         "production read-only canary and bounded soak have not run",
         "email, SMS, callbacks, n8n, VICIdial live control, Odoo writes, and PSTN dialing remain disabled",
@@ -106,6 +107,9 @@ def main() -> int:
         "ROLLBACK_STATUS=BLOCKED_REHEARSAL_NOT_RUN",
         "PRODUCTION_STATUS=NOT_DEPLOYED",
         "FINAL_STATUS=BLOCKED_RUNTIME_GATES",
+        "REQUIRED_RUNTIME_GATES=" + ",".join(json.loads(
+            (ROOT / "config" / "release-policy.json").read_text(encoding="utf-8")
+        )["required_runtime_gates"]),
         "BLOCKERS=" + " | ".join(blockers),
         "NEXT_SAFE_ACTION=BUILD_SCAN_PUBLISH_AND_ATTEST_THE_EXACT_SIGNED_MAIN_SHA_THEN_CERTIFY_ISOLATED_STAGING",
     ]

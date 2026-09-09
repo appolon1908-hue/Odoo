@@ -160,16 +160,8 @@ def main() -> int:
             "signed-slsa-provenance",
             "signed-sbom-attestation",
         ],
-        "blocked_runtime_gates": [
-            "production-source-authority-reconciliation",
-            "current-paired-database-filestore-backup",
-            "isolated-staging-upgrade-and-restart",
-            "caddy-kong-middleware-odoo-contract-certification",
-            "representative-database-filestore-restore",
-            "rollback-rehearsal",
-            "production-read-only-canary",
-            "bounded-production-soak",
-            "production-activation-approval",
+        "blocked_runtime_gates": load_json(ROOT / "config" / "release-policy.json")[
+            "required_runtime_gates"
         ],
         "safety": {
             "production_deployed": False,
