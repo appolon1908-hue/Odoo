@@ -1,0 +1,24 @@
+# Git must not rewrite line endings in this repository.
+#
+# Several gates hash working-tree bytes. The most direct is
+# scripts/validate_calling_contract_pin.py, which verifies the vendored
+# calling-contract authority under contracts/vendor/ against a pinned
+# SHA-256. On Windows the Git default core.autocrlf=true rewrites LF to
+# CRLF at checkout, which changes those bytes, so scripts/run_ci.sh fails
+# on an unmodified clone with:
+#
+#   ValueError: calling contract component digest mismatch:
+#   contracts/telephony/codestra-calling-api.v1.openapi.yaml
+#
+# Linux CI checks out with LF and never reproduces it, so the failure is
+# invisible to the hosted pipeline and blocks local validation only.
+#
+# Every blob in this repository is already stored with LF, so these rules
+# change no committed content and no tree hash. They stop checkout, and
+# any future commit, from introducing CRLF.
+
+* text=auto eol=lf
+
+# Digest-pinned authority bytes stay byte-exact. Kept as text so review
+# diffs stay readable rather than collapsing to "binary files differ".
+contracts/vendor/** text eol=lf
