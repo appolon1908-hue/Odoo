@@ -249,8 +249,10 @@ class TelephonyCommandEnvelopeTest(unittest.TestCase):
                     self.assertEqual(self.send()["dialing"], "unknown")
 
     def test_terminal_state_with_calls_placed_is_unknown_not_blocked(self):
-        with self.response(_operation(state="FAILED", calls_placed=1)):
-            self.assertEqual(self.send()["dialing"], "unknown")
+        for state in ("FAILED", "CANCELLED", "POLICY_DENIED"):
+            with self.subTest(state=state):
+                with self.response(_operation(state=state, calls_placed=1)):
+                    self.assertEqual(self.send()["dialing"], "unknown")
 
     def test_policy_denied_claiming_effect_is_not_trusted_as_blocked(self):
         with self.response(_operation(state="POLICY_DENIED", external_effect=True)):

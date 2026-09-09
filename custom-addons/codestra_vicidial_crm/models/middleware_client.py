@@ -249,12 +249,9 @@ class TelephonyMiddlewareClient(models.AbstractModel):
             dialing = "attempting"
         elif state in _OPERATION_UNKNOWN:
             dialing = "unknown"
-        elif state == "POLICY_DENIED" and not effect:
-            # The authority guarantees a denied command creates no external effect.
-            dialing = "blocked"
         elif effect or result["calls_placed"]:
-            # Cancelled or failed after something reached the network: a call may
-            # exist, so this must reconcile rather than look safely rejected.
+            # Reported effects take precedence over any terminal status, including
+            # a contradictory policy denial. Reconcile before attempting a retry.
             dialing = "unknown"
         else:
             dialing = "blocked"
