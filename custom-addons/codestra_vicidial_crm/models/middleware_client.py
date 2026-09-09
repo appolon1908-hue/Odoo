@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import json
 import math
 import re
@@ -214,6 +216,10 @@ class TelephonyMiddlewareClient(models.AbstractModel):
         requested_at = values["requested_at"]
         if not isinstance(requested_at, str) or not _RFC3339.match(requested_at):
             raise OriginateRejected("Click-to-call command timestamp is invalid.")
+        try:
+            datetime.fromisoformat(requested_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise OriginateRejected("Click-to-call command timestamp is invalid.") from exc
         command["requested_at"] = requested_at
         return command
 
@@ -225,6 +231,7 @@ class TelephonyMiddlewareClient(models.AbstractModel):
             or set(result)
             != {"operation_id", "state", "external_effect", "calls_placed"}
             or result["operation_id"] != operation_id
+            or not isinstance(result["state"], str)
             or result["state"] not in _OPERATION_STATES
             # bool is an int subclass; a JSON true here would otherwise pass as a
             # count, which the release gates already treat as a forged counter.

@@ -258,6 +258,21 @@ class TelephonyCommandEnvelopeTest(unittest.TestCase):
 
     # --- response hardening ----------------------------------------------
 
+    def test_non_string_states_report_unknown_outcome(self):
+        for state in ([], {}, None, True, 7):
+            with self.subTest(state=state), self.response(_operation(state=state)):
+                with self.assertRaises(self.module.OriginateOutcomeUnknown):
+                    self.send()
+
+    def test_impossible_timestamp_is_rejected_before_transport(self):
+        for timestamp in ("2026-02-30T12:00:00Z", "2026-09-08T25:00:00Z"):
+            values = _values()
+            values["requested_at"] = timestamp
+            with self.subTest(timestamp=timestamp), self.response() as opener:
+                with self.assertRaises(self.module.OriginateRejected):
+                    self.send(values)
+                opener.open.assert_not_called()
+
     def test_unknown_state_is_an_unknown_outcome(self):
         with self.response(_operation(state="SOMETHING_NEW")):
             with self.assertRaises(self.module.OriginateOutcomeUnknown):
