@@ -485,6 +485,11 @@ def main(argv: list[str] | None = None) -> int:
             (
                 "caddy_passed",
                 "kong_passed",
+                "keycloak_passed",
+                "campaign_isolation_passed",
+                "stale_version_denial_passed",
+                "callback_replay_passed",
+                "command_result_readback_passed",
                 "middleware_passed",
                 "odoo_passed",
                 "idempotency_passed",
@@ -526,6 +531,8 @@ def main(argv: list[str] | None = None) -> int:
             "rollback",
             errors,
         )
+        if canary.get("mode") != "read-only":
+            errors.append("canary.mode must be read-only")
         if canary.get("passed") is not True:
             errors.append("canary.passed must be true")
         if type(canary.get("unexpected_writes")) is not int or canary.get("unexpected_writes") != 0:

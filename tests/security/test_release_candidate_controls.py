@@ -151,6 +151,11 @@ class ProductionEvidenceControlsTest(unittest.TestCase):
             "integration": {
                 "caddy_passed": True,
                 "kong_passed": True,
+                "keycloak_passed": True,
+                "campaign_isolation_passed": True,
+                "stale_version_denial_passed": True,
+                "callback_replay_passed": True,
+                "command_result_readback_passed": True,
                 "middleware_passed": True,
                 "odoo_passed": True,
                 "idempotency_passed": True,
@@ -247,6 +252,44 @@ class ProductionEvidenceControlsTest(unittest.TestCase):
             self.assertNotIn("--cert-identity-regex", command)
             self.assertEqual(call.kwargs["timeout"], 120)
             self.assertNotIn("shell", call.kwargs)
+
+    def test_issue73_integration_results_are_required_at_every_certification_stage(self) -> None:
+        fields = (
+            "keycloak_passed", "campaign_isolation_passed",
+            "stale_version_denial_passed", "callback_replay_passed",
+            "command_result_readback_passed",
+        )
+        for verdict, environment in (
+            ("STAGING_CERTIFIED", "staging"),
+            ("PRODUCTION_READ_ONLY_CANARY_CERTIFIED", "production-read-only-canary"),
+            ("PRODUCTION_CERTIFIED", "production"),
+        ):
+            for field in fields:
+                for value in (None, False, 1, "true"):
+                    with self.subTest(verdict=verdict, field=field, value=value):
+                        self.document = self._valid_document()
+                        self.document["verdict"] = verdict
+                        self.document["environment"] = environment
+                        if value is None:
+                            del self.document["integration"][field]
+                        else:
+                            self.document["integration"][field] = value
+                        self._assert_rejected(f"integration.{field} must be true")
+
+    def test_complete_staging_evidence_is_accepted_without_live_activation(self) -> None:
+        self.document["verdict"] = "STAGING_CERTIFIED"
+        self.document["environment"] = "staging"
+        self.document["activation_approval"] = {"approved": False}
+        self._write_evidence()
+        result = self._run()
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_canary_mode_must_be_read_only(self) -> None:
+        for mode in (None, "write", "", True):
+            with self.subTest(mode=mode):
+                self.document = self._valid_document()
+                self.document["canary"]["mode"] = mode
+                self._assert_rejected("canary.mode must be read-only")
 
     def test_zero_source_sha_is_rejected_outside_blocked_template(self) -> None:
         self.document["source_sha"] = "0" * 40
