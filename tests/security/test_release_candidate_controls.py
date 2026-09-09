@@ -6,6 +6,8 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
+import sys
 import subprocess
 import tempfile
 import unittest
@@ -290,6 +292,51 @@ class ProductionEvidenceControlsTest(unittest.TestCase):
                 self.document = self._valid_document()
                 self.document["canary"]["mode"] = mode
                 self._assert_rejected("canary.mode must be read-only")
+
+    def test_generated_candidate_and_report_include_all_policy_runtime_gates(self) -> None:
+        # Packaging fixtures only: no image publication, signature verification,
+        # runtime certification or external service request is performed here.
+        source = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+        ).strip()
+        source_manifest = self.directory / "source.json"
+        source_manifest.write_text(json.dumps({"source_sha": source}))
+        scan = self.directory / "scan.json"
+        scan.write_text(json.dumps({"Results": []}))
+        output = self.directory / "candidate.json"
+        report = self.directory / "report.txt"
+        environment = dict(os.environ, EXPECTED_SOURCE_SHA=source,
+                           IMAGE_NAME=EXPECTED_IMAGE, IMAGE_DIGEST=IMAGE_DIGEST,
+                           SOURCE_COMMIT_VERIFIED="true",
+                           PROVENANCE_ATTESTATION_URL="https://example.invalid/provenance",
+                           SBOM_ATTESTATION_URL="https://example.invalid/sbom")
+        subprocess.run([
+            sys.executable, str(ROOT / "scripts/generate_container_release_manifest.py"),
+            "--source-manifest", self._relative(source_manifest),
+            "--container-sbom", self._relative(self.sbom),
+            "--vulnerability-report", self._relative(scan),
+            "--secret-report", self._relative(scan),
+            "--output", self._relative(output),
+        ], cwd=ROOT, env=environment, check=True, capture_output=True)
+        subprocess.run([
+            sys.executable, str(ROOT / "scripts/generate_release_report.py"),
+            "--output", self._relative(report),
+        ], cwd=ROOT, env=environment, check=True, capture_output=True)
+        policy = json.loads((ROOT / "config/release-policy.json").read_text())
+        required = policy["required_runtime_gates"]
+        self.assertTrue({
+            "caddy-kong-keycloak-middleware-odoo-contract-certification",
+            "campaign-isolation", "stale-version-denial",
+            "callback-replay-protection", "command-result-readback",
+        }.issubset(set(required)))
+        candidate = json.loads(output.read_text())
+        self.assertEqual(candidate["blocked_runtime_gates"], required)
+        self.assertIs(candidate["production_ready"], False)
+        self.assertIs(candidate["runtime_changed"], False)
+        text = report.read_text()
+        self.assertIn("REQUIRED_RUNTIME_GATES=" + ",".join(required), text)
+        self.assertIn("Caddy, Kong, Keycloak, Middleware, and Odoo", text)
+        self.assertIn("FINAL_STATUS=BLOCKED_RUNTIME_GATES", text)
 
     def test_zero_source_sha_is_rejected_outside_blocked_template(self) -> None:
         self.document["source_sha"] = "0" * 40
