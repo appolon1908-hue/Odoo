@@ -1,0 +1,118 @@
+{
+  "schema_version": "codestra.calling-contract-usage.v1",
+  "contract_version": "1.0.0",
+  "contract_sha256": "b39cdffe56a8185c91174228f0423df68b1137f34875f6ee52f9914f904bf724",
+  "policy": "Every telephony endpoint and command/event family this repository names in source must be declared here. Canonical entries must exist in the pinned calling-contract authority. Legacy entries must be absent from that authority and must carry a reason and a tracking reference, so divergence from the authority is reviewed debt rather than silent drift.",
+  "endpoints": [
+    {
+      "path": "/v1/telephony/calls/originate",
+      "status": "legacy_pending_migration",
+      "reason": "codestra_vicidial_crm pins click-to-call to the pre-canonical origination route. The authority replaces it with a command envelope posted to /v1/telephony/commands carrying telephony.call.originate.v1. Migration is deliberately staged so the reviewed unknown-outcome reconciliation and idempotency behaviour move intact.",
+      "tracking": "appolon1908-hue/Odoo#75"
+    },
+    {
+      "path": "/v1/telephony/commands",
+      "status": "planned",
+      "reason": "Canonical command envelope that supersedes the legacy origination route."
+    },
+    {
+      "path": "/v1/telephony/operations/{operation_id}",
+      "status": "planned",
+      "reason": "Authoritative operation status used to resolve unknown command outcomes."
+    },
+    {
+      "path": "/v1/telephony/operations/{operation_id}/cancel",
+      "status": "planned",
+      "reason": "Governed cancellation of an accepted telephony operation."
+    },
+    {
+      "path": "/v1/telephony/operations/{operation_id}/reconcile",
+      "status": "planned",
+      "reason": "Reconciliation path for operations whose outcome was never observed."
+    },
+    {
+      "path": "/api/v1/realtime/sessions",
+      "status": "planned",
+      "reason": "Realtime session ticket acquisition preceding the authenticated /ws/agent stream."
+    }
+  ],
+  "command_families": [
+    {
+      "name": "telephony.call.originate.v1",
+      "status": "planned",
+      "reason": "Canonical replacement for the legacy click-to-call origination request."
+    },
+    {
+      "name": "telephony.call.cancel.v1",
+      "status": "planned",
+      "reason": "Cancel an in-flight call the agent workspace originated."
+    },
+    {
+      "name": "telephony.call.transfer.v1",
+      "status": "planned",
+      "reason": "Governed warm or cold transfer from the agent workspace."
+    },
+    {
+      "name": "telephony.agent.login.v1",
+      "status": "planned",
+      "reason": "Establishes the agent desktop telephony session so later call commands carry an authoritative agent identity."
+    },
+    {
+      "name": "telephony.agent.ready.v1",
+      "status": "planned",
+      "reason": "Moves the agent to available so the dialer may offer calls, replacing direct VICIdial state writes."
+    },
+    {
+      "name": "telephony.agent.pause.v1",
+      "status": "planned",
+      "reason": "Pauses the agent under a governed pause code that workforce reporting can attribute."
+    },
+    {
+      "name": "telephony.agent.logout.v1",
+      "status": "planned",
+      "reason": "Tears the agent session down so no orphaned desktop session keeps receiving offered calls."
+    }
+  ],
+  "event_families": [
+    {
+      "name": "telephony.call.ringing.v1",
+      "status": "planned",
+      "reason": "Drives the Odoo screen pop for an offered call, replacing the assigned-agent Odoo Bus projection."
+    },
+    {
+      "name": "telephony.call.answered.v1",
+      "status": "planned",
+      "reason": "Marks the offered call as answered so the CRM timeline and talk-time reporting start from authority."
+    },
+    {
+      "name": "telephony.call.connected.v1",
+      "status": "planned",
+      "reason": "Media path established between agent and customer."
+    },
+    {
+      "name": "telephony.call.transferred.v1",
+      "status": "planned",
+      "reason": "Records a transfer so ownership and the CRM timeline follow the call to its new agent or queue."
+    },
+    {
+      "name": "telephony.call.completed.v1",
+      "status": "planned",
+      "reason": "Terminal call outcome with CDR reference."
+    },
+    {
+      "name": "telephony.call.missed.v1",
+      "status": "planned",
+      "reason": "Records an offered call that was never answered, which callback and retry policy both depend on."
+    },
+    {
+      "name": "telephony.call.dispositioned.v1",
+      "status": "planned",
+      "reason": "Carries the authoritative disposition back to the CRM lead and compliance evidence."
+    },
+    {
+      "name": "telephony.agent.status-changed.v1",
+      "status": "planned",
+      "reason": "Agent state transition observed by supervisor views."
+    }
+  ]
+}

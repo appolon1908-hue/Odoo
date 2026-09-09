@@ -39,6 +39,10 @@ printf '==> Validating the canonical calling-contract pin\n'
 python3 -I scripts/validate_calling_contract_pin.py
 python3 -I scripts/validate_calling_contract_pin.py --self-test
 
+printf '==> Validating the declared calling-contract usage surface\n'
+python3 -I scripts/validate_calling_contract_usage.py
+python3 -I scripts/validate_calling_contract_usage.py --self-test
+
 printf '==> Compiling Python files\n'
 python3 -I -X pycache_prefix="$PYTHONPYCACHEPREFIX" -m compileall -q custom-addons scripts tests/security
 
