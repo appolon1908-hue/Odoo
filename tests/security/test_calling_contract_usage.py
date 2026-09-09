@@ -30,14 +30,21 @@ class CallingContractUsageTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.document, cls.paths, cls.families, cls.lock = usage.load()
+        (
+            cls.document,
+            cls.paths,
+            cls.commands,
+            cls.events,
+            cls.lock,
+        ) = usage.load()
         cls.source_endpoints, cls.source_families = usage.scan_source()
 
     def _validate(self, document=None, endpoints=None, families=None, lock=None):
         usage.validate(
             self.document if document is None else document,
             self.paths,
-            self.families,
+            self.commands,
+            self.events,
             self.lock if lock is None else lock,
             self.source_endpoints if endpoints is None else endpoints,
             self.source_families if families is None else families,
@@ -57,7 +64,9 @@ class CallingContractUsageTest(unittest.TestCase):
         # migration in appolon1908-hue/Odoo#75 targets.
         self.assertIn("/v1/telephony/commands", self.paths)
         self.assertIn("/v1/telephony/operations/{operation_id}", self.paths)
-        self.assertIn("telephony.call.originate.v1", self.families)
+        self.assertIn("telephony.call.originate.v1", self.commands)
+        self.assertIn("telephony.call.ringing.v1", self.events)
+        self.assertNotIn("telephony.call.ringing.v1", self.commands)
 
     def test_legacy_route_is_declared_and_absent_from_the_authority(self):
         legacy = "/v1/telephony/calls/originate"
@@ -193,6 +202,58 @@ class CallingContractUsageTest(unittest.TestCase):
 
     def test_declaration_file_is_valid_json_on_disk(self):
         json.loads((ROOT / "config/calling-contract-usage.json").read_text("utf-8"))
+
+    # --- regressions for the review findings on this PR ---------------------
+
+    def test_route_embedded_in_an_absolute_url_is_detected(self):
+        # Anchoring the match to a quote let this form bypass the gate entirely.
+        found = usage.telephony_paths('"https://middleware.example/v1/telephony/commands/x"')
+        self.assertEqual(found, {"/v1/telephony/commands/x"})
+
+    def test_unrelated_route_containing_a_telephony_substring_is_ignored(self):
+        # "/api/v1/telephony/originate" is not "/v1/telephony/originate".
+        self.assertEqual(
+            usage.telephony_paths('"http://host.test/api/v1/telephony/originate"'), set()
+        )
+
+    def test_bare_and_realtime_routes_are_detected(self):
+        self.assertEqual(
+            usage.telephony_paths('"/v1/telephony/calls/originate"'),
+            {"/v1/telephony/calls/originate"},
+        )
+        self.assertEqual(
+            usage.telephony_paths('"https://h/api/v1/realtime/sessions"'),
+            {"/api/v1/realtime/sessions"},
+        )
+
+    def test_event_family_declared_as_a_command_is_rejected(self):
+        document = self._mutated()
+        document["command_families"].append(
+            {
+                "name": "telephony.call.ringing.v1",
+                "status": "planned",
+                "reason": "An event family wrongly filed as a command must not pass.",
+            }
+        )
+        with self.assertRaises(usage.UsageError):
+            self._validate(document=document)
+
+    def test_command_family_declared_as_an_event_is_rejected(self):
+        document = self._mutated()
+        document["event_families"].append(
+            {
+                "name": "telephony.call.originate.v1",
+                "status": "planned",
+                "reason": "A command family wrongly filed as an event must not pass.",
+            }
+        )
+        with self.assertRaises(usage.UsageError):
+            self._validate(document=document)
+
+    def test_authority_sets_are_collected_separately(self):
+        self.assertEqual(len(self.commands), 7)
+        self.assertEqual(len(self.events), 8)
+        self.assertFalse(self.commands & self.events)
 
 
 if __name__ == "__main__":

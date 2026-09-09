@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import urllib.parse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +38,7 @@ CONTRACT_FILES = (
     "contracts/telephony/codestra-calling-events.v1.asyncapi.yaml",
 )
 OPENAPI = CONTRACT_FILES[0]
+ASYNCAPI = CONTRACT_FILES[1]
 SCANNED_ROOTS = ("custom-addons",)
 
 SCHEMA_VERSION = "codestra.calling-contract-usage.v1"
@@ -45,13 +47,17 @@ LEGACY_STATUS = "legacy_pending_migration"
 ALL_STATUSES = CANONICAL_STATUSES | {LEGACY_STATUS}
 MINIMUM_REASON = 40
 
-# Endpoint prefixes this repository is allowed to reach at all. A literal under
-# one of these prefixes is telephony surface and must be declared; anything else
-# is out of scope for this gate.
+# Endpoint prefixes this repository is allowed to reach at all. A route under one
+# of these prefixes is telephony surface and must be declared; anything else is
+# out of scope for this gate.
 ENDPOINT_PREFIXES = ("/v1/telephony/", "/api/v1/realtime/", "/internal/v1/")
-ENDPOINT_LITERAL = re.compile(
-    r"[\"'](/(?:v1/telephony|api/v1/realtime|internal/v1)[A-Za-z0-9/_{}.-]*)[\"']"
-)
+
+# Collect whole URL-ish tokens and take the path from each, rather than pattern
+# matching around the path. Matching on the path alone cannot tell
+# "https://host/v1/telephony/commands", where the route really is reached, from
+# "/api/v1/telephony/originate", where "/v1/telephony/..." is only a substring of
+# an unrelated route. Splitting the token settles both cases exactly.
+URLISH_TOKEN = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^\s\"'<>]+|/[A-Za-z0-9/_{}.%-]+")
 FAMILY_LITERAL = re.compile(r"telephony\.[a-z]+\.[a-z-]+\.v\d+")
 TRACKING = re.compile(r"\A[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[1-9][0-9]*\Z")
 
@@ -106,12 +112,35 @@ def contract_paths(text: str) -> frozenset[str]:
     return frozenset(paths)
 
 
-def contract_families(texts: dict[str, str]) -> frozenset[str]:
+def contract_command_families(text: str) -> frozenset[str]:
+    """Collect the enum under the OpenAPI Command schema.
+
+    Commands and events must be checked against their own authority set. A
+    single union would accept an event declared as a command, which is exactly
+    the semantically wrong inventory this gate exists to prevent.
+    """
     families: set[str] = set()
-    for text in texts.values():
-        families.update(FAMILY_LITERAL.findall(text))
+    inside = False
+    for line in text.splitlines():
+        stripped = line.rstrip()
+        if re.fullmatch(r"    [A-Za-z][A-Za-z0-9]*:", stripped):
+            inside = stripped == "    Command:"
+            continue
+        if not inside:
+            continue
+        match = re.fullmatch(r"\s+- (telephony\.[a-z]+\.[a-z-]+\.v\d+)", stripped)
+        if match:
+            families.add(match.group(1))
     if not families:
-        raise UsageError("calling contract declares no command or event families")
+        raise UsageError("calling contract declares no command families")
+    return frozenset(families)
+
+
+def contract_event_families(text: str) -> frozenset[str]:
+    """Collect the event families the AsyncAPI authority publishes."""
+    families = set(FAMILY_LITERAL.findall(text))
+    if not families:
+        raise UsageError("calling contract declares no event families")
     return frozenset(families)
 
 
@@ -128,10 +157,25 @@ def scan_source() -> tuple[frozenset[str], frozenset[str]]:
                 continue
             if path.suffix not in {".py", ".xml", ".js", ".json"}:
                 continue
+            # Module tests carry fixtures of deliberately malformed and rejected
+            # URLs to prove the client refuses them. Treating those as usage
+            # would force declaring routes the product never calls.
+            if "tests" in path.relative_to(base).parts:
+                continue
             text = path.read_text(encoding="utf-8", errors="strict")
-            endpoints.update(ENDPOINT_LITERAL.findall(text))
+            endpoints.update(telephony_paths(text))
             families.update(FAMILY_LITERAL.findall(text))
     return frozenset(endpoints), frozenset(families)
+
+
+def telephony_paths(text: str) -> set[str]:
+    """Extract telephony routes, whether bare or embedded in an absolute URL."""
+    found: set[str] = set()
+    for token in URLISH_TOKEN.findall(text):
+        route = urllib.parse.urlsplit(token).path if "://" in token else token
+        if route.startswith(ENDPOINT_PREFIXES):
+            found.add(route)
+    return found
 
 
 def _entries(document: dict[str, object], key: str, field: str) -> dict[str, dict]:
@@ -172,7 +216,8 @@ def _entries(document: dict[str, object], key: str, field: str) -> dict[str, dic
 def validate(
     document: object,
     paths: frozenset[str],
-    families: frozenset[str],
+    commands_authority: frozenset[str],
+    events_authority: frozenset[str],
     lock: dict[str, object],
     source_endpoints: frozenset[str],
     source_families: frozenset[str],
@@ -220,9 +265,19 @@ def validate(
                 f"endpoint {path} exists in the pinned contract and is not legacy"
             )
 
-    for label, declared in (("command", commands), ("event", events)):
+    # Each list is checked against its own authority set, and against the other,
+    # so a family cannot be filed under the wrong kind and still pass.
+    for label, declared, authority, other, other_label in (
+        ("command", commands, commands_authority, events_authority, "event"),
+        ("event", events, events_authority, commands_authority, "command"),
+    ):
         for name, entry in declared.items():
-            present = name in families
+            present = name in authority
+            if name in other:
+                raise UsageError(
+                    f"{label} family {name} is declared by the authority as "
+                    f"a {other_label} family"
+                )
             if entry["status"] in CANONICAL_STATUSES and not present:
                 raise UsageError(
                     f"declared {label} family is absent from the pinned contract: {name}"
@@ -254,7 +309,9 @@ def validate(
                 )
 
 
-def load() -> tuple[object, frozenset[str], frozenset[str], dict[str, object]]:
+def load() -> tuple[
+    object, frozenset[str], frozenset[str], frozenset[str], dict[str, object]
+]:
     texts = {name: read_contract(name) for name in CONTRACT_FILES}
     lock = parse_json(LOCK.read_text(encoding="utf-8"))
     if not isinstance(lock, dict):
@@ -262,23 +319,24 @@ def load() -> tuple[object, frozenset[str], frozenset[str], dict[str, object]]:
     return (
         parse_json(USAGE.read_text(encoding="utf-8")),
         contract_paths(texts[OPENAPI]),
-        contract_families(texts),
+        contract_command_families(texts[OPENAPI]),
+        contract_event_families(texts[ASYNCAPI]),
         lock,
     )
 
 
 def self_test() -> None:
     """Prove each rule actually rejects, so the gate cannot silently pass."""
-    document, paths, families, lock = load()
+    document, paths, commands, events, lock = load()
     source_endpoints, source_families = scan_source()
-    validate(document, paths, families, lock, source_endpoints, source_families)
+    validate(document, paths, commands, events, lock, source_endpoints, source_families)
 
     def rejects(mutate, message: str) -> None:
         broken = json.loads(json.dumps(document))
         args = mutate(broken)
         try:
             validate(*args) if args else validate(
-                broken, paths, families, lock, source_endpoints, source_families
+                broken, paths, commands, events, lock, source_endpoints, source_families
             )
         except UsageError:
             return
@@ -336,7 +394,8 @@ def self_test() -> None:
         validate(
             document,
             paths,
-            families,
+            commands,
+            events,
             lock,
             source_endpoints | {"/v1/telephony/undeclared"},
             source_families,
@@ -350,7 +409,8 @@ def self_test() -> None:
         validate(
             document,
             paths,
-            families,
+            commands,
+            events,
             lock,
             source_endpoints,
             source_families | {"telephony.call.undeclared.v1"},
@@ -368,11 +428,14 @@ def main() -> int:
     if args.self_test:
         self_test()
     else:
-        document, paths, families, lock = load()
+        document, paths, commands, events, lock = load()
         source_endpoints, source_families = scan_source()
-        validate(document, paths, families, lock, source_endpoints, source_families)
+        validate(
+            document, paths, commands, events, lock, source_endpoints, source_families
+        )
         print(f"CALLING_CONTRACT_ENDPOINTS={len(paths)}")
-        print(f"CALLING_CONTRACT_FAMILIES={len(families)}")
+        print(f"CALLING_CONTRACT_COMMAND_FAMILIES={len(commands)}")
+        print(f"CALLING_CONTRACT_EVENT_FAMILIES={len(events)}")
         print(f"ODOO_TELEPHONY_ENDPOINTS_IN_SOURCE={len(source_endpoints)}")
     print("CALLING_CONTRACT_USAGE=PASS")
     return 0
