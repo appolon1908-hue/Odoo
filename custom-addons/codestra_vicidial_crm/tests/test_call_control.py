@@ -15,13 +15,14 @@ class TestCallControl(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         group = cls.env.ref("codestra_vicidial_crm.group_agent")
+        sales_group = cls.env.ref("sales_team.group_sale_salesman")
         cls.agent_user = cls.env["res.users"].create(
             {
                 "name": "Synthetic Agent 6101",
                 "login": "synthetic-agent-6101@example.test",
                 "keycloak_subject": str(uuid.UUID(int=6101)),
                 "codestra_tenant_id": "COD",
-                "group_ids": [(6, 0, [group.id])],
+                "group_ids": [(6, 0, [group.id, sales_group.id])],
             }
         )
         cls.other_user = cls.env["res.users"].create(
@@ -30,7 +31,7 @@ class TestCallControl(TransactionCase):
                 "login": "synthetic-agent-6102@example.test",
                 "keycloak_subject": str(uuid.UUID(int=6102)),
                 "codestra_tenant_id": "COD",
-                "group_ids": [(6, 0, [group.id])],
+                "group_ids": [(6, 0, [group.id, sales_group.id])],
             }
         )
         cls.campaign = cls.env["codestra.vicidial.campaign"].search(
