@@ -1,0 +1,300 @@
+/* Backend only. Keep reports/printed documents and public login assets separate. */
+@media screen {
+    body.o_web_client {
+        --cs-night-canvas: #050505;
+        --cs-night-surface: #0d0d0d;
+        --cs-night-raised: #171717;
+        --cs-night-hover: #242424;
+        --cs-night-border: #383838;
+        --cs-night-text: #f5f5f5;
+        --cs-night-muted: #b5b5b5;
+        --body-bg: var(--cs-night-canvas);
+        --body-bg-rgb: 5, 5, 5;
+        --body-color: var(--cs-night-text);
+        --body-color-rgb: 245, 245, 245;
+        --emphasis-color: #fff;
+        --emphasis-color-rgb: 255, 255, 255;
+        --secondary-color: var(--cs-night-muted);
+        --secondary-color-rgb: 181, 181, 181;
+        --tertiary-color: #a3a3a3;
+        --secondary-bg: var(--cs-night-surface);
+        --secondary-bg-rgb: 13, 13, 13;
+        --tertiary-bg: var(--cs-night-raised);
+        --tertiary-bg-rgb: 23, 23, 23;
+        --heading-color: #fff;
+        --link-color: #f5f5f5;
+        --link-color-rgb: 245, 245, 245;
+        --link-hover-color: #fff;
+        --link-hover-color-rgb: 255, 255, 255;
+        --border-color: var(--cs-night-border);
+        --border-color-translucent: rgba(255, 255, 255, .16);
+        --border-radius: .25rem;
+        --border-radius-sm: .2rem;
+        --border-radius-lg: .375rem;
+        --focus-ring-color: rgba(255, 255, 255, .45);
+        --primary: #f5f5f5;
+        --primary-rgb: 245, 245, 245;
+        --success-rgb: 205, 205, 205;
+        --info-rgb: 181, 181, 181;
+        --warning-rgb: 230, 230, 230;
+        --danger-rgb: 255, 255, 255;
+        --light-rgb: 23, 23, 23;
+        --dark-rgb: 245, 245, 245;
+        --form-valid-color: #dedede;
+        --form-valid-border-color: #a3a3a3;
+        --form-invalid-color: #fff;
+        --form-invalid-border-color: #fff;
+        --cs-color-ink: #f5f5f5;
+        --cs-color-muted: #b5b5b5;
+        --cs-color-surface: #0d0d0d;
+        --cs-color-canvas: #050505;
+        --cs-color-primary: #f5f5f5;
+        --cs-color-primary-hover: #d4d4d4;
+        --cs-color-border: #383838;
+        color-scheme: dark;
+        background: var(--cs-night-canvas);
+        color: var(--cs-night-text);
+        font-family: Arial, "Helvetica Neue", sans-serif;
+        accent-color: #fff;
+        scrollbar-color: #525252 #0d0d0d;
+    }
+
+    /* Preserve Odoo's menu overflow and mobile navigation behavior. */
+    body.o_web_client .o_main_navbar {
+        --o-navbar-height: 56px;
+        --NavBar-entry-color: #f5f5f5;
+        --NavBar-entry-backgroundColor: transparent;
+        --NavBar-entry-hover-backgroundColor: #242424;
+        --NavBar-entry-active-backgroundColor: #242424;
+        flex-shrink: 0;
+        min-width: 0;
+        background: #050505;
+        border-bottom: 1px solid #383838;
+        box-shadow: none;
+    }
+    body.o_web_client .o_main_navbar :is(.o_menu_brand, .o_nav_entry, .dropdown-toggle, .o_menu_toggle) {
+        color: #f5f5f5;
+        background: transparent;
+        font-weight: 600;
+        letter-spacing: .025em;
+    }
+    body.o_web_client .o_main_navbar .o_menu_brand {
+        font-size: .9rem;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+    }
+    body.o_web_client .o_main_navbar :is(.o_nav_entry, .dropdown-toggle, .o_menu_toggle):is(:hover, :focus-visible, .show) {
+        color: #fff;
+        background: #242424;
+        box-shadow: inset 0 -2px #fff;
+    }
+    body.o_web_client .o_main_navbar :is(.o_menu_sections, .o_menu_systray) { min-width: 0; }
+    body.o_web_client .o_main_navbar .o_menu_systray { flex-shrink: 0; }
+
+    /* Navigation and native page actions form one quiet header area. */
+    body.o_web_client .o_control_panel {
+        background: #050505;
+        color: #f5f5f5;
+        border-bottom: 1px solid #383838;
+        box-shadow: none;
+    }
+    body.o_web_client :is(.o_control_panel, .o_form_statusbar) .btn {
+        min-height: 34px;
+        font-weight: 600;
+        letter-spacing: .035em;
+    }
+    body.o_web_client :is(.breadcrumb, .breadcrumb-item, .breadcrumb-item.active, .o_pager, .o_cp_switch_buttons) { color: #b5b5b5; }
+    body.o_web_client .breadcrumb-item :is(a, .o_last_breadcrumb_item) { color: #f5f5f5; }
+
+    body.o_web_client :is(.o_action_manager, .o_content, .o_view_controller, .o_list_renderer, .o_kanban_renderer, .o_form_view, .o_form_sheet_bg, .o_graph_renderer, .o_pivot, .o_calendar_renderer, .o_calendar_sidebar_container, .o_activity_view, .o_base_settings) {
+        background-color: var(--cs-night-canvas);
+        color: var(--cs-night-text);
+    }
+    body.o_web_client :is(.o_form_sheet, .o_kanban_record, .o_kanban_quick_create, .o_quick_create_unfolded, .o_form_statusbar, .o_notebook_headers, .o_search_panel, .o_settings_container, .o_setting_container, .o-mail-Chatter, .o-mail-Discuss, .o-mail-DiscussSidebar) {
+        background-color: var(--cs-night-surface);
+        color: var(--cs-night-text);
+        border-color: var(--cs-night-border);
+        box-shadow: none;
+    }
+    body.o_web_client :is(.o_form_sheet, .o_kanban_record) { border-radius: .375rem; }
+    body.o_web_client :is(.o_form_label, .o_inner_group, .o_group, .o_horizontal_separator, .o_kanban_header, .o_kanban_counter, .o_stat_text, .o_stat_value, .o_search_panel_section_header) { color: #f5f5f5; }
+    body.o_web_client .o_horizontal_separator { border-color: #383838; }
+    body.o_web_client :is(.o_form_sheet_bg, .o_form_statusbar) { border-color: #383838; }
+    body.o_web_client .o_field_widget.o_field_empty { color: #b5b5b5; }
+    body.o_web_client :is(.o_field_widget a, .o_form_uri, .o_list_record_selector, .o_list_button) { color: #f5f5f5; }
+
+    body.o_web_client .o_list_renderer {
+        --ListRenderer-thead-bg-color: #111;
+        --ListRenderer-thead-border-end-color: #383838;
+        --ListRenderer-tfoot-bg-color: #171717;
+    }
+    body.o_web_client :is(.table, .o_list_table, .o_pivot table) {
+        --table-color: #f5f5f5;
+        --table-bg: #080808;
+        --table-border-color: #303030;
+        --table-striped-bg: #101010;
+        --table-striped-color: #f5f5f5;
+        --table-hover-bg: #202020;
+        --table-hover-color: #fff;
+        --table-active-bg: #292929;
+        --table-active-color: #fff;
+        color: #f5f5f5;
+        border-color: #303030;
+    }
+    body.o_web_client .o_list_table thead th {
+        color: #b5b5b5;
+        background: #111;
+        font-size: .75rem;
+        font-weight: 600;
+        letter-spacing: .055em;
+        text-transform: uppercase;
+        padding-top: .85rem;
+        padding-bottom: .85rem;
+    }
+    body.o_web_client .o_list_table :is(.o_group_header, .o_data_row.o_selected_row, .o_data_row.o_selected_row > td) {
+        --table-bg: #242424;
+        color: #fff;
+        background-color: #242424;
+    }
+    body.o_web_client .o_list_table tfoot { color: #f5f5f5; background: #171717; }
+    body.o_web_client :is(.o_view_nocontent, .o_nocontent_help, .o_nocontent_help > p:first-of-type) { color: #b5b5b5; }
+
+    /* Outlined controls in the body; filled emphasis belongs to page actions. */
+    body.o_web_client .btn {
+        --btn-color: #f5f5f5;
+        --btn-bg: transparent;
+        --btn-border-color: #525252;
+        --btn-hover-color: #fff;
+        --btn-hover-bg: #242424;
+        --btn-hover-border-color: #a3a3a3;
+        --btn-active-color: #050505;
+        --btn-active-bg: #f5f5f5;
+        --btn-active-border-color: #f5f5f5;
+        --btn-disabled-color: #b5b5b5;
+        --btn-disabled-bg: #171717;
+        --btn-disabled-border-color: #383838;
+        --btn-focus-shadow-rgb: 255, 255, 255;
+        border-radius: .25rem;
+        box-shadow: none;
+    }
+    body.o_web_client :is(.o_control_panel, .o_form_statusbar, .modal-footer) .btn-primary {
+        --btn-color: #050505;
+        --btn-bg: #f5f5f5;
+        --btn-border-color: #f5f5f5;
+        --btn-hover-color: #050505;
+        --btn-hover-bg: #d4d4d4;
+        --btn-hover-border-color: #d4d4d4;
+    }
+    body.o_web_client :is(.btn-link, .o_field_boolean .btn) { --btn-border-color: transparent; }
+    body.o_web_client :is(a, button, input, select, textarea, [tabindex]):focus-visible {
+        outline: 2px solid #fff;
+        outline-offset: 3px;
+    }
+    body.o_web_client :is(.o_input, .form-control, .form-select, .o_searchview, .o_searchview_input_container, .o_field_many2many_selection, .o-mail-Composer-input, .o-mail-Composer-inputStyle) {
+        background-color: #111;
+        color: #f5f5f5;
+        border-color: #525252;
+        caret-color: #fff;
+    }
+    body.o_web_client :is(.o_input, .form-control, .form-select):focus {
+        background-color: #171717;
+        color: #fff;
+        border-color: #f5f5f5;
+        box-shadow: 0 0 0 1px #f5f5f5;
+    }
+    body.o_web_client :is(input, textarea)::placeholder { color: #a3a3a3; opacity: 1; }
+    body.o_web_client :is(.o_input, .form-control):disabled { color: #a3a3a3; background: #171717; }
+    body.o_web_client .form-check-input { border-color: #888; background-color: #111; }
+    body.o_web_client .form-check-input:checked { background-color: #666; border-color: #fff; }
+    body.o_web_client :is(.o_field_invalid, .is-invalid) { border-color: #fff !important; border-bottom-style: double !important; }
+    body.o_web_client :is(.invalid-feedback, .o_field_invalid .o_form_label) { color: #fff; font-weight: 600; }
+
+    body.o_web_client :is(.dropdown-menu, .o-autocomplete--dropdown-menu, .o_popover, .popover, .modal-content, .o_dialog, .o_notification, .toast) {
+        --dropdown-bg: #171717;
+        --dropdown-color: #f5f5f5;
+        --dropdown-link-color: #f5f5f5;
+        --dropdown-link-hover-color: #fff;
+        --dropdown-link-hover-bg: #2b2b2b;
+        --dropdown-link-active-color: #050505;
+        --dropdown-link-active-bg: #f5f5f5;
+        --popover-bg: #171717;
+        --popover-body-color: #f5f5f5;
+        --popover-header-bg: #111;
+        --popover-header-color: #fff;
+        --modal-bg: #111;
+        --modal-color: #f5f5f5;
+        color: #f5f5f5;
+        background-color: #171717;
+        border-color: #525252;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, .55);
+    }
+    body.o_web_client :is(.modal-header, .modal-footer, .popover-header, .toast-header) { color: #f5f5f5; background: #111; border-color: #383838; }
+    body.o_web_client .btn-close { filter: grayscale(1) invert(1); }
+    body.o_web_client :is(.nav-tabs, .o_notebook .nav-tabs) { border-color: #383838; }
+    body.o_web_client :is(.nav-tabs .nav-link, .o_search_panel_label) { color: #b5b5b5; background: transparent; }
+    body.o_web_client :is(.nav-tabs .nav-link.active, .o_search_panel_label.active) { color: #fff; background: #242424; border-color: #525252; }
+    body.o_web_client .o_statusbar_status .o_arrow_button { color: #b5b5b5; background: #171717; border-color: #383838; }
+    body.o_web_client .o_statusbar_status .o_arrow_button.btn-primary { color: #050505; background: #f5f5f5; }
+    body.o_web_client .o_statusbar_status .o_arrow_button::before { border-left-color: #383838; }
+    body.o_web_client .o_statusbar_status .o_arrow_button::after { border-left-color: #171717; }
+    body.o_web_client .o_statusbar_status .o_arrow_button.btn-primary::after { border-left-color: #f5f5f5; }
+
+    /* Bootstrap utilities and Odoo's numbered tag palette otherwise leak color. */
+    body.o_web_client :is(.bg-white, .bg-100, .bg-200, .bg-view, .bg-body, .bg-light) { background-color: #111 !important; }
+    body.o_web_client :is(.bg-300, .bg-400, .bg-body-secondary, .bg-body-tertiary) { background-color: #202020 !important; }
+    body.o_web_client :is(.text-muted, .text-500, .text-600, .text-700, .text-secondary) { color: #b5b5b5 !important; }
+    body.o_web_client :is(.text-dark, .text-black, .text-800, .text-900, .text-primary, .text-success, .text-info, .text-warning, .text-danger, .text-action) { color: #f5f5f5 !important; }
+    body.o_web_client :is(.badge, .o_tag, .o_searchview_facet, .o-mail-DiscussSidebarChannel-counter) {
+        --Tag-bg: #292929;
+        --Tag-color: #f5f5f5;
+        --Tag-border-color: #666;
+        color: #f5f5f5 !important;
+        background-color: #292929 !important;
+        border: 1px solid #666;
+    }
+    body.o_web_client :is(.o_tag, .o_searchview_facet) :is(.o_tag_badge_text, .o_facet_values, .o_searchview_facet_label) { color: #f5f5f5; background-color: transparent; }
+    body.o_web_client :is(.alert, .o_notification) { color: #f5f5f5; background-color: #202020; border-color: #888; }
+    body.o_web_client :is(.alert-danger, .o_notification.border-danger) { border-width: 2px; border-style: double; }
+    body.o_web_client .progress { background-color: #303030; }
+    body.o_web_client .progress-bar { color: #050505; background-color: #d4d4d4 !important; }
+
+    /* Discuss, floating calls and chatter keep their native actions and sizing. */
+    body.o_web_client :is(.o-mail-ChatWindow, .o-mail-ChatWindow-header, .o-mail-Thread, .o-mail-Message, .o-mail-Composer, .o-mail-Composer-coreMain, .o-mail-Call, .o-mail-CallInvitation, .o-mail-MessagingMenu) {
+        --mail-ChatWindow-moreActionsHoverColor: #fff;
+        --mail-Message-actionIconHoveredColor: #fff;
+        color: #f5f5f5;
+        background-color: #0d0d0d;
+        border-color: #383838;
+    }
+    body.o_web_client .o-mail-ChatWindow { border: 1px solid #525252; box-shadow: 0 12px 48px #000; }
+    body.o_web_client .o-mail-ChatWindow-header { background: #171717; }
+    body.o_web_client .o-mail-Message-bubble {
+        --o-message-bubble-bg: #242424;
+        --o-message-bubble-border-color: #525252;
+        --o-message-bubble-color-base: #f5f5f5;
+        color: #f5f5f5;
+    }
+    body.o_web_client :is(.o-mail-Message-date, .o-mail-Thread hr, .o-mail-Thread .text-muted) { color: #b5b5b5; }
+    body.o_web_client .o-mail-ImStatus { filter: grayscale(1); }
+    body.o_web_client :is(.o_calendar_renderer, .o_graph_renderer canvas, .o_kanban_colorpicker) { filter: grayscale(1); }
+    body.o_web_client .o_calendar_renderer {
+        --fc-page-bg-color: #0d0d0d;
+        --fc-neutral-bg-color: #171717;
+        --fc-border-color: #383838;
+        --fc-list-event-hover-bg-color: #242424;
+        --fc-today-bg-color: #202020;
+    }
+
+    @media (max-width: 767.98px) {
+        body.o_web_client .o_main_navbar { --o-navbar-height: 52px; }
+        body.o_web_client .o_main_navbar .o_menu_brand { font-size: .8rem; }
+        body.o_web_client .o_control_panel { gap: .5rem !important; }
+        body.o_web_client .o_control_panel_main { min-width: 0; }
+        body.o_web_client .o_searchview { min-width: 0; }
+        body.o_web_client :is(.o_control_panel, .modal-footer) .btn { min-height: 40px; }
+        body.o_web_client .o-mail-ChatWindow { max-width: 100vw; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        body.o_web_client :is(.btn, .o_nav_entry, .dropdown-toggle, .nav-link) { transition: none; }
+    }
+}
