@@ -225,7 +225,7 @@ class TestCallControl(TransactionCase):
             result = controller.outbound(
                 destination=dial_destination,
                 campaign_id="TEST_SYN",
-                idempotency_key="dial-1",
+                idempotency_key="dialpad-synthetic-one",
             )
         self.assertFalse(result["duplicate"])
         self.assertEqual(result["call"]["direction"], "outbound")
@@ -262,5 +262,5 @@ class TestCallControl(TransactionCase):
                 controller.outbound(
                     destination=first_number,
                     campaign_id="TEST_SYN",
-                    idempotency_key="dial-2",
+                    idempotency_key="dialpad-synthetic-two",
                 )
