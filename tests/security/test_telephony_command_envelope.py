@@ -22,6 +22,7 @@ CLIENT_PATH = ROOT / "custom-addons/codestra_vicidial_crm/models/middleware_clie
 OPERATION_ID = "6f1d2c34-5a6b-4c7d-8e9f-0a1b2c3d4e5f"
 CORRELATION_ID = "11112222-3333-4444-5555-666677778888"
 COMMAND_URL = "https://middleware.example.test/v1/telephony/commands"
+TEST_SYN_URL = "https://middleware.example.test/v1/calls/originate"
 
 
 def _mark(name):
@@ -53,6 +54,8 @@ class Parameters:
     def __init__(self, command_url=COMMAND_URL):
         self.values = {
             "codestra.middleware.telephony_command_url": command_url,
+            "codestra.middleware.telephony_test_syn_url": TEST_SYN_URL,
+            "codestra.middleware.telephony_expected_host": "middleware.example.test",
             "codestra.middleware.api_key": "synthetic-command-client",
         }
 
@@ -90,6 +93,24 @@ def _operation(**overrides):
     return json.dumps(body).encode("utf-8")
 
 
+def _test_syn_values(**overrides):
+    values = {
+        "employee_id": "appolon",
+        "campaign": "TEST_SYN",
+        "business_unit": "COD",
+        "destination": "internal:TEST_ECHO",
+        "destination_class": "internal_test",
+        "destination_country": "ZZ",
+        "destination_timezone": "UTC",
+        "caller_id": "+12025550123",
+        "lead_model": "crm.lead",
+        "lead_id": 17,
+        "recording_requested": False,
+    }
+    values.update(overrides)
+    return values
+
+
 class TelephonyCommandEnvelopeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -121,6 +142,54 @@ class TelephonyCommandEnvelopeTest(unittest.TestCase):
         return self.client.originate_command(
             CORRELATION_ID, "synthetic-command-key", _values() if values is None else values
         )
+
+    def send_test_syn(self, values=None):
+        return self.client.originate_test_syn(
+            CORRELATION_ID, "synthetic-test-syn-key", _test_syn_values() if values is None else values
+        )
+
+    def test_test_syn_sender_targets_only_middleware_internal_ingress(self):
+        with self.response(_operation()) as opener:
+            # The compatibility route returns the operation shape used by the
+            # legacy response validator while keeping external_dialing false.
+            response = {
+                "dialing": "attempting", "reason": "queued",
+                "call_id": "synthetic-test-syn-operation",
+                "external_dialing": False,
+            }
+            opener.open.return_value.read.return_value = json.dumps(response).encode()
+            result = self.send_test_syn()
+        self.assertEqual(result["dialing"], "attempting")
+        outbound = opener.open.call_args.args[0]
+        self.assertEqual(outbound.full_url, TEST_SYN_URL)
+        self.assertEqual(outbound.get_header("Authorization"), "Bearer synthetic-scoped-token")
+        body = json.loads(outbound.data.decode())
+        self.assertEqual(body["campaign"], "TEST_SYN")
+        self.assertEqual(body["destination"], "internal:TEST_ECHO")
+        self.assertFalse(body["recording_requested"])
+
+    def test_test_syn_sender_rejects_pstn_or_other_identity_before_transport(self):
+        for changes in (
+            {"destination": "+12025550124", "destination_class": "mobile"},
+            {"campaign": "COD_OUT"},
+            {"destination": "internal:OTHER"},
+            {"recording_requested": True},
+        ):
+            with self.subTest(changes=changes), self.response() as opener:
+                with self.assertRaises(self.module.OriginateRejected):
+                    self.send_test_syn(_test_syn_values(**changes))
+                opener.open.assert_not_called()
+
+    def test_test_syn_sender_requires_exact_internal_target(self):
+        for target in (
+            "https://middleware.example.test/v1/telephony/calls/originate",
+            "https://server-b.example.test/v1/calls/originate",
+            "http://middleware.example.test/v1/calls/originate",
+        ):
+            with self.subTest(target=target):
+                self.params.values["codestra.middleware.telephony_test_syn_url"] = target
+                with self.assertRaises(self.module.OriginateRejected):
+                    self.send_test_syn()
 
     def test_idempotency_boundaries_are_validated_before_authentication(self):
         for key in (None, "", "a" * 15, "a" * 129, "a" * 16 + "\n"):
