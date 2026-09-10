@@ -1,0 +1,91 @@
+{
+  "authenticated_browser_visual_test": "not_completed_cloud_browser_timeout",
+  "backend_assets": [
+    {
+      "night_theme_present": true,
+      "sha256": "2435af5fe4b217feb4d249b8afd73ab1a1325122d73a91b0309d4ae0d3d31a37",
+      "status": 200,
+      "url": "https://crm.codestra.agency/web/assets/5519720/web.assets_web.min.css"
+    },
+    {
+      "popup_assigns_rpc": true,
+      "popup_imports_rpc": true,
+      "popup_requests_removed_rpc_service": false,
+      "sha256": "5489c71c32f35b87466ebb57f0754bc137d5b6e26aba2493860b626662247a68",
+      "status": 200,
+      "url": "https://crm.codestra.agency/web/assets/c38a206/web.assets_web.min.js"
+    }
+  ],
+  "container_health": "healthy",
+  "container_id": "b5adac5cc3a5e1671ae22cc270a8f9d7057fa63044a1fd1cba6e4b4cb6d6c36e",
+  "image": "odoo@sha256:f54272f31d5f77e4146b887efb3761c98480317daf687e4b4b5e76ed8bcc08c5",
+  "login_branding": true,
+  "login_http_status": 200,
+  "login_password_csrf_fields": true,
+  "modules": [
+    {
+      "name": "codestra_login_branding",
+      "state": "installed",
+      "version": "19.0.1.0.1"
+    },
+    {
+      "name": "codestra_workspace_theme",
+      "state": "installed",
+      "version": "19.0.1.0.0"
+    }
+  ],
+  "root_redirect": {
+    "location": "/web/login?redirect=%2Fodoo%3F",
+    "status": 303
+  },
+  "rpc_repair": {
+    "applied": true,
+    "applied_at": "2026-09-10T18:01:02.380462+00:00",
+    "asset_path": "/opt/codestra/releases/client-hotfixes/ba1b079cff92adac561c8b9d1a6a3e0587fc4519/call_popup.js",
+    "other_services_unchanged": true,
+    "previous_compose_files": [
+      "/opt/codestra/compose/compose.yaml",
+      "/opt/codestra/compose/compose.middleware-runtime.yaml",
+      "/opt/codestra/compose/compose.phase-n2-activation.yaml",
+      "/opt/codestra/compose/compose.final-production-trust.yaml",
+      "/opt/codestra/compose/compose.scraper-ingress-disabled.yaml",
+      "/opt/codestra/compose/compose.health-contract-remediation.yaml",
+      "/opt/codestra/compose/compose.live-delivery-safety.yaml",
+      "/home/codestra-admin/releases/callback-production-ded863c289c4.override.yaml",
+      "/home/codestra-admin/releases/campaign-crm-middleware-d30babd.override.yaml",
+      "/home/codestra-admin/releases/contact-center-91e22ef4.override.yaml",
+      "/opt/codestra/compose/compose.codestra-login-branding.yaml",
+      "/opt/codestra/compose/compose.codestra-workspace-theme.yaml"
+    ],
+    "production_overlay": "/opt/codestra/compose/compose.codestra-call-popup-rpc.yaml",
+    "restart_seconds": 6.31,
+    "reviewed_logic_source": "cc87205e4a71a6f9af872ddaca2943bbb1e9b2b9",
+    "source_sha": "ba1b079cff92adac561c8b9d1a6a3e0587fc4519",
+    "source_sha256_after": "4af10bcd6101fcb4e9be54113448cd49e1038716d8f5f17a383e8acd5a9cd192",
+    "source_sha256_before": "543bbaa27f8b91d77e5948d5447cd5ae3e930af76ae5a9a6dbf57154ef15f5c3",
+    "target_path": "/mnt/integration-addons/codestra_vicidial_crm/static/src/js/call_popup.js"
+  },
+  "source_sha": "cc87205e4a71a6f9af872ddaca2943bbb1e9b2b9",
+  "theme_backup": {
+    "encrypted_readback_verified": true,
+    "pair_sha256": {
+      "database.dump": "cf6543d94ca90bfc4a0b202fb2541da3a1e84f2b7c31f76ae8fe15005aae114f",
+      "filestore.tar": "d7b2485a7b57fc0086d0c998a25c8ca075f623d5b7866ad30edf30c8c4387446"
+    },
+    "recovery_archive": "/opt/codestra/backups/workspace-theme-20260910T175416Z/recovery.tar.gpg",
+    "recovery_sha256": "32006eb64e1e3a83fb5cbcef3e455da796d2fdec0e25e562442758a8b6268825"
+  },
+  "theme_maintenance_seconds": 17.5,
+  "user_approval": "User: approved make live; visual browser access limitation disclosed before approval",
+  "verified_at": "2026-09-10T18:04:19.639072+00:00",
+  "validation": {
+    "source_contract_tests": 172,
+    "popup_startup_regression_tests": 2,
+    "source_validation": "passed",
+    "theme_pr": 101,
+    "theme_required_checks": "passed",
+    "theme_review": "approved_at_final_head",
+    "repair_pr": 103
+  },
+  "recovery_scope": "Encrypted database and filestore pair verified by local decryption and checksum readback; no new offhost-copy or independent-restore claim."
+}

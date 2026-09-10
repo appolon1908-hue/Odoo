@@ -4,7 +4,10 @@ final result: blocked
 
 The implementation is in `custom-addons/codestra_workspace_theme`. Source and
 HTTP asset checks passed, but there is no rendered authenticated CRM comparison.
-This report does not certify the complete visual experience or production use.
+The user subsequently explicitly approved making it live with this limitation.
+The module is now installed and its served CSS was verified. Deployment evidence
+is in `deploy/evidence/crm-night-live-20260910.json`; this report still does not
+certify the complete visual experience.
 
 ## Reference and state
 
