@@ -79,30 +79,91 @@ class CallControlAPI(http.Controller):
         self._agent()
         return request.env["codestra.vicidial.call"].match_customer(number, campaign_code)
 
+    @http.route("/codestra/call-control/v1/dialpad", type="jsonrpc", auth="user", methods=["POST"])
+    def dialpad(self):
+        """Return the current governed dial-pad state without changing call state."""
+        agent = self._agent()
+        campaign = agent.campaign_ids.filtered(
+            lambda item: item.active and item.campaign_id == "TEST_SYN" and item.mode == "test"
+        )[:1]
+        control_enabled = self._feature("call_control_enabled")
+        writes_enabled = self._feature("vicidial_write_enabled")
+        if not campaign:
+            reason = "No TEST_SYN campaign is assigned to this agent."
+        elif not control_enabled or not writes_enabled:
+            reason = "Outbound calling is disabled by the server safety gate."
+        else:
+            reason = ""
+        return {
+            "enabled": bool(campaign and control_enabled and writes_enabled),
+            "campaign_id": campaign.campaign_id if campaign else "TEST_SYN",
+            "campaign_mode": campaign.mode if campaign else None,
+            "state": "ready" if campaign and control_enabled and writes_enabled else "disabled",
+            "reason": reason,
+        }
+
+    @staticmethod
+    def _blocked_destination(record):
+        return any(
+            bool(record[field])
+            for field in ("do_not_call", "x_do_not_call")
+            if field in record._fields
+        )
+
+    def _resolve_destination(self, destination, campaign_id):
+        call_model = request.env["codestra.vicidial.call"]
+        normalized = call_model.normalize_number(destination)
+        result = call_model.match_customer(normalized, campaign_id)
+        if result["match"] != "exact":
+            raise AccessError("Dialer requires one exact CRM contact or lead match.")
+        target = result["matches"][0]
+        if target["model"] == "lead":
+            lead = request.env["crm.lead"].browse(target["id"]).exists()
+            if not lead or self._blocked_destination(lead):
+                raise AccessError("This CRM lead is not eligible for outbound calling.")
+            return normalized, lead, lead.partner_id
+        contact = request.env["res.partner"].browse(target["id"]).exists()
+        if not contact or self._blocked_destination(contact):
+            raise AccessError("This CRM contact is not eligible for outbound calling.")
+        return normalized, None, contact
+
     @http.route("/codestra/call-control/v1/outbound", type="jsonrpc", auth="user", methods=["POST"])
-    def outbound(self, lead_id, campaign_id, idempotency_key):
+    def outbound(self, lead_id=None, destination=None, campaign_id="TEST_SYN", idempotency_key=None):
         agent = self._agent()
         if not self._feature("call_control_enabled") or not self._feature("vicidial_write_enabled"):
             raise AccessError("Outbound call control is disabled.")
         key = self._key({"idempotency_key": idempotency_key})
         if campaign_id != "TEST_SYN":
             raise AccessError("Only TEST_SYN is allowed in the controlled environment.")
-        lead = request.env["crm.lead"].browse(int(lead_id)).exists()
         campaign = request.env["codestra.vicidial.campaign"].search(
-            [("campaign_id", "=", campaign_id), ("mode", "=", "test")], limit=1
+            [("campaign_id", "=", campaign_id), ("mode", "=", "test"), ("active", "=", True)], limit=1
         )
-        if not lead or not campaign or campaign not in agent.campaign_ids:
-            raise AccessError("Lead or campaign is outside the agent authorization scope.")
-        number = lead.phone
-        normalized = request.env["codestra.vicidial.call"].normalize_number(number)
+        if not campaign or campaign not in agent.campaign_ids:
+            raise AccessError("The controlled outbound campaign is not assigned to this agent.")
+
+        lead = request.env["crm.lead"].browse(int(lead_id)).exists() if lead_id else None
+        if lead:
+            if self._blocked_destination(lead):
+                raise AccessError("This CRM lead is not eligible for outbound calling.")
+            normalized = request.env["codestra.vicidial.call"].normalize_number(destination or lead.phone)
+            matches = request.env["codestra.vicidial.call"].match_customer(normalized, campaign_id)
+            if matches["match"] != "exact" or not any(
+                item["model"] == "lead" and item["id"] == lead.id for item in matches["matches"]
+            ):
+                raise AccessError("The selected lead is not an exact authorized dial target.")
+            contact = lead.partner_id
+        else:
+            normalized, lead, contact = self._resolve_destination(destination, campaign_id)
+
         prior = request.env["codestra.call.control.command"].search([("idempotency_key", "=", key)], limit=1)
         if prior:
             return {"duplicate": True, "call": prior.call_id.agent_payload()}
         public_id = str(uuid.uuid4())
         correlation = "call-" + public_id
+        display_name = lead.display_name if lead else contact.display_name
         call = request.env["codestra.vicidial.call"].create(
             {
-                "name": f"TEST_SYN outbound {lead.display_name}",
+                "name": f"TEST_SYN outbound {display_name}",
                 "call_id": public_id,
                 "correlation_id": correlation,
                 "idempotency_key": "call:" + key,
@@ -114,11 +175,11 @@ class CallControlAPI(http.Controller):
                 "tenant_id": agent.tenant_id,
                 "keycloak_subject": request.env.user.keycloak_subject,
                 "extension": agent.phone_login,
-                "lead_id": lead.id,
-                "crm_lead_id": lead.id,
-                "customer_id": lead.partner_id.id,
+                "lead_id": lead.id if lead else False,
+                "crm_lead_id": lead.id if lead else False,
+                "customer_id": contact.id if contact else False,
                 "destination": normalized,
-                "original_number": number,
+                "original_number": destination or normalized,
                 "normalized_number": normalized,
                 "state": "initiating",
                 "start_at": fields.Datetime.now(),
@@ -126,7 +187,17 @@ class CallControlAPI(http.Controller):
                 "source_system": "odoo",
             }
         )
-        self._command(call, "outbound", key, {"lead_id": lead.id, "campaign_id": campaign_id})
+        self._command(
+            call,
+            "outbound",
+            key,
+            {
+                "lead_id": lead.id if lead else None,
+                "partner_id": contact.id if contact else None,
+                "campaign_id": campaign_id,
+                "destination": normalized,
+            },
+        )
         return {"duplicate": False, "call": call.agent_payload()}
 
     @http.route(
