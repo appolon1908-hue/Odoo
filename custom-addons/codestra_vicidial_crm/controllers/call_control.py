@@ -161,7 +161,10 @@ class CallControlAPI(http.Controller):
         public_id = str(uuid.uuid4())
         correlation = "call-" + public_id
         display_name = lead.display_name if lead else contact.display_name
-        call = request.env["codestra.vicidial.call"].create(
+        # Agents intentionally have read-only ORM access to call records. The
+        # authenticated controller performs the TEST_SYN/campaign/target checks
+        # above, then creates only this bounded server-owned reservation.
+        call = request.env["codestra.vicidial.call"].sudo().create(
             {
                 "name": f"TEST_SYN outbound {display_name}",
                 "call_id": public_id,
