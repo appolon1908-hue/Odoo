@@ -41,18 +41,20 @@ class TestOrbitHttp(HttpCase):
         self.assertIn("@media (max-width: 575.98px)", css.text)
         self.assertIn(":focus-visible", css.text)
 
-    def test_sso_login_uses_code_flow_and_server_side_state(self):
+    def test_sso_login_uses_pkce_code_flow_and_server_side_state(self):
         parameters = self.env["ir.config_parameter"].sudo()
         parameters.set_param("codestra_orbit_theme.keycloak_issuer", "https://id.example/realms/codestra")
         parameters.set_param("codestra_orbit_theme.keycloak_client_id", "odoo")
-        parameters.set_param("codestra_orbit_theme.keycloak_client_secret", "test-only-secret")
         self.env.ref("codestra_orbit_theme.provider_codestra_keycloak").write({"enabled": True})
         response = self.url_open("/codestra/sso/login", allow_redirects=False)
         self.assertEqual(response.status_code, 303)
         query = parse_qs(urlparse(response.headers["Location"]).query)
         self.assertEqual(query["response_type"], ["code"])
         self.assertEqual(query["scope"], ["openid profile email"])
+        self.assertEqual(query["code_challenge_method"], ["S256"])
+        self.assertTrue(query["code_challenge"][0])
         self.assertNotIn("token", response.headers["Location"])
+        self.assertNotIn("client_secret", response.headers["Location"])
 
     def test_callback_rejects_missing_or_unbound_state_before_token_exchange(self):
         with patch("requests.post") as token_request:
