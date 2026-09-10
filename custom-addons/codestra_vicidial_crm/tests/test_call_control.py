@@ -16,12 +16,15 @@ class TestCallControl(TransactionCase):
         super().setUpClass()
         group = cls.env.ref("codestra_vicidial_crm.group_agent")
         sales_group = cls.env.ref("sales_team.group_sale_salesman")
+        unit = cls.env.ref("call_center_core.business_unit_digital")
         cls.agent_user = cls.env["res.users"].create(
             {
                 "name": "Synthetic Agent 6101",
                 "login": "synthetic-agent-6101@example.test",
                 "keycloak_subject": str(uuid.UUID(int=6101)),
                 "codestra_tenant_id": "COD",
+                "call_center_business_unit_ids": [(6, 0, [unit.id])],
+                "call_center_default_business_unit_id": unit.id,
                 "group_ids": [(6, 0, [group.id, sales_group.id])],
             }
         )
@@ -210,7 +213,9 @@ class TestCallControl(TransactionCase):
             {
                 "name": "Synthetic Dialpad Lead",
                 "phone": lead_number,
+                "business_unit_id": unit.id,
                 "vicidial_campaign_id": "TEST_SYN",
+                "x_vicidial_campaign_id": "TEST_SYN",
             }
         )
         controller = call_control_controller.CallControlAPI()
@@ -240,14 +245,18 @@ class TestCallControl(TransactionCase):
             {
                 "name": "First Dialpad Lead",
                 "phone": first_number,
+                "business_unit_id": unit.id,
                 "vicidial_campaign_id": "TEST_SYN",
+                "x_vicidial_campaign_id": "TEST_SYN",
             }
         )
         self.env["crm.lead"].create(
             {
                 "name": "Second Dialpad Lead",
                 "phone": second_number,
+                "business_unit_id": unit.id,
                 "vicidial_campaign_id": "TEST_SYN",
+                "x_vicidial_campaign_id": "TEST_SYN",
             }
         )
         controller = call_control_controller.CallControlAPI()
