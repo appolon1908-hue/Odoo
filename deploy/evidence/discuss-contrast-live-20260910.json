@@ -1,0 +1,70 @@
+{
+  "applied_at": "2026-09-10T18:18:36.461859+00:00",
+  "authenticated_browser_visual_verification": false,
+  "call_popup_rpc_repair_preserved": true,
+  "container_id": "2021d4a6281a948ce1f2c2f29cfeee4bdc1a208777e11a3e78f0840da299931d",
+  "css_asset": {
+    "sha256": "b693196b73316b707c1966f5a108c23c01a0aa29a6d8818e0185c3207fd71c46",
+    "status": 200,
+    "url": "https://crm.codestra.agency/web/assets/982b672/web.assets_web.min.css"
+  },
+  "css_checks": {
+    "active_channel_background": true,
+    "composer_background": true,
+    "dark_discuss_header": true,
+    "dark_sidebar_important": true,
+    "offline_avatar_only": true,
+    "readable_message_important": true,
+    "reply_text_opacity": true
+  },
+  "database_upgrade": false,
+  "declared_color_pair_checks": [
+    {
+      "background": "#242424",
+      "contrast_ratio": 14.24,
+      "element": "message text",
+      "foreground": "#f5f5f5"
+    },
+    {
+      "background": "#0d0d0d",
+      "contrast_ratio": 17.83,
+      "element": "sidebar labels",
+      "foreground": "#f5f5f5"
+    },
+    {
+      "background": "#0d0d0d",
+      "contrast_ratio": 9.48,
+      "element": "offline member names",
+      "foreground": "#b5b5b5"
+    },
+    {
+      "background": "#171717",
+      "contrast_ratio": 8.74,
+      "element": "composer placeholder",
+      "foreground": "#b5b5b5"
+    },
+    {
+      "background": "#171717",
+      "contrast_ratio": 16.44,
+      "element": "toolbar icons",
+      "foreground": "#f5f5f5"
+    }
+  ],
+  "health": "healthy",
+  "image": "odoo@sha256:f54272f31d5f77e4146b887efb3761c98480317daf687e4b4b5e76ed8bcc08c5",
+  "js_asset": {
+    "sha256": "5489c71c32f35b87466ebb57f0754bc137d5b6e26aba2493860b626662247a68",
+    "status": 200,
+    "url": "https://crm.codestra.agency/web/assets/c38a206/web.assets_web.min.js"
+  },
+  "login_http_status": 200,
+  "login_password_and_csrf_present": true,
+  "only_stylesheet_mount_changed": true,
+  "previous_stylesheet_sha256": "51fd544a0d264e0a73584245a6f9442b2646cccf35898903d4abb551ffbc7b34",
+  "restart_seconds": 35.33,
+  "root_redirects_to_login": true,
+  "source_commit": "cc66153f3fcd8ebf17e0135f2d04927aa4121eb3",
+  "stage": "/opt/codestra/staging/discuss-contrast-20260910T181800Z",
+  "stylesheet_sha256": "3fe86185fa84be7b5fb408b88a4570db528085b7b01935b7945795290275e378",
+  "verified_at": "2026-09-10T18:20:42.810898+00:00"
+}
