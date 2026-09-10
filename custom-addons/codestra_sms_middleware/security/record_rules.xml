@@ -1,0 +1,7 @@
+<odoo>
+  <record id="sms_outbox_company_rule" model="ir.rule">
+    <field name="name">SMS outbox company isolation</field>
+    <field name="model_id" ref="model_codestra_sms_outbox"/>
+    <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+  </record>
+</odoo>
