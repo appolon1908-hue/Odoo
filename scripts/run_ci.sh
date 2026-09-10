@@ -58,6 +58,9 @@ python3 -I scripts/validate_manifests.py
 printf '==> Validating every custom browser asset and stylesheet\n'
 python3 -I scripts/validate_asset_integrity.py
 
+printf '==> Checking Odoo 19 call popup startup compatibility\n'
+node --experimental-vm-modules --test tests/frontend/test_call_popup_rpc.mjs
+
 printf '==> Validating the Middleware and Odoo write boundary\n'
 python3 -I scripts/validate_integration_boundary.py
 

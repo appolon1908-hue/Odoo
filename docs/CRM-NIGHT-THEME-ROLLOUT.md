@@ -58,6 +58,9 @@ newer writes and must be planned against the current production state.
 
 ## Current status
 
-Source is prepared in PR #101. Isolated installation and HTTP asset tests passed.
-The rollout is not yet applied. Authenticated visual acceptance remains blocked
-by cloud-browser access, and GitHub review/check gates must finish before merge.
+PR #101 merged with final-head approval and all required checks passing. The
+user explicitly approved the live rollout after disclosure of the unavailable
+visual browser check. The theme was installed on 2026-09-10; authenticated visual
+acceptance remains unverified. See `CRM-NIGHT-LIVE-20260910.md` and
+`deploy/evidence/crm-night-live-20260910.json` for installation, backup, served
+asset verification and the accompanying call-popup RPC compatibility repair.

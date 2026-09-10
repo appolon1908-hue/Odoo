@@ -1,0 +1,8 @@
+# Narrow compatibility overlay for the currently deployed integration release.
+services:
+  odoo:
+    volumes:
+      - type: bind
+        source: ${CODESTRA_CALL_POPUP_ASSET:?Set the immutable reviewed call_popup.js path}
+        target: /mnt/integration-addons/codestra_vicidial_crm/static/src/js/call_popup.js
+        read_only: true
