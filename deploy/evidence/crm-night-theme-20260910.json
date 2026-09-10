@@ -1,0 +1,40 @@
+{
+  "authenticated_visual_review": "blocked_cloud_browser_site_unavailable",
+  "checked_at": "2026-09-10T17:25:53.725302+00:00",
+  "compose_validation": {
+    "compose_changed_fields": [
+      "command",
+      "volumes"
+    ],
+    "existing_addon_precedence_preserved": true,
+    "new_addon_paths": [
+      "/mnt/codestra-workspace-addons",
+      "/mnt/extra-addons"
+    ],
+    "new_mount_read_only": true,
+    "other_services_unchanged": true,
+    "production_service_changed": false,
+    "source_sha": "312158f2ca3dc3c343e594fa29688e858774ab3e"
+  },
+  "existing_login_branding_present": true,
+  "existing_login_http_status": 200,
+  "http_tests_per_run": 2,
+  "isolated_install_exit": 0,
+  "isolated_resources_removed": true,
+  "isolated_upgrade_exit": 0,
+  "log_directory": "/opt/codestra/staging/crm-night-6214aab0ecf3",
+  "module_file_sha256": {
+    "codestra_workspace_theme/README.md": "92fc3bf23268c4948b14e2a86701c59bc4a0d065635b3435445b509ce6791a17",
+    "codestra_workspace_theme/__init__.py": "dbf90223ef0fb0b4817e8234891af06ff3d1a89e06c4f794f70288d93c3d0456",
+    "codestra_workspace_theme/__manifest__.py": "5031e8b77e6020bb5488a54a4eaff0baa6dea94c1b18874514fe4faf4080a923",
+    "codestra_workspace_theme/static/src/css/workspace.css": "70718ba726c5bed96519398746c3f8814b55ec1e29d1d79586d45a13a7d060bc",
+    "codestra_workspace_theme/tests/__init__.py": "86118d346a8938ba8b24c85d0e86fa07cfeca36c19a83b40f000775a4a40ae0a",
+    "codestra_workspace_theme/tests/test_workspace_theme.py": "c6256e6bba982c4e1ace8e96720fce6ca87597951e342e01ffc6db3da45b0331"
+  },
+  "odoo_image": "odoo@sha256:f54272f31d5f77e4146b887efb3761c98480317daf687e4b4b5e76ed8bcc08c5",
+  "production_theme_installed": false,
+  "test_failures": 0,
+  "tested_source_sha": "312158f2ca3dc3c343e594fa29688e858774ab3e",
+  "source_contract_tests": 172,
+  "source_validation_exit": 0
+}
