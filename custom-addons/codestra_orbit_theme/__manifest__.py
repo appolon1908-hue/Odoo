@@ -1,7 +1,7 @@
 {
     "name": "Codestra Orbit Theme and SSO",
     "summary": "Supported Codestra shell and Keycloak OIDC for Odoo",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.1.0",
     "author": "Codestra",
     "website": "https://codestra.agency",
     "license": "LGPL-3",
