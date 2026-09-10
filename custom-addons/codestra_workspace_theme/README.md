@@ -13,7 +13,8 @@ DOM nodes, hide actions or replace native Odoo components.
 Coverage includes lists, grouped and selected rows, forms, kanban, search, tags,
 tabs, statusbars, dialogs, popovers, notifications, calendar surfaces, charts,
 chatter and floating Discuss windows. Labels and icons retain status meaning in
-the monochrome palette. Images and attachments retain their original content.
+the monochrome palette. Images, attachments and native color-picker choices
+retain their original content.
 Keyboard focus stays visible; mobile menu overflow remains Odoo's responsibility.
 Screen-only CSS leaves printed reports untouched.
 

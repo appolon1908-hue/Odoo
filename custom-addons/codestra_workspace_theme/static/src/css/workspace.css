@@ -282,7 +282,7 @@
     body.o_web_client .o-mail-Message-bubble.o-muted { background-color: #171717 !important; }
     body.o_web_client :is(.o-mail-Message-date, .o-mail-Thread hr, .o-mail-Thread .text-muted) { color: #b5b5b5; }
     body.o_web_client .o-mail-ImStatus { filter: grayscale(1); }
-    body.o_web_client :is(.o_calendar_renderer, .o_graph_renderer canvas, .o_kanban_colorpicker) { filter: grayscale(1); }
+    body.o_web_client .o_graph_renderer canvas { filter: grayscale(1); }
     body.o_web_client .o_calendar_renderer {
         --fc-page-bg-color: #0d0d0d;
         --fc-neutral-bg-color: #171717;
@@ -290,6 +290,13 @@
         --fc-list-event-hover-bg-color: #242424;
         --fc-today-bg-color: #202020;
     }
+    /* Color event chrome directly: a renderer filter would recolor avatars. */
+    body.o_web_client .o_calendar_renderer :is(.fc-event, .fc-event-main) {
+        color: #f5f5f5 !important;
+        background-color: #292929 !important;
+        border-color: #888 !important;
+    }
+    body.o_web_client .o_calendar_renderer :is(.fc-daygrid-event-dot, .fc-list-event-dot) { border-color: #d4d4d4 !important; }
 
     @media (max-width: 767.98px) {
         body.o_web_client .o_main_navbar { --o-navbar-height: 52px; }

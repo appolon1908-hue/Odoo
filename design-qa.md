@@ -52,5 +52,10 @@ interaction or console-error check of the new theme is claimed.
   variables and the separate chat bubble tail/muted states. The CSS uses those
   variables and covers those states. This was a source correction, not a visual
   QA pass.
+- PR review identified that a calendar-wide grayscale filter also recolored
+  attendee images. The filter was removed; event backgrounds and borders now
+  receive monochrome colors directly. Native color-picker options also retain
+  their actual choices. The corrected CSS passed source asset validation; the
+  runtime evidence records the earlier tested source explicitly.
 
 The remaining blocker is browser-rendered authenticated implementation evidence.
