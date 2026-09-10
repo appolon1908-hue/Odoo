@@ -1,3 +1,4 @@
+import re
 import uuid
 
 from odoo import SUPERUSER_ID, api, fields, models
@@ -282,6 +283,137 @@ class CrmLead(models.Model):
             },
         }
 
+    def action_test_syn_internal_call(self):
+        """Queue one governed no-PSTN TEST_SYN call for certification.
+
+        This action is intentionally separate from customer click-to-call.  It
+        requires the reviewed synthetic identity and sends only the named
+        Middleware internal alias; no phone number, trunk, or dialplan value is
+        accepted from the lead or browser.
+        """
+        self.ensure_one()
+        params = self.env["ir.config_parameter"].sudo()
+        if params.get_param("codestra.telephony.test_syn_enabled") != "true":
+            raise UserError("TEST_SYN internal calling is not enabled for this environment.")
+        agent = self.env["codestra.vicidial.agent"].search(
+            [
+                ("odoo_user_id", "=", self.env.uid),
+                ("active", "=", True),
+                ("vicidial_user", "=", "appolon"),
+                ("phone_login", "=", "6901"),
+            ],
+            limit=1,
+        )
+        if not agent or agent.status not in ("active", "ready"):
+            raise UserError("The reviewed TEST_SYN agent identity is not ready.")
+        if (
+            not self.env.user.codestra_tenant_id
+            or self.env.user.codestra_tenant_id != agent.tenant_id
+            or not self.env.user.keycloak_subject
+        ):
+            raise UserError("The TEST_SYN agent identity is not tenant-bound.")
+        if self.x_do_not_call or self.do_not_call:
+            raise UserError("This lead is on the do-not-call list.")
+        if not self.business_unit_id or not self.business_unit_id.code:
+            raise UserError("This lead has no business unit assigned.")
+        if self.x_vicidial_campaign_id != "TEST_SYN":
+            raise UserError("The controlled internal test requires campaign TEST_SYN.")
+        campaign = agent.campaign_ids.filtered(
+            lambda item: item.campaign_id == "TEST_SYN" and item.mode == "test"
+        )[:1]
+        if not campaign:
+            raise UserError("The reviewed TEST_SYN campaign is not assigned to this agent.")
+        caller_id = params.get_param("codestra.telephony.test_syn_caller_id")
+        if re.fullmatch(r"\+[1-9][0-9]{7,14}", caller_id or "") is None:
+            raise UserError("A reviewed TEST_SYN caller ID is not configured.")
+        Call = self.env["codestra.vicidial.call"].sudo()
+        self.env.cr.execute(
+            "SELECT id FROM codestra_vicidial_agent WHERE id = %s FOR UPDATE",
+            (agent.id,),
+        )
+        pending = Call.search(
+            [
+                ("agent_id", "=", agent.id),
+                ("tenant_id", "=", agent.tenant_id),
+                ("state", "in", [
+                    "new", "initiating", "ringing", "offered", "answering",
+                    "connected", "held", "transferring", "ending",
+                ]),
+            ],
+            order="create_date desc",
+            limit=1,
+        )
+        if pending and pending.status not in ("requesting", "outcome_unknown"):
+            raise UserError("The TEST_SYN agent already has an active call request.")
+        if pending:
+            if pending.crm_lead_id != self or pending.campaign_code != "TEST_SYN":
+                raise UserError("Reconcile the previous TEST_SYN request before retrying.")
+            call = pending
+            correlation_id = pending.correlation_id
+            idempotency_key = pending.idempotency_key
+        else:
+            correlation_id = str(uuid.uuid4())
+            idempotency_key = "test-syn:" + correlation_id
+            call = Call.create(
+                {
+                    "name": "TEST_SYN internal call %s" % correlation_id,
+                    "crm_lead_id": self.id,
+                    "lead_id": self.id,
+                    "agent_id": agent.id,
+                    "campaign_id": campaign.id,
+                    "direction": "outbound",
+                    "destination": "internal:TEST_ECHO",
+                    "original_number": "internal:TEST_ECHO",
+                    "normalized_number": "internal:TEST_ECHO",
+                    "caller_id": caller_id,
+                    "start_at": fields.Datetime.now(),
+                    "state": "initiating",
+                    "status": "requesting",
+                    "idempotency_key": idempotency_key,
+                    "correlation_id": correlation_id,
+                    "campaign_code": "TEST_SYN",
+                    "business_unit_id": self.business_unit_id.code,
+                    "tenant_id": agent.tenant_id,
+                    "keycloak_subject": self.env.user.keycloak_subject,
+                    "vicidial_user": "appolon",
+                    "extension": "6901",
+                    "source_system": "odoo",
+                }
+            )
+        payload = pending.originate_payload if pending else {
+            "employee_id": agent.employee_code or "appolon",
+            "campaign": "TEST_SYN",
+            "business_unit": self.business_unit_id.code,
+            "destination": "internal:TEST_ECHO",
+            "destination_class": "internal_test",
+            "destination_country": "ZZ",
+            "destination_timezone": "UTC",
+            "caller_id": caller_id,
+            "lead_model": "crm.lead",
+            "lead_id": self.id,
+            "recording_requested": False,
+            "transport": "middleware_internal_test",
+        }
+        if not pending:
+            call.originate_payload = payload
+        database = self.env.cr.dbname
+        call_id = call.id
+
+        def dispatch_after_commit():
+            dispatch_reserved_call(database, call_id)
+
+        self.env.cr.postcommit.add(dispatch_after_commit)
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": "TEST_SYN internal call",
+                "message": "Synthetic internal call queued with a durable duplicate-prevention key.",
+                "sticky": False,
+                "type": "success",
+            },
+        }
+
 
 class ClickToCallDispatch(models.Model):
     _inherit = "codestra.vicidial.call"
@@ -335,11 +467,19 @@ class ClickToCallDispatch(models.Model):
         ):
             return
         try:
-            result = self.env["codestra.telephony.middleware.client"].originate_call(
-                self.correlation_id,
-                self.idempotency_key,
-                self.originate_payload,
-            )
+            client = self.env["codestra.telephony.middleware.client"]
+            if self.originate_payload.get("transport") == "middleware_internal_test":
+                values = dict(self.originate_payload)
+                values.pop("transport", None)
+                result = client.originate_test_syn(
+                    self.correlation_id, self.idempotency_key, values,
+                )
+            else:
+                result = client.originate_call(
+                    self.correlation_id,
+                    self.idempotency_key,
+                    self.originate_payload,
+                )
         except OriginateRejected as exc:
             self._record_dispatch_failure("rejected", str(exc))
             return
