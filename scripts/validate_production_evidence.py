@@ -26,7 +26,8 @@ EXPECTED_REPOSITORY = "appolon1908-hue/Odoo"
 EXPECTED_WORKFLOW = f"{EXPECTED_REPOSITORY}/.github/workflows/cc-release-candidate.yml"
 PREDICATE_TYPES = {
     "provenance": "https://slsa.dev/provenance/v1",
-    "sbom": "https://spdx.dev/Document",
+    # The pinned attestation action emits a versioned SPDX 2.3 predicate.
+    "sbom": "https://spdx.dev/Document/v2.3",
 }
 REQUIRED_FLAGS = {
     "LIVE_ODOO_WRITE",

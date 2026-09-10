@@ -232,7 +232,7 @@ class ProductionEvidenceControlsTest(unittest.TestCase):
         self.assertEqual(len(self.verifier_calls), 2)
         for call, bundle, predicate in zip(
             self.verifier_calls, (self.provenance, self.sbom),
-            ("https://slsa.dev/provenance/v1", "https://spdx.dev/Document"),
+            ("https://slsa.dev/provenance/v1", "https://spdx.dev/Document/v2.3"),
         ):
             command = call.args[0]
             self.assertEqual(command[:4], [
