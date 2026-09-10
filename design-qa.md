@@ -42,9 +42,12 @@ interaction or console-error check of the new theme is claimed.
 ## Verification history
 
 - Source validation passed, including 172 source contract tests.
-- A disposable Odoo 19/PostgreSQL database installed the addon and passed both
+- A disposable Odoo 19/PostgreSQL database installed and upgraded the addon and passed both
   HTTP tests: authenticated compiled CSS includes the theme, and public login
   retains its password/CSRF fields without the backend theme.
+- Final tested module files and their SHA-256 hashes are recorded in
+  `deploy/evidence/crm-night-theme-20260910.json`. The isolated test containers,
+  database, network and temporary credentials were removed after verification.
 - Inspection of the installed Odoo 19 styles identified its current statusbar
   variables and the separate chat bubble tail/muted states. The CSS uses those
   variables and covers those states. This was a source correction, not a visual
