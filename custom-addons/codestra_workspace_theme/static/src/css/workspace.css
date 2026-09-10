@@ -264,6 +264,48 @@
     body.o_web_client .progress-bar { color: #050505; background-color: #d4d4d4 !important; }
 
     /* Discuss, floating calls and chatter keep their native actions and sizing. */
+    body.o_web_client .o-mail-Discuss {
+        --mail-DiscussSidebar-itemActiveBgColor: #242424;
+        --mail-DiscussSidebar-itemActiveOutlineColor: #888;
+        /* Odoo 19 spells this upstream variable with three leading hyphens. */
+        ---mail-DiscussSidebarChannel-borderedBgColor: #171717;
+        --mail-DiscussSidebarSubchannel-svgColor: #b5b5b5;
+        --discuss-ChannelMember-hoverBg: #242424;
+    }
+    body.o_web_client :is(.o-mail-DiscussContent, .o-mail-DiscussContent-core, .o-mail-DiscussContent-header, .o-mail-DiscussContent-panelContainer, .o-mail-DiscussSidebar-resizablePanelContainer) {
+        color: #f5f5f5;
+        background-color: #0d0d0d;
+        border-color: #383838;
+    }
+    /* These two native mail utilities use !important and bypass body tokens. */
+    body.o_web_client .o-mail-discussSidebarBgColor { background-color: #0d0d0d !important; }
+    body.o_web_client .o-discuss-text-body { color: #f5f5f5 !important; }
+    body.o_web_client .o-mail-DiscussSidebar-item:hover,
+    body.o_web_client .o-mail-DiscussSidebarCategory:is(:hover, :active) {
+        color: #fff;
+        background-color: #242424 !important;
+        outline-color: #888 !important;
+    }
+    body.o_web_client .o-mail-DiscussSidebar.o-compact .o-mail-DiscussSidebar-item { opacity: 1; }
+    body.o_web_client .o-mail-DiscussContent-headerActionsGroup {
+        background-color: #171717;
+        outline-color: #525252;
+    }
+    body.o_web_client .o-mail-DiscussContent-headerActions button {
+        --btn-disabled-opacity: .65;
+        color: #f5f5f5;
+    }
+    body.o_web_client .o-mail-DiscussContent-headerActions button i { opacity: 1; }
+    body.o_web_client .o-mail-DiscussContent-headerActions button:is(:hover, .o-isActive) {
+        color: #fff;
+        background-color: #242424 !important;
+        outline-color: #888;
+    }
+    /* Dim the offline indicator, not the entire row and its readable name. */
+    body.o_web_client .o-discuss-ChannelMember.o-offline,
+    body.o_web_client .o-discuss-ChannelMember.o-offline.cursor-pointer:hover { opacity: 1; }
+    body.o_web_client .o-discuss-ChannelMember.o-offline .o-discuss-ChannelMember-avatar { opacity: .75; }
+
     body.o_web_client :is(.o-mail-ChatWindow, .o-mail-ChatWindow-header, .o-mail-Thread, .o-mail-Message, .o-mail-Composer, .o-mail-Composer-coreMain, .o-mail-Call, .o-mail-CallInvitation, .o-mail-MessagingMenu) {
         --mail-ChatWindow-moreActionsHoverColor: #fff;
         --mail-Message-actionIconHoveredColor: #fff;
@@ -280,6 +322,29 @@
         color: #f5f5f5;
     }
     body.o_web_client .o-mail-Message-bubble.o-muted { background-color: #171717 !important; }
+    body.o_web_client :is(.o-mail-Message-body, .o-mail-Message-richBody, .o-mail-MessageInReply-core) { color: #f5f5f5; }
+    body.o_web_client .o-mail-MessageInReply-core .o-mail-MessageInReply-message { opacity: 1; }
+    body.o_web_client :is(.o-mail-LinkPreviewCard, .o-mail-LinkPreviewVideo) {
+        --card-color: #f5f5f5;
+        --card-bg: #171717;
+        color: #f5f5f5;
+    }
+    body.o_web_client .o-mail-Composer {
+        --mail-Composer-bg: #171717;
+        --mail-Composer-actionHoverColor: #fff;
+    }
+    body.o_web_client .o-mail-Composer-bg { background-color: #171717; }
+    body.o_web_client .o-mail-Composer :is(.o-mail-Composer-input, .o-mail-Composer-html)::placeholder {
+        color: #b5b5b5;
+        opacity: 1;
+    }
+    body.o_web_client .o-mail-Composer:not(.o-focused) .o-mail-Composer-input::placeholder { opacity: 1; }
+    body.o_web_client .o-mail-Composer:not(.o-focused) .o-mail-Composer-mainActions button:not(.active) { opacity: 1; }
+    body.o_web_client .o-mail-Composer-actions button:is(.o-sendMessageActive, .o-mail-Composer-send.btn-link:not(:disabled)) {
+        color: #fff;
+        background-color: #242424;
+        outline-color: #888;
+    }
     body.o_web_client :is(.o-mail-Message-date, .o-mail-Thread hr, .o-mail-Thread .text-muted) { color: #b5b5b5; }
     body.o_web_client .o-mail-ImStatus { filter: grayscale(1); }
     body.o_web_client .o_graph_renderer canvas { filter: grayscale(1); }

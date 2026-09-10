@@ -1,0 +1,9 @@
+# Append to the existing production Compose file list.
+# Use the absolute path to the immutable CSS file from the repair commit.
+services:
+  odoo:
+    volumes:
+      - type: bind
+        source: ${CODESTRA_DISCUSS_CONTRAST_CSS:?Set the immutable repair CSS path}
+        target: /mnt/codestra-workspace-addons/codestra_workspace_theme/static/src/css/workspace.css
+        read_only: true
