@@ -1,7 +1,7 @@
 from unittest.mock import patch
 from uuid import uuid4
 
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.tests.common import TransactionCase, tagged
 
 from ..models import outbox
@@ -144,3 +144,73 @@ class TestSmsOutbox(TransactionCase):
         self.assertEqual(sum("payload" in call for call in calls), 1)
         self.assertEqual(len(calls), 2)
         self.assertEqual(self.sms.state, "sent")
+
+    def test_cancellation_before_cron_remains_canceled_with_delivery_disabled(self):
+        job = self.enqueue()
+        self.sms.action_set_canceled()
+        with patch.object(outbox, "delivery_enabled", return_value=False), \
+                patch.object(outbox, "MiddlewareSmsClient") as factory:
+            self.jobs._cron_process()
+            factory.assert_not_called()
+        self.assertEqual(self.sms.state, "canceled")
+        self.assertEqual(job.middleware_status, "cancelled")
+        self.assertFalse(job.next_attempt_at)
+
+    def test_cancellation_visible_after_intent_commit_prevents_post(self):
+        job = self.enqueue()
+
+        def cancellation_commits():
+            # Model the cancellation transaction which saw pending before the
+            # worker committed its intent, then committed its SMS row update.
+            self.sms.write({"state": "canceled"})
+
+        with patch.object(outbox, "configuration", return_value=self.config), \
+                patch.object(outbox, "delivery_enabled", return_value=True), \
+                patch.object(outbox, "MiddlewareSmsClient") as factory, \
+                patch.object(self.env.cr, "commit", side_effect=cancellation_commits):
+            factory.return_value.token.return_value = "synthetic-token"
+            self.jobs._cron_process()
+            factory.return_value.message.assert_not_called()
+        self.assertEqual(job.middleware_status, "cancelled")
+        self.assertEqual(self.sms.state, "canceled")
+
+    def test_cancellation_cannot_succeed_after_submission_starts(self):
+        job = self.enqueue()
+        job._update({"state": "indeterminate"})
+        with self.assertRaises(ValidationError):
+            self.sms.action_set_canceled()
+        self.assertEqual(self.sms.state, "process")
+
+    def test_transient_token_failure_retries_without_duplicate_submission(self):
+        from odoo import fields
+        job = self.enqueue()
+        with patch.object(outbox, "configuration", return_value=self.config), \
+                patch.object(outbox, "delivery_enabled", return_value=True), \
+                patch.object(outbox, "MiddlewareSmsClient") as factory, \
+                patch.object(self.env.cr, "commit"):
+            client = factory.return_value
+            client.token.side_effect = [SmsTransportError("HTTP_503"), "synthetic-token"]
+            client.message.return_value = self.response(job)
+            self.jobs._cron_process()
+            self.assertEqual(job.state, "pending")
+            self.assertEqual(job.attempts, 1)
+            self.assertGreater(job.next_attempt_at, fields.Datetime.now())
+            client.message.assert_not_called()
+            job._update({"next_attempt_at": fields.Datetime.now()})
+            self.jobs._cron_process()
+            self.assertEqual(job.state, "reconcile")
+            client.message.assert_called_once()
+
+    def test_token_retries_stop_at_limit(self):
+        job = self.enqueue()
+        job._update({"attempts": 4})
+        with patch.object(outbox, "configuration", return_value=self.config), \
+                patch.object(outbox, "delivery_enabled", return_value=True), \
+                patch.object(outbox, "MiddlewareSmsClient") as factory, \
+                patch.object(self.env.cr, "commit"):
+            factory.return_value.token.side_effect = SmsTransportError("HTTP_429")
+            self.jobs._cron_process()
+            factory.return_value.message.assert_not_called()
+        self.assertEqual(job.attempts, 5)
+        self.assertEqual(job.state, "failed")
+        self.assertFalse(job.next_attempt_at)

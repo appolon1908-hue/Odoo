@@ -22,6 +22,9 @@ an indeterminate submission intent before its single message POST. A crash,
 timeout, malformed response, or lost acknowledgement then uses only GET
 `/v1/communications/messages/by-idempotency`. A 404 leaves the outcome unresolved
 and cannot trigger another POST. Native Resend reuses the existing job.
+Transient token failures before the submission intent retry with backoff, up to
+five attempts. Cancellation locks the native SMS row, and the worker checks it
+again after committing intent and holds that lock through submission.
 
 Middleware acceptance maps to Processing, dispatch to Sent, and confirmed
 delivery to Delivered. Final delivery states cannot regress. Notifications and
@@ -39,6 +42,9 @@ redirects and ambient proxies are disabled. Only fixed error codes are stored.
 Provision a Keycloak `odoo-sms` confidential service account with tenant-bound
 claims, audience `middleware-api`, lifetime at most 300 seconds, and scopes
 `odoo.sms.command.write` and `odoo.sms.status.read`. Its Middleware command
+grants are fixed Keycloak claim mappers; the token request does not request
+optional client scopes. Middleware permits only canonical submission and
+by-idempotency readback for this identity. Its internal dispatch
 authority is limited to the registered `sms.*` namespace on `telnexa-sms`. Sender and billing
 account must already be approved for that tenant in Middleware/Telnexa. The
 Odoo campaign ID is diagnostic metadata, never a provider campaign identifier.

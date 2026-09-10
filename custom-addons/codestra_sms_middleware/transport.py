@@ -27,6 +27,11 @@ TERMINAL = {"delivered", "failed", "cancelled", "suppressed", "expired"}
 class SmsTransportError(Exception):
     """The exception contains only a fixed error code, never response content."""
 
+    @property
+    def retryable(self):
+        code = str(self)
+        return code in {"HTTP_429", "TRANSPORT_OR_RESPONSE_ERROR"} or bool(re.fullmatch(r"HTTP_5[0-9]{2}", code))
+
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -129,7 +134,7 @@ class MiddlewareSmsClient:
         except (OSError, urllib.error.URLError, ValueError):
             raise SmsTransportError("TRANSPORT_OR_RESPONSE_ERROR") from None
 
-    def token(self, *, write=False):
+    def token(self):
         try:
             with open(self.config["client_secret_file"], encoding="utf-8") as handle:
                 secret = handle.read(8193).strip()
@@ -140,8 +145,9 @@ class MiddlewareSmsClient:
         body = urllib.parse.urlencode({
             "grant_type": "client_credentials", "client_id": "odoo-sms",
             "client_secret": secret,
-            "scope": "odoo.sms.command.write" if write else "odoo.sms.status.read",
         }).encode()
+        # Keycloak's managed client issues its two fixed service grants. They
+        # are claim mappers, not optional client scopes to request by name.
         value = self._request(urllib.request.Request(
             self.config["token_url"], data=body, method="POST",
             headers={"Content-Type": "application/x-www-form-urlencoded"},

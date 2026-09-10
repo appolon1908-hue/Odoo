@@ -2,7 +2,7 @@ import importlib.util
 import json
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, mock_open, patch
 from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -89,3 +89,22 @@ class TestSmsMiddlewareTransport(unittest.TestCase):
             self.assertFalse(transport.delivery_enabled())
             transport.os.environ["ALLOW_LIVE_SMS"] = "true"
             self.assertTrue(transport.delivery_enabled())
+
+    def test_token_uses_managed_fixed_grants_without_optional_scopes(self):
+        with patch.object(transport.ssl, "create_default_context"), \
+                patch.object(transport.urllib.request, "build_opener"), \
+                patch("builtins.open", mock_open(read_data="synthetic-secret")):
+            client = transport.MiddlewareSmsClient(self.config())
+            client._request = MagicMock(return_value={"access_token": "synthetic-token"})
+            self.assertEqual(client.token(), "synthetic-token")
+            request = client._request.call_args.args[0]
+            form = transport.urllib.parse.parse_qs(request.data.decode())
+            self.assertEqual(form["grant_type"], ["client_credentials"])
+            self.assertEqual(form["client_id"], ["odoo-sms"])
+            self.assertNotIn("scope", form)
+
+    def test_only_transient_pre_submission_errors_are_retryable(self):
+        for code in ("HTTP_429", "HTTP_503", "TRANSPORT_OR_RESPONSE_ERROR"):
+            self.assertTrue(transport.SmsTransportError(code).retryable)
+        for code in ("HTTP_401", "REDIRECT_REFUSED", "CONFIGURATION_MISSING", "SMS_CONSENT_REQUIRED"):
+            self.assertFalse(transport.SmsTransportError(code).retryable)

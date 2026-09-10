@@ -180,6 +180,11 @@ class SmsOutbox(models.Model):
     def _readback(self, client, token):
         return client.message(token=token, tenant=self.tenant_id, key=self.idempotency_key, correlation=self.correlation_id)
 
+    def _cancel_before_submission(self):
+        self._update({"state": "failed", "middleware_status": "cancelled",
+                      "last_error_code": "CANCELLED_BEFORE_SUBMISSION", "next_attempt_at": False})
+        self._project_native_state()
+
     @api.model
     def _cron_process(self, limit=20):
         # Reconciliation remains available after the delivery switches close.
@@ -191,6 +196,9 @@ class SmsOutbox(models.Model):
             if not job:
                 continue
             submitting = job.state == "pending"
+            if submitting and job.sms_id.state == "canceled":
+                job._cancel_before_submission()
+                continue
             if submitting and not delivery_enabled():
                 job._update({"last_error_code": "SMS_DELIVERY_DISABLED",
                              "next_attempt_at": fields.Datetime.now() + timedelta(minutes=5)})
@@ -202,11 +210,9 @@ class SmsOutbox(models.Model):
                     raise SmsTransportError("SCOPE_MISMATCH")
                 if submitting:
                     self._policy(job.lead_id, job.payload["to"][0], config)
-                    if job.sms_id.state == "canceled":
-                        raise SmsTransportError("CANCELLED_BEFORE_SUBMISSION")
                 client = MiddlewareSmsClient(config)
-                token = client.token(write=submitting)
                 job._update({"attempts": job.attempts + 1})
+                token = client.token()
                 if submitting:
                     # Commit intent BEFORE any message POST. After a lost HTTP
                     # response, process crash or transaction retry, this row can
@@ -216,6 +222,16 @@ class SmsOutbox(models.Model):
                     job = job.try_lock_for_update()
                     if not job:
                         continue
+                    sms = job.sms_id.try_lock_for_update()
+                    if not sms:
+                        continue
+                    sms.invalidate_recordset(["state"])
+                    if sms.state == "canceled":
+                        job._cancel_before_submission()
+                        continue
+                    # Recheck consent after the commit; hold the SMS row lock
+                    # through POST so cancellation cannot succeed concurrently.
+                    self._policy(job.lead_id, job.payload["to"][0], config)
                     result = client.message(token=token, tenant=job.tenant_id, key=job.idempotency_key,
                                             correlation=job.correlation_id, payload=job.payload)
                 else:
@@ -224,8 +240,12 @@ class SmsOutbox(models.Model):
             except SmsTransportError as error:
                 values = {"last_error_code": str(error), "next_attempt_at": fields.Datetime.now() + timedelta(minutes=5)}
                 if job.state == "pending":
-                    # A local policy/configuration failure happened before POST.
-                    values.update({"state": "failed", "next_attempt_at": False})
+                    if error.retryable and job.attempts < 5:
+                        # Token acquisition has no message side effect. Retry
+                        # transient failures before the committed POST intent.
+                        values["next_attempt_at"] = fields.Datetime.now() + timedelta(minutes=2 ** job.attempts)
+                    else:
+                        values.update({"state": "failed", "next_attempt_at": False})
                 job._update(values)
                 if job.state == "failed":
                     job._project_native_state()

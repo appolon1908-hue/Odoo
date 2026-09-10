@@ -46,6 +46,10 @@ class SmsSms(models.Model):
         return super().unlink()
 
     def action_set_canceled(self):
+        # Serialize cancellation with the worker's final pre-POST state check.
+        # A busy row must not report a successful cancellation.
+        if self.try_lock_for_update() != self:
+            raise ValidationError("SMS delivery is being processed. Refresh its status before cancelling.")
         if self.env["codestra.sms.outbox"].sudo().search_count([
             ("sms_id", "in", self.ids), ("state", "in", ("indeterminate", "reconcile", "done")),
         ]):
