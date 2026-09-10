@@ -37,7 +37,7 @@ class TestCodestraWorkspaceAssets(HttpCase):
         self.assertIn("border: 1px solid #333 !important", css)
         self.assertIn("body.o_web_client .o_form_view .o_notebook .nav-tabs", css)
         self.assertIn("border-bottom: 2px solid #fff !important", css)
-        self.assertIn("body.o_web_client:has(.o-mail-ChatWindow) .o_form_view .o_form_sheet", css)
+        self.assertIn("body.o_web_client:has(.o-mail-ChatWindow) .o_form_view .o_form_sheet_bg", css)
         self.assertIn("z-index: 1061", css)
 
     def test_public_login_does_not_load_workspace_assets(self):

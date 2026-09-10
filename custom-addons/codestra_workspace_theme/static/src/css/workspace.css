@@ -372,8 +372,6 @@
     }
     @media (min-width: 1200px) {
         body.o_web_client:has(.o-mail-ChatWindow) .o_form_view .o_form_sheet {
-            --cs-chat-reserve: min(360px, 22vw);
-            margin-right: var(--cs-chat-reserve);
         }
         body.o_web_client:has(.o-mail-ChatWindow) .o_form_view .o_form_sheet_bg {
             padding-right: min(360px, 22vw);
