@@ -512,7 +512,7 @@ class ClickToCallDispatch(models.Model):
         if unknown:
             attempting = False
         values = {
-            "status": result.get("dialing") or "invalid_response",
+            "status": "accepted" if attempting else "outcome_unknown" if unknown else result.get("dialing") or "invalid_response",
             "originate_result_class": "accepted" if attempting else "unknown" if unknown else "rejected",
             "originate_result_reason": " ".join(
                 (result.get("reason") or "Call dispatch result received.").split()
