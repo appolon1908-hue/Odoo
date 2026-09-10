@@ -14,6 +14,14 @@ The existing Odoo image, worker settings, database connection, integrations,
 and runtime mounts were preserved. The overlay explicitly retains the existing
 `/mnt/extra-addons` mount, which was absent from the rendered base file list.
 
+The PR review follow-up appends `/mnt/extra-addons` to the search path, after
+the pinned release directories. A read-only production inventory found all
+95 installed modules in the existing search path, with 24 duplicate module
+names in the retained directory and none available only there. Appending the
+directory preserves current module precedence while making the retained
+mount discoverable. The evidence below records the original deployment;
+application of this review follow-up is recorded separately in the PR.
+
 This is a targeted module deployment on the existing Odoo 19 runtime. The
 evidence covers the login surface and its recovery rehearsal.
 
