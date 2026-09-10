@@ -443,7 +443,7 @@ class TelephonyMiddlewareClient(models.AbstractModel):
             or re.fullmatch(r"\+[1-9][0-9]{7,14}", values["caller_id"]) is None
         ):
             raise OriginateRejected("TEST_SYN internal command fields are invalid.")
-        access_token = self._command_access_token()
+        access_token = self._command_access_token("telephony.calls.originate")
         payload = dict(values, idempotency_key=idempotency_key)
         try:
             raw = json.dumps(payload, separators=(",", ":"), allow_nan=False).encode("utf-8")
@@ -512,7 +512,7 @@ class TelephonyMiddlewareClient(models.AbstractModel):
 
     @api.private
     @api.model
-    def _command_access_token(self):
+    def _command_access_token(self, required_scope="telephony:command"):
         """Acquire a scoped service token before dispatch; never use the legacy key.
 
         Only deployment-controlled environment and secret files configure OIDC.
@@ -571,8 +571,9 @@ class TelephonyMiddlewareClient(models.AbstractModel):
                 or not _visible_ascii(result.get("access_token"), 16384)
                 or type(result.get("expires_in")) is not int
                 or result["expires_in"] <= 10
+                or not _visible_ascii(required_scope, 128)
                 or not isinstance(result.get("scope"), str)
-                or "telephony:command" not in result["scope"].split()
+                or required_scope not in result["scope"].split()
             ):
                 raise ValueError("invalid scoped token response")
             return result["access_token"]
