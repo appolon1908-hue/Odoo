@@ -42,3 +42,27 @@ production gates are approved.
 Run the module tests together with `scripts/run_ci.sh`; the canonical baseline and
 integration-boundary validators reject undeclared tree drift or SQL/import
 exceptions.
+
+## Preview queue upgrade (19.0.5.3.4)
+
+Configure `CODESTRA_MIDDLEWARE_CAMPAIGN_TENANTS` with an explicit JSON mapping
+from each business-unit code to its authorized Middleware tenant. Missing or
+invalid endpoint, token-file or tenant configuration defers delivery for sixty
+seconds without consuming the five-attempt delivery budget. Correcting the
+configuration lets the same immutable event resume automatically. Actual
+transport/response failures retain the existing backoff and dead-letter limit.
+
+Run the module upgrade with delivery workers stopped. Reconcile any processing
+legacy previews first; the upgrade fails atomically if one remains. The upgrade
+preserves old payloads, hashes and idempotency keys, marks undelivered previews
+without `design_request_revision` as superseded, and creates a fresh revision
+only when the current requested design needs replacement. Older queued events
+cannot overwrite a newer valid request. Delivered events remain unchanged.
+Repeated upgrades create no duplicate successors. The new revision requires its
+own preview and approval; this upgrade does not activate a campaign or contact
+Middleware. Both automatic and explicitly unmanaged producers now bind the
+revision before computing the payload hash.
+
+The Odoo/PostgreSQL regression suite exercises the migration entrypoint,
+immutable history, repeat execution, rollback, processing-event refusal and
+configuration recovery through the delivery cron.
