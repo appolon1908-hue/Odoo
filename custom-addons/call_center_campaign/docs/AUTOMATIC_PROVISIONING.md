@@ -23,3 +23,14 @@ Odoo does not allocate VICIdial identifiers, write VICIdial tables, create n8n
 workflows or activate production resources. Those responsibilities remain with
 Middleware, the restricted VICIdial adapter, VICIdial and n8n as declared in the
 root contract.
+
+Version 19.0.5.3.3 includes `design_request_revision` inside the hash-bound
+design event payload. Middleware can therefore preserve the Odoo revision
+sequence when an unapproved campaign is edited, while replaying an older event
+still returns its original preview. The field is present from revision 1.
+
+The preview transport also requires an explicit business-unit-to-tenant JSON map
+in `CODESTRA_MIDDLEWARE_CAMPAIGN_TENANTS`. It sends the matched tenant as
+`X-Tenant-ID`; Middleware verifies the tenant and business-unit claims together.
+Missing, wildcard, or malformed mappings block delivery while preserving the
+outbox event for retry. No tenant is inferred from a business-unit name.
