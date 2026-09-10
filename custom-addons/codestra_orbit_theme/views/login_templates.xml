@@ -5,14 +5,11 @@
       <div t-if="request.params.get('session_expired')" class="alert alert-warning cs-orbit-auth-status" role="alert">
         Your session expired. Sign in again to continue safely.
       </div>
-      <div class="cs-orbit-auth-intro">
-        <span class="cs-orbit-kicker">Codestra Orbit</span>
-        <h1>Welcome back</h1>
-        <p>Continue to your secure operations workspace.</p>
-        <a t-if="codestra_sso_enabled" class="btn btn-primary cs-orbit-sso" t-att-href="codestra_sso_url">
+      <div t-if="codestra_sso_enabled" class="cs-orbit-auth-intro">
+        <a class="btn btn-primary cs-orbit-sso" t-att-href="codestra_sso_url">
           Continue with Codestra
         </a>
-        <div t-if="codestra_sso_enabled" class="cs-orbit-divider" role="separator"><span>or use local recovery access</span></div>
+        <div class="cs-orbit-divider" role="separator"><span>or use local recovery access</span></div>
       </div>
     </xpath>
   </template>

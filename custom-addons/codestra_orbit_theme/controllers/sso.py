@@ -159,6 +159,15 @@ class CodestraOrbitSso(http.Controller):
 
 
 class CodestraOrbitLogin(OAuthLogin):
+    def list_providers(self):
+        providers = super().list_providers()
+        codestra = request.env.ref(
+            "codestra_orbit_theme.provider_codestra_keycloak"
+        ).sudo()
+        # Codestra uses the dedicated authorization-code route above the form.
+        # Odoo's generic provider link requests the implicit token flow instead.
+        return [provider for provider in providers if provider["id"] != codestra.id]
+
     @http.route()
     def web_login(self, *args, **kwargs):
         response = super().web_login(*args, **kwargs)

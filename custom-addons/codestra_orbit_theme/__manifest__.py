@@ -1,11 +1,11 @@
 {
     "name": "Codestra Orbit Theme and SSO",
     "summary": "Supported Codestra shell and Keycloak OIDC for Odoo",
-    "version": "19.0.1.1.0",
+    "version": "19.0.1.2.0",
     "author": "Codestra",
     "website": "https://codestra.agency",
     "license": "LGPL-3",
-    "depends": ["auth_oauth", "portal", "website", "web"],
+    "depends": ["auth_oauth", "portal", "website", "codestra_login_branding"],
     "data": [
         "security/ir.model.access.csv",
         "data/oauth_provider.xml",

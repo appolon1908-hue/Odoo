@@ -1,3 +1,21 @@
+/* Authentication inherits the Codestra black-and-gold shell. Keep these
+ * overrides scoped so website, portal and backend palettes stay independent. */
+.codestra-auth-body {
+    --cs-color-ink: var(--codestra-text);
+    --cs-color-muted: var(--codestra-muted);
+    --cs-color-primary: var(--codestra-gold);
+    --cs-color-primary-hover: #ffd85c;
+    --cs-color-border: var(--codestra-border);
+    --cs-focus-ring: 0 0 0 0.2rem rgba(244, 194, 35, 0.3);
+}
+.codestra-auth-body .cs-orbit-sso,
+.codestra-auth-body .cs-orbit-sso:hover,
+.codestra-auth-body .cs-orbit-sso:focus {
+    min-height: 3.15rem;
+    padding: .85rem 1rem;
+    color: var(--codestra-black);
+    font-weight: 800;
+}
 .cs-orbit-auth-intro { margin-bottom: 1.25rem; color: var(--cs-color-ink); }
 .cs-orbit-auth-intro h1 { margin: .35rem 0; font-size: clamp(1.65rem, 5vw, 2.2rem); }
 .cs-orbit-auth-intro p { color: var(--cs-color-muted); }
