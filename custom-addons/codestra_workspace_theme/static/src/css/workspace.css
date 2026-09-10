@@ -233,11 +233,15 @@
     body.o_web_client :is(.nav-tabs, .o_notebook .nav-tabs) { border-color: #383838; }
     body.o_web_client :is(.nav-tabs .nav-link, .o_search_panel_label) { color: #b5b5b5; background: transparent; }
     body.o_web_client :is(.nav-tabs .nav-link.active, .o_search_panel_label.active) { color: #fff; background: #242424; border-color: #525252; }
-    body.o_web_client .o_statusbar_status .o_arrow_button { color: #b5b5b5; background: #171717; border-color: #383838; }
-    body.o_web_client .o_statusbar_status .o_arrow_button.btn-primary { color: #050505; background: #f5f5f5; }
-    body.o_web_client .o_statusbar_status .o_arrow_button::before { border-left-color: #383838; }
-    body.o_web_client .o_statusbar_status .o_arrow_button::after { border-left-color: #171717; }
-    body.o_web_client .o_statusbar_status .o_arrow_button.btn-primary::after { border-left-color: #f5f5f5; }
+    body.o_web_client .o_field_statusbar > .o_statusbar_status {
+        --o-statusbar-border: #525252;
+        --o-statusbar-background-active: #f5f5f5;
+        --o-statusbar-border-active: #fff;
+        --o-statusbar-background-hover: #303030;
+    }
+    body.o_web_client .o_statusbar_status .o_arrow_button { color: #b5b5b5; background: #171717; }
+    body.o_web_client .o_field_statusbar > .o_statusbar_status > .o_arrow_button.o_arrow_button_current:disabled { color: #050505; background: #f5f5f5; }
+    body.o_web_client .o_field_statusbar > .o_statusbar_status > .o_arrow_button:focus-visible { outline-offset: -4px; }
 
     /* Bootstrap utilities and Odoo's numbered tag palette otherwise leak color. */
     body.o_web_client :is(.bg-white, .bg-100, .bg-200, .bg-view, .bg-body, .bg-light) { background-color: #111 !important; }
@@ -253,6 +257,7 @@
         border: 1px solid #666;
     }
     body.o_web_client :is(.o_tag, .o_searchview_facet) :is(.o_tag_badge_text, .o_facet_values, .o_searchview_facet_label) { color: #f5f5f5; background-color: transparent; }
+    body.o_web_client .o_tag::after { color: #f5f5f5 !important; background-color: #292929 !important; }
     body.o_web_client :is(.alert, .o_notification) { color: #f5f5f5; background-color: #202020; border-color: #888; }
     body.o_web_client :is(.alert-danger, .o_notification.border-danger) { border-width: 2px; border-style: double; }
     body.o_web_client .progress { background-color: #303030; }
@@ -268,12 +273,13 @@
     }
     body.o_web_client .o-mail-ChatWindow { border: 1px solid #525252; box-shadow: 0 12px 48px #000; }
     body.o_web_client .o-mail-ChatWindow-header { background: #171717; }
-    body.o_web_client .o-mail-Message-bubble {
+    body.o_web_client :is(.o-mail-Message-bubble, .o-mail-Message-bubbleTail) {
         --o-message-bubble-bg: #242424;
         --o-message-bubble-border-color: #525252;
         --o-message-bubble-color-base: #f5f5f5;
         color: #f5f5f5;
     }
+    body.o_web_client .o-mail-Message-bubble.o-muted { background-color: #171717 !important; }
     body.o_web_client :is(.o-mail-Message-date, .o-mail-Thread hr, .o-mail-Thread .text-muted) { color: #b5b5b5; }
     body.o_web_client .o-mail-ImStatus { filter: grayscale(1); }
     body.o_web_client :is(.o_calendar_renderer, .o_graph_renderer canvas, .o_kanban_colorpicker) { filter: grayscale(1); }

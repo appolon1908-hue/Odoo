@@ -1,0 +1,15 @@
+# Append to the currently reviewed production Compose file list.
+# Set this to the custom-addons directory of the immutable, verified release.
+services:
+  odoo:
+    command:
+      - odoo
+      - --addons-path=/usr/lib/python3/dist-packages/odoo/addons,/mnt/integration-addons,/mnt/call-center-addons,/mnt/breero-addons,/mnt/codestra-login-addons,/mnt/codestra-workspace-addons,/mnt/extra-addons
+      - --workers=4
+      - --max-cron-threads=1
+      - --gevent-port=8072
+    volumes:
+      - type: bind
+        source: ${CODESTRA_WORKSPACE_RELEASE:?Set the verified immutable custom-addons directory}
+        target: /mnt/codestra-workspace-addons
+        read_only: true
