@@ -1,0 +1,36 @@
+{
+  "verified_at": "2026-09-10T20:00:03.981534+00:00",
+  "source_commit": "6b3458b32ca521e862cf5ecdc5d51d1a63983b77",
+  "stylesheet_sha256": "204149494d0e8dea6196ba5e0d739e0698f961444b068dc26babf51dc8d9de72",
+  "previous_stylesheet_sha256": "925d8ceaeb44751ce6c65a9d1d09b10994c0e6dd24bb5f79824f9f5e6f7da621",
+  "applied_at": "2026-09-10T19:59:25.246813+00:00",
+  "restart_seconds": 34.98,
+  "container_id": "764a69400670cb2d042b90c56e6bd573ebdbefbc4cbf8ac53fef0bf52d86ba77",
+  "image": "odoo@sha256:f54272f31d5f77e4146b887efb3761c98480317daf687e4b4b5e76ed8bcc08c5",
+  "health": "healthy",
+  "only_stylesheet_mount_changed": true,
+  "database_upgrade": false,
+  "css_asset": {
+    "url": "https://crm.codestra.agency/web/assets/f7af847/web.assets_web.min.css",
+    "status": 200,
+    "sha256": "6397f6bcaa2e978a2181b6a7a7d865312a5ef3368afd4510bf2075ac08e32391"
+  },
+  "js_asset": {
+    "url": "https://crm.codestra.agency/web/assets/c38a206/web.assets_web.min.js",
+    "status": 200,
+    "sha256": "5489c71c32f35b87466ebb57f0754bc137d5b6e26aba2493860b626662247a68"
+  },
+  "css_checks": {
+    "slate_form_actions": true,
+    "fixed_label_grid": true,
+    "boxed_inputs": true,
+    "scrollable_tabs": true,
+    "drawer_reservation": true
+  },
+  "call_popup_rpc_repair_preserved": true,
+  "login_http_status": 200,
+  "login_password_and_csrf_present": true,
+  "root_redirects_to_login": true,
+  "authenticated_browser_visual_verification": false,
+  "stage": "/opt/codestra/staging/crm-form-layout-adjusted-20260910T195849Z"
+}
