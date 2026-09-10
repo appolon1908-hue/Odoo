@@ -506,6 +506,17 @@ class CodestraIntegrationOutbox(models.Model):
             raise ValidationError("The middleware credential file is empty.")
         return endpoint, token
 
+    def _campaign_tenant_id(self):
+        self.ensure_one()
+        try:
+            mapping = json.loads(os.environ.get("CODESTRA_MIDDLEWARE_CAMPAIGN_TENANTS", "{}"))
+        except (TypeError, ValueError) as exc:
+            raise ValidationError("The campaign tenant mapping is invalid.") from exc
+        tenant = mapping.get(self.business_unit_code) if isinstance(mapping, dict) else None
+        if not isinstance(tenant, str) or not tenant or len(tenant) > 128 or tenant != tenant.strip() or "*" in tenant:
+            raise ValidationError("An explicit campaign business-unit tenant binding is required.")
+        return tenant
+
     def _send_to_middleware(self):
         self.ensure_one()
         endpoint, token = self._middleware_configuration()
@@ -520,6 +531,7 @@ class CodestraIntegrationOutbox(models.Model):
                 "Idempotency-Key": self.event_uuid,
                 "X-Correlation-ID": self.correlation_id,
                 "X-Business-Unit": self.business_unit_code,
+                "X-Tenant-ID": self._campaign_tenant_id(),
             },
         )
         context = ssl.create_default_context()

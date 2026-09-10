@@ -378,6 +378,7 @@ class TestCampaignTransactionalOutbox(TransactionCase):
         response.__enter__.return_value = response
         response.__exit__.return_value = False
         with (
+            patch.dict("os.environ", {"CODESTRA_MIDDLEWARE_CAMPAIGN_TENANTS": json.dumps({event.business_unit_code: "campaign-design-test"})}),
             patch.object(
                 type(event),
                 "_middleware_configuration",
@@ -395,6 +396,7 @@ class TestCampaignTransactionalOutbox(TransactionCase):
         outbound = urlopen.call_args.args[0]
         self.assertEqual(outbound.headers["Idempotency-key"], event.event_uuid)
         self.assertEqual(outbound.headers["X-correlation-id"], event.correlation_id)
+        self.assertEqual(outbound.headers["X-tenant-id"], "campaign-design-test")
         self.assertEqual(result["design_revision"], 1)
 
     def test_non_object_middleware_response_is_rejected(self):
@@ -407,6 +409,7 @@ class TestCampaignTransactionalOutbox(TransactionCase):
         response.__enter__.return_value = response
         response.__exit__.return_value = False
         with (
+            patch.dict("os.environ", {"CODESTRA_MIDDLEWARE_CAMPAIGN_TENANTS": json.dumps({event.business_unit_code: "campaign-design-test"})}),
             patch.object(
                 type(event),
                 "_middleware_configuration",
@@ -435,6 +438,7 @@ class TestCampaignTransactionalOutbox(TransactionCase):
         response.__enter__.return_value = response
         response.__exit__.return_value = False
         with (
+            patch.dict("os.environ", {"CODESTRA_MIDDLEWARE_CAMPAIGN_TENANTS": json.dumps({event.business_unit_code: "campaign-design-test"})}),
             patch.object(
                 type(event),
                 "_middleware_configuration",
@@ -470,3 +474,16 @@ class TestCampaignTransactionalOutbox(TransactionCase):
                 self.assertRaisesRegex(ValidationError, "exact HTTPS"),
             ):
                 outbox._middleware_configuration()
+
+
+    def test_campaign_tenant_binding_is_explicit_and_cannot_be_wildcard(self):
+        campaign = self._create_campaign()
+        event = self.env["codestra.runtime.integration.outbox"].sudo().search(
+            [("campaign_id", "=", campaign.id)], limit=1)
+        for mapping in ("{}", "[]", "not-json",
+                        json.dumps({event.business_unit_code: "*"}),
+                        json.dumps({event.business_unit_code: " tenant "})):
+            with self.subTest(mapping=mapping), patch.dict(
+                "os.environ", {"CODESTRA_MIDDLEWARE_CAMPAIGN_TENANTS": mapping}
+            ), self.assertRaises(ValidationError):
+                event._campaign_tenant_id()
