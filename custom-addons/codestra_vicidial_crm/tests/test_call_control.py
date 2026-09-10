@@ -15,13 +15,18 @@ class TestCallControl(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         group = cls.env.ref("codestra_vicidial_crm.group_agent")
+        sales_group = cls.env.ref("sales_team.group_sale_salesman")
+        cls.unit = cls.env.ref("call_center_core.business_unit_digital")
+        unit = cls.unit
         cls.agent_user = cls.env["res.users"].create(
             {
                 "name": "Synthetic Agent 6101",
                 "login": "synthetic-agent-6101@example.test",
                 "keycloak_subject": str(uuid.UUID(int=6101)),
                 "codestra_tenant_id": "COD",
-                "group_ids": [(6, 0, [group.id])],
+                "call_center_business_unit_ids": [(6, 0, [unit.id])],
+                "call_center_default_business_unit_id": unit.id,
+                "group_ids": [(6, 0, [group.id, sales_group.id])],
             }
         )
         cls.other_user = cls.env["res.users"].create(
@@ -30,7 +35,7 @@ class TestCallControl(TransactionCase):
                 "login": "synthetic-agent-6102@example.test",
                 "keycloak_subject": str(uuid.UUID(int=6102)),
                 "codestra_tenant_id": "COD",
-                "group_ids": [(6, 0, [group.id])],
+                "group_ids": [(6, 0, [group.id, sales_group.id])],
             }
         )
         cls.campaign = cls.env["codestra.vicidial.campaign"].search(
@@ -202,3 +207,74 @@ class TestCallControl(TransactionCase):
         self.assertNotEqual(first["callback_id"], second["callback_id"])
         self.assertTrue(replay["duplicate"])
         self.assertEqual(replay["callback_id"], first["callback_id"])
+    def test_dialpad_outbound_resolves_an_exact_campaign_lead(self):
+        lead_number = "+1" + "617" + "555" + "0100"
+        dial_destination = "(617) " + "555-" + "0100"
+        lead = self.env["crm.lead"].create(
+            {
+                "name": "Synthetic Dialpad Lead",
+                "user_id": self.agent_user.id,
+                "phone": lead_number,
+                "business_unit_id": self.unit.id,
+                "vicidial_campaign_id": "TEST_SYN",
+                "x_vicidial_campaign_id": "TEST_SYN",
+            }
+        )
+        controller = call_control_controller.CallControlAPI()
+        with (
+            patch.object(
+                call_control_controller,
+                "request",
+                SimpleNamespace(env=self.env(user=self.agent_user.id)),
+            ),
+            patch.object(controller, "_feature", return_value=True),
+            patch.object(controller, "_command", return_value=(SimpleNamespace(), False)),
+        ):
+            result = controller.outbound(
+                destination=dial_destination,
+                campaign_id="TEST_SYN",
+                idempotency_key="dialpad-synthetic-one",
+            )
+        self.assertFalse(result["duplicate"])
+        self.assertEqual(result["call"]["direction"], "outbound")
+        self.assertEqual(result["call"]["caller_number"], lead_number)
+        self.assertEqual(result["call"]["lead"]["id"], lead.id)
+
+    def test_dialpad_outbound_rejects_ambiguous_number(self):
+        first_number = "+1" + "809" + "555" + "0199"
+        second_number = "809-" + "555-" + "0199"
+        self.env["crm.lead"].create(
+            {
+                "name": "First Dialpad Lead",
+                "user_id": self.agent_user.id,
+                "phone": first_number,
+                "business_unit_id": self.unit.id,
+                "vicidial_campaign_id": "TEST_SYN",
+                "x_vicidial_campaign_id": "TEST_SYN",
+            }
+        )
+        self.env["crm.lead"].create(
+            {
+                "name": "Second Dialpad Lead",
+                "user_id": self.agent_user.id,
+                "phone": second_number,
+                "business_unit_id": self.unit.id,
+                "vicidial_campaign_id": "TEST_SYN",
+                "x_vicidial_campaign_id": "TEST_SYN",
+            }
+        )
+        controller = call_control_controller.CallControlAPI()
+        with (
+            patch.object(
+                call_control_controller,
+                "request",
+                SimpleNamespace(env=self.env(user=self.agent_user.id)),
+            ),
+            patch.object(controller, "_feature", return_value=True),
+        ):
+            with self.assertRaises(AccessError):
+                controller.outbound(
+                    destination=first_number,
+                    campaign_id="TEST_SYN",
+                    idempotency_key="dialpad-synthetic-two",
+                )
