@@ -176,10 +176,14 @@ class CallingContractUsageTest(unittest.TestCase):
             self._validate(document=document)
 
     def test_in_use_claim_without_source_backing_is_rejected(self):
-        # A declaration may not outlive the code that justified it.
+        # A declaration may not outlive the code that justified it. Pick a route
+        # no source file names, so this stays meaningful as more of the canonical
+        # surface is actually adopted.
+        unused = "/v1/telephony/operations/{operation_id}"
+        self.assertNotIn(unused, self.source_endpoints)
         document = self._mutated()
         for entry in document["endpoints"]:
-            if entry["path"] == "/v1/telephony/commands":
+            if entry["path"] == unused:
                 entry["status"] = "in_use"
         with self.assertRaises(usage.UsageError):
             self._validate(document=document)
