@@ -99,6 +99,11 @@ class TelephonyCommandEnvelopeTest(unittest.TestCase):
         self.params = Parameters()
         self.client = self.module.TelephonyMiddlewareClient()
         self.client.env = {"ir.config_parameter": self.params}
+        token_patch = mock.patch.object(
+            self.client, "_command_access_token", return_value="synthetic-scoped-token"
+        )
+        self.token = token_patch.start()
+        self.addCleanup(token_patch.stop)
 
     @contextlib.contextmanager
     def response(self, body=None):
@@ -114,7 +119,27 @@ class TelephonyCommandEnvelopeTest(unittest.TestCase):
 
     def send(self, values=None):
         return self.client.originate_command(
-            CORRELATION_ID, "synthetic-key", _values() if values is None else values
+            CORRELATION_ID, "synthetic-command-key", _values() if values is None else values
+        )
+
+    def test_idempotency_boundaries_are_validated_before_authentication(self):
+        for key in (None, "", "a" * 15, "a" * 129, "a" * 16 + "\n"):
+            with self.subTest(key=key), self.response() as opener:
+                with self.assertRaises(self.module.OriginateRejected):
+                    self.client.originate_command(CORRELATION_ID, key, _values())
+                self.token.assert_not_called()
+                opener.open.assert_not_called()
+        for length in (16, 128):
+            with self.subTest(length=length), self.response():
+                self.client.originate_command(CORRELATION_ID, "a" * length, _values())
+
+    def test_canonical_request_uses_scoped_token_without_legacy_key(self):
+        self.params.values.pop("codestra.middleware.api_key")
+        with self.response() as opener:
+            self.send()
+        self.assertEqual(
+            opener.open.call_args.args[0].get_header("Authorization"),
+            "Bearer synthetic-scoped-token",
         )
 
     # --- envelope shape -------------------------------------------------
@@ -139,7 +164,7 @@ class TelephonyCommandEnvelopeTest(unittest.TestCase):
             self.send()
         request = opener.open.call_args.args[0]
         self.assertEqual(request.get_header("X-correlation-id"), CORRELATION_ID)
-        self.assertEqual(request.get_header("Idempotency-key"), "synthetic-key")
+        self.assertEqual(request.get_header("Idempotency-key"), "synthetic-command-key")
         self.assertEqual(request.get_method(), "POST")
 
     def test_command_carries_no_field_outside_the_closed_schema(self):
@@ -190,7 +215,7 @@ class TelephonyCommandEnvelopeTest(unittest.TestCase):
         other = "99998888-7777-6666-5555-444433332222"
         with self.assertRaises(self.module.OriginateRejected):
             self.client.originate_command(
-                CORRELATION_ID, "synthetic-key", _values(correlation_id=other)
+                CORRELATION_ID, "synthetic-command-key", _values(correlation_id=other)
             )
 
     def test_timestamp_must_be_rfc3339(self):
@@ -358,6 +383,15 @@ class TelephonyCommandEnvelopeTest(unittest.TestCase):
             with self.assertRaises(self.module.OriginateRejected):
                 self.send()
 
+    def test_http_401_is_a_pre_dispatch_rejection(self):
+        with self.response() as opener:
+            opener.open.side_effect = urllib.error.HTTPError(
+                COMMAND_URL, 401, "denied", None, None
+            )
+            with self.assertRaises(self.module.OriginateRejected):
+                self.send()
+        self.assertEqual(opener.open.call_count, 1)
+
     def test_redirects_are_refused(self):
         handler = self.module._NoTelephonyRedirect()
         self.assertIsNone(
@@ -380,6 +414,112 @@ class TelephonyCommandEnvelopeTest(unittest.TestCase):
         self.assertEqual(self.client._validated_command_target(COMMAND_URL), COMMAND_URL)
         with self.assertRaises(self.module.OriginateRejected):
             self.client._validated_command_target(legacy_url)
+
+
+class TelephonyCommandOidcTest(unittest.TestCase):
+    def setUp(self):
+        self.module = _load_client()
+        self.client = self.module.TelephonyMiddlewareClient()
+        self.client.env = {"ir.config_parameter": Parameters()}
+        self.environment = {
+            "CODESTRA_TELEPHONY_TOKEN_URL": "https://id.example.test/realms/codestra/protocol/openid-connect/token",
+            "CODESTRA_TELEPHONY_CLIENT_ID": "odoo-telephony",
+            "CODESTRA_TELEPHONY_CLIENT_SECRET_FILE": "/run/secrets/telephony-client",
+        }
+        self.token_body = {
+            "token_type": "Bearer", "access_token": "synthetic-oidc-token",
+            "expires_in": 60, "scope": "openid telephony:command",
+        }
+
+    @contextlib.contextmanager
+    def transport(self, body=None):
+        response = mock.MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = json.dumps(self.token_body).encode() if body is None else body
+        opener = mock.Mock()
+        opener.open.return_value = response
+        with (
+            mock.patch.dict(self.module.os.environ, self.environment, clear=True),
+            mock.patch("builtins.open", mock.mock_open(read_data="synthetic-secret\n")),
+            mock.patch.object(self.module.urllib.request, "build_opener", return_value=opener) as build,
+        ):
+            yield opener, build
+
+    def test_acquires_scoped_token_then_dispatches_with_that_token(self):
+        with self.transport() as (opener, build):
+            response = opener.open.return_value
+            response.read.side_effect = [json.dumps(self.token_body).encode(), _operation()]
+            result = self.client.originate_command(CORRELATION_ID, "synthetic-command-key", _values())
+        self.assertEqual(result["dialing"], "attempting")
+        self.assertEqual(opener.open.call_count, 2)
+        token_request = opener.open.call_args_list[0].args[0]
+        form = self.module.urllib.parse.parse_qs(token_request.data.decode())
+        self.assertEqual(form, {
+            "grant_type": ["client_credentials"], "client_id": ["odoo-telephony"],
+            "client_secret": ["synthetic-secret"], "scope": ["telephony:command"],
+        })
+        self.assertEqual(opener.open.call_args_list[1].args[0].get_header("Authorization"),
+                         "Bearer synthetic-oidc-token")
+        handlers = build.call_args_list[0].args
+        self.assertTrue(any(isinstance(h, self.module._NoTelephonyRedirect) for h in handlers))
+        self.assertTrue(any(isinstance(h, self.module.urllib.request.ProxyHandler)
+                            and h.proxies == {} for h in handlers))
+
+    def test_bad_oidc_configuration_never_opens_network(self):
+        for name, value in (
+            ("TOKEN_URL", "http://id.example.test/token"),
+            ("TOKEN_URL", "https://user:secret@id.example.test/token"),
+            ("TOKEN_URL", "https://id.example.test/token?secret=x"),
+            ("TOKEN_URL", "https://id.example.test/\ntoken"),
+            ("CLIENT_ID", ""), ("CLIENT_SECRET_FILE", "relative-secret"),
+            ("CA_FILE", "relative-ca"),
+        ):
+            original = self.environment.copy()
+            self.environment["CODESTRA_TELEPHONY_" + name] = value
+            with self.subTest(name=name, value=value), self.transport() as (opener, _):
+                with self.assertRaises(self.module.OriginateRejected):
+                    self.client._command_access_token()
+                opener.open.assert_not_called()
+            self.environment = original
+
+    def test_invalid_token_response_prevents_command_dispatch(self):
+        for changes in (
+            {"scope": "openid"}, {"scope": None}, {"access_token": "bad\ntoken"},
+            {"token_type": "Basic"}, {"expires_in": 0}, {"expires_in": True},
+        ):
+            body = json.dumps({**self.token_body, **changes}).encode()
+            with self.subTest(changes=changes), self.transport(body) as (opener, _):
+                with self.assertRaises(self.module.OriginateRejected):
+                    self.client.originate_command(CORRELATION_ID, "synthetic-command-key", _values())
+                self.assertEqual(opener.open.call_count, 1)
+
+    def test_malformed_or_unbounded_token_response_is_rejected(self):
+        for body in (b"[]", b"not-json", b'{"scope":"x","scope":"telephony:command"}',
+                     b"x" * (self.module._MAX_MESSAGE_BYTES + 1)):
+            with self.subTest(body_length=len(body)), self.transport(body):
+                with self.assertRaises(self.module.OriginateRejected):
+                    self.client._command_access_token()
+
+    def test_authentication_errors_are_redacted_without_dispatch_or_retry(self):
+        for failure in (
+            urllib.error.HTTPError(self.environment["CODESTRA_TELEPHONY_TOKEN_URL"],
+                                   401, "synthetic-sensitive-response", None, None),
+            socket.timeout("synthetic-sensitive-response"),
+            urllib.error.URLError("synthetic-sensitive-response"),
+        ):
+            with self.subTest(failure=type(failure)), self.transport() as (opener, _):
+                opener.open.side_effect = failure
+                with self.assertRaises(self.module.OriginateRejected) as raised:
+                    self.client.originate_command(CORRELATION_ID, "synthetic-command-key", _values())
+                self.assertNotIn("synthetic-sensitive-response", str(raised.exception))
+                self.assertTrue(raised.exception.__suppress_context__)
+                self.assertEqual(opener.open.call_count, 1)
+
+    def test_missing_secret_is_redacted_before_network(self):
+        with self.transport() as (opener, _), mock.patch("builtins.open", side_effect=FileNotFoundError):
+            with self.assertRaises(self.module.OriginateRejected):
+                self.client._command_access_token()
+            opener.open.assert_not_called()
 
 
 if __name__ == "__main__":

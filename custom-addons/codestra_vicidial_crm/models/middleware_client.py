@@ -2,8 +2,10 @@ from datetime import datetime
 
 import json
 import math
+import os
 import re
 import socket
+import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -371,6 +373,79 @@ class TelephonyMiddlewareClient(models.AbstractModel):
 
     @api.private
     @api.model
+    def _command_access_token(self):
+        """Acquire a scoped service token before dispatch; never use the legacy key.
+
+        Only deployment-controlled environment and secret files configure OIDC.
+        Middleware remains responsible for token signature, audience and identity
+        authorization. No token, secret or identity-provider response is logged.
+        """
+        try:
+            endpoint = os.environ.get("CODESTRA_TELEPHONY_TOKEN_URL", "")
+            client_id = os.environ.get("CODESTRA_TELEPHONY_CLIENT_ID", "")
+            secret_file = os.environ.get("CODESTRA_TELEPHONY_CLIENT_SECRET_FILE", "")
+            ca_file = os.environ.get("CODESTRA_TELEPHONY_CA_FILE") or None
+            if not _visible_ascii(endpoint, 2048) or "?" in endpoint or "#" in endpoint:
+                raise ValueError("invalid token endpoint")
+            parsed = urllib.parse.urlsplit(endpoint)
+            if (
+                parsed.scheme != "https" or not parsed.hostname
+                or parsed.username is not None or parsed.password is not None
+                or parsed.port == 0
+                or not parsed.path or parsed.path == "/"
+                or not _visible_ascii(client_id, 255)
+                or not os.path.isabs(secret_file)
+                or (ca_file and not os.path.isabs(ca_file))
+            ):
+                raise ValueError("invalid OIDC configuration")
+            with open(secret_file, encoding="utf-8") as handle:
+                secret = handle.read(8193).rstrip("\r\n")
+            if not _visible_ascii(secret, 8192):
+                raise ValueError("invalid client secret")
+            context = ssl.create_default_context(cafile=ca_file)
+            opener = urllib.request.build_opener(
+                urllib.request.ProxyHandler({}), _NoTelephonyRedirect(),
+                urllib.request.HTTPSHandler(context=context),
+            )
+            token_request = urllib.request.Request(
+                endpoint,
+                urllib.parse.urlencode({
+                    "grant_type": "client_credentials",
+                    "client_id": client_id,
+                    "client_secret": secret,
+                    "scope": "telephony:command",
+                }).encode("ascii"),
+                {"Content-Type": "application/x-www-form-urlencoded"},
+                method="POST",
+            )
+            with opener.open(token_request, timeout=10) as response:  # nosec B310
+                raw = response.read(_MAX_MESSAGE_BYTES + 1)
+            if len(raw) > _MAX_MESSAGE_BYTES:
+                raise ValueError("oversized token response")
+            result = json.loads(
+                raw.decode("utf-8"), object_pairs_hook=_unique_object,
+                parse_constant=_reject_constant, parse_float=_finite_float,
+            )
+            if (
+                not isinstance(result, dict)
+                or str(result.get("token_type", "")).lower() != "bearer"
+                or not _visible_ascii(result.get("access_token"), 16384)
+                or type(result.get("expires_in")) is not int
+                or result["expires_in"] <= 10
+                or not isinstance(result.get("scope"), str)
+                or "telephony:command" not in result["scope"].split()
+            ):
+                raise ValueError("invalid scoped token response")
+            return result["access_token"]
+        except (OSError, ValueError, TypeError, UnicodeError, RecursionError):
+            # Token acquisition cannot dispatch a command. Redact every provider
+            # failure, including HTTP responses and file paths, from user errors.
+            raise OriginateRejected(
+                "Telephony OIDC authentication is unavailable or lacks the command scope."
+            ) from None
+
+    @api.private
+    @api.model
     def originate_command(self, correlation_id, idempotency_key, values):
         """Post telephony.call.originate.v1 to the canonical command envelope.
 
@@ -383,14 +458,13 @@ class TelephonyMiddlewareClient(models.AbstractModel):
         """
         params = self.env["ir.config_parameter"].sudo()
         target = params.get_param("codestra.middleware.telephony_command_url")
-        api_key = params.get_param("codestra.middleware.api_key")
-        if not target or not api_key:
+        if not target:
             raise OriginateRejected("Click-to-call middleware is not configured.")
         target = self._validated_command_target(target)
         if (
             not _visible_ascii(correlation_id, 255)
-            or not _visible_ascii(idempotency_key, 255)
-            or not _visible_ascii(api_key, 8192)
+            or not _visible_ascii(idempotency_key, 128)
+            or len(idempotency_key) < 16
         ):
             raise OriginateRejected("Click-to-call request identity is invalid.")
         command = self._canonical_command(values)
@@ -405,19 +479,22 @@ class TelephonyMiddlewareClient(models.AbstractModel):
                 raise ValueError("request exceeds maximum size")
         except (ValueError, TypeError, UnicodeError, RecursionError) as exc:
             raise OriginateRejected("Click-to-call request payload is invalid.") from exc
+        access_token = self._command_access_token()
         outbound_request = urllib.request.Request(
             target,
             raw,
             {
                 "Content-Type": "application/json",
-                "Authorization": "Bearer " + api_key,
+                "Authorization": "Bearer " + access_token,
                 "X-Correlation-ID": correlation_id,
                 "Idempotency-Key": idempotency_key,
             },
             method="POST",
         )
         try:
-            opener = urllib.request.build_opener(_NoTelephonyRedirect())
+            opener = urllib.request.build_opener(
+                urllib.request.ProxyHandler({}), _NoTelephonyRedirect()
+            )
             with opener.open(  # nosec B310
                 outbound_request, timeout=10
             ) as response:
@@ -432,6 +509,7 @@ class TelephonyMiddlewareClient(models.AbstractModel):
                 )
         except urllib.error.HTTPError as exc:
             messages = {
+                401: "Telephony command authentication was rejected.",
                 403: "You are not authorized to call from this campaign.",
                 422: "This phone number could not be validated.",
                 429: "Too many call attempts; wait a moment and try again.",
