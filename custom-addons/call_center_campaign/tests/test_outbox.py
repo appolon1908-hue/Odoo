@@ -501,8 +501,8 @@ class TestCampaignTransactionalOutbox(TransactionCase):
         # Keep the TransactionCase fixture in its rollback-only transaction;
         # claims, transport classification and finalization use real ORM code.
         with (
-            patch.object(type(self.env.cr), "commit"),
-            patch.object(type(self.env.cr), "rollback"),
+            patch.object(self.env.cr, "commit"),
+            patch.object(self.env.cr, "rollback"),
             patch.object(type(Outbox), "_middleware_configuration", return_value=(
                 "https://middleware.example.test/api/v1/campaign-designs/preview", "synthetic-token"
             )),
