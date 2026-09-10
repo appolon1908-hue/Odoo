@@ -59,8 +59,10 @@ Configure `codestra.middleware.telephony_test_syn_url` as the Middleware HTTPS
 The client rejects a different host, redirects, credentials, query strings,
 Server-B URLs, and non-HTTPS endpoints before acquiring a token. Configure
 `codestra.telephony.test_syn_caller_id` only with the reviewed E.164 test caller
-ID. The transport uses the same scoped OIDC client and duplicate-prevention key
-as the durable call reservation; timeouts and malformed responses remain
+ID. The synthetic transport requests the exact Middleware route scope
+`telephony.calls.originate`; the issuer must return that scope in the short-lived
+Bearer token. It uses the same OIDC client and duplicate-prevention key as the
+durable call reservation; timeouts and malformed responses remain
 reconciliation-required and are never retried blindly.
 
 Run the exact controlled test once, verify the internal adapter read-back, then
