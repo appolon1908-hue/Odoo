@@ -30,9 +30,9 @@
   "strict_mission_overrides": {
     "call_center_campaign": {
       "base_tree": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
-      "current_tree": "a700b46cfef172a71bab404dd07d9a6f6eec900b",
-      "reason": "Preserve the reviewed provider activity, Stage 3 compatibility, readiness, transactional outbox, and integration-boundary controls while adding the merged PR #67 automatic versioned campaign-design and fail-closed approval controls. Preserve PR #74 canonical operational aliases, governed deployment-gate readback, scoped onboarding review repairs, explicit activation-result evidence, optional service callback parity, and synthetic regression fixtures without authorizing direct VICIdial writes or live activation.",
-      "pull_request": 74,
+      "current_tree": "9a2d663dc78b140a2c9cb5df6f8f3006d7592cf7",
+      "reason": "Preserve the reviewed provider activity, Stage 3 compatibility, readiness, transactional outbox, and integration-boundary controls while adding the merged PR #67 automatic versioned campaign-design and fail-closed approval controls. Preserve PR #74 canonical operational aliases, governed deployment-gate readback, scoped onboarding review repairs, explicit activation-result evidence, optional service callback parity, and synthetic regression fixtures without authorizing direct VICIdial writes or live activation. PR #95 proposes revision-bound preview events and an explicit tenant header from a reviewed business-unit map. The exact changed subtree must pass the strict source review; approval remains subject to protected PR review and grants no deployment or live-effect authority. Defer local configuration failures without consuming delivery retries; upgrade legacy queued previews by preserving immutable history and creating revision-bound successors in one transaction, with processing reconciliation required and no external dispatch.",
+      "pull_request": 95,
       "integration_boundary_exceptions": [
         {
           "path": "controllers/integration_api.py",
