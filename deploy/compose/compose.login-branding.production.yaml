@@ -1,0 +1,20 @@
+# Add to the audited Codestra production Compose file list.
+# Retains the running Odoo image, database secrets, networks, and existing addons.
+services:
+  odoo:
+    volumes:
+      # Preserve this existing runtime mount, absent from the rendered file list.
+      - type: bind
+        source: /opt/codestra/odoo-addons
+        target: /mnt/extra-addons
+        read_only: true
+      - type: bind
+        source: /opt/codestra/releases/login-branding/3396700f9e24c58b71cbe1733cd65e396d11d002/custom-addons
+        target: /mnt/codestra-login-addons
+        read_only: true
+    command:
+      - odoo
+      - --addons-path=/usr/lib/python3/dist-packages/odoo/addons,/mnt/integration-addons,/mnt/call-center-addons,/mnt/breero-addons,/mnt/codestra-login-addons
+      - --workers=4
+      - --max-cron-threads=1
+      - --gevent-port=8072
