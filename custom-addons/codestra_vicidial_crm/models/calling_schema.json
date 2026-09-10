@@ -1,0 +1,283 @@
+{
+  "digest": "b39cdffe56a8185c91174228f0423df68b1137f34875f6ee52f9914f904bf724",
+  "operations": {
+    "createRealtimeSession": {
+      "method": "POST",
+      "path": "/api/v1/realtime/sessions",
+      "scope": "realtime:session:create"
+    },
+    "getTelephonyOperation": {
+      "method": "GET",
+      "path": "/v1/telephony/operations/{operation_id}",
+      "scope": "telephony:status"
+    },
+    "readOperation": {
+      "method": "GET",
+      "path": "/v1/telephony/operations/{operation_id}",
+      "scope": "telephony:status"
+    }
+  },
+  "schemas": {
+    "AgentEventEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "event": {
+          "additionalProperties": false,
+          "properties": {
+            "agent_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+              "type": "string"
+            },
+            "business_unit_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "call_unique_id": {
+              "maxLength": 255,
+              "type": "string"
+            },
+            "campaign_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+              "type": "string"
+            },
+            "correlation_id": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "disposition": {
+              "maxLength": 96,
+              "type": "string"
+            },
+            "duration_seconds": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "event_id": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "hangup_cause": {
+              "maxLength": 96,
+              "type": "string"
+            },
+            "linked_id": {
+              "maxLength": 255,
+              "type": "string"
+            },
+            "occurred_at": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "odoo_lead_id": {
+              "maxLength": 128,
+              "type": "string"
+            },
+            "odoo_user_id": {
+              "maxLength": 128,
+              "type": "string"
+            },
+            "operation_id": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "schema_version": {
+              "const": 1
+            },
+            "sequence": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "tenant_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "telephony.call.ringing.v1",
+                "telephony.call.answered.v1",
+                "telephony.call.connected.v1",
+                "telephony.call.transferred.v1",
+                "telephony.call.completed.v1",
+                "telephony.call.missed.v1",
+                "telephony.call.dispositioned.v1",
+                "telephony.agent.status-changed.v1"
+              ],
+              "type": "string"
+            },
+            "vicidial_campaign_id": {
+              "maxLength": 128,
+              "type": "string"
+            },
+            "vicidial_lead_id": {
+              "maxLength": 128,
+              "type": "string"
+            },
+            "vicidial_user_id": {
+              "maxLength": 128,
+              "type": "string"
+            }
+          },
+          "required": [
+            "event_id",
+            "type",
+            "tenant_id",
+            "business_unit_id",
+            "campaign_id",
+            "agent_id",
+            "operation_id",
+            "correlation_id",
+            "schema_version",
+            "occurred_at",
+            "sequence"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "cursor",
+        "event"
+      ],
+      "type": "object"
+    },
+    "Operation": {
+      "additionalProperties": false,
+      "properties": {
+        "calls_placed": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "external_effect": {
+          "type": "boolean"
+        },
+        "operation_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "PERSISTED",
+            "POLICY_DENIED",
+            "DISPATCH_PENDING",
+            "DISPATCHED",
+            "INDETERMINATE",
+            "RECONCILING",
+            "COMPLETED",
+            "CANCELLED",
+            "FAILED"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation_id",
+        "state",
+        "external_effect",
+        "calls_placed"
+      ],
+      "type": "object"
+    },
+    "RealtimeControlEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "correlation_id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "first_available_cursor": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "last_available_cursor": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "occurred_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "reconciliation_required": {
+          "type": "boolean"
+        },
+        "requested_cursor": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "type": {
+          "enum": [
+            "realtime.connected.v1",
+            "realtime.replay-gap.v1",
+            "realtime.draining.v1",
+            "realtime.slow-consumer.v1",
+            "realtime.authorization-revoked.v1"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "correlation_id",
+        "occurred_at"
+      ],
+      "type": "object"
+    },
+    "RealtimeSession": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "ticket": {
+          "maxLength": 512,
+          "minLength": 32,
+          "type": "string"
+        },
+        "websocket_url": {
+          "const": "wss://api.codestra.co/ws/agent"
+        }
+      },
+      "required": [
+        "ticket",
+        "expires_at",
+        "websocket_url",
+        "contract_digest"
+      ],
+      "type": "object"
+    },
+    "RealtimeSessionRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "campaign_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+          "type": "string"
+        },
+        "resume_cursor": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "campaign_id"
+      ],
+      "type": "object"
+    }
+  },
+  "version": "1.0.0"
+}

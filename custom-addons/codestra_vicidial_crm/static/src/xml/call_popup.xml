@@ -1,56 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
   <t t-name="codestra_vicidial_crm.CallPopup">
-    <div class="o_codestra_dialer">
-      <button type="button" class="btn btn-primary o_codestra_dialer_toggle"
-              t-on-click="toggleDialpad" t-att-aria-expanded="ui.dialpad.open"
-              aria-controls="codestra-outbound-dialpad">
-        <i class="fa fa-phone" aria-hidden="true"/> <span>Dialer</span>
-      </button>
-      <section t-if="ui.dialpad.open" id="codestra-outbound-dialpad"
-               class="o_codestra_dialpad" role="dialog" aria-modal="false"
-               aria-label="Outbound dialer">
-        <header>
-          <strong>Outbound dialer</strong>
-          <button type="button" class="btn btn-link" aria-label="Close dialer"
-                  t-on-click="toggleDialpad">×</button>
-        </header>
-        <input id="codestra-dialpad-number" class="form-control" type="tel"
-               inputmode="numeric" autocomplete="tel"
-               placeholder="Phone number" aria-label="Phone number"
-               t-model="ui.dialpad.number" t-on-keydown="onDialpadKeydown"/>
-        <p t-if="ui.dialpad.status" class="o_codestra_dialpad_status"
-           role="status" t-esc="ui.dialpad.status"/>
-        <p t-if="ui.dialpad.error || ui.dialpad.reason" class="alert alert-warning"
-           role="alert" t-esc="ui.dialpad.error || ui.dialpad.reason"/>
-        <div class="o_codestra_dialpad_keys" role="group" aria-label="Number keypad">
-          <button t-foreach="dialpadKeys" t-as="digit" t-key="digit"
-                  type="button" class="btn btn-secondary"
-                  t-on-click="() => this.appendDialpadDigit(digit)">
-            <t t-esc="digit"/>
-          </button>
-        </div>
-        <div class="o_codestra_dialpad_actions">
-          <button type="button" class="btn btn-outline-secondary"
-                  t-on-click="clearDialpad">Clear</button>
-          <button type="button" class="btn btn-outline-secondary"
-                  t-on-click="backspaceDialpad" aria-label="Delete last digit">⌫</button>
-          <button type="button" class="btn btn-outline-info"
-                  t-on-click="resolveDialpad" t-att-disabled="!ui.dialpad.number">Check number</button>
-        </div>
-        <div t-if="ui.dialpad.matches.length" class="o_codestra_dialpad_matches">
-          <span>Matched CRM record:</span>
-          <strong t-esc="ui.dialpad.matches[0].name"/>
-        </div>
-        <button type="button" class="btn btn-success w-100"
-                t-on-click="dialpadCall"
-                t-att-disabled="ui.dialpad.busy || !ui.dialpad.enabled || !ui.dialpad.number">
-          <i class="fa fa-phone" aria-hidden="true"/> Call
-        </button>
-        <small class="text-muted">Only one exact, campaign-authorized CRM record can be dialed.</small>
-      </section>
-    </div>
-
+    <div t-if="ui.canonical" class="o_codestra_calling_status" role="status" aria-live="polite">Calling events: <t t-esc="ui.realtime"/></div>
     <section t-if="ui.call" class="o_codestra_call_popup" role="dialog" aria-modal="false" aria-live="assertive" t-att-aria-label="terminal ? 'Completed call' : 'Active telephone call'">
       <header>
         <strong t-esc="terminal ? (ui.call.state === 'missed' ? 'MISSED CALL' : 'CALL COMPLETED') : (['ringing','offered'].includes(ui.call.state) ? 'INCOMING CALL' : 'ACTIVE CALL')"/>
