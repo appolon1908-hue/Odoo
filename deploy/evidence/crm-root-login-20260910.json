@@ -1,0 +1,48 @@
+{
+  "administrator_credentials_changed": false,
+  "authentication_backend_changed": false,
+  "checks": [
+    {
+      "codestra_shell": true,
+      "csrf_input": true,
+      "dark_css": true,
+      "database_manager_absent": true,
+      "final_url": "https://crm.codestra.agency/web/login?redirect=%2Fodoo%3F",
+      "http_status": 200,
+      "native_post_form": true,
+      "password_input": true,
+      "redirects": [
+        {
+          "from": "https://crm.codestra.agency/",
+          "status": 303,
+          "to": "https://crm.codestra.agency/web/login?redirect=%2Fodoo%3F"
+        }
+      ],
+      "requested_path": "/",
+      "vendor_footer_absent": true
+    },
+    {
+      "codestra_shell": true,
+      "csrf_input": true,
+      "dark_css": true,
+      "database_manager_absent": true,
+      "final_url": "https://crm.codestra.agency/web/login",
+      "http_status": 200,
+      "native_post_form": true,
+      "password_input": true,
+      "redirects": [],
+      "requested_path": "/web/login",
+      "vendor_footer_absent": true
+    }
+  ],
+  "container_restart": false,
+  "homepage_url": "/odoo",
+  "human_signin_verified": false,
+  "implementation": "Odoo Website homepage_url setting via ORM",
+  "odoo_health": "healthy",
+  "previous_homepage_url": false,
+  "public_url": "https://crm.codestra.agency/",
+  "schema_change": false,
+  "verified_at": "2026-09-10T16:44:02.507531+00:00",
+  "website_id": 1
+}
