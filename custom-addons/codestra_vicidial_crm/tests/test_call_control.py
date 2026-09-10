@@ -18,6 +18,19 @@ class TestCallControl(TransactionCase):
         sales_group = cls.env.ref("sales_team.group_sale_salesman")
         cls.unit = cls.env.ref("call_center_core.business_unit_digital")
         unit = cls.unit
+        cls.call_center_campaign = cls.env["call.center.campaign"].search(
+            [
+                ("code", "=", "TEST_SYN"),
+                ("business_unit_id", "=", cls.unit.id),
+            ],
+            limit=1,
+        ) or cls.env["call.center.campaign"].create(
+            {
+                "name": "Synthetic Test",
+                "code": "TEST_SYN",
+                "business_unit_id": cls.unit.id,
+            }
+        )
         cls.agent_user = cls.env["res.users"].create(
             {
                 "name": "Synthetic Agent 6101",
@@ -215,6 +228,7 @@ class TestCallControl(TransactionCase):
                 "name": "Synthetic Dialpad Lead",
                 "phone": lead_number,
                 "business_unit_id": self.unit.id,
+                "call_center_campaign_id": self.call_center_campaign.id,
                 "vicidial_campaign_id": "TEST_SYN",
                 "x_vicidial_campaign_id": "TEST_SYN",
             }
@@ -247,6 +261,7 @@ class TestCallControl(TransactionCase):
                 "name": "First Dialpad Lead",
                 "phone": first_number,
                 "business_unit_id": self.unit.id,
+                "call_center_campaign_id": self.call_center_campaign.id,
                 "vicidial_campaign_id": "TEST_SYN",
                 "x_vicidial_campaign_id": "TEST_SYN",
             }
@@ -256,6 +271,7 @@ class TestCallControl(TransactionCase):
                 "name": "Second Dialpad Lead",
                 "phone": second_number,
                 "business_unit_id": self.unit.id,
+                "call_center_campaign_id": self.call_center_campaign.id,
                 "vicidial_campaign_id": "TEST_SYN",
                 "x_vicidial_campaign_id": "TEST_SYN",
             }
