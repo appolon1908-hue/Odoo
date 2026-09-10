@@ -167,6 +167,7 @@ class TelephonyCommandEnvelopeTest(unittest.TestCase):
         self.assertEqual(body["campaign"], "TEST_SYN")
         self.assertEqual(body["destination"], "internal:TEST_ECHO")
         self.assertFalse(body["recording_requested"])
+        self.token.assert_called_once_with("telephony.calls.originate")
 
     def test_test_syn_sender_rejects_pstn_or_other_identity_before_transport(self):
         for changes in (
