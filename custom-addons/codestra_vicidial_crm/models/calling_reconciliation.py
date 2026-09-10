@@ -17,12 +17,12 @@ class CallingReconciliation(models.Model):
     operation_id = fields.Char(required=True, index=True)
     correlation_id = fields.Char(required=True)
     event_id = fields.Char(required=True)
-    sequence = fields.Integer(required=True)
+    sequence = fields.Char(required=True, size=20)
     state = fields.Selection([('pending', 'Pending operation read'), ('observed', 'Operation observed; CDR required')],
                              default='pending', required=True)
     operation_state = fields.Char()
     external_effect = fields.Boolean()
-    calls_placed = fields.Integer()
+    calls_placed = fields.Char(size=20)
     observation_json = fields.Text()
     last_checked_at = fields.Datetime()
 
@@ -49,6 +49,6 @@ class CallingReconciliation(models.Model):
     def _observe(self, result):
         self.ensure_one()
         self.sudo().write({'state': 'observed', 'operation_state': result['state'],
-                          'external_effect': result['external_effect'], 'calls_placed': result['calls_placed'],
+                          'external_effect': result['external_effect'], 'calls_placed': str(result['calls_placed']),
                           'observation_json': json.dumps(result, sort_keys=True),
                           'last_checked_at': fields.Datetime.now()})

@@ -1,6 +1,6 @@
 /** @odoo-module **/
 
-import { Component, onWillStart, onWillUnmount, useState } from "@odoo/owl";
+import { Component, onWillStart, onWillDestroy, useState } from "@odoo/owl";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
@@ -19,6 +19,7 @@ export class CodestraCallPopup extends Component {
             call: null, busy: false, error: "", notes: "", disposition: "",
             realtime: "", canonical: false, matches: [], history: [], callbackAt: "", callbackTimezone: "UTC", callbackReason: "",
         });
+        this.destroyed = false;
         this.openedCalls = new Set();
         this.busHandler = ({ detail }) => {
             for (const item of detail || []) {
@@ -37,13 +38,15 @@ export class CodestraCallPopup extends Component {
             }
         };
         this.bus.addEventListener("notification", this.busHandler);
-        onWillUnmount(() => {
+        onWillDestroy(() => {
+            this.destroyed = true;
             this.realtimeClient?.stop();
             this.bus.removeEventListener("notification", this.busHandler);
         });
         onWillStart(async () => {
             try {
                 const boot = await this.rpc("/codestra/calling/v1/bootstrap", {});
+                if (this.destroyed) return;
                 if (boot.required && !boot.enabled) {
                     this.ui.canonical = true;
                     this.ui.realtime = "Integration unavailable";

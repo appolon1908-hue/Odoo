@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from odoo import Command
+from datetime import datetime, timedelta, timezone
 from odoo.exceptions import AccessError
 from odoo.tests import TransactionCase, HttpCase, tagged
 
@@ -124,7 +125,26 @@ class TestCallingRealtimeScope(TransactionCase):
         record._observe({'operation_id': event['operation_id'], 'state': 'COMPLETED', 'external_effect': True, 'calls_placed': 1})
         self.assertEqual(record.state, 'observed')
         self.assertEqual(record.operation_state, 'COMPLETED')
-        self.assertEqual(record.calls_placed, 1)
+        self.assertEqual(record.calls_placed, '1')
+
+    def test_large_contract_counters_do_not_rollback_durable_observations(self):
+        scope, event = self.api._scope(), self.event()
+        event['sequence'] = 2**40
+        record = self.req.env['codestra.calling.reconciliation']._record_gap(scope, event)
+        record._observe({'operation_id': event['operation_id'], 'state': 'COMPLETED', 'external_effect': True, 'calls_placed': 2**40})
+        record.flush_recordset()
+        self.assertEqual(record.sequence, str(2**40))
+        self.assertEqual(record.calls_placed, str(2**40))
+
+    def test_browser_event_cannot_create_an_authoritative_crm_call(self):
+        event = dict(self.api._scope(), **self.event(), type='telephony.call.ringing.v1',
+                     schema_version=1, occurred_at='2026-09-10T12:00:00Z', call_unique_id='synthetic-unobserved-call')
+        Call = self.req.env['codestra.vicidial.call']
+        before = Call.search_count([])
+        with patch.object(self.api, '_enabled', return_value=True), patch.object(self.api, '_token', return_value='synthetic-user-token'):
+            result = self.api.projection({'cursor': 1, 'event': event})
+        self.assertTrue(result['reconciliation_required'])
+        self.assertEqual(Call.search_count([]), before)
 
     def test_failed_operation_read_keeps_pending_request(self):
         self.req.session['codestra_calling_oidc'] = {'uid': self.user.id, 'subject': self.user.keycloak_subject,
@@ -145,6 +165,21 @@ class TestCallingRealtimeHttp(HttpCase):
                                headers={'Content-Type': 'application/json', 'Origin': self.base_url()}).json()
         self.assertIn('error', result)
         self.assertNotIn('result', result)
+
+    def test_authenticated_ticket_route_is_no_store_and_uses_server_scope(self):
+        self.authenticate('admin', 'admin')
+        scope = {'tenant_id': 'RTTENANT', 'business_unit_id': 'RTUNIT', 'campaign_id': 'RTCAMP',
+                 'agent_id': 'RTAGENT', 'odoo_user_id': '2'}
+        ticket = {'ticket': 'synthetic-one-use-http-ticket-000000',
+                  'expires_at': (datetime.now(timezone.utc)+timedelta(seconds=45)).isoformat(),
+                  'websocket_url': 'wss://api.codestra.co/ws/agent', 'contract_digest': controller.transport.SCHEMA['digest']}
+        with patch.object(CallingRealtimeAPI, '_enabled', return_value=True), patch.object(CallingRealtimeAPI, '_scope', return_value=scope), patch.object(CallingRealtimeAPI, '_token', return_value='synthetic-user-token'), patch.object(controller.transport, 'create_session', return_value=ticket) as mint:
+            response = self.url_open('/codestra/calling/v1/session', data='{"jsonrpc":"2.0","method":"call","params":{"resume_cursor":7},"id":1}',
+                                     headers={'Content-Type': 'application/json', 'Origin': self.base_url()})
+        self.assertEqual(response.json()['result'], {'scope': scope, 'session': ticket})
+        self.assertEqual(response.headers['Cache-Control'], 'no-store')
+        self.assertEqual(mint.call_args.args[:3], ('synthetic-user-token', 'RTCAMP', 7))
+        self.assertNotIn('synthetic-user-token', response.text)
 
     def test_real_browser_uses_compiled_calling_client(self):
         self.browser_js('/odoo', '''

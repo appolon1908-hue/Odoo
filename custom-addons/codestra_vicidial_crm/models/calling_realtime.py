@@ -112,6 +112,9 @@ def _request(operation, token, correlation_id, *, body=None, idempotency_key=Non
             data = response.read(MAX_BYTES + 1)
         _require(len(data) <= MAX_BYTES)
         return json.loads(data, object_pairs_hook=_pairs, parse_constant=_constant, parse_float=_float)
+    except urllib.error.HTTPError as error:
+        error.close()
+        raise RealtimeUnavailable('Calling service unavailable; reconciliation remains required.') from None
     except (OSError, ValueError, RecursionError, RealtimeUnavailable):
         raise RealtimeUnavailable('Calling service unavailable; reconciliation remains required.') from None
 
