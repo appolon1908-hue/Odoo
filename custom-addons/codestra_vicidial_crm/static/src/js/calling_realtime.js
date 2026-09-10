@@ -137,8 +137,14 @@ export class CallingRealtimeClient {
                         if (!this.stream.accept(value)) return;
                         const projection = await this.project(value);
                         if (this.stopped || generation !== this.generation) return;
-                        if (projection.reconciliation_required || !projection.call) throw new Error();
-                        await this.onCall(projection.call);
+                        const agentNotification = value.event.type === 'telephony.agent.status-changed.v1';
+                        if (projection.reconciliation_required) throw new Error();
+                        if (agentNotification) {
+                            if (projection.agent_status_changed !== true || projection.call !== undefined) throw new Error();
+                        } else {
+                            if (!projection.call || projection.agent_status_changed) throw new Error();
+                            await this.onCall(projection.call);
+                        }
                         if (!this.stopped && generation === this.generation) this.stream.commit(value);
                     } catch {
                         this.stop('Reconciliation required');

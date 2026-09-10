@@ -63,6 +63,9 @@ when the first observed operation sequence is not 1. Reconnect delays are
 and deduplication history have explicit limits. Logout/unmount cancels timers
 and ignores pending ticket responses. Gateway-side revocation remains mandatory.
 
+Agent-status notifications are acknowledged after scope validation without a
+call lookup or synthesized state; they do not stop subsequent call events.
+
 Agent-state commands, transfers, dispositions and authoritative CDR ingestion
 are not added by this read-side slice. The canonical view keeps live controls
 disabled. Existing call-control and callback policies remain authoritative.

@@ -57,6 +57,21 @@ export async function runCallingRealtimeCases({ CallingEventStream, CallingRealt
     const legacy = new CallingRealtimeClient({scope, Socket:FakeSocket, getSession:async()=>session(), project:async()=>{}, reconcile:async()=>{}, onCall:async()=>{}, onState:()=>{}});
     await legacy.connect(); socket.onmessage({data:JSON.stringify({type:'authenticated',session_id:'legacy'})});
     assert(legacy.stopped, 'legacy handshake cannot enable the canonical stream'); legacy.stop();
+    const notifications = [];
+    const statusClient = new CallingRealtimeClient({scope, Socket:FakeSocket, getSession:async()=>session(),
+        project:async value => value.event.type === 'telephony.agent.status-changed.v1'
+            ? {reconciliation_required:false, agent_status_changed:true}
+            : {reconciliation_required:false, call:{call_id:'next-call'}},
+        reconcile:async()=>{throw new Error('Routine status notification must not reconcile');},
+        onCall:async call=>notifications.push(call), onState:()=>{}});
+    await statusClient.connect();
+    socket.onmessage({data:JSON.stringify({type:'realtime.connected.v1',correlation_id:'33333333-3333-4333-8333-333333333333',occurred_at:'2026-09-10T12:00:00Z'})});
+    socket.onmessage({data:JSON.stringify(envelope(1,1,{type:'telephony.agent.status-changed.v1'}))});
+    await statusClient.chain;
+    assert(!statusClient.stopped && statusClient.stream.cursor === 1 && notifications.length === 0, 'status notification has no call projection');
+    socket.onmessage({data:JSON.stringify(envelope(2,2))}); await statusClient.chain;
+    assert(!statusClient.stopped && notifications.length === 1 && statusClient.stream.cursor === 2, 'call notifications continue after agent status');
+    statusClient.stop();
     fails(()=>validateCalling({...session().session,websocket_url:'wss://other.invalid/ws/agent'},schema.schemas.RealtimeSession),'unexpected socket destination');
     return count;
 }

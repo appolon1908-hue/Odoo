@@ -115,6 +115,11 @@ class CallingRealtimeAPI(http.Controller):
         event = envelope['event']
         if any(event.get(key) != value for key, value in scope.items()):
             raise AccessError('Calling event scope does not match this session.')
+        if event['type'] == 'telephony.agent.status-changed.v1':
+            # The canonical notification contains no new agent-state value and
+            # need not refer to a call. Acknowledge its validated scope without
+            # inventing state or blocking subsequent call notifications.
+            return {'reconciliation_required': False, 'agent_status_changed': True}
         # Socket messages are notifications, not authority to mutate CRM. Only a
         # persisted Middleware projection can supply lead data or advance the UI.
         call = request.env['codestra.vicidial.call'].search([

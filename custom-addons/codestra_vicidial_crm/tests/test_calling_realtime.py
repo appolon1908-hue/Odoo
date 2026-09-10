@@ -146,6 +146,15 @@ class TestCallingRealtimeScope(TransactionCase):
         self.assertTrue(result['reconciliation_required'])
         self.assertEqual(Call.search_count([]), before)
 
+    def test_agent_status_notification_needs_no_call_projection(self):
+        event = dict(self.api._scope(), **self.event(), type='telephony.agent.status-changed.v1',
+                     schema_version=1, occurred_at='2026-09-10T12:00:00Z')
+        with patch.object(self.api, '_enabled', return_value=True), patch.object(self.api, '_token', return_value='synthetic-user-token'):
+            result = self.api.projection({'cursor': 1, 'event': event})
+            self.assertEqual(result, {'reconciliation_required': False, 'agent_status_changed': True})
+            event['agent_id'] = 'OTHER'
+            with self.assertRaises(AccessError): self.api.projection({'cursor': 2, 'event': event})
+
     def test_failed_operation_read_keeps_pending_request(self):
         self.req.session['codestra_calling_oidc'] = {'uid': self.user.id, 'subject': self.user.keycloak_subject,
             'expires_at': time.time()+45, 'access_token': 'synthetic-session-token'}
