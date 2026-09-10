@@ -153,7 +153,7 @@ class SmsOutbox(models.Model):
             "communication_id": communication.id,
         })
         sms._update_sms_state_and_trackers("process")
-        return job
+        return self.sudo().browse(job.id)
 
     def _project_native_state(self):
         self.ensure_one()

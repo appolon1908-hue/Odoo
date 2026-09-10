@@ -39,7 +39,7 @@ redirects and ambient proxies are disabled. Only fixed error codes are stored.
 Provision a Keycloak `odoo-sms` confidential service account with tenant-bound
 claims, audience `middleware-api`, lifetime at most 300 seconds, and scopes
 `odoo.sms.command.write` and `odoo.sms.status.read`. Its Middleware command
-authority is limited to `sms.message.submit.*` on `telnexa-sms`. Sender and billing
+authority is limited to the registered `sms.*` namespace on `telnexa-sms`. Sender and billing
 account must already be approved for that tenant in Middleware/Telnexa. The
 Odoo campaign ID is diagnostic metadata, never a provider campaign identifier.
 

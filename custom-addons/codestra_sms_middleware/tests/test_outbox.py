@@ -123,7 +123,7 @@ class TestSmsOutbox(TransactionCase):
         with patch.object(outbox, "configuration", return_value=self.config), \
                 patch.object(outbox, "delivery_enabled", return_value=True) as delivery, \
                 patch.object(outbox, "MiddlewareSmsClient") as factory, \
-                patch.object(type(self.env.cr), "commit") as commit:
+                patch.object(self.env.cr, "commit") as commit:
             client = factory.return_value
             client.token.return_value = "synthetic-token"
 
