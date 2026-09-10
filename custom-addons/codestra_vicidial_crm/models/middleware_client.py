@@ -1,6 +1,11 @@
+from datetime import datetime
+
 import json
 import math
+import os
+import re
 import socket
+import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -10,6 +15,32 @@ from odoo.exceptions import UserError
 
 
 _MAX_MESSAGE_BYTES = 131072
+
+# Canonical calling-contract surface. The legacy origination route below is kept
+# until Middleware lead resolution is confirmed equivalent to the destination the
+# Odoo payload selects today; see config/calling-contract-usage.json.
+_COMMAND_PATH = "/v1/telephony/commands"
+_COMMAND_ORIGINATE = "telephony.call.originate.v1"
+_COMMAND_SCHEMA_VERSION = 1
+
+# NatsSubjectToken: one subject token, no dots, wildcards, whitespace or slashes.
+_NATS_TOKEN = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z")
+_UUID = re.compile(
+    r"\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\Z", re.IGNORECASE
+)
+_RFC3339 = re.compile(
+    r"\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})\Z"
+)
+
+# Operation.state, split by what each state proves about external effect. Never
+# report "blocked" for a state that may have placed a call: a wrong "rejected"
+# invites a retry that double-dials.
+_OPERATION_ACCEPTED = frozenset(
+    {"PERSISTED", "DISPATCH_PENDING", "DISPATCHED", "COMPLETED"}
+)
+_OPERATION_UNKNOWN = frozenset({"INDETERMINATE", "RECONCILING"})
+_OPERATION_TERMINAL = frozenset({"POLICY_DENIED", "CANCELLED", "FAILED"})
+_OPERATION_STATES = _OPERATION_ACCEPTED | _OPERATION_UNKNOWN | _OPERATION_TERMINAL
 
 
 class OriginateRejected(UserError):
@@ -106,6 +137,134 @@ class TelephonyMiddlewareClient(models.AbstractModel):
                 "reconcile this call before retrying."
             )
         return result
+
+    @api.model
+    def _validated_command_target(self, value):
+        # Same credential-free HTTPS rule as the legacy route, canonical path.
+        try:
+            if not _visible_ascii(value, 2048) or "?" in value or "#" in value:
+                raise ValueError("invalid target")
+            parsed = urllib.parse.urlsplit(value)
+            port = parsed.port  # Also validates malformed/out-of-range ports.
+            if (
+                parsed.scheme != "https"
+                or not parsed.hostname
+                or parsed.username is not None
+                or parsed.password is not None
+                or (port is not None and port < 1)
+                or parsed.path != _COMMAND_PATH
+            ):
+                raise ValueError("invalid target")
+        except (ValueError, TypeError) as exc:
+            raise OriginateRejected(
+                "Click-to-call middleware must use a credential-free HTTPS endpoint."
+            ) from exc
+        return value
+
+    @api.model
+    def _canonical_command(self, values):
+        """Build the closed Command object the calling authority defines.
+
+        The authority marks Command additionalProperties:false, so anything the
+        legacy payload carried that has no canonical field -- destination number,
+        caller ID, recording flag, destination class/country/timezone -- cannot be
+        sent. Middleware resolves the dial target from the lead references
+        instead. Reject unknown keys loudly rather than dropping them silently,
+        so a caller cannot believe it passed a destination that never left Odoo.
+        """
+        required_tokens = ("tenant_id", "campaign_id", "agent_id")
+        required_plain = ("business_unit_id", "odoo_user_id")
+        optional_plain = (
+            "odoo_lead_id",
+            "vicidial_user_id",
+            "vicidial_campaign_id",
+            "vicidial_lead_id",
+        )
+        allowed = set(required_tokens) | set(required_plain) | set(optional_plain) | {
+            "operation_id",
+            "correlation_id",
+            "requested_at",
+        }
+        if not isinstance(values, dict) or not set(values) <= allowed:
+            raise OriginateRejected("Click-to-call command fields are not canonical.")
+        if not {*required_tokens, *required_plain, "operation_id", "correlation_id", "requested_at"} <= set(values):
+            raise OriginateRejected("Click-to-call command is missing required identity.")
+
+        command = {"type": _COMMAND_ORIGINATE, "schema_version": _COMMAND_SCHEMA_VERSION}
+        for field in required_tokens:
+            value = values[field]
+            if not isinstance(value, str) or not _NATS_TOKEN.match(value):
+                raise OriginateRejected(
+                    "Click-to-call command identity is not a valid subject token."
+                )
+            command[field] = value
+        for field in required_plain:
+            value = values[field]
+            if not _visible_ascii(value, 255):
+                raise OriginateRejected("Click-to-call command identity is invalid.")
+            command[field] = value
+        for field in optional_plain:
+            if field not in values or values[field] is None:
+                continue
+            value = values[field]
+            if not _visible_ascii(value, 255):
+                raise OriginateRejected("Click-to-call command reference is invalid.")
+            command[field] = value
+        for field in ("operation_id", "correlation_id"):
+            value = values[field]
+            if not isinstance(value, str) or not _UUID.match(value):
+                raise OriginateRejected("Click-to-call command identity must be a UUID.")
+            command[field] = value
+        requested_at = values["requested_at"]
+        if not isinstance(requested_at, str) or not _RFC3339.match(requested_at):
+            raise OriginateRejected("Click-to-call command timestamp is invalid.")
+        try:
+            datetime.fromisoformat(requested_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise OriginateRejected("Click-to-call command timestamp is invalid.") from exc
+        command["requested_at"] = requested_at
+        return command
+
+    @api.model
+    def _validate_operation_response(self, result, operation_id):
+        """Map an Operation to a call outcome without ever understating effect."""
+        if (
+            not isinstance(result, dict)
+            or set(result)
+            != {"operation_id", "state", "external_effect", "calls_placed"}
+            or result["operation_id"] != operation_id
+            or not isinstance(result["state"], str)
+            or result["state"] not in _OPERATION_STATES
+            # bool is an int subclass; a JSON true here would otherwise pass as a
+            # count, which the release gates already treat as a forged counter.
+            or type(result["external_effect"]) is not bool
+            or type(result["calls_placed"]) is not int
+            or result["calls_placed"] < 0
+        ):
+            raise OriginateOutcomeUnknown(
+                "Middleware returned an invalid operation with an unknown call outcome; "
+                "reconcile this call before retrying."
+            )
+        state = result["state"]
+        effect = result["external_effect"]
+        if state in _OPERATION_ACCEPTED:
+            dialing = "attempting"
+        elif state in _OPERATION_UNKNOWN:
+            dialing = "unknown"
+        elif effect or result["calls_placed"]:
+            # Reported effects take precedence over any terminal status, including
+            # a contradictory policy denial. Reconcile before attempting a retry.
+            dialing = "unknown"
+        else:
+            dialing = "blocked"
+        return {
+            "dialing": dialing,
+            "reason": f"operation {state.lower()}",
+            "operation_id": result["operation_id"],
+            "operation_state": state,
+            "external_effect": effect,
+            "calls_placed": result["calls_placed"],
+        }
 
     @api.private
     @api.model
@@ -211,3 +370,184 @@ class TelephonyMiddlewareClient(models.AbstractModel):
                 "reconcile this call before retrying."
             ) from exc
         return self._validate_originate_response(result)
+
+    @api.private
+    @api.model
+    def _command_access_token(self):
+        """Acquire a scoped service token before dispatch; never use the legacy key.
+
+        Only deployment-controlled environment and secret files configure OIDC.
+        Middleware remains responsible for token signature, audience and identity
+        authorization. No token, secret or identity-provider response is logged.
+        """
+        try:
+            endpoint = os.environ.get("CODESTRA_TELEPHONY_TOKEN_URL", "")
+            client_id = os.environ.get("CODESTRA_TELEPHONY_CLIENT_ID", "")
+            secret_file = os.environ.get("CODESTRA_TELEPHONY_CLIENT_SECRET_FILE", "")
+            ca_file = os.environ.get("CODESTRA_TELEPHONY_CA_FILE") or None
+            if not _visible_ascii(endpoint, 2048) or "?" in endpoint or "#" in endpoint:
+                raise ValueError("invalid token endpoint")
+            parsed = urllib.parse.urlsplit(endpoint)
+            if (
+                parsed.scheme != "https" or not parsed.hostname
+                or parsed.username is not None or parsed.password is not None
+                or parsed.port == 0
+                or not parsed.path or parsed.path == "/"
+                or not _visible_ascii(client_id, 255)
+                or not os.path.isabs(secret_file)
+                or (ca_file and not os.path.isabs(ca_file))
+            ):
+                raise ValueError("invalid OIDC configuration")
+            with open(secret_file, encoding="utf-8") as handle:
+                secret = handle.read(8193).rstrip("\r\n")
+            if not _visible_ascii(secret, 8192):
+                raise ValueError("invalid client secret")
+            context = ssl.create_default_context(cafile=ca_file)
+            opener = urllib.request.build_opener(
+                urllib.request.ProxyHandler({}), _NoTelephonyRedirect(),
+                urllib.request.HTTPSHandler(context=context),
+            )
+            token_request = urllib.request.Request(
+                endpoint,
+                urllib.parse.urlencode({
+                    "grant_type": "client_credentials",
+                    "client_id": client_id,
+                    "client_secret": secret,
+                    "scope": "telephony:command",
+                }).encode("ascii"),
+                {"Content-Type": "application/x-www-form-urlencoded"},
+                method="POST",
+            )
+            with opener.open(token_request, timeout=10) as response:  # nosec B310
+                raw = response.read(_MAX_MESSAGE_BYTES + 1)
+            if len(raw) > _MAX_MESSAGE_BYTES:
+                raise ValueError("oversized token response")
+            result = json.loads(
+                raw.decode("utf-8"), object_pairs_hook=_unique_object,
+                parse_constant=_reject_constant, parse_float=_finite_float,
+            )
+            if (
+                not isinstance(result, dict)
+                or str(result.get("token_type", "")).lower() != "bearer"
+                or not _visible_ascii(result.get("access_token"), 16384)
+                or type(result.get("expires_in")) is not int
+                or result["expires_in"] <= 10
+                or not isinstance(result.get("scope"), str)
+                or "telephony:command" not in result["scope"].split()
+            ):
+                raise ValueError("invalid scoped token response")
+            return result["access_token"]
+        except (OSError, ValueError, TypeError, UnicodeError, RecursionError):
+            # Token acquisition cannot dispatch a command. Redact every provider
+            # failure, including HTTP responses and file paths, from user errors.
+            raise OriginateRejected(
+                "Telephony OIDC authentication is unavailable or lacks the command scope."
+            ) from None
+
+    @api.private
+    @api.model
+    def originate_command(self, correlation_id, idempotency_key, values):
+        """Post telephony.call.originate.v1 to the canonical command envelope.
+
+        The transport rules are deliberately identical to originate_call: no
+        redirects, bounded request and response, duplicate response members
+        rejected, non-finite numbers rejected, and a timeout reported as an
+        unknown outcome rather than a safe failure. The legacy method is left
+        untouched so this path can be proven against Middleware before the live
+        click-to-call default moves.
+        """
+        params = self.env["ir.config_parameter"].sudo()
+        target = params.get_param("codestra.middleware.telephony_command_url")
+        if not target:
+            raise OriginateRejected("Click-to-call middleware is not configured.")
+        target = self._validated_command_target(target)
+        if (
+            not _visible_ascii(correlation_id, 255)
+            or not _visible_ascii(idempotency_key, 128)
+            or len(idempotency_key) < 16
+        ):
+            raise OriginateRejected("Click-to-call request identity is invalid.")
+        command = self._canonical_command(values)
+        if command["correlation_id"] != correlation_id:
+            raise OriginateRejected("Click-to-call correlation identity is inconsistent.")
+        operation_id = command["operation_id"]
+        try:
+            raw = json.dumps(
+                command, separators=(",", ":"), allow_nan=False
+            ).encode("utf-8")
+            if len(raw) > _MAX_MESSAGE_BYTES:
+                raise ValueError("request exceeds maximum size")
+        except (ValueError, TypeError, UnicodeError, RecursionError) as exc:
+            raise OriginateRejected("Click-to-call request payload is invalid.") from exc
+        access_token = self._command_access_token()
+        outbound_request = urllib.request.Request(
+            target,
+            raw,
+            {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + access_token,
+                "X-Correlation-ID": correlation_id,
+                "Idempotency-Key": idempotency_key,
+            },
+            method="POST",
+        )
+        try:
+            opener = urllib.request.build_opener(
+                urllib.request.ProxyHandler({}), _NoTelephonyRedirect()
+            )
+            with opener.open(  # nosec B310
+                outbound_request, timeout=10
+            ) as response:
+                raw_result = response.read(_MAX_MESSAGE_BYTES + 1)
+                if len(raw_result) > _MAX_MESSAGE_BYTES:
+                    raise ValueError("response exceeds maximum size")
+                result = json.loads(
+                    raw_result.decode("utf-8"),
+                    object_pairs_hook=_unique_object,
+                    parse_constant=_reject_constant,
+                    parse_float=_finite_float,
+                )
+        except urllib.error.HTTPError as exc:
+            messages = {
+                401: "Telephony command authentication was rejected.",
+                403: "You are not authorized to call from this campaign.",
+                422: "This phone number could not be validated.",
+                429: "Too many call attempts; wait a moment and try again.",
+            }
+            if exc.code in messages:
+                raise OriginateRejected(messages[exc.code]) from exc
+            raise OriginateOutcomeUnknown(
+                "Middleware returned an error after receiving the call command; "
+                "reconcile its operation ID before retrying."
+            ) from exc
+        except (TimeoutError, socket.timeout):
+            return {
+                "dialing": "unknown",
+                "reason": "timeout; reconcile this operation before retrying",
+                "operation_id": operation_id,
+                "operation_state": None,
+                "external_effect": None,
+                "calls_placed": None,
+                "retry_safe": False,
+            }
+        except urllib.error.URLError as exc:
+            if isinstance(exc.reason, (TimeoutError, socket.timeout)):
+                return {
+                    "dialing": "unknown",
+                    "reason": "timeout; reconcile this operation before retrying",
+                    "operation_id": operation_id,
+                    "operation_state": None,
+                    "external_effect": None,
+                    "calls_placed": None,
+                    "retry_safe": False,
+                }
+            raise OriginateOutcomeUnknown(
+                "The telephony connection failed with an unknown command outcome; "
+                "reconcile this call before retrying."
+            ) from exc
+        except (ValueError, UnicodeError, RecursionError) as exc:
+            raise OriginateOutcomeUnknown(
+                "Middleware returned an invalid operation with an unknown call outcome; "
+                "reconcile this call before retrying."
+            ) from exc
+        return self._validate_operation_response(result, operation_id)

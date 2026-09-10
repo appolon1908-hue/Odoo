@@ -7,3 +7,38 @@ The addon owns CRM/user call-center extensions, VICIdial agents, campaigns, phon
 All live writes, synchronization, n8n delivery, external AI delivery, call control, and recording access are fail-closed through `codestra_base`. This addon performs no VICIdial/Asterisk request and stores no plaintext credential.
 
 Legacy group XML IDs remain authoritative for current memberships and imply their matching `codestra_base` groups. Future transfer-request, compliance, AI, QA, automation, and notification models are deliberately excluded from active core loading and assigned to later suite addons.
+
+## Canonical command authentication
+
+`originate_command` is a private Python-only transport alongside the legacy
+click-to-call route. Configure `codestra.middleware.telephony_command_url` with
+the exact HTTPS `/v1/telephony/commands` endpoint. The canonical transport never
+uses `codestra.middleware.api_key`.
+
+Configure these values in the Odoo service environment:
+
+- `CODESTRA_TELEPHONY_TOKEN_URL`: the reviewed HTTPS OIDC token endpoint.
+- `CODESTRA_TELEPHONY_CLIENT_ID`: the dedicated telephony service client.
+- `CODESTRA_TELEPHONY_CLIENT_SECRET_FILE`: an absolute path to its secret file,
+  readable only by the service and administrators.
+- `CODESTRA_TELEPHONY_CA_FILE`: optional absolute CA bundle for the OIDC endpoint;
+  otherwise the system trust store is used.
+
+The client uses `client_credentials` with `scope=telephony:command`. Configure
+the identity provider to return that scope explicitly, a Bearer access token,
+and `expires_in` longer than the ten-second command timeout. Its issuer,
+audience and authorized tenant/campaign/actor claims must match Middleware's
+OIDC policy; Middleware verifies those claims. Deploy a separate appropriately
+scoped service configuration where tenant isolation requires it. Never put a
+client secret or bearer token in Odoo parameters, browser state or logs.
+
+Local envelope validation, including the contract's 16–128 visible-ASCII
+idempotency-key bound, completes before token acquisition. Token acquisition
+uses verified TLS with redirects and environment proxies disabled. Every auth
+failure is a redacted pre-dispatch rejection. Command HTTP 401 is also a
+rejection. Commands are never retried automatically or rerouted to the legacy
+endpoint. Ambiguous command responses/timeouts still require reconciliation
+with the original operation and idempotency identities.
+
+Offline regressions: `python3 tests/security/test_telephony_command_envelope.py`.
+These tests do not certify live token provisioning or telephony activation.
