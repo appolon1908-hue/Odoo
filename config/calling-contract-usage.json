@@ -12,8 +12,8 @@
     },
     {
       "path": "/v1/telephony/commands",
-      "status": "planned",
-      "reason": "Canonical command envelope that supersedes the legacy origination route."
+      "status": "in_use",
+      "reason": "Canonical command envelope. originate_command posts telephony.call.originate.v1 here and maps the returned Operation state to a call outcome."
     },
     {
       "path": "/v1/telephony/operations/{operation_id}",
@@ -39,8 +39,8 @@
   "command_families": [
     {
       "name": "telephony.call.originate.v1",
-      "status": "planned",
-      "reason": "Canonical replacement for the legacy click-to-call origination request."
+      "status": "in_use",
+      "reason": "Posted by originate_command as the canonical replacement for the legacy click-to-call origination request."
     },
     {
       "name": "telephony.call.cancel.v1",
