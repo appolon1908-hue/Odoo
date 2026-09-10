@@ -202,3 +202,65 @@ class TestCallControl(TransactionCase):
         self.assertNotEqual(first["callback_id"], second["callback_id"])
         self.assertTrue(replay["duplicate"])
         self.assertEqual(replay["callback_id"], first["callback_id"])
+    def test_dialpad_outbound_resolves_an_exact_campaign_lead(self):
+        lead_number = "+1" + "617" + "555" + "0100"
+        dial_destination = "(617) " + "555-" + "0100"
+        lead = self.env["crm.lead"].create(
+            {
+                "name": "Synthetic Dialpad Lead",
+                "phone": lead_number,
+                "vicidial_campaign_id": "TEST_SYN",
+            }
+        )
+        controller = call_control_controller.CallControlAPI()
+        with (
+            patch.object(
+                call_control_controller,
+                "request",
+                SimpleNamespace(env=self.env(user=self.agent_user.id)),
+            ),
+            patch.object(controller, "_feature", return_value=True),
+            patch.object(controller, "_command", return_value=(SimpleNamespace(), False)),
+        ):
+            result = controller.outbound(
+                destination=dial_destination,
+                campaign_id="TEST_SYN",
+                idempotency_key="dial-1",
+            )
+        self.assertFalse(result["duplicate"])
+        self.assertEqual(result["call"]["direction"], "outbound")
+        self.assertEqual(result["call"]["caller_number"], lead_number)
+        self.assertEqual(result["call"]["lead"]["id"], lead.id)
+
+    def test_dialpad_outbound_rejects_ambiguous_number(self):
+        first_number = "+1" + "809" + "555" + "0199"
+        second_number = "809-" + "555-" + "0199"
+        self.env["crm.lead"].create(
+            {
+                "name": "First Dialpad Lead",
+                "phone": first_number,
+                "vicidial_campaign_id": "TEST_SYN",
+            }
+        )
+        self.env["crm.lead"].create(
+            {
+                "name": "Second Dialpad Lead",
+                "phone": second_number,
+                "vicidial_campaign_id": "TEST_SYN",
+            }
+        )
+        controller = call_control_controller.CallControlAPI()
+        with (
+            patch.object(
+                call_control_controller,
+                "request",
+                SimpleNamespace(env=self.env(user=self.agent_user.id)),
+            ),
+            patch.object(controller, "_feature", return_value=True),
+        ):
+            with self.assertRaises(AccessError):
+                controller.outbound(
+                    destination=first_number,
+                    campaign_id="TEST_SYN",
+                    idempotency_key="dial-2",
+                )
