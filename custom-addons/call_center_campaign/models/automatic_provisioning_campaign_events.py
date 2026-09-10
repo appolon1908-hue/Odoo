@@ -77,6 +77,7 @@ class CallCenterCampaignAutomaticProvisioningEvents(models.Model):
             uuid.uuid5(uuid.UUID(self.integration_uuid), f"correlation:{event_key}")
         )
         payload = self._design_request_payload(event_uuid, correlation_id)
+        payload["design_request_revision"] = revision
         digest = hashlib.sha256(canonical_json(payload).encode()).hexdigest()
         Outbox = self.env["codestra.runtime.integration.outbox"].sudo()
         existing = Outbox.search(

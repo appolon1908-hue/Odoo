@@ -1,0 +1,45 @@
+{
+  "verified_at": "2026-09-10T16:15:53.610099+00:00",
+  "source_sha": "3396700f9e24c58b71cbe1733cd65e396d11d002",
+  "module": "codestra_login_branding",
+  "module_version": "19.0.1.0.1",
+  "url": "https://crm.codestra.agency/web/login",
+  "checks": {
+    "http_status": 200,
+    "branding_shell": true,
+    "dark_palette": true,
+    "compiled_branding_css": true,
+    "native_post_form": true,
+    "password_input": true,
+    "csrf_present": true,
+    "database_manager_link_absent": true,
+    "vendor_footer_absent": true,
+    "stylesheets_same_origin": true,
+    "css_compilation_errors_absent": true
+  },
+  "runtime_audit_exit": 0,
+  "runtime_audit_summary": "DATABASE=codestra_odoo\nDATABASE_REGISTRY=PASS\nDESIGNATED_ADMIN_IDENTITY=PASS\nDESIGNATED_ADMIN_GROUP=PASS\nEXPECTED_MODULE_CODESTRA_LOGIN_BRANDING=installed\nADMINISTRATOR_IDENTITY_AUDIT=PASS\nMODULE_STATE_AUDIT=PASS\nODOO_STATE_AUDIT=PASS",
+  "authenticated_human_signin": "not tested",
+  "browser_visual_check": "cloud browser unavailable",
+  "odoo_health": "healthy",
+  "production_image": "odoo@sha256:f54272f31d5f77e4146b887efb3761c98480317daf687e4b4b5e76ed8bcc08c5",
+  "stylesheet_count": 1,
+  "staging_tests": {
+    "tests": 3,
+    "failures": 0,
+    "errors": 0
+  },
+  "restored_filestore_references": 346,
+  "paired_encrypted_recovery_verified": true,
+  "staging_cleanup": "complete",
+  "restic_offsite_copy": "not made; configured repository returned Access Denied",
+  "installation_pause_seconds": 15.79,
+  "backup_capture_pause_seconds": 8.84,
+  "overlay_commit": "f127341bf177916e14379c6c6ab6c9d3ae4318f8",
+  "module_archive_sha256": "3f9246f654f71ae04bd89da3da4d668b7ac6980bc2d19148020c64be3d7794e6",
+  "recovery_id": "20260910T160416Z",
+  "immediate_backup_sha256": {
+    "filestore.tar.gz": "6618265bad30661f972eac0f571dd19c251d4e35fca7cc5c4b7c64879238ba65",
+    "database.dump": "995ba1803bb5a77ee8dcca8b29680435291f3dabe1d3f55de125b393a06636d1"
+  }
+}
