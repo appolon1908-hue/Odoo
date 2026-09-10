@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import hmac
 import json
@@ -19,7 +20,7 @@ _STATE_TTL_SECONDS = 600
 
 
 class CodestraOrbitSso(http.Controller):
-    """Keycloak authorization-code flow without browser token storage."""
+    """Keycloak Authorization Code + PKCE flow without browser token storage."""
 
     @staticmethod
     def _configuration():
@@ -27,7 +28,7 @@ class CodestraOrbitSso(http.Controller):
         issuer = parameters.get_param("codestra_orbit_theme.keycloak_issuer", "").rstrip("/")
         client_id = parameters.get_param("codestra_orbit_theme.keycloak_client_id", "")
         client_secret = parameters.get_param("codestra_orbit_theme.keycloak_client_secret", "")
-        if not issuer or not client_id or not client_secret:
+        if not issuer or not client_id:
             raise AccessDenied("Codestra SSO is not configured")
         provider = request.env.ref("codestra_orbit_theme.provider_codestra_keycloak").sudo()
         if not provider.enabled:
@@ -46,10 +47,16 @@ class CodestraOrbitSso(http.Controller):
     def _state_signature(payload, secret):
         return hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
 
+    @staticmethod
+    def _pkce_challenge(verifier):
+        digest = hashlib.sha256(verifier.encode()).digest()
+        return base64.urlsafe_b64encode(digest).decode().rstrip("=")
+
     @http.route("/codestra/sso/login", type="http", auth="none", methods=["GET"], csrf=False)
     def login(self, redirect=None, **_params):
         issuer, client_id, client_secret = self._configuration()
         nonce = secrets.token_urlsafe(24)
+        verifier = secrets.token_urlsafe(64)
         state_data = {
             "db": request.db,
             "nonce": nonce,
@@ -58,7 +65,10 @@ class CodestraOrbitSso(http.Controller):
         }
         payload = json.dumps(state_data, separators=(",", ":"), sort_keys=True)
         request.session["codestra_oidc_state"] = payload
-        request.session["codestra_oidc_signature"] = self._state_signature(payload, client_secret)
+        request.session["codestra_oidc_code_verifier"] = verifier
+        request.session["codestra_oidc_signature"] = self._state_signature(
+            payload, client_secret or verifier
+        )
         query = urlencode({
             "client_id": client_id,
             "redirect_uri": self._redirect_uri(),
@@ -66,6 +76,8 @@ class CodestraOrbitSso(http.Controller):
             "scope": "openid profile email",
             "state": nonce,
             "nonce": nonce,
+            "code_challenge": self._pkce_challenge(verifier),
+            "code_challenge_method": "S256",
         })
         return request.redirect(f"{issuer}/protocol/openid-connect/auth?{query}", local=False)
 
@@ -76,31 +88,38 @@ class CodestraOrbitSso(http.Controller):
         issuer, client_id, client_secret = self._configuration()
         payload = request.session.pop("codestra_oidc_state", None)
         signature = request.session.pop("codestra_oidc_signature", None)
-        if not payload or not signature or not hmac.compare_digest(
-            signature, self._state_signature(payload, client_secret)
+        verifier = request.session.pop("codestra_oidc_code_verifier", None)
+        if not payload or not signature or not verifier or not hmac.compare_digest(
+            signature, self._state_signature(payload, client_secret or verifier)
         ):
             raise AccessDenied("Invalid SSO state")
         state_data = json.loads(payload)
+        age = int(time.time()) - int(state_data.get("timestamp", 0))
         if (
             state != state_data.get("nonce")
             or state_data.get("db") != request.db
-            or int(time.time()) - int(state_data.get("timestamp", 0)) > _STATE_TTL_SECONDS
+            or age < 0
+            or age > _STATE_TTL_SECONDS
         ):
             raise AccessDenied("Expired SSO state")
 
+        token_data = {
+            "grant_type": "authorization_code",
+            "code": code,
+            "client_id": client_id,
+            "redirect_uri": self._redirect_uri(),
+            "code_verifier": verifier,
+        }
+        if client_secret:
+            token_data["client_secret"] = client_secret
         token_response = requests.post(
             f"{issuer}/protocol/openid-connect/token",
-            data={
-                "grant_type": "authorization_code",
-                "code": code,
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "redirect_uri": self._redirect_uri(),
-            },
+            data=token_data,
             timeout=10,
         )
         token_response.raise_for_status()
-        access_token = token_response.json().get("access_token")
+        token_payload = token_response.json()
+        access_token = token_payload.get("access_token")
         if not access_token:
             raise AccessDenied("Identity provider returned no access token")
         provider = request.env.ref("codestra_orbit_theme.provider_codestra_keycloak").sudo()
@@ -118,7 +137,7 @@ class CodestraOrbitSso(http.Controller):
             request.env,
             {"login": login, "token": access_token, "type": "oauth_token"},
         )
-        request.session["codestra_oidc_id_token"] = token_response.json().get("id_token")
+        request.session["codestra_oidc_id_token"] = token_payload.get("id_token")
         _logger.info("Codestra Keycloak login completed for database %s", request.db)
         return request.redirect(self._safe_redirect(state_data.get("redirect")))
 
@@ -149,7 +168,6 @@ class CodestraOrbitLogin(OAuthLogin):
             configured = all((
                 parameters.get_param("codestra_orbit_theme.keycloak_issuer"),
                 parameters.get_param("codestra_orbit_theme.keycloak_client_id"),
-                parameters.get_param("codestra_orbit_theme.keycloak_client_secret"),
             ))
             destination = CodestraOrbitSso._safe_redirect(request.params.get("redirect"))
             response.qcontext["codestra_sso_enabled"] = bool(provider.enabled and configured)
