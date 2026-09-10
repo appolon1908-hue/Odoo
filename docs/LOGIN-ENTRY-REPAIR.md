@@ -10,6 +10,11 @@ providers remain available.
 
 ## Production observation, 2026-09-10
 
+This section records the earlier investigation. The black login was subsequently
+installed, and the CRM root address was configured to use Odoo's native entry
+route. See [the current homepage activation record](CRM-HOMEPAGE-LOGIN-20260910.md)
+for the applied website setting and live verification.
+
 Read-only checks on Server A and the public CRM host found:
 
 - `/` returns HTTP 200 with `Home | My Website`, no login form and no Codestra shell.
