@@ -29,6 +29,17 @@ class TestCodestraWorkspaceAssets(HttpCase):
         self.assertIn("body.o_web_client .o_main_navbar", css)
         self.assertIn(".o-mail-ChatWindow", css)
 
+    def test_crm_form_layout_and_drawer_contract(self):
+        self.authenticate("admin", "admin")
+        css = self._stylesheets(self.url_open("/odoo"))
+        self.assertIn("grid-template-columns: minmax(150px, 180px) minmax(0, 1fr)", css)
+        self.assertIn("background-color: #2a2a2a", css)
+        self.assertIn("border: 1px solid #333 !important", css)
+        self.assertIn("body.o_web_client .o_form_view .o_notebook .nav-tabs", css)
+        self.assertIn("border-bottom: 2px solid #fff !important", css)
+        self.assertIn("body.o_web_client:has(.o-mail-ChatWindow) .o_form_view .o_form_sheet", css)
+        self.assertIn("z-index: 1061", css)
+
     def test_public_login_does_not_load_workspace_assets(self):
         self.authenticate(None, None)
         response = self.url_open("/web/login")

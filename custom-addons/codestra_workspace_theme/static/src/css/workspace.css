@@ -243,6 +243,143 @@
     body.o_web_client .o_field_statusbar > .o_statusbar_status > .o_arrow_button.o_arrow_button_current:disabled { color: #050505; background: #f5f5f5; }
     body.o_web_client .o_field_statusbar > .o_statusbar_status > .o_arrow_button:focus-visible { outline-offset: -4px; }
 
+    /* CRM record forms: quiet slate actions and a consistent two-column rhythm. */
+    body.o_web_client :is(.o_form_statusbar, .o_form_statusbar_buttons) .btn {
+        --btn-color: #e0e0e0;
+        --btn-bg: #2a2a2a;
+        --btn-border-color: #555;
+        --btn-hover-color: #fff;
+        --btn-hover-bg: #3a3a3a;
+        --btn-hover-border-color: #999;
+        --btn-active-color: #fff;
+        --btn-active-bg: #333;
+        --btn-active-border-color: #b5b5b5;
+        color: #e0e0e0;
+        background-color: #2a2a2a;
+        border: 1px solid #555 !important;
+        border-radius: 4px;
+        min-height: 36px;
+        box-shadow: none;
+    }
+    body.o_web_client :is(.o_form_statusbar, .o_form_statusbar_buttons) .btn:is(:hover, :focus-visible, .active) {
+        color: #fff;
+        background-color: #3a3a3a;
+        border-color: #999 !important;
+    }
+    body.o_web_client .o_form_statusbar > .o_statusbar_status > .o_arrow_button {
+        --o-statusbar-background-active: #2a2a2a;
+        --o-statusbar-background-hover: #3a3a3a;
+        --o-statusbar-border: #555;
+        --o-statusbar-border-active: #999;
+        color: #d4d4d4;
+        background-color: #2a2a2a !important;
+        border-color: #555;
+        min-height: 36px;
+    }
+    body.o_web_client .o_form_statusbar > .o_statusbar_status > .o_arrow_button:hover {
+        color: #fff;
+        background-color: #3a3a3a !important;
+        border-color: #999;
+    }
+    body.o_web_client .o_form_statusbar > .o_statusbar_status > .o_arrow_button.o_arrow_button_current:disabled {
+        color: #fff;
+        background-color: #333 !important;
+        border-color: #b5b5b5;
+    }
+    body.o_web_client .o_form_view .o_form_sheet .o_inner_group {
+        row-gap: .65rem;
+        column-gap: 1rem;
+    }
+    @media (min-width: 768px) {
+        body.o_web_client .o_form_view .o_form_sheet .o_inner_group {
+            grid-template-columns: minmax(150px, 180px) minmax(0, 1fr);
+        }
+    }
+    body.o_web_client .o_form_view .o_form_sheet .o_inner_group .o_form_label {
+        align-self: center;
+        margin-bottom: 0;
+        color: #d4d4d4;
+    }
+    body.o_web_client .o_form_view .o_form_sheet .o_inner_group .o_field_widget {
+        align-self: center;
+        min-width: 0;
+    }
+    body.o_web_client .o_form_view .o_form_sheet .o_inner_group :is(.o_input, .o_form_uri) {
+        min-height: 34px;
+        box-sizing: border-box;
+        padding: 6px 10px;
+        color: #f5f5f5;
+        background: #1e1e1e;
+        border: 1px solid #333 !important;
+        border-radius: 4px;
+        box-shadow: none !important;
+    }
+    body.o_web_client .o_form_view .o_form_sheet .o_inner_group :is(.o_input, .o_form_uri):focus {
+        border-color: #b5b5b5 !important;
+        box-shadow: 0 0 0 1px #b5b5b5 !important;
+    }
+    body.o_web_client .o_form_view .o_form_sheet .o_inner_group :is(.o_field_char, .o_field_email, .o_field_phone, .o_field_many2one, .o_field_selection, .o_field_date, .o_field_datetime, .o_field_float, .o_field_integer, .o_field_monetary, .o_field_reference):not(:has(> .o_input)) {
+        min-height: 34px;
+        box-sizing: border-box;
+        padding: 6px 10px;
+        color: #f5f5f5;
+        background: #1e1e1e;
+        border: 1px solid #333;
+        border-radius: 4px;
+        box-shadow: none;
+    }
+
+    /* Notebook tabs stay visible and scroll horizontally when the form is narrow. */
+    body.o_web_client .o_form_view .o_notebook .nav-tabs {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 2px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 0 2px;
+        background: #0d0d0d !important;
+        border-bottom: 1px solid #383838 !important;
+        scrollbar-color: #525252 #0d0d0d;
+    }
+    body.o_web_client .o_form_view .o_notebook .nav-tabs .nav-link {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        padding: .65rem 1rem;
+        color: #b5b5b5 !important;
+        background: #171717 !important;
+        border: 1px solid transparent !important;
+        border-radius: 4px 4px 0 0;
+    }
+    body.o_web_client .o_form_view .o_notebook .nav-tabs .nav-link:hover {
+        color: #fff !important;
+        background: #242424 !important;
+        border-color: #525252 !important;
+    }
+    body.o_web_client .o_form_view .o_notebook .nav-tabs .nav-link.active {
+        color: #fff !important;
+        background: #242424 !important;
+        border-color: #525252 !important;
+        border-bottom: 2px solid #fff !important;
+    }
+
+    /* Floating direct-chat windows remain usable without covering record inputs. */
+    body.o_web_client .o-mail-ChatWindow {
+        width: min(380px, calc(100vw - 24px));
+        right: clamp(12px, 2vw, 32px);
+        bottom: 16px;
+        max-height: min(78vh, 700px);
+        z-index: 1061;
+    }
+    @media (min-width: 1200px) {
+        body.o_web_client:has(.o-mail-ChatWindow) .o_form_view .o_form_sheet {
+            --cs-chat-reserve: min(360px, 22vw);
+            margin-right: var(--cs-chat-reserve);
+        }
+        body.o_web_client:has(.o-mail-ChatWindow) .o_form_view .o_form_sheet_bg {
+            padding-right: min(360px, 22vw);
+        }
+    }
+
     /* Bootstrap utilities and Odoo's numbered tag palette otherwise leak color. */
     body.o_web_client :is(.bg-white, .bg-100, .bg-200, .bg-view, .bg-body, .bg-light) { background-color: #111 !important; }
     body.o_web_client :is(.bg-300, .bg-400, .bg-body-secondary, .bg-body-tertiary) { background-color: #202020 !important; }
