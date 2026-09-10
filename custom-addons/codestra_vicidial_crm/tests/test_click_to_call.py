@@ -140,7 +140,7 @@ class TestClickToCall(TransactionCase):
         self.assertEqual(values["destination"], "internal:TEST_ECHO")
         self.assertEqual(values["campaign"], "TEST_SYN")
         self.assertFalse(values["recording_requested"])
-        self.assertEqual(call.status, "accepted")
+        self.assertEqual(call.status, "attempting")
 
     def test_test_syn_action_rejects_unreviewed_agent_or_campaign(self):
         params = self.env["ir.config_parameter"].sudo()
