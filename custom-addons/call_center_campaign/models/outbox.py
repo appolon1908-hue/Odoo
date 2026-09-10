@@ -17,12 +17,17 @@ MAX_RESPONSE_BYTES = 65536
 OUTBOX_PRODUCER_CAPABILITY = object()
 OUTBOX_WORKER_CAPABILITY = object()
 ALLOWED_TRANSITIONS = {
-    "pending": {"processing"},
+    "pending": {"processing", "superseded"},
     "processing": {"processing", "delivered", "failed"},
-    "failed": {"processing", "dead_letter"},
+    "failed": {"processing", "dead_letter", "superseded"},
     "delivered": set(),
-    "dead_letter": set(),
+    "dead_letter": {"superseded"},
+    "superseded": set(),
 }
+
+
+class CampaignDeliveryConfigurationError(ValidationError):
+    """No delivery was attempted; retry after deployment configuration is fixed."""
 
 
 def canonical_json(value):
@@ -73,6 +78,7 @@ class CodestraIntegrationOutbox(models.Model):
             ("delivered", "Delivered"),
             ("failed", "Failed"),
             ("dead_letter", "Dead Letter"),
+            ("superseded", "Superseded"),
         ],
         required=True,
         default="pending",
@@ -483,9 +489,16 @@ class CodestraIntegrationOutbox(models.Model):
     def _middleware_configuration(self):
         endpoint = os.environ.get("CODESTRA_MIDDLEWARE_CAMPAIGN_DESIGN_URL", "")
         token_file = os.environ.get("CODESTRA_MIDDLEWARE_TOKEN_FILE", "")
-        parsed = parse.urlparse(endpoint)
+        try:
+            parsed = parse.urlparse(endpoint)
+            port = parsed.port
+        except ValueError:
+            raise CampaignDeliveryConfigurationError("The middleware endpoint is invalid.") from None
         if (
-            parsed.scheme != "https"
+            any(ord(char) <= 32 or ord(char) > 126 for char in endpoint)
+            or port == 0
+            or "?" in endpoint or "#" in endpoint
+            or parsed.scheme != "https"
             or not parsed.hostname
             or parsed.username
             or parsed.password
@@ -493,17 +506,20 @@ class CodestraIntegrationOutbox(models.Model):
             or parsed.fragment
             or parsed.path.rstrip("/") != "/api/v1/campaign-designs/preview"
         ):
-            raise ValidationError(
+            raise CampaignDeliveryConfigurationError(
                 "The exact HTTPS middleware design endpoint is required."
             )
         if not token_file or not os.path.isabs(token_file):
-            raise ValidationError(
+            raise CampaignDeliveryConfigurationError(
                 "The middleware credential must use an absolute secret file."
             )
-        with open(token_file, encoding="utf-8") as handle:
-            token = handle.read().strip()
-        if not token:
-            raise ValidationError("The middleware credential file is empty.")
+        try:
+            with open(token_file, encoding="utf-8") as handle:
+                token = handle.read(16385).rstrip("\r\n")
+        except (OSError, UnicodeError):
+            raise CampaignDeliveryConfigurationError("The middleware credential file is unavailable.") from None
+        if not token or len(token) > 16384 or any(not 33 <= ord(char) <= 126 for char in token):
+            raise CampaignDeliveryConfigurationError("The middleware credential file is invalid.")
         return endpoint, token
 
     def _campaign_tenant_id(self):
@@ -511,11 +527,90 @@ class CodestraIntegrationOutbox(models.Model):
         try:
             mapping = json.loads(os.environ.get("CODESTRA_MIDDLEWARE_CAMPAIGN_TENANTS", "{}"))
         except (TypeError, ValueError) as exc:
-            raise ValidationError("The campaign tenant mapping is invalid.") from exc
+            raise CampaignDeliveryConfigurationError("The campaign tenant mapping is invalid.") from None
         tenant = mapping.get(self.business_unit_code) if isinstance(mapping, dict) else None
-        if not isinstance(tenant, str) or not tenant or len(tenant) > 128 or tenant != tenant.strip() or "*" in tenant:
-            raise ValidationError("An explicit campaign business-unit tenant binding is required.")
+        if (not isinstance(tenant, str) or not tenant or len(tenant) > 128
+                or any(not 33 <= ord(char) <= 126 for char in tenant) or "*" in tenant):
+            raise CampaignDeliveryConfigurationError("An explicit campaign business-unit tenant binding is required.")
         return tenant
+
+    def _defer_configuration_failure(self):
+        self.ensure_one()
+        self._worker_write({
+            "delivery_state": "failed",
+            "next_attempt_at": fields.Datetime.now() + timedelta(seconds=60),
+            "processing_started_at": False,
+            "lease_consumer_id": False,
+            "lease_token_hash": False,
+            "lease_expires_at": False,
+            "lease_heartbeat_at": False,
+            "last_error_code": "CONFIGURATION_BLOCKED",
+            "last_error_class": "CampaignDeliveryConfigurationError",
+            "last_error_safe_message": "Campaign delivery configuration requires correction.",
+            "last_error_fingerprint": False,
+        })
+
+    @api.model
+    def _supersede_legacy_design_requests(self):
+        """Upgrade queued previews without rewriting accepted payloads or keys.
+
+        Run in the module-upgrade transaction with delivery workers stopped.
+        A processing event may already have reached Middleware: refuse the
+        upgrade until its original operation is reconciled. Never resend a
+        modified payload with that event's immutable idempotency identity.
+        """
+        self.flush_model()
+        legacy = self.search([
+            ("event_type", "=", EVENT_TYPE),
+            ("delivery_state", "in", ["pending", "failed", "dead_letter", "processing"]),
+        ]).filtered(lambda event: "design_request_revision" not in event.payload_json)
+        campaigns = legacy.mapped("campaign_id").sorted("id")
+        campaigns._lock_automatic_design_rows()
+        for campaign in campaigns:
+            events = self.search([
+                ("campaign_id", "=", campaign.id), ("event_type", "=", EVENT_TYPE),
+            ])
+            self.env.cr.execute(
+                "SELECT id FROM codestra_runtime_integration_outbox WHERE id = ANY(%s) ORDER BY id FOR UPDATE",
+                [events.ids],
+            )
+            events.invalidate_recordset()
+            queued = events.filtered(lambda event: (
+                event.delivery_state in {"pending", "failed", "dead_letter", "processing"}
+                and "design_request_revision" not in event.payload_json
+            ))
+            if queued.filtered(lambda event: event.delivery_state == "processing"):
+                raise ValidationError(
+                    "Reconcile processing legacy campaign previews and stop delivery workers before upgrading."
+                )
+            if not queued:
+                continue
+            queued._worker_write({
+                "delivery_state": "superseded",
+                "next_attempt_at": False,
+                "processing_started_at": False,
+                "lease_consumer_id": False,
+                "lease_token_hash": False,
+                "lease_expires_at": False,
+                "lease_heartbeat_at": False,
+                "completed_at": fields.Datetime.now(),
+                "last_error_code": "LEGACY_PREVIEW_SUPERSEDED",
+                "last_error_class": False,
+                "last_error_safe_message": "Legacy preview superseded by a revision-bound request.",
+                "last_error_fingerprint": False,
+            })
+            revisions = self.env["call.center.campaign.design.revision"].sudo().search([
+                ("event_uuid", "in", queued.mapped("event_uuid")),
+                ("state", "in", ["requested", "hash_only", "ready", "approved"]),
+            ])
+            revisions._system_write({"state": "superseded"})
+            if campaign.design_request_revision in queued.mapped("design_request_revision"):
+                # Produce only the latest desired design. Older undelivered
+                # revisions must not overwrite an already newer valid request.
+                campaign._create_design_request_event(
+                    revision=max([campaign.design_request_revision] + events.mapped("design_request_revision")) + 1
+                )
+        return len(legacy)
 
     def _send_to_middleware(self):
         self.ensure_one()
@@ -635,6 +730,12 @@ class CodestraIntegrationOutbox(models.Model):
                 result = event._send_to_middleware()
                 event._finalize_delivery_success(result)
                 self.env.cr.commit()
+            except CampaignDeliveryConfigurationError:
+                self.env.cr.rollback()
+                event = self.browse(event_id).exists()
+                if event:
+                    event._defer_configuration_failure()
+                    self.env.cr.commit()
             except (
                 error.URLError,
                 OSError,
@@ -796,6 +897,7 @@ class CallCenterCampaignOutboxProducer(models.Model):
         )
         payload = {
             "event_id": event_uuid,
+            "design_request_revision": revision,
             "integration_uuid": self.integration_uuid,
             "odoo_campaign_id": self.id,
             "environment": "staging",

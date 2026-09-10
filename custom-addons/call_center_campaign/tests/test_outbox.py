@@ -1,5 +1,7 @@
 import hashlib
 import json
+import importlib.util
+from pathlib import Path
 import uuid
 from unittest.mock import MagicMock, patch
 
@@ -487,3 +489,150 @@ class TestCampaignTransactionalOutbox(TransactionCase):
                 "os.environ", {"CODESTRA_MIDDLEWARE_CAMPAIGN_TENANTS": mapping}
             ), self.assertRaises(ValidationError):
                 event._campaign_tenant_id()
+
+
+    def test_configuration_blockers_preserve_retry_budget_through_cron(self):
+        campaign = self._create_campaign()
+        Outbox = self.env["codestra.runtime.integration.outbox"]
+        event = Outbox.search([("campaign_id", "=", campaign.id)], limit=1)
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = json.dumps({"manifest_hash": "a" * 64, "design_revision": 1}).encode()
+        # Keep the TransactionCase fixture in its rollback-only transaction;
+        # claims, transport classification and finalization use real ORM code.
+        with (
+            patch.object(type(self.env.cr), "commit"),
+            patch.object(type(self.env.cr), "rollback"),
+            patch.object(type(Outbox), "_middleware_configuration", return_value=(
+                "https://middleware.example.test/api/v1/campaign-designs/preview", "synthetic-token"
+            )),
+            patch("odoo.addons.call_center_campaign.models.outbox.request.urlopen", return_value=response) as send,
+        ):
+            for mapping in ("{}", "not-json", "[]", "{}", "{}", "{}", "{}"):
+                event._worker_write({"next_attempt_at": False})
+                with patch.dict("os.environ", {"CODESTRA_MIDDLEWARE_CAMPAIGN_TENANTS": mapping}):
+                    Outbox._cron_deliver_campaign_design_events()
+                self.assertEqual(event.delivery_state, "failed")
+                self.assertEqual(event.retry_count, 0)
+                self.assertEqual(event.last_error_code, "CONFIGURATION_BLOCKED")
+                self.assertFalse(event.lease_token_hash)
+                self.assertTrue(event.next_attempt_at)
+                self.assertEqual(campaign.design_request_state, "pending")
+            send.assert_not_called()
+            event._worker_write({"next_attempt_at": False})
+            with patch.dict("os.environ", {"CODESTRA_MIDDLEWARE_CAMPAIGN_TENANTS": json.dumps({
+                event.business_unit_code: "synthetic-tenant"
+            })}):
+                Outbox._cron_deliver_campaign_design_events()
+            send.assert_called_once()
+            self.assertEqual(event.delivery_state, "delivered")
+            self.assertEqual(event.retry_count, 0)
+            self.assertFalse(event.last_error_code)
+
+    def test_configuration_failures_are_classified_before_delivery(self):
+        from odoo.addons.call_center_campaign.models.outbox import CampaignDeliveryConfigurationError
+        Outbox = self.env["codestra.runtime.integration.outbox"]
+        with patch.dict("os.environ", {
+            "CODESTRA_MIDDLEWARE_CAMPAIGN_DESIGN_URL": "https://middleware.example.test/api/v1/campaign-designs/preview",
+            "CODESTRA_MIDDLEWARE_TOKEN_FILE": "/run/secrets/synthetic-missing",
+        }), patch("builtins.open", side_effect=FileNotFoundError("sensitive-path")):
+            with self.assertRaises(CampaignDeliveryConfigurationError) as raised:
+                Outbox._middleware_configuration()
+            self.assertNotIn("sensitive-path", str(raised.exception))
+        with patch.dict("os.environ", {"CODESTRA_MIDDLEWARE_CAMPAIGN_DESIGN_URL": "http://bad.test/preview"}):
+            with self.assertRaises(CampaignDeliveryConfigurationError):
+                Outbox._middleware_configuration()
+
+    def _legacy_preview_campaign(self):
+        Outbox = self.env["codestra.runtime.integration.outbox"]
+        original_create = type(Outbox)._create_internal
+
+        def old_producer(records, values):
+            values = dict(values)
+            payload = dict(values["payload_json"])
+            payload.pop("design_request_revision", None)
+            values["payload_json"] = payload
+            values["payload_hash"] = hashlib.sha256(
+                json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest()
+            return original_create(records, values)
+
+        with patch.object(type(Outbox), "_create_internal", old_producer):
+            campaign = self._create_campaign(code=f"COD-TEST-{uuid.uuid4().hex[:8].upper()}-OUT")
+        return campaign, Outbox.search([("campaign_id", "=", campaign.id)], limit=1)
+
+    def _run_preview_upgrade(self):
+        path = Path(__file__).resolve().parents[1] / "migrations/19.0.5.3.4/post-migration.py"
+        spec = importlib.util.spec_from_file_location("campaign_preview_upgrade_test", path)
+        migration = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(migration)
+        migration.migrate(self.env.cr, "19.0.5.3.2")
+        self.env.invalidate_all()
+
+    def test_upgrade_replaces_queued_legacy_previews_without_mutating_history(self):
+        for state in ("pending", "failed", "dead_letter"):
+            with self.subTest(state=state):
+                campaign, old = self._legacy_preview_campaign()
+                if state != "pending":
+                    old._worker_write({"delivery_state": "processing"})
+                    old._worker_write({"delivery_state": "failed", "retry_count": 4})
+                if state == "dead_letter":
+                    old._worker_write({"delivery_state": "dead_letter"})
+                identity = (old.event_uuid, old.idempotency_key, old.payload_json, old.payload_hash)
+                self._run_preview_upgrade()
+                self.assertEqual(old.delivery_state, "superseded")
+                self.assertEqual((old.event_uuid, old.idempotency_key, old.payload_json, old.payload_hash), identity)
+                self.assertEqual(campaign.design_request_revision, 2)
+                current = self.env["codestra.runtime.integration.outbox"].search([
+                    ("campaign_id", "=", campaign.id), ("design_request_revision", "=", 2),
+                ])
+                self.assertEqual(current.delivery_state, "pending")
+                self.assertEqual(current.payload_json["design_request_revision"], 2)
+                self.assertNotEqual(current.event_uuid, old.event_uuid)
+                self.assertNotEqual(current.idempotency_key, old.idempotency_key)
+                self.assertNotEqual(current.payload_hash, old.payload_hash)
+                revisions = self.env["call.center.campaign.design.revision"].search([
+                    ("campaign_id", "=", campaign.id),
+                ])
+                if revisions:
+                    self.assertEqual(revisions.filtered(lambda r: r.revision == 1).state, "superseded")
+                    self.assertEqual(revisions.filtered(lambda r: r.revision == 2).request_payload_hash, current.payload_hash)
+                self._run_preview_upgrade()
+                self.assertEqual(campaign.design_request_revision, 2)
+                self.assertEqual(self.env["codestra.runtime.integration.outbox"].search_count([
+                    ("campaign_id", "=", campaign.id),
+                ]), 2)
+
+    def test_upgrade_leaves_delivered_and_newer_valid_previews_unchanged(self):
+        campaign, old = self._legacy_preview_campaign()
+        old._worker_write({"delivery_state": "processing"})
+        old._finalize_delivery_success({"manifest_hash": "a" * 64, "design_revision": 1})
+        self._run_preview_upgrade()
+        self.assertEqual(old.delivery_state, "delivered")
+        self.assertEqual(campaign.design_request_revision, 1)
+        campaign, old = self._legacy_preview_campaign()
+        newer = campaign._create_design_request_event()
+        identity = (newer.event_uuid, newer.payload_hash, newer.delivery_state)
+        self._run_preview_upgrade()
+        self.assertEqual(old.delivery_state, "superseded")
+        self.assertEqual(campaign.design_request_revision, 2)
+        self.assertEqual((newer.event_uuid, newer.payload_hash, newer.delivery_state), identity)
+
+    def test_upgrade_refuses_processing_legacy_requests_and_rolls_back(self):
+        campaign, old = self._legacy_preview_campaign()
+        old._worker_write({"delivery_state": "processing"})
+        with self.assertRaisesRegex(ValidationError, "Reconcile processing"), self.env.cr.savepoint():
+            self._run_preview_upgrade()
+        self.assertEqual(old.delivery_state, "processing")
+        self.assertEqual(campaign.design_request_revision, 1)
+
+    def test_upgrade_replacement_failure_rolls_back_supersession(self):
+        campaign, old = self._legacy_preview_campaign()
+        with (
+            self.assertRaisesRegex(ValidationError, "synthetic upgrade failure"),
+            self.env.cr.savepoint(),
+            patch.object(type(campaign), "_create_design_request_event", side_effect=ValidationError("synthetic upgrade failure")),
+        ):
+            self._run_preview_upgrade()
+        self.assertEqual(old.delivery_state, "pending")
+        self.assertEqual(campaign.design_request_revision, 1)
