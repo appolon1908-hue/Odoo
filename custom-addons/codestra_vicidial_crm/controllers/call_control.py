@@ -102,17 +102,39 @@ class CallControlAPI(http.Controller):
         )[:1]
         control_enabled = self._feature("call_control_enabled")
         writes_enabled = self._feature("vicidial_write_enabled")
-        if not campaign:
+        if not agent.webrtc_enabled:
+            reason = "WebRTC is disabled for this agent."
+        elif not agent.outgoing_calls_enabled:
+            reason = "Outgoing calls are disabled for this agent."
+        elif not agent.phone_login:
+            reason = "The agent has no Odoo extension assignment."
+        elif not campaign:
             reason = "No TEST_SYN campaign is assigned to this agent."
         elif not control_enabled or not writes_enabled:
             reason = "Outbound calling is disabled by the server safety gate."
         else:
             reason = ""
         return {
-            "enabled": bool(campaign and control_enabled and writes_enabled),
+            "enabled": bool(
+                agent.webrtc_enabled
+                and agent.outgoing_calls_enabled
+                and agent.phone_login
+                and campaign
+                and control_enabled
+                and writes_enabled
+            ),
             "campaign_id": campaign.campaign_id if campaign else "TEST_SYN",
             "campaign_mode": campaign.mode if campaign else None,
-            "state": "ready" if campaign and control_enabled and writes_enabled else "disabled",
+            "state": (
+                "ready"
+                if agent.webrtc_enabled
+                and agent.outgoing_calls_enabled
+                and agent.phone_login
+                and campaign
+                and control_enabled
+                and writes_enabled
+                else "disabled"
+            ),
             "reason": reason,
         }
 
@@ -144,6 +166,10 @@ class CallControlAPI(http.Controller):
     @http.route("/codestra/call-control/v1/outbound", type="jsonrpc", auth="user", methods=["POST"])
     def outbound(self, lead_id=None, destination=None, campaign_id="TEST_SYN", idempotency_key=None):
         agent = self._agent()
+        if not agent.webrtc_enabled or not agent.phone_login:
+            raise AccessError("WebRTC is disabled or the agent has no Odoo extension.")
+        if not agent.outgoing_calls_enabled:
+            raise AccessError("Outgoing calls are disabled for this agent.")
         if not self._feature("call_control_enabled") or not self._feature("vicidial_write_enabled"):
             raise AccessError("Outbound call control is disabled.")
         key = self._key({"idempotency_key": idempotency_key})

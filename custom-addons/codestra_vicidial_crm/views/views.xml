@@ -1,7 +1,112 @@
 <odoo>
-<record id="view_agent_list" model="ir.ui.view"><field name="name">codestra.agent.list</field><field name="model">codestra.vicidial.agent</field><field name="arch" type="xml"><list><field name="name"/><field name="vicidial_user"/><field name="status"/><field name="active"/></list></field></record>
-<record id="view_agent_form" model="ir.ui.view"><field name="name">codestra.agent.form</field><field name="model">codestra.vicidial.agent</field><field name="arch" type="xml"><form><sheet><group><field name="name"/><field name="vicidial_user"/><field name="employee_code"/><field name="odoo_user_id"/><field name="phone_login"/><field name="status"/><field name="campaign_ids" widget="many2many_tags"/><field name="notes"/></group></sheet></form></field></record>
-<record id="view_campaign_list" model="ir.ui.view"><field name="name">codestra.campaign.list</field><field name="model">codestra.vicidial.campaign</field><field name="arch" type="xml"><list><field name="name"/><field name="campaign_id"/><field name="read_only"/><field name="sync_enabled"/></list></field></record>
+<record id="view_agent_list" model="ir.ui.view">
+  <field name="name">codestra.agent.list</field>
+  <field name="model">codestra.vicidial.agent</field>
+  <field name="arch" type="xml">
+    <list>
+      <field name="name"/>
+      <field name="odoo_username"/>
+      <field name="primary_campaign_id"/>
+      <field name="phone_login"/>
+      <field name="webrtc_enabled"/>
+      <field name="webrtc_status"/>
+      <field name="status"/>
+      <field name="active"/>
+    </list>
+  </field>
+</record>
+<record id="view_agent_form" model="ir.ui.view">
+  <field name="name">codestra.agent.form</field>
+  <field name="model">codestra.vicidial.agent</field>
+  <field name="arch" type="xml">
+    <form string="Agent">
+      <header>
+        <button name="action_replace_extension" type="object" string="Replace Extension" class="btn-secondary" groups="base.group_system"/>
+        <button name="action_revoke_webrtc_credentials" type="object" string="Revoke WebRTC Credentials" class="btn-secondary" groups="base.group_system" invisible="not webrtc_enabled"/>
+        <field name="status" widget="statusbar"/>
+      </header>
+      <sheet>
+        <group string="Agent">
+          <field name="name"/>
+          <field name="odoo_user_id" groups="base.group_system"/>
+          <field name="odoo_user_id" readonly="1" groups="!base.group_system"/>
+          <field name="odoo_username" readonly="1"/>
+          <field name="odoo_email" readonly="1"/>
+          <field name="vicidial_user"/>
+          <field name="employee_code"/>
+        </group>
+        <group string="Telephony Assignment">
+          <group>
+            <field name="primary_campaign_id" required="1" groups="base.group_system"/>
+            <field name="primary_campaign_id" readonly="1" groups="!base.group_system"/>
+            <field name="campaign_external_id" readonly="1"/>
+            <field name="supervisor_user_id" groups="base.group_system"/>
+            <field name="supervisor_user_id" readonly="1" groups="!base.group_system"/>
+            <field name="extension_pool_active" readonly="1"/>
+            <field name="phone_login" string="Odoo Extension" readonly="1"/>
+          </group>
+          <group>
+            <field name="incoming_calls_enabled" groups="base.group_system"/>
+            <field name="incoming_calls_enabled" readonly="1" groups="!base.group_system"/>
+            <field name="outgoing_calls_enabled" groups="base.group_system"/>
+            <field name="outgoing_calls_enabled" readonly="1" groups="!base.group_system"/>
+            <field name="webrtc_enabled" groups="base.group_system"/>
+            <field name="webrtc_enabled" readonly="1" groups="!base.group_system"/>
+            <field name="webrtc_status" readonly="1"/>
+            <field name="webrtc_device_count" readonly="1" string="WebRTC Devices"/>
+            <field name="webrtc_device_limit" readonly="1" string="Maximum WebRTC Devices"/>
+          </group>
+        </group>
+        <group string="Authorized Campaign Scope">
+          <field name="campaign_ids" widget="many2many_tags" readonly="1"/>
+        </group>
+        <group>
+          <field name="active"/>
+          <field name="notes"/>
+        </group>
+      </sheet>
+    </form>
+  </field>
+</record>
+<record id="view_campaign_list" model="ir.ui.view">
+  <field name="name">codestra.campaign.list</field>
+  <field name="model">codestra.vicidial.campaign</field>
+  <field name="arch" type="xml">
+    <list>
+      <field name="name"/>
+      <field name="campaign_id"/>
+      <field name="mode"/>
+      <field name="extension_pool_active"/>
+      <field name="read_only"/>
+      <field name="sync_enabled"/>
+    </list>
+  </field>
+</record>
+<record id="view_campaign_form" model="ir.ui.view">
+  <field name="name">codestra.campaign.form</field>
+  <field name="model">codestra.vicidial.campaign</field>
+  <field name="arch" type="xml">
+    <form>
+      <sheet>
+        <group>
+          <field name="name"/>
+          <field name="campaign_id"/>
+          <field name="mode"/>
+          <field name="active"/>
+          <field name="extension_range_start" groups="base.group_system"/>
+          <field name="extension_range_start" readonly="1" groups="!base.group_system"/>
+          <field name="extension_range_end" groups="base.group_system"/>
+          <field name="extension_range_end" readonly="1" groups="!base.group_system"/>
+          <field name="extension_pool_active" groups="base.group_system"/>
+          <field name="extension_pool_active" readonly="1" groups="!base.group_system"/>
+          <field name="supervisor_ids" widget="many2many_tags"/>
+          <field name="read_only"/>
+          <field name="sync_enabled"/>
+        </group>
+      </sheet>
+    </form>
+  </field>
+</record>
 <record id="view_call_list" model="ir.ui.view"><field name="name">codestra.call.list</field><field name="model">codestra.vicidial.call</field><field name="arch" type="xml"><list><field name="name"/><field name="uniqueid"/><field name="agent_id"/><field name="campaign_id"/><field name="status"/><field name="disposition_id"/></list></field></record>
 <record id="view_event_list" model="ir.ui.view"><field name="name">codestra.event.list</field><field name="model">codestra.integration.event</field><field name="arch" type="xml"><list><field name="event_type"/><field name="idempotency_key"/><field name="state"/><field name="retry_count"/><field name="last_error"/></list></field></record>
 <record id="view_disposition_list" model="ir.ui.view"><field name="name">codestra.disposition.list</field><field name="model">codestra.vicidial.disposition</field><field name="arch" type="xml"><list editable="bottom"><field name="name"/><field name="code"/><field name="category"/><field name="active"/></list></field></record>

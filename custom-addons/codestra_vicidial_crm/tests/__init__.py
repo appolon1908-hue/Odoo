@@ -16,3 +16,5 @@ from . import test_call_event_projection_scope
 from . import test_call_rematch_scope
 from . import test_telephony_trust_boundary
 from . import test_calling_realtime
+
+from . import test_webrtc_assignment

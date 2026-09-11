@@ -141,6 +141,9 @@ class TestRecordingAndQualityWorkflow(TransactionCase):
                 "name": "Synthetic Recording Agent A",
                 "vicidial_user": "CCRECQA001",
                 "odoo_user_id": cls.agent_a.id,
+                "primary_campaign_id": cls.legacy_campaign_a.id,
+                "campaign_ids": [(6, 0, [cls.legacy_campaign_a.id])],
+                "phone_login": "7301",
             }
         )
         cls.legacy_call_a = cls.env["codestra.vicidial.call"].create(
