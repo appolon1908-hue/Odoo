@@ -1,11 +1,16 @@
 import uuid
+from unittest.mock import patch
 
 from odoo import SUPERUSER_ID, fields
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 
-from ..models.provisioning import IMMUTABLE_ASSIGNMENT_FIELDS
+from odoo.addons.codestra_identity_provisioning.models.provisioning import (
+    ProvisioningRequest,
+)
+
+from ..models.provisioning import DISPATCH_TO_SERVICE_PARAM, IMMUTABLE_ASSIGNMENT_FIELDS
 
 
 def _nested_keys(value):
@@ -359,6 +364,35 @@ class TestCodestraAgentOnboarding(TransactionCase):
             ),
             1,
         )
+
+    def test_provisioning_dispatch_to_service_is_off_by_default(self):
+        onboarding = self._new_onboarding(email="dispatch.default.agent@example.invalid")
+        with patch.object(
+            ProvisioningRequest, "_dispatch_provisioning_to_service", autospec=True,
+        ) as dispatch:
+            self._start(onboarding)
+        dispatch.assert_not_called()
+
+    def test_provisioning_dispatch_to_service_when_explicitly_enabled(self):
+        self.env["ir.config_parameter"].sudo().set_param(
+            DISPATCH_TO_SERVICE_PARAM, "true"
+        )
+        try:
+            onboarding = self._new_onboarding(
+                email="dispatch.enabled.agent@example.invalid"
+            )
+            with patch.object(
+                ProvisioningRequest,
+                "_dispatch_provisioning_to_service",
+                autospec=True,
+                return_value={"state": "accepted"},
+            ) as dispatch:
+                request_record = self._start(onboarding)
+            dispatch.assert_called_once_with(request_record)
+        finally:
+            self.env["ir.config_parameter"].sudo().set_param(
+                DISPATCH_TO_SERVICE_PARAM, "false"
+            )
 
     def test_activation_email_waits_for_complete_readback(self):
         onboarding = self._new_onboarding()

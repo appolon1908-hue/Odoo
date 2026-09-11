@@ -54,6 +54,12 @@ SYSTEM_LINK_FIELDS = {
 PROVISION_EVENT = "agent.provisioning.requested.v1"
 ACTIVATION_EMAIL_EVENT = "agent.activation-email.requested.v1"
 EVENT_SCHEMA_VERSION = "1.0"
+# Off by default: merging/deploying this dispatch wiring must not, on its
+# own, make action_start_provisioning call the live provisioning service.
+# assert_safe_mode() on the identity-provisioning side does not gate this -
+# it only trips if an unrelated SAFETY_FLAGS entry is on - so this explicit
+# switch is what actually keeps the call inert until deliberately enabled.
+DISPATCH_TO_SERVICE_PARAM = "codestra.agent_onboarding.dispatch_to_provisioning_service"
 ONBOARDING_LINK_CAPABILITY = object()
 ONBOARDING_VERSION_CAPABILITY = object()
 
@@ -902,6 +908,11 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                     "provisioning_started_at": fields.Datetime.now(),
                 }
             )
+            dispatch_enabled = self.env["ir.config_parameter"].sudo().get_param(
+                DISPATCH_TO_SERVICE_PARAM, "false"
+            ).strip().lower() not in ("false", "0", "no", "off", "")
+            if dispatch_enabled:
+                request_record.with_user(SUPERUSER_ID)._dispatch_provisioning_to_service()
         return True
 
     def _activation_email_payload(self):

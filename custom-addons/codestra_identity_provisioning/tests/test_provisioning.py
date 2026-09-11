@@ -469,6 +469,42 @@ class TestIdentityProvisioning(TransactionCase):
         self.assertEqual(link.drift_state, "aligned")
         service_request.assert_called_once()
 
+    def test_dispatch_provisioning_to_service_builds_correct_envelope(self):
+        request = self.env["codestra.provisioning.request"].create(
+            self._request_values("dispatch-request")
+        )
+        request.state = "approved"
+        request.action_reserve_identifiers()
+        employee_number = request.employee_id.codestra_employee_number
+        self.assertTrue(employee_number)
+        self.assertTrue(request.step_ids)
+        with patch.object(
+            PrivateProvisioningService,
+            "request",
+            autospec=True,
+            return_value={"state": "accepted"},
+        ) as service_request:
+            result = request._dispatch_provisioning_to_service()
+        self.assertEqual(result, {"state": "accepted"})
+        service_request.assert_called_once()
+        _self, method, path, envelope = service_request.call_args.args
+        self.assertEqual(method, "POST")
+        self.assertEqual(path, "/v1/provisioning/requests/%s/execute" % request.id)
+        self.assertEqual(envelope["employee_id"], employee_number)
+        self.assertEqual(envelope["correlation_id"], request.correlation_id)
+        self.assertEqual(envelope["target_system"], "odoo")
+        self.assertEqual(envelope["operation"], "provision")
+        self.assertEqual(len(envelope["steps"]), len(request.step_ids))
+        step_keys = {step["idempotency_key"] for step in envelope["steps"]}
+        self.assertEqual(step_keys, set(request.step_ids.mapped("idempotency_key")))
+
+    def test_dispatch_provisioning_to_service_requires_reserved_employee(self):
+        request = self.env["codestra.provisioning.request"].create(
+            self._request_values("unreserved-dispatch-request")
+        )
+        with self.assertRaises(UserError):
+            request._dispatch_provisioning_to_service()
+
     def test_role_conflict_blocks_approval(self):
         conflict = self.env["codestra.role.template"].create({
             "name": "Conflicting Role",

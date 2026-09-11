@@ -1094,6 +1094,57 @@ class ProvisioningRequest(models.Model):
             envelope,
         )
 
+    def _dispatch_provisioning_to_service(self):
+        """POST this request's already-created steps to the private
+        provisioning service's request-execution endpoint
+        (``/v1/provisioning/requests/{id}/execute``), mirroring
+        ``_dispatch_lifecycle_to_service``'s envelope shape. Callers decide
+        whether this should run at all (see
+        ``codestra_agent_onboarding``'s explicit dispatch guard) - once
+        invoked this always makes the live call.
+        """
+        self.ensure_one()
+        self.assert_safe_mode()
+        employee_number = self.employee_id.codestra_employee_number
+        if not employee_number:
+            raise UserError("The employee identifier has not been reserved.")
+        timestamp = datetime.now(timezone.utc).isoformat()
+        request_id = str(self.id)
+        correlation = self.correlation_id
+        steps = [
+            {
+                "schema_version": "1.0",
+                "request_id": request_id,
+                "correlation_id": correlation,
+                "idempotency_key": step.idempotency_key,
+                "employee_id": employee_number,
+                "target_system": step.target_system,
+                "operation": step.operation,
+                "timestamp": timestamp,
+                "step_id": str(step.id),
+                "sequence": step.sequence,
+                "max_attempts": step.max_attempts,
+                "payload": {},
+            }
+            for step in self.step_ids
+        ]
+        envelope = {
+            "schema_version": "1.0",
+            "request_id": request_id,
+            "correlation_id": correlation,
+            "idempotency_key": self.idempotency_key,
+            "employee_id": employee_number,
+            "target_system": "odoo",
+            "operation": "provision",
+            "timestamp": timestamp,
+            "steps": steps,
+        }
+        return self.env["codestra.private.provisioning.service"].request(
+            "POST",
+            "/v1/provisioning/requests/%s/execute" % request_id,
+            envelope,
+        )
+
     def action_reconcile(self):
         if not self.env.su and not self.env.user.has_group(
             "codestra_identity_provisioning.group_provisioning_approver"
