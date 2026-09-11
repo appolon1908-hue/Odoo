@@ -111,6 +111,27 @@
                 <field name="last_error_sanitized"/>
               </group>
             </page>
+            <page string="Agent Channels">
+              <field name="channel_ids">
+                <list editable="bottom">
+                  <field name="channel_type"/>
+                  <field name="desired_enabled"/>
+                  <field name="state" widget="badge"
+                         decoration-success="state == 'effective'"
+                         decoration-danger="state == 'failed'"
+                         decoration-warning="state in ('requested', 'provisioning', 'provisioned')"
+                         decoration-muted="state == 'revoked'"/>
+                  <field name="effective_access" readonly="1"/>
+                  <field name="incoming_allowed"/>
+                  <field name="outgoing_allowed"/>
+                  <field name="campaign_id" readonly="1"/>
+                  <field name="supervisor_id" readonly="1"/>
+                  <field name="extension" readonly="1"/>
+                  <field name="last_reconciled_at" readonly="1"/>
+                  <field name="last_error_sanitized" readonly="1"/>
+                </list>
+              </field>
+            </page>
             <page string="Audit History">
               <field name="audit_ids" readonly="1">
                 <list create="0" edit="0" delete="0">
