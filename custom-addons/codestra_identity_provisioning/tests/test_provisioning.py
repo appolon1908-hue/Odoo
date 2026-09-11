@@ -493,10 +493,63 @@ class TestIdentityProvisioning(TransactionCase):
         self.assertEqual(envelope["employee_id"], employee_number)
         self.assertEqual(envelope["correlation_id"], request.correlation_id)
         self.assertEqual(envelope["target_system"], "odoo")
-        self.assertEqual(envelope["operation"], "provision")
+        self.assertEqual(envelope["operation"], "update")
         self.assertEqual(len(envelope["steps"]), len(request.step_ids))
         step_keys = {step["idempotency_key"] for step in envelope["steps"]}
         self.assertEqual(step_keys, set(request.step_ids.mapped("idempotency_key")))
+        expected_targets = {
+            "odoo": "odoo",
+            "keycloak": "keycloak",
+            "email": "email_provider",
+            "vicidial": "vicidial",
+            "sip": "sip",
+            "agent_desktop": "agent_desktop",
+            "secret_store": "secret_storage",
+            "verification": "verification",
+        }
+        expected_operations = {
+            "upsert_user": "create_disabled",
+            "upsert_identity": "create_disabled",
+            "upsert_mailbox": "create_disabled",
+            "upsert_agent": "create_disabled",
+            "upsert_endpoint": "create_disabled",
+            "assign_roles": "create_disabled",
+            "verify_all": "verify",
+        }
+        for service_step, odoo_step in zip(
+            envelope["steps"],
+            request.step_ids.sorted(key=lambda row: (row.sequence, row.id)),
+        ):
+            self.assertEqual(
+                service_step["target_system"],
+                expected_targets[odoo_step.target_system],
+            )
+            self.assertEqual(
+                service_step["operation"],
+                expected_operations[odoo_step.operation],
+            )
+            self.assertEqual(service_step["step_id"], "%s-step-%s" % (
+                request.id, odoo_step.id
+            ))
+            self.assertTrue(service_step["payload"])
+            self.assertNotIn("password", service_step["payload"])
+            self.assertNotIn("secret", service_step["payload"])
+
+    def test_dispatch_rejects_unsupported_target_before_network(self):
+        request = self.env["codestra.provisioning.request"].create({
+            **self._request_values("unsupported-dispatch-request"),
+            "needs_voicemail": True,
+        })
+        request.state = "approved"
+        request.action_reserve_identifiers()
+        with patch.object(
+            PrivateProvisioningService,
+            "request",
+            autospec=True,
+        ) as service_request:
+            with self.assertRaises(UserError):
+                request._dispatch_provisioning_to_service()
+        service_request.assert_not_called()
 
     def test_dispatch_provisioning_to_service_requires_reserved_employee(self):
         request = self.env["codestra.provisioning.request"].create(
