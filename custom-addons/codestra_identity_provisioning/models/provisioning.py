@@ -766,6 +766,19 @@ class ProvisioningRequest(models.Model):
                         suffix_separator=""
                         if kind == "vicidial_username" else ".",
                     )
+            if request.needs_sip_endpoint:
+                existing_assignment = request.env["codestra.extension.assignment"].search([
+                    ("request_id", "=", request.id),
+                    ("state", "in", ("reserved", "committed")),
+                ], limit=1)
+                if not existing_assignment:
+                    pool = request.business_unit_id.extension_pool_ids.filtered("active")[:1]
+                    if not pool:
+                        raise UserError(
+                            "No active SIP extension pool is configured for this "
+                            "business unit."
+                        )
+                    pool.reserve_extension(request.employee_id, request)
             employee_reservation = request.env["codestra.identifier.reservation"].search([
                 ("request_id", "=", request.id),
                 ("identifier_type", "=", "employee_id"),

@@ -6,4 +6,16 @@
     <field name="groups" eval="[(4, ref('call_center_core.group_call_center_user'))]"/>
     <field name="domain_force">[('company_id', 'in', company_ids)]</field>
   </record>
+
+  <record id="group_cc_webrtc_session_service" model="res.groups">
+    <field name="name">Contact Center WebRTC Session Service</field>
+    <field name="privilege_id" ref="codestra_cc_security.privilege_codestra_contact_center"/>
+    <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+  </record>
+  <record id="rule_cc_webrtc_session_global_scope" model="ir.rule">
+    <field name="name">Contact Center: WebRTC session campaign scope</field>
+    <field name="model_id" ref="model_cc_webrtc_session"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_agent_onboarding.group_cc_webrtc_session_service') or user.cc_has_active_break_glass else [('membership_id.campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
 </odoo>

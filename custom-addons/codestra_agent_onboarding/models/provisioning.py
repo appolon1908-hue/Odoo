@@ -7,6 +7,10 @@ import uuid
 from odoo import SUPERUSER_ID, _, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
+from odoo.addons.codestra_identity_provisioning.models.provisioning import (
+    normalize_identifier,
+)
+
 
 OPERATIONAL_ROLES = {"agent", "senior_agent", "supervisor"}
 ROLE_GROUP_XMLIDS = {
@@ -38,6 +42,8 @@ IMMUTABLE_ASSIGNMENT_FIELDS = {
     "needs_agent_desktop",
     "needs_keycloak",
     "needs_vicidial",
+    "webrtc_enabled",
+    "sms_enabled",
 }
 SYSTEM_LINK_FIELDS = {
     "campaign_membership_id",
@@ -423,6 +429,34 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                     _("The selected role template has unresolved privilege conflicts.")
                 )
 
+    def _generate_unique_login(self, requested_email, Users):
+        """Resolve a collision-free login, never attaching to an existing account.
+
+        Tries the requested address first, then ``firstname.lastname@domain``,
+        then ``firstname2@domain``, ``firstname3@domain``, ... A collision only
+        ever produces a new alternate address; it never causes the new user to
+        be attached to the pre-existing account at that login.
+        """
+        local_part, _sep, domain = requested_email.partition("@")
+        name_parts = self.employee_id.name.strip().split()
+        firstname = normalize_identifier(name_parts[0]) if name_parts else local_part
+        lastname = normalize_identifier(name_parts[-1]) if len(name_parts) > 1 else ""
+
+        def collides(candidate):
+            return bool(Users.search([("login", "=ilike", candidate)], limit=1))
+
+        if not collides(requested_email):
+            return requested_email
+        if lastname:
+            candidate = "%s.%s@%s" % (firstname, lastname, domain)
+            if not collides(candidate):
+                return candidate
+        for suffix in range(2, 1000):
+            candidate = "%s%s@%s" % (firstname, suffix, domain)
+            if not collides(candidate):
+                return candidate
+        raise ValidationError(_("The email namespace for this identity is exhausted."))
+
     def _ensure_agent_user(self):
         self.ensure_one()
         employee = self.employee_id.with_user(SUPERUSER_ID)
@@ -431,14 +465,7 @@ class CodestraAgentOnboardingProvisioning(models.Model):
         user = employee.user_id.with_user(SUPERUSER_ID)
         Users = self.env["res.users"].with_user(SUPERUSER_ID).with_context(active_test=False)
         if not user:
-            collision = Users.search([("login", "=ilike", email)], limit=1)
-            if collision:
-                raise ValidationError(
-                    _(
-                        "The requested login already exists. Use the reviewed identity "
-                        "adoption workflow instead of attaching it automatically."
-                    )
-                )
+            email = self._generate_unique_login(email, Users)
             # Archived identities participate in collision lookup, not creation.
             # Odoo synchronizes the new inactive user to its partner and that
             # archive guard must search only active linked users.
@@ -554,6 +581,8 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 "is_primary_supervisor": self.campaign_role == "supervisor",
                 "requested_by_id": self.env.user.id,
                 "source_ticket": self.name,
+                "webrtc_enabled": self.webrtc_enabled,
+                "sms_enabled": self.sms_enabled,
                 "vicidial_user_group": (
                     self.role_template_id.vicidial_user_group
                     if self.needs_vicidial
@@ -739,6 +768,19 @@ class CodestraAgentOnboardingProvisioning(models.Model):
             values["vicidial_user_group"] = (
                 self.role_template_id.vicidial_user_group
             )
+        if self.needs_sip_endpoint:
+            assignment = self.env["codestra.extension.assignment"].search(
+                [
+                    ("request_id", "=", request_record.id),
+                    ("state", "in", ["reserved", "committed"]),
+                ],
+                limit=1,
+            )
+            if not assignment:
+                raise ValidationError(
+                    _("The SIP extension was not reserved.")
+                )
+            values["extension"] = assignment.extension
         if values:
             membership.write(values)
 
@@ -761,12 +803,22 @@ class CodestraAgentOnboardingProvisioning(models.Model):
             targets.append("recording_access")
         if self.needs_monitoring_access:
             targets.append("monitoring_access")
+        if self.webrtc_enabled:
+            targets.append("webrtc")
+        if self.sms_enabled:
+            targets.append("sms")
         return {
             "schema_version": EVENT_SCHEMA_VERSION,
             "event_type": PROVISION_EVENT,
             **self._event_context(),
             "recipient_email": self.activation_email.strip().lower(),
             "targets": targets,
+            "telephony_assignment": {
+                "extension": self.campaign_membership_id.extension or None,
+                "webrtc_enabled": self.webrtc_enabled,
+                "sms_enabled": self.sms_enabled,
+                "webrtc_max_devices": 1,
+            },
             "controls": {
                 "create_disabled": True,
                 "activate_immediately": False,
@@ -776,6 +828,7 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 "change_agent_campaign": False,
                 "production_dialing": False,
                 "live_call_control": False,
+                "webrtc_credential_issuance": False,
             },
         }
 
