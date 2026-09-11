@@ -2,12 +2,7 @@
 
 final result: blocked
 
-The implementation is in `custom-addons/codestra_workspace_theme`. Source and
-HTTP asset checks passed. The supplied authenticated screenshots identified a
-form-layout regression; the repair is recorded in
-`docs/CRM-FORM-LAYOUT-REPAIR-20260910.md`. There is still no assistant-captured
-post-repair authenticated CRM comparison, so this report does not certify the
-complete visual experience.
+The implementation is in `custom-addons/codestra_workspace_theme`. Source and HTTP asset checks passed. The user approved making the theme live with the documented limitation. The module is installed and its served CSS was verified; the live evidence is in `deploy/evidence/crm-night-live-20260910.json`. The supplied authenticated screenshots also identified a form-layout regression, repaired in `docs/CRM-FORM-LAYOUT-REPAIR-20260910.md`. There is still no assistant-captured post-repair authenticated CRM comparison, so this report does not certify the complete visual experience.
 
 ## Reference and state
 
