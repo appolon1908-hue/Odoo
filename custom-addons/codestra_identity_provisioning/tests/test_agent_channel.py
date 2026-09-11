@@ -18,7 +18,10 @@ class TestAgentChannel(TransactionCase):
         cls.identity_managed = "cc.identity.outbox" in cls.env
         cls.campaign_a = cls.Campaign.search([("code", "=", "COD-WEB-OUT")], limit=1)
         cls.campaign_a.ensure_one()
-        cls.campaign_a.write({"lifecycle_state": "active"})
+        # "active" is unconditionally blocked in this staging environment
+        # (see CcCampaign._check_workspace); "staging_ready" is in the same
+        # SAFE_CAMPAIGN_LIFECYCLE_STATES set and is actually reachable here.
+        cls.campaign_a.write({"lifecycle_state": "staging_ready"})
         cls.legacy_unit = cls.campaign_a.legacy_campaign_id.business_unit_id
 
         cls.requester = cls._create_user(
@@ -265,7 +268,7 @@ class TestAgentChannel(TransactionCase):
         self.campaign_a.write({"lifecycle_state": "draft"})
         channel.invalidate_recordset(["effective_access"])
         self.assertFalse(channel.effective_access)
-        self.campaign_a.write({"lifecycle_state": "active"})
+        self.campaign_a.write({"lifecycle_state": "staging_ready"})
         channel.invalidate_recordset(["effective_access"])
         self.assertTrue(channel.effective_access)
 

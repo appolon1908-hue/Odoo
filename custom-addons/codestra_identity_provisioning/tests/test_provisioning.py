@@ -529,9 +529,10 @@ class TestIdentityProvisioning(TransactionCase):
         )
 
     def test_service_callback_verified_evidence_reaches_the_agent_channel(self):
-        provision_request = self.env["codestra.provisioning.request"].create(
-            self._request_values("callback-channel-evidence")
-        )
+        provision_request = self.env["codestra.provisioning.request"].create({
+            **self._request_values("callback-channel-evidence"),
+            "needs_company_email": True,
+        })
         channel = self.env["codestra.agent.channel"].create({
             "employee_id": provision_request.employee_id.id,
             "provisioning_request_id": provision_request.id,
@@ -564,9 +565,10 @@ class TestIdentityProvisioning(TransactionCase):
         self.assertEqual(channel.external_reference, "mailbox-ref-1")
 
     def test_service_callback_failed_step_marks_the_agent_channel_failed(self):
-        provision_request = self.env["codestra.provisioning.request"].create(
-            self._request_values("callback-channel-failure")
-        )
+        provision_request = self.env["codestra.provisioning.request"].create({
+            **self._request_values("callback-channel-failure"),
+            "needs_sip_endpoint": True,
+        })
         channel = self.env["codestra.agent.channel"].create({
             "employee_id": provision_request.employee_id.id,
             "provisioning_request_id": provision_request.id,

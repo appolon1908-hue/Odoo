@@ -970,7 +970,12 @@ class ProvisioningRequest(models.Model):
                     lambda c, ct=channel_type: c.channel_type == ct
                 )[:1]
                 if channel:
-                    channel._apply_step_evidence(
+                    # apply_service_callback is a system-authenticated
+                    # operation (HMAC-verified webhook, or an internal
+                    # service caller) regardless of which Odoo user
+                    # actually invokes this method; sudo() so it isn't
+                    # gated by that caller's own ACLs on the channel model.
+                    channel.sudo()._apply_step_evidence(
                         verified=terminal == "success",
                         evidence_hash=item.get("evidence_hash"),
                         external_id=item.get("external_id"),
