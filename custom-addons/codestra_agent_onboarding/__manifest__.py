@@ -14,8 +14,8 @@
         "mail",
     ],
     "data": [
-        "security/ir.model.access.csv",
         "security/record_rules.xml",
+        "security/ir.model.access.csv",
         "data/sequence.xml",
         "views/onboarding_views.xml",
     ],
