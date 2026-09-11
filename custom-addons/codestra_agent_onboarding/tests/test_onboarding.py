@@ -257,6 +257,15 @@ class TestCodestraAgentOnboarding(TransactionCase):
         )
         return operation
 
+    def _channel(self, onboarding, channel_type):
+        return self.env["codestra.agent.channel"].search(
+            [
+                ("employee_id", "=", onboarding.employee_id.id),
+                ("channel_type", "=", channel_type),
+            ],
+            limit=1,
+        )
+
     def test_approval_requires_all_readiness_gates(self):
         onboarding = self._new_onboarding()
         onboarding.identity_verified = False
@@ -611,8 +620,8 @@ class TestCodestraAgentOnboarding(TransactionCase):
         onboarding.write({"webrtc_enabled": True, "sms_enabled": True})
         self._start(onboarding)
         membership = onboarding.campaign_membership_id
-        self.assertTrue(membership.webrtc_enabled)
-        self.assertTrue(membership.sms_enabled)
+        self.assertTrue(self._channel(onboarding, "webrtc").desired_enabled)
+        self.assertTrue(self._channel(onboarding, "sms").desired_enabled)
         payload = onboarding._provisioning_event_payload()
         self.assertIn("webrtc", payload["targets"])
         self.assertIn("sms", payload["targets"])
@@ -625,9 +634,8 @@ class TestCodestraAgentOnboarding(TransactionCase):
     def test_webrtc_and_sms_default_to_disabled(self):
         onboarding = self._new_onboarding(email="no.webrtc.agent@example.invalid")
         self._start(onboarding)
-        membership = onboarding.campaign_membership_id
-        self.assertFalse(membership.webrtc_enabled)
-        self.assertFalse(membership.sms_enabled)
+        self.assertFalse(self._channel(onboarding, "webrtc").desired_enabled)
+        self.assertFalse(self._channel(onboarding, "sms").desired_enabled)
         payload = onboarding._provisioning_event_payload()
         self.assertNotIn("webrtc", payload["targets"])
         self.assertNotIn("sms", payload["targets"])
@@ -644,7 +652,7 @@ class TestCodestraAgentOnboarding(TransactionCase):
         first.invalidate_recordset(["active_session", "revoked_at"])
         self.assertFalse(first.active_session)
         self.assertTrue(second.active_session)
-        membership.write({"webrtc_enabled": False})
+        self._channel(onboarding, "webrtc").write({"desired_enabled": False})
         second.invalidate_recordset(["active_session", "revoked_at"])
         self.assertFalse(second.active_session)
 
@@ -652,7 +660,7 @@ class TestCodestraAgentOnboarding(TransactionCase):
         onboarding = self._new_onboarding(email="webrtc.disabled.agent@example.invalid")
         self._start(onboarding)
         membership = onboarding.campaign_membership_id
-        self.assertFalse(membership.webrtc_enabled)
+        self.assertFalse(self._channel(onboarding, "webrtc").desired_enabled)
         with self.assertRaises(ValidationError):
             self.env["cc.webrtc.session"].action_register(membership, "Browser")
 

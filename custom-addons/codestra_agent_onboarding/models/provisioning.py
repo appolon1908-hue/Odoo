@@ -581,8 +581,6 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 "is_primary_supervisor": self.campaign_role == "supervisor",
                 "requested_by_id": self.env.user.id,
                 "source_ticket": self.name,
-                "webrtc_enabled": self.webrtc_enabled,
-                "sms_enabled": self.sms_enabled,
                 "vicidial_user_group": (
                     self.role_template_id.vicidial_user_group
                     if self.needs_vicidial
@@ -590,6 +588,49 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 ),
             }
         )
+
+    _CHANNEL_DESIRED_SOURCE_FIELD = {
+        "email": "needs_company_email",
+        "sms": "sms_enabled",
+        "phone": "needs_sip_endpoint",
+        "webrtc": "webrtc_enabled",
+    }
+
+    def _ensure_agent_channels(self):
+        """Create (or resync) the ``codestra.agent.channel`` intent rows for
+        this onboarding's employee from its own desired-state fields.
+
+        ``codestra.agent.channel`` (``codestra_identity_provisioning``) is
+        the source of truth for per-channel provisioning intent going
+        forward; this onboarding record's ``needs_company_email``,
+        ``needs_sip_endpoint``, ``webrtc_enabled``, and ``sms_enabled`` stay
+        the Super Admin's desired-state *input* fields, projected here onto
+        the channel rows rather than onto ``cc.campaign.membership`` booleans
+        directly. Idempotent: never duplicates a (employee, channel_type)
+        row, and only rewrites ``desired_enabled`` when it actually changed.
+        """
+        self.ensure_one()
+        Channel = self.env["codestra.agent.channel"].with_user(SUPERUSER_ID)
+        existing_by_type = {
+            channel.channel_type: channel
+            for channel in Channel.search([("employee_id", "=", self.employee_id.id)])
+        }
+        for channel_type, source_field in self._CHANNEL_DESIRED_SOURCE_FIELD.items():
+            desired = bool(getattr(self, source_field))
+            channel = existing_by_type.get(channel_type)
+            if channel:
+                if channel.desired_enabled != desired:
+                    channel.write({"desired_enabled": desired})
+            else:
+                Channel.create(
+                    {
+                        "employee_id": self.employee_id.id,
+                        "membership_id": self.campaign_membership_id.id,
+                        "provisioning_request_id": self.provisioning_request_id.id or False,
+                        "channel_type": channel_type,
+                        "desired_enabled": desired,
+                    }
+                )
 
     def _provisioning_idempotency_key(self):
         self.ensure_one()
@@ -742,6 +783,7 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                     "access_request_prepared_at": fields.Datetime.now(),
                 }
             )
+            record._ensure_agent_channels()
         return True
 
     def _sync_reserved_identifiers_to_membership(self):

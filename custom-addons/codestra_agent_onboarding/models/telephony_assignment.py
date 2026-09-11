@@ -12,25 +12,25 @@ class CcCampaignMembershipTelephonyAssignment(models.Model):
     (``codestra.extension.pool`` / ``codestra.extension.assignment`` in
     ``codestra_identity_provisioning``) and synced here by
     ``codestra.agent.onboarding._sync_reserved_identifiers_to_membership``.
-    ``webrtc_enabled`` and ``sms_enabled`` are permission flags only: this
-    module does not issue WebRTC credentials or send SMS itself, it carries
-    the agent's intended permission state for a future Middleware consumer
-    (see the ``telephony_assignment`` block of the
-    ``agent.provisioning.requested.v1`` event payload).
+
+    WebRTC/SMS permission state is no longer stored as booleans on this
+    model: it lives on ``codestra.agent.channel`` (one row per
+    (employee, channel_type), in ``codestra_identity_provisioning``), which
+    ``codestra.agent.onboarding._ensure_agent_channels`` keeps in sync from
+    the Super Admin's desired-state input. ``_channel_enabled`` is the read
+    path other models on this membership use instead of a local field.
 
     Write access to ``cc.campaign.membership`` is already restricted to
     ``codestra_cc_security.group_cc_global_administrator`` at the model-ACL
     level (``access_cc_membership_agent``/``access_cc_membership_specialist``
-    are read-only) — no separate field-level guard is needed for these three
-    fields; everyone else's visibility is already scoped by the existing
-    ``rule_cc_membership_global_scope`` record rule.
+    are read-only) — no separate field-level guard is needed for the
+    ``extension`` field; everyone else's visibility is already scoped by the
+    existing ``rule_cc_membership_global_scope`` record rule.
     """
 
     _inherit = "cc.campaign.membership"
 
     extension = fields.Char(copy=False, index=True)
-    webrtc_enabled = fields.Boolean(default=False, copy=False)
-    sms_enabled = fields.Boolean(default=False, copy=False)
     webrtc_session_ids = fields.One2many(
         "cc.webrtc.session", "membership_id", string="WebRTC Sessions"
     )
@@ -40,13 +40,13 @@ class CcCampaignMembershipTelephonyAssignment(models.Model):
         "An extension may be assigned to only one active membership.",
     )
 
-    def write(self, values):
-        result = super().write(values)
-        if "webrtc_enabled" in values and not values["webrtc_enabled"]:
-            self.webrtc_session_ids.filtered(lambda s: not s.revoked_at)._revoke(
-                _("WebRTC was disabled for this agent.")
-            )
-        return result
+    def _channel_enabled(self, channel_type):
+        self.ensure_one()
+        channel = self.env["codestra.agent.channel"].search(
+            [("membership_id", "=", self.id), ("channel_type", "=", channel_type)],
+            limit=1,
+        )
+        return bool(channel.desired_enabled)
 
 
 class CcWebrtcSession(models.Model):
@@ -112,7 +112,7 @@ class CcWebrtcSession(models.Model):
     @api.constrains("membership_id")
     def _check_webrtc_enabled(self):
         for session in self:
-            if not session.membership_id.webrtc_enabled:
+            if not session.membership_id._channel_enabled("webrtc"):
                 raise ValidationError(
                     _("A WebRTC session requires WebRTC to be enabled on the membership.")
                 )
@@ -132,7 +132,7 @@ class CcWebrtcSession(models.Model):
         session-issuer; it only manages this model's state, it does not talk
         to Keycloak or Asterisk.
         """
-        if not membership.webrtc_enabled:
+        if not membership._channel_enabled("webrtc"):
             raise ValidationError(
                 _("WebRTC is not enabled for this agent's membership.")
             )
@@ -146,3 +146,23 @@ class CcWebrtcSession(models.Model):
         return Session.create(
             {"membership_id": membership.id, "device_label": device_label}
         )
+
+
+class CcAgentChannelWebrtcSessionCascade(models.Model):
+    """When a Super Admin disables the WebRTC channel for an agent, revoke
+    any active device session immediately rather than leaving it live until
+    the next registration attempt.
+    """
+
+    _inherit = "codestra.agent.channel"
+
+    def write(self, values):
+        result = super().write(values)
+        if "desired_enabled" in values and not values["desired_enabled"]:
+            disabled_webrtc = self.filtered(
+                lambda channel: channel.channel_type == "webrtc" and channel.membership_id
+            )
+            disabled_webrtc.mapped("membership_id.webrtc_session_ids").filtered(
+                lambda session: not session.revoked_at
+            )._revoke(_("WebRTC was disabled for this agent."))
+        return result
