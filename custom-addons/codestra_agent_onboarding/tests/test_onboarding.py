@@ -374,7 +374,7 @@ class TestCodestraAgentOnboarding(TransactionCase):
         dispatch.assert_not_called()
 
     def test_provisioning_dispatch_to_service_when_explicitly_enabled(self):
-        self.env["ir.config_parameter"].sudo().set_param(
+        self.env["ir.config_parameter"].with_user(SUPERUSER_ID).set_param(
             DISPATCH_TO_SERVICE_PARAM, "true"
         )
         try:
@@ -390,7 +390,7 @@ class TestCodestraAgentOnboarding(TransactionCase):
                 request_record = self._start(onboarding)
             dispatch.assert_called_once_with(request_record)
         finally:
-            self.env["ir.config_parameter"].sudo().set_param(
+            self.env["ir.config_parameter"].with_user(SUPERUSER_ID).set_param(
                 DISPATCH_TO_SERVICE_PARAM, "false"
             )
 

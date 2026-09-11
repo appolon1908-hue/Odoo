@@ -908,7 +908,9 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                     "provisioning_started_at": fields.Datetime.now(),
                 }
             )
-            dispatch_enabled = self.env["ir.config_parameter"].sudo().get_param(
+            dispatch_enabled = self.env["ir.config_parameter"].with_user(
+                SUPERUSER_ID
+            ).get_param(
                 DISPATCH_TO_SERVICE_PARAM, "false"
             ).strip().lower() not in ("false", "0", "no", "off", "")
             if dispatch_enabled:
