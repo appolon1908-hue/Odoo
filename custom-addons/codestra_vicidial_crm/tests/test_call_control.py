@@ -53,6 +53,8 @@ class TestCallControl(TransactionCase):
                 "vicidial_user": "SYN6101",
                 "tenant_id": "COD",
                 "phone_login": "6101",
+                "webrtc_enabled": True,
+                "outgoing_calls_enabled": True,
                 "odoo_user_id": cls.agent_user.id,
                 "campaign_ids": [(6, 0, [cls.campaign.id])],
             }

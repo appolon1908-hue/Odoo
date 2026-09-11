@@ -102,8 +102,12 @@ class CallControlAPI(http.Controller):
         )[:1]
         control_enabled = self._feature("call_control_enabled")
         writes_enabled = self._feature("vicidial_write_enabled")
-        if not agent.webrtc_enabled or not agent.phone_login:
-            reason = "This agent does not have WebRTC calling enabled."
+        if not agent.webrtc_enabled:
+            reason = "WebRTC is disabled for this agent."
+        elif not agent.outgoing_calls_enabled:
+            reason = "Outgoing calls are disabled for this agent."
+        elif not agent.phone_login:
+            reason = "The agent has no Odoo extension assignment."
         elif not campaign:
             reason = "No TEST_SYN campaign is assigned to this agent."
         elif not control_enabled or not writes_enabled:
@@ -113,6 +117,7 @@ class CallControlAPI(http.Controller):
         return {
             "enabled": bool(
                 agent.webrtc_enabled
+                and agent.outgoing_calls_enabled
                 and agent.phone_login
                 and campaign
                 and control_enabled
@@ -123,6 +128,7 @@ class CallControlAPI(http.Controller):
             "state": (
                 "ready"
                 if agent.webrtc_enabled
+                and agent.outgoing_calls_enabled
                 and agent.phone_login
                 and campaign
                 and control_enabled
@@ -161,7 +167,9 @@ class CallControlAPI(http.Controller):
     def outbound(self, lead_id=None, destination=None, campaign_id="TEST_SYN", idempotency_key=None):
         agent = self._agent()
         if not agent.webrtc_enabled or not agent.phone_login:
-            raise AccessError("This agent does not have WebRTC calling enabled.")
+            raise AccessError("WebRTC is disabled or the agent has no Odoo extension.")
+        if not agent.outgoing_calls_enabled:
+            raise AccessError("Outgoing calls are disabled for this agent.")
         if not self._feature("call_control_enabled") or not self._feature("vicidial_write_enabled"):
             raise AccessError("Outbound call control is disabled.")
         key = self._key({"idempotency_key": idempotency_key})

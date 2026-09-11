@@ -32,6 +32,8 @@ class TestClickToCall(TransactionCase):
                 "employee_code": "EMP-" + suffix,
                 "odoo_user_id": self.env.uid,
                 "phone_login": "61" + str(abs(hash(suffix)) % 10000),
+                "webrtc_enabled": True,
+                "outgoing_calls_enabled": True,
                 "status": "ready",
                 "campaign_ids": [(6, 0, [campaign.id])],
             }
@@ -102,7 +104,9 @@ class TestClickToCall(TransactionCase):
         self.assertNotEqual(captured["caller_id"], self.agent.phone_login)
 
     def test_test_syn_action_uses_fixed_internal_alias_and_transport(self):
-        self.agent.write(
+        self.agent.with_context(
+            telephony_assignment_internal=True, skip_telephony_assignment_events=True
+        ).write(
             {"vicidial_user": "appolon", "employee_code": "appolon", "phone_login": "6901"}
         )
         self.env["codestra.vicidial.campaign"].browse(self.agent.campaign_ids.ids).write(

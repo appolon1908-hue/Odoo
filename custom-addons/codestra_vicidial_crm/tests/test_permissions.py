@@ -16,16 +16,27 @@ class TestPermissions(TransactionCase):
             groups="codestra_vicidial_crm.group_agent",
             context=context,
         )
+        campaign = self.env["codestra.vicidial.campaign"].create(
+            {"name": "Permission Campaign", "campaign_id": "PERMTEST", "mode": "test"}
+        )
         agent = self.env["codestra.vicidial.agent"].create(
             {
                 "name": "Agent",
+                "vicidial_user": "perm-agent",
                 "odoo_user_id": agent_user.id,
+                "phone_login": "6188",
+                "primary_campaign_id": campaign.id,
+                "campaign_ids": [(6, 0, [campaign.id])],
             }
         )
         other = self.env["codestra.vicidial.agent"].create(
             {
                 "name": "Other",
+                "vicidial_user": "perm-other",
                 "odoo_user_id": other_user.id,
+                "phone_login": "6189",
+                "primary_campaign_id": campaign.id,
+                "campaign_ids": [(6, 0, [campaign.id])],
             }
         )
         own_call = self.env["codestra.vicidial.call"].create(

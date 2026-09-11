@@ -127,9 +127,9 @@ class CrmLead(models.Model):
                 "Your account is not linked to an active VICIdial agent profile."
             )
         if not agent.webrtc_enabled or not agent.phone_login:
-            raise UserError(
-                "Your account is not assigned an enabled WebRTC phone."
-            )
+            raise UserError("Your account does not have the WebRTC phone enabled.")
+        if not agent.outgoing_calls_enabled:
+            raise UserError("Outgoing calls are disabled for your telephony assignment.")
         if agent.status not in ("active", "ready"):
             status_label = dict(agent._fields["status"].selection).get(
                 agent.status, agent.status
