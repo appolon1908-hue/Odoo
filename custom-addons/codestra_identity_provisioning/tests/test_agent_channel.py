@@ -417,3 +417,80 @@ class TestAgentChannel(TransactionCase):
         ])
         self.assertTrue(phone_channel.desired_enabled)
         self.assertEqual(phone_channel.extension_assignment_id, self.assignment)
+
+    def test_requested_and_provisioned_state_track_desired_enabled_and_state(self):
+        Channel = self.env["codestra.agent.channel"].with_user(self.super_admin)
+        channel = Channel.create(self._channel_values("email"))
+        self.assertEqual(channel.requested_state, "not_requested")
+        self.assertEqual(channel.provisioned_state, "not_provisioned")
+
+        channel.write({"desired_enabled": True})
+        self.assertEqual(channel.requested_state, "requested")
+        self.assertEqual(channel.provisioned_state, "not_provisioned")
+
+        channel._apply_step_evidence(verified=True, evidence_hash="c" * 64)
+        self.assertEqual(channel.provisioned_state, "provisioned")
+        self.assertFalse(channel.effective_access)
+
+        channel._mark_effective()
+        self.assertEqual(channel.provisioned_state, "provisioned")
+        self.assertTrue(channel.effective_access)
+
+    def test_extension_assignment_unique_per_environment_not_globally(self):
+        Assignment = self.env["codestra.extension.assignment"]
+        with self.assertRaises(UniqueViolation):
+            Assignment.create({
+                "pool_id": self.extension_pool.id,
+                "extension": self.assignment.extension,
+                "environment": self.assignment.environment,
+                "employee_id": self.other_employee.id,
+                "request_id": self.request.id,
+                "state": "reserved",
+                "reserved_at": fields.Datetime.now(),
+            })
+        # The same extension number in a different environment is not a
+        # collision - staging and production are independent pools.
+        other_environment = (
+            "staging" if self.assignment.environment == "production" else "production"
+        )
+        staging_copy = Assignment.create({
+            "pool_id": self.extension_pool.id,
+            "extension": self.assignment.extension,
+            "environment": other_environment,
+            "employee_id": self.other_employee.id,
+            "request_id": self.request.id,
+            "state": "reserved",
+            "reserved_at": fields.Datetime.now(),
+        })
+        self.assertEqual(staging_copy.extension, self.assignment.extension)
+        self.assertNotEqual(staging_copy.environment, self.assignment.environment)
+
+    def test_multi_campaign_platform_user_shares_one_phone_assignment(self):
+        platform_user = self.env["codestra.platform.user"].with_user(
+            self.super_admin
+        ).create({
+            "name": "Shared Phone Platform User",
+            "primary_email": "shared.phone.platform.user@example.invalid",
+            "tenant_id": "tenant-synthetic",
+        })
+        second_pool = self.env["codestra.extension.pool"].create({
+            "name": "Shared Phone Pool",
+            "code": "AGCH-SHARED",
+            "business_unit_id": self.legacy_unit.id,
+            "start_extension": 7600,
+            "end_extension": 7699,
+            "context": "codestra_restricted",
+            "active": True,
+        })
+        # Same person (self.employee), two separate campaign-membership
+        # provisioning requests - the shared platform_user must resolve to
+        # the same phone assignment both times, not a second reservation.
+        first = second_pool.reserve_extension(
+            self.employee, self.request, environment="production",
+            platform_user=platform_user,
+        )
+        second = second_pool.reserve_extension(
+            self.employee, self.request, environment="production",
+            platform_user=platform_user,
+        )
+        self.assertEqual(first, second)

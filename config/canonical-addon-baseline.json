@@ -122,6 +122,11 @@
           "path": "tests/test_agent_channel.py",
           "kind": "odoo_test_driver_exception",
           "reason": "The test imports only UniqueViolation to assert the codestra.agent.channel per-channel-type uniqueness constraint and does not open an external database connection."
+        },
+        {
+          "path": "tests/test_platform_user.py",
+          "kind": "odoo_test_driver_exception",
+          "reason": "The test imports only UniqueViolation to assert the codestra.platform.user primary_email uniqueness constraint and does not open an external database connection."
         }
       ]
     },

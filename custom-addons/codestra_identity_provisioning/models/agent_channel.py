@@ -11,6 +11,8 @@ SERVICE_WRITE_FIELDS = {
     "last_reconciled_at",
     "last_error_code",
     "last_error_sanitized",
+    "provider",
+    "last_provisioning_job_id",
 }
 TRANSITION_CAPABILITY = object()
 SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
@@ -113,6 +115,19 @@ class CodestraAgentChannel(models.Model):
     effective_access = fields.Boolean(
         compute="_compute_effective_access", store=True, tracking=True
     )
+    # Standardized read-only projections of desired_enabled/state, so callers
+    # (and the sibling codestra.platform.user / codestra.agent.account model
+    # family) can query intent-vs-outcome without re-deriving the mapping.
+    # desired_enabled/state remain the single source of truth; these are
+    # deliberately not separate writable columns.
+    requested_state = fields.Selection(
+        [("not_requested", "Not Requested"), ("requested", "Requested")],
+        compute="_compute_requested_state", store=True,
+    )
+    provisioned_state = fields.Selection(
+        [("not_provisioned", "Not Provisioned"), ("provisioned", "Provisioned")],
+        compute="_compute_provisioned_state", store=True,
+    )
 
     extension_assignment_id = fields.Many2one(
         "codestra.extension.assignment", ondelete="restrict"
@@ -121,6 +136,13 @@ class CodestraAgentChannel(models.Model):
         related="extension_assignment_id.extension", store=True, readonly=True
     )
 
+    provider = fields.Char(
+        tracking=True,
+        help="The third-party provider actually handling this channel "
+        "(e.g. klyrow, telnexa, vicidial) - distinct from external_system, "
+        "which is the internal step-target vocabulary.",
+    )
+    last_provisioning_job_id = fields.Char(copy=False)
     external_system = fields.Char(tracking=True)
     external_id = fields.Char(copy=False)
     external_reference = fields.Char(copy=False)
@@ -174,6 +196,22 @@ class CodestraAgentChannel(models.Model):
                     and channel.extension_assignment_id.state == "committed"
                 )
             channel.effective_access = base
+
+    @api.depends("desired_enabled")
+    def _compute_requested_state(self):
+        for channel in self:
+            channel.requested_state = (
+                "requested" if channel.desired_enabled else "not_requested"
+            )
+
+    @api.depends("state")
+    def _compute_provisioned_state(self):
+        for channel in self:
+            channel.provisioned_state = (
+                "provisioned"
+                if channel.state in ("provisioned", "effective")
+                else "not_provisioned"
+            )
 
     @api.constrains("extension_assignment_id")
     def _check_extension_not_6101(self):

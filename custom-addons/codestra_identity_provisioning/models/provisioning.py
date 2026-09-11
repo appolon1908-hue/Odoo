@@ -213,10 +213,18 @@ class ExtensionPool(models.Model):
             if pool.start_extension < 100 or pool.end_extension > 999999:
                 raise ValidationError("Extension-pool range is outside policy.")
 
-    def reserve_extension(self, employee, request):
+    def reserve_extension(self, employee, request, environment="production", platform_user=None):
         self.ensure_one()
         if not self.active:
             raise UserError("The extension pool is not verified and active.")
+        if platform_user:
+            shared = self.env["codestra.extension.assignment"].search([
+                ("platform_user_id", "=", platform_user.id),
+                ("environment", "=", environment),
+                ("state", "in", ("reserved", "committed")),
+            ], limit=1)
+            if shared:
+                return shared
         self.env.cr.execute("SELECT id FROM codestra_extension_pool WHERE id=%s FOR UPDATE", [self.id])
         self.env.cr.execute(
             """
@@ -226,12 +234,13 @@ class ExtensionPool(models.Model):
                AND NOT EXISTS (
                     SELECT 1 FROM codestra_extension_assignment a
                      WHERE a.extension = candidate::varchar
+                       AND a.environment = %s
                        AND a.state IN ('reserved', 'committed')
                )
              ORDER BY candidate
              LIMIT 1
             """,
-            [self.start_extension, self.end_extension],
+            [self.start_extension, self.end_extension, environment],
         )
         row = self.env.cr.fetchone()
         if not row:
@@ -239,7 +248,9 @@ class ExtensionPool(models.Model):
         return self.env["codestra.extension.assignment"].create({
             "pool_id": self.id,
             "extension": str(row[0]),
+            "environment": environment,
             "employee_id": employee.id,
+            "platform_user_id": platform_user.id if platform_user else False,
             "request_id": request.id,
             "state": "reserved",
             "reserved_at": fields.Datetime.now(),
@@ -257,7 +268,22 @@ class ExtensionAssignment(models.Model):
         "codestra.extension.pool", required=True, ondelete="restrict", index=True
     )
     extension = fields.Char(required=True, index=True)
+    environment = fields.Selection(
+        [("staging", "Staging"), ("production", "Production")],
+        default="production", required=True, index=True,
+        help="Staging and production may each independently allocate the "
+        "same extension number - they are entirely separate telephony "
+        "environments (see phone.codestra.agency's own staging-only "
+        "TEST_SYN/6101 contract).",
+    )
     employee_id = fields.Many2one("hr.employee", required=True, ondelete="restrict")
+    platform_user_id = fields.Many2one(
+        "codestra.platform.user", ondelete="restrict", index=True, copy=False,
+        help="When set, this single assignment is the shared phone "
+        "assignment for this platform user across every campaign "
+        "membership they hold in this environment - never duplicated "
+        "per campaign.",
+    )
     request_id = fields.Many2one(
         "codestra.provisioning.request", required=True, ondelete="restrict"
     )
@@ -273,10 +299,15 @@ class ExtensionAssignment(models.Model):
     endpoint_external_id = fields.Char(copy=False)
 
     _extension_unique = models.Constraint(
-        "unique(extension)", "An extension may have only one assignment record."
+        "unique(extension, environment)",
+        "An extension may have only one assignment record per environment.",
     )
     _extension_6101_excluded = models.Constraint(
         "CHECK (extension <> '6101')", "Extension 6101 is reserved from allocation."
+    )
+    _platform_user_environment_unique = models.UniqueIndex(
+        "(platform_user_id, environment) WHERE platform_user_id IS NOT NULL",
+        "A platform user may have only one phone assignment per environment.",
     )
 
 
@@ -512,6 +543,32 @@ class ProvisioningRequest(models.Model):
         required=True, copy=False, readonly=True, default=lambda self: self.env[
             "ir.sequence"].next_by_code("codestra.provisioning.request")
     )
+    public_id = fields.Char(
+        required=True, copy=False, readonly=True, index=True,
+        default=lambda self: str(uuid.uuid4()),
+        help="External-facing identifier, distinct from the internal id/"
+        "request_number, for referencing this request from outside Odoo.",
+    )
+    target_platform_user_id = fields.Many2one(
+        "codestra.platform.user", ondelete="set null", index=True,
+        help="The platform identity this request provisions access for, "
+        "when one already exists (complements employee_id, which remains "
+        "required and authoritative for the Odoo-side HR relationship).",
+    )
+    policy_revision = fields.Char(
+        copy=False, help="Which reviewed policy ruleset was in effect when "
+        "this request was approved, for audit replay.",
+    )
+    requested_payload_hash = fields.Char(
+        copy=False, help="SHA-256 of the canonical requested payload, for "
+        "integrity verification independent of idempotency_key.",
+    )
+    submitted_at = fields.Datetime(copy=False)
+    effective_at = fields.Datetime(copy=False)
+    failed_at = fields.Datetime(copy=False)
+    current_step_id = fields.Many2one(
+        "codestra.provisioning.step", compute="_compute_current_step_id",
+    )
     request_type = fields.Selection(
         [("onboard", "Onboard"), ("change_access", "Change Access"),
          ("change_campaign", "Change Campaign"),
@@ -663,7 +720,18 @@ class ProvisioningRequest(models.Model):
                         else record[key] for key in tracked.intersection(values)}
             for record in self
         }
+        new_state = values.get("state")
         result = super().write(values)
+        if new_state == "pending_approval":
+            self.filtered(lambda r: not r.submitted_at).write({
+                "submitted_at": fields.Datetime.now()
+            })
+        elif new_state == "active":
+            self.filtered(lambda r: not r.effective_at).write({
+                "effective_at": fields.Datetime.now()
+            })
+        elif new_state == "failed":
+            self.write({"failed_at": fields.Datetime.now()})
         for record in self:
             if tracked.intersection(values):
                 record._audit(
@@ -1183,6 +1251,14 @@ class ProvisioningRequest(models.Model):
                 and step.verification_state == "verified"
                 for step in mandatory
             )
+
+    @api.depends("step_ids.state", "step_ids.sequence")
+    def _compute_current_step_id(self):
+        terminal = {"succeeded", "verified", "skipped", "compensated", "cancelled"}
+        for request in self:
+            request.current_step_id = request.step_ids.filtered(
+                lambda step: step.state not in terminal
+            ).sorted("sequence")[:1]
 
     @api.onchange("business_unit_id")
     def _onchange_business_unit_id(self):

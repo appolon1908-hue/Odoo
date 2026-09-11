@@ -880,3 +880,45 @@ class TestCodestraAgentOnboarding(TransactionCase):
         self.assertEqual(
             employee.user_id.login, "shared.name@example.invalid"
         )
+
+    def test_duplicate_platform_user_campaign_membership_rejected(self):
+        platform_user = self.env["codestra.platform.user"].with_user(
+            self.env.ref("base.user_admin")
+        ).create({
+            "name": "Duplicate Membership Platform User",
+            "primary_email": "duplicate.membership.platform.user@example.invalid",
+            "tenant_id": "tenant-synthetic",
+        })
+        first_employee = self.env["hr.employee"].create({"name": "First Slot"})
+        second_employee = self.env["hr.employee"].create({"name": "Second Slot"})
+        first_user = self._create_user(
+            "Duplicate Membership User One",
+            "duplicate.membership.one@example.invalid",
+            ["base.group_user"],
+        )
+        second_user = self._create_user(
+            "Duplicate Membership User Two",
+            "duplicate.membership.two@example.invalid",
+            ["base.group_user"],
+        )
+        self.env["cc.campaign.membership"].create({
+            "user_id": first_user.id,
+            "employee_id": first_employee.id,
+            "campaign_id": self.campaign.id,
+            "role": "agent",
+            "requested_by_id": self.requester.id,
+            "source_ticket": "DUP-MEMBERSHIP-1",
+            "starts_at": fields.Datetime.now(),
+            "platform_user_id": platform_user.id,
+        })
+        with self.assertRaises(Exception):
+            self.env["cc.campaign.membership"].create({
+                "user_id": second_user.id,
+                "employee_id": second_employee.id,
+                "campaign_id": self.campaign.id,
+                "role": "agent",
+                "requested_by_id": self.requester.id,
+                "source_ticket": "DUP-MEMBERSHIP-2",
+                "starts_at": fields.Datetime.now(),
+                "platform_user_id": platform_user.id,
+            })

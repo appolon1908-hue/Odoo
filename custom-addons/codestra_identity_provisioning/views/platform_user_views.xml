@@ -1,0 +1,74 @@
+<odoo>
+  <record id="view_platform_user_list" model="ir.ui.view">
+    <field name="name">codestra.platform.user.list</field>
+    <field name="model">codestra.platform.user</field>
+    <field name="arch" type="xml">
+      <list>
+        <field name="name"/>
+        <field name="primary_email"/>
+        <field name="tenant_id"/>
+        <field name="odoo_access_enabled" widget="boolean_toggle"/>
+        <field name="odoo_user_id"/>
+        <field name="phone_enabled" widget="boolean_toggle"/>
+        <field name="sms_enabled" widget="boolean_toggle"/>
+        <field name="email_enabled" widget="boolean_toggle"/>
+        <field name="webrtc_enabled" widget="boolean_toggle"/>
+        <field name="status" widget="badge"
+               decoration-success="status == 'active'"
+               decoration-warning="status == 'suspended'"
+               decoration-danger="status == 'terminated'"/>
+        <field name="provisioning_state" widget="badge"
+               decoration-success="provisioning_state == 'effective'"
+               decoration-danger="provisioning_state == 'failed'"
+               decoration-warning="provisioning_state in ('requested', 'provisioning', 'provisioned')"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_platform_user_form" model="ir.ui.view">
+    <field name="name">codestra.platform.user.form</field>
+    <field name="model">codestra.platform.user</field>
+    <field name="arch" type="xml">
+      <form>
+        <header>
+          <field name="status" widget="statusbar"/>
+        </header>
+        <sheet>
+          <group>
+            <group>
+              <field name="public_id" readonly="1"/>
+              <field name="name"/>
+              <field name="primary_email"/>
+              <field name="tenant_id"/>
+              <field name="keycloak_subject" readonly="1"/>
+            </group>
+            <group>
+              <field name="odoo_access_enabled" widget="boolean_toggle"/>
+              <field name="odoo_user_id" readonly="1"/>
+              <field name="provisioning_state" readonly="1"/>
+              <field name="last_verified_at" readonly="1"/>
+              <field name="last_error" readonly="1"/>
+            </group>
+          </group>
+          <group string="Channel Entitlements">
+            <field name="phone_enabled" widget="boolean_toggle"/>
+            <field name="webrtc_enabled" widget="boolean_toggle"/>
+            <field name="sms_enabled" widget="boolean_toggle"/>
+            <field name="email_enabled" widget="boolean_toggle"/>
+          </group>
+          <button name="action_ensure_odoo_access" type="object"
+                  string="Ensure Odoo Access" class="btn-secondary"
+                  invisible="not odoo_access_enabled or odoo_user_id"/>
+        </sheet>
+        <chatter/>
+      </form>
+    </field>
+  </record>
+  <record id="action_platform_users" model="ir.actions.act_window">
+    <field name="name">Platform Users</field>
+    <field name="res_model">codestra.platform.user</field>
+    <field name="view_mode">list,form</field>
+  </record>
+  <menuitem id="menu_platform_users" name="Platform Users"
+            parent="menu_identity_provisioning_root"
+            action="action_platform_users"/>
+</odoo>

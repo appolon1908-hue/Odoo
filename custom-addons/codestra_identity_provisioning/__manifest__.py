@@ -1,6 +1,6 @@
 {
     "name": "Codestra Identity Provisioning",
-    "version": "19.0.1.3.0",
+    "version": "19.0.1.4.0",
     "category": "Administration",
     "summary": "Fail-closed, audited multi-system identity provisioning",
     "license": "LGPL-3",
@@ -24,6 +24,7 @@
         "data/safety_flags.xml",
         "views/provisioning_views.xml",
         "views/agent_channel_views.xml",
+        "views/platform_user_views.xml",
     ],
     "post_init_hook": "post_init_hook",
     "application": True,
