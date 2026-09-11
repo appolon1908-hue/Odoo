@@ -25,7 +25,11 @@ class TestAgentChannel(TransactionCase):
             "agent-channel-requester@example.invalid",
             ["codestra_cc_security.group_cc_global_administrator"],
         )
-        cls.approver = cls.requester
+        cls.approver = cls._create_user(
+            "Agent Channel Approver",
+            "agent-channel-approver@example.invalid",
+            ["codestra_cc_security.group_cc_global_administrator"],
+        )
         cls.identity_service = cls._create_user(
             "Agent Channel Identity Service",
             "agent-channel-identity-service@example.invalid",
