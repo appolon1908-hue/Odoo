@@ -1,9 +1,11 @@
 /** @odoo-module **/
 
-import { Component, onWillStart, useState } from "@odoo/owl";
+import { Component, onWillStart, onWillDestroy, useState } from "@odoo/owl";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+
+import { CallingRealtimeClient } from "./calling_realtime";
 
 export class CodestraCallPopup extends Component {
     static template = "codestra_vicidial_crm.CallPopup";
@@ -15,14 +17,15 @@ export class CodestraCallPopup extends Component {
         this.notification = useService("notification");
         this.ui = useState({
             call: null, busy: false, error: "", notes: "", disposition: "",
-            matches: [], history: [], callbackAt: "", callbackTimezone: "UTC", callbackReason: "",
+            realtime: "", canonical: false, matches: [], history: [], callbackAt: "", callbackTimezone: "UTC", callbackReason: "",
             dialpad: {
                 open: false, number: "", campaignId: "TEST_SYN", enabled: false,
                 busy: false, error: "", reason: "", status: "Loading dialer…", matches: [],
             },
         });
+        this.destroyed = false;
         this.openedCalls = new Set();
-        this.bus.addEventListener("notification", ({ detail }) => {
+        this.busHandler = ({ detail }) => {
             for (const item of detail || []) {
                 const type = item.type || item[1];
                 const payload = item.payload || item[2];
@@ -33,13 +36,51 @@ export class CodestraCallPopup extends Component {
                     });
                     continue;
                 }
-                if (type === "codestra.call" && payload) {
+                if (!this.ui.canonical && type === "codestra.call" && payload) {
                     this.handleCall(payload);
                 }
             }
+        };
+        this.bus.addEventListener("notification", this.busHandler);
+        onWillDestroy(() => {
+            this.destroyed = true;
+            this.realtimeClient?.stop();
+            this.bus.removeEventListener("notification", this.busHandler);
         });
         onWillStart(async () => {
             await this.loadDialpad();
+            try {
+                const boot = await this.rpc("/codestra/calling/v1/bootstrap", {});
+                if (this.destroyed) return;
+                if (boot.required && !boot.enabled) {
+                    this.ui.canonical = true;
+                    this.ui.realtime = "Integration unavailable";
+                    return;
+                }
+                if (boot.enabled) {
+                    this.ui.canonical = true;
+                    this.realtimeClient = new CallingRealtimeClient({
+                        scope: boot.scope,
+                        getSession: resume_cursor => this.rpc("/codestra/calling/v1/session", {resume_cursor}),
+                        project: envelope => this.rpc("/codestra/calling/v1/projection", {envelope}),
+                        reconcile: envelope => this.rpc("/codestra/calling/v1/reconciliation", {envelope}),
+                        onCall: payload => this.handleCall(payload),
+                        onState: state => {
+                            this.ui.realtime = state;
+                            if (state !== "Connected" && this.ui.call) {
+                                this.ui.call.call_control_enabled = false;
+                                this.ui.call.transfer_control_enabled = false;
+                            }
+                        },
+                    });
+                    this.realtimeClient.connect();
+                    return;
+                }
+            } catch {
+                this.ui.canonical = true;
+                this.ui.realtime = "Calling session unavailable";
+                return;
+            }
             try {
                 const current = await this.rpc("/codestra/call-control/v1/current", {});
                 if (current) await this.handleCall(current);
@@ -69,9 +110,7 @@ export class CodestraCallPopup extends Component {
         }
     }
 
-    toggleDialpad() {
-        this.ui.dialpad.open = !this.ui.dialpad.open;
-    }
+    toggleDialpad() { this.ui.dialpad.open = !this.ui.dialpad.open; }
 
     appendDialpadDigit(digit) {
         if (!/^\d$/.test(digit) || this.ui.dialpad.number.length >= 15) return;

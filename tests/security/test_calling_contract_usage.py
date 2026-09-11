@@ -179,7 +179,7 @@ class CallingContractUsageTest(unittest.TestCase):
         # A declaration may not outlive the code that justified it. Pick a route
         # no source file names, so this stays meaningful as more of the canonical
         # surface is actually adopted.
-        unused = "/v1/telephony/operations/{operation_id}"
+        unused = "/v1/telephony/operations/{operation_id}/cancel"
         self.assertNotIn(unused, self.source_endpoints)
         document = self._mutated()
         for entry in document["endpoints"]:

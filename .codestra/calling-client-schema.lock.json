@@ -1,0 +1,8 @@
+{
+  "authority_digest": "b39cdffe56a8185c91174228f0423df68b1137f34875f6ee52f9914f904bf724",
+  "generator_sha256": "9574136778c12a40650950b30c90eb2ef5ccff7b552f42dbd5d7f6edf997e0e6",
+  "outputs": {
+    "custom-addons/codestra_vicidial_crm/models/calling_schema.json": "692b8afc2708ebeced80822defeefd25f45f0d2bef1cad79008207b7a1ae44ce",
+    "custom-addons/codestra_vicidial_crm/static/src/js/calling_schema.js": "1f45d0deff72f6574caaab3cee344e49a5b09fc90aa543b732bb854a45f0828c"
+  }
+}

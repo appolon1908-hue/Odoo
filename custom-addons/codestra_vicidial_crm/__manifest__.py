@@ -1,6 +1,6 @@
 {
     "name": "Codestra VICIdial CRM",
-    "version": "19.0.3.4.2",
+    "version": "19.0.3.5.0",
     "summary": "Fail-closed VICIdial integration with governed real-time agent screen pops",
     "author": "Codestra",
     "license": "LGPL-3",
@@ -24,6 +24,7 @@
         "security/call_event_projection_security.xml",
         "security/ir.model.access.csv",
         "security/record_rules.xml",
+        "security/calling_reconciliation_security.xml",
         "data/dispositions.xml",
         "data/cron.xml",
         "views/views.xml",
@@ -33,6 +34,8 @@
     ],
     "assets": {
         "web.assets_backend": [
+            "codestra_vicidial_crm/static/src/js/calling_schema.js",
+            "codestra_vicidial_crm/static/src/js/calling_realtime.js",
             "codestra_vicidial_crm/static/src/js/call_popup.js",
             "codestra_vicidial_crm/static/src/xml/call_popup.xml",
             "codestra_vicidial_crm/static/src/css/call_popup.css",
