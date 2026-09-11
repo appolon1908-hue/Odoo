@@ -1,0 +1,16 @@
+<odoo>
+  <record id="access_calling_reconciliation_agent" model="ir.model.access">
+    <field name="name">calling reconciliation observations</field>
+    <field name="model_id" ref="model_codestra_calling_reconciliation"/>
+    <field name="group_id" ref="group_agent"/>
+    <field name="perm_read" eval="True"/>
+    <field name="perm_write" eval="False"/>
+    <field name="perm_create" eval="False"/>
+    <field name="perm_unlink" eval="False"/>
+  </record>
+  <record id="rule_calling_reconciliation_owner" model="ir.rule">
+    <field name="name">Calling recovery is bound to its Odoo user and tenant</field>
+    <field name="model_id" ref="model_codestra_calling_reconciliation"/>
+    <field name="domain_force">[('user_id', '=', user.id), ('tenant_id', '=', user.codestra_tenant_id), ('campaign_id', 'in', user.allowed_campaign_ids.mapped('campaign_id'))]</field>
+  </record>
+</odoo>

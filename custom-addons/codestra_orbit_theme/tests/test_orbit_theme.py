@@ -1,4 +1,10 @@
+import os
+import time
+from types import SimpleNamespace
 from unittest.mock import patch
+
+from ..controllers import sso
+
 from urllib.parse import parse_qs, urlparse
 
 from odoo.tests.common import HttpCase, TransactionCase, tagged
@@ -65,3 +71,26 @@ class TestOrbitHttp(HttpCase):
             )
         self.assertIn(response.status_code, (400, 403))
         token_request.assert_not_called()
+
+
+class TestCallingSessionCredential(TransactionCase):
+    def test_only_valid_enabled_oidc_credentials_enter_the_server_session(self):
+        class ServerSession(dict):
+            uid = 42
+        session = ServerSession()
+        fake_request = SimpleNamespace(session=session)
+        with patch.object(sso, 'request', fake_request), patch.dict(os.environ, {'CODESTRA_CALLING_REALTIME_ENABLED': 'true'}):
+            sso.CodestraOrbitSso._store_calling_session({'expires_in': 60}, {'user_id': 'subject-42'}, 'synthetic-user-token')
+            saved = session['codestra_calling_oidc']
+            self.assertEqual(saved['uid'], 42)
+            self.assertEqual(saved['subject'], 'subject-42')
+            self.assertGreater(saved['expires_at'], time.time())
+            for invalid in (None, True, 0, 4000, '60'):
+                sso.CodestraOrbitSso._store_calling_session({'expires_in': invalid}, {'user_id': 'subject-42'}, 'synthetic-user-token')
+                self.assertNotIn('codestra_calling_oidc', session)
+            sso.CodestraOrbitSso._store_calling_session({'expires_in': 60}, {}, 'synthetic-user-token')
+            self.assertNotIn('codestra_calling_oidc', session)
+        with patch.object(sso, 'request', fake_request), patch.dict(os.environ, {'CODESTRA_CALLING_REALTIME_ENABLED': 'false'}):
+            session['codestra_calling_oidc'] = saved
+            sso.CodestraOrbitSso._store_calling_session({'expires_in': 60}, {'user_id': 'subject-42'}, 'synthetic-user-token')
+            self.assertNotIn('codestra_calling_oidc', session)

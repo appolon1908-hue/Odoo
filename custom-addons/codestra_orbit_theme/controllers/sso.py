@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import json
 import logging
+import os
 import secrets
 import time
 from urllib.parse import urlencode
@@ -55,6 +56,7 @@ class CodestraOrbitSso(http.Controller):
     @http.route("/codestra/sso/login", type="http", auth="none", methods=["GET"], csrf=False)
     def login(self, redirect=None, **_params):
         issuer, client_id, client_secret = self._configuration()
+        request.session.pop("codestra_calling_oidc", None)
         nonce = secrets.token_urlsafe(24)
         verifier = secrets.token_urlsafe(64)
         state_data = {
@@ -73,7 +75,10 @@ class CodestraOrbitSso(http.Controller):
             "client_id": client_id,
             "redirect_uri": self._redirect_uri(),
             "response_type": "code",
-            "scope": "openid profile email",
+            "scope": "openid profile email" + (
+                " realtime:session:create telephony:status"
+                if os.environ.get("CODESTRA_CALLING_REALTIME_ENABLED") == "true" else ""
+            ),
             "state": nonce,
             "nonce": nonce,
             "code_challenge": self._pkce_challenge(verifier),
@@ -138,8 +143,26 @@ class CodestraOrbitSso(http.Controller):
             {"login": login, "token": access_token, "type": "oauth_token"},
         )
         request.session["codestra_oidc_id_token"] = token_payload.get("id_token")
+        self._store_calling_session(token_payload, validation, access_token)
         _logger.info("Codestra Keycloak login completed for database %s", request.db)
         return request.redirect(self._safe_redirect(state_data.get("redirect")))
+
+    @staticmethod
+    def _store_calling_session(token_payload, validation, access_token):
+        request.session.pop("codestra_calling_oidc", None)
+        expires_in = token_payload.get("expires_in")
+        subject = validation.get("user_id")
+        if (os.environ.get("CODESTRA_CALLING_REALTIME_ENABLED") == "true"
+                and type(expires_in) is int and 10 < expires_in <= 3600
+                and isinstance(subject, str) and subject
+                and isinstance(access_token, str) and len(access_token) <= 16384):
+            # Server-side session only; never session_info, browser storage,
+            # chatter, logs, or a new Odoo credential field. Middleware still
+            # validates issuer, audience, expiry, scope and current assignment.
+            request.session["codestra_calling_oidc"] = {
+                "uid": request.session.uid, "subject": subject,
+                "expires_at": time.time() + expires_in, "access_token": access_token,
+            }
 
     @http.route("/codestra/sso/logout", type="http", auth="user", methods=["POST"], csrf=True)
     def logout(self, **_params):
