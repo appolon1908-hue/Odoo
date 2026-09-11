@@ -44,6 +44,8 @@ IMMUTABLE_ASSIGNMENT_FIELDS = {
     "needs_vicidial",
     "webrtc_enabled",
     "sms_enabled",
+    "incoming_calls_enabled",
+    "outgoing_calls_enabled",
 }
 SYSTEM_LINK_FIELDS = {
     "campaign_membership_id",
@@ -207,6 +209,12 @@ class CodestraAgentOnboardingProvisioning(models.Model):
         readonly=True,
         copy=False,
         tracking=True,
+    )
+    channel_ids = fields.One2many(
+        "codestra.agent.channel",
+        "onboarding_id",
+        string="Provisioning Channels",
+        readonly=True,
     )
     provisioning_outbox_id = fields.Many2one(
         "codestra.runtime.integration.outbox",
@@ -472,6 +480,10 @@ class CodestraAgentOnboardingProvisioning(models.Model):
         Users = self.env["res.users"].with_user(SUPERUSER_ID).with_context(active_test=False)
         if not user:
             email = self._generate_unique_login(email, Users)
+            if email != self.activation_email.strip().lower():
+                # The collision-free login is the canonical identity used by
+                # Keycloak and the one-time activation email.
+                self.write({"activation_email": email})
             # Archived identities participate in collision lookup, not creation.
             # Odoo synchronizes the new inactive user to its partner and that
             # archive guard must search only active linked users.
@@ -589,6 +601,8 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 "source_ticket": self.name,
                 "webrtc_enabled": self.webrtc_enabled,
                 "sms_enabled": self.sms_enabled,
+                "incoming_calls_enabled": self.incoming_calls_enabled,
+                "outgoing_calls_enabled": self.outgoing_calls_enabled,
                 "vicidial_user_group": (
                     self.role_template_id.vicidial_user_group
                     if self.needs_vicidial
@@ -618,6 +632,12 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                     fields.Date.to_string(self.target_start_date),
                 )
             )
+        )
+
+    def _ensure_agent_channels(self, membership, request):
+        self.ensure_one()
+        return self.env["codestra.agent.channel"].ensure_for_onboarding(
+            self, membership, request
         )
 
     def _ensure_provisioning_request(self, user, membership):
@@ -675,6 +695,10 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 "needs_agent_desktop": self.needs_agent_desktop,
                 "needs_keycloak": self.needs_keycloak,
                 "needs_vicidial": self.needs_vicidial,
+                "incoming_calls_enabled": self.incoming_calls_enabled,
+                "outgoing_calls_enabled": self.outgoing_calls_enabled,
+                "webrtc_enabled": self.webrtc_enabled,
+                "sms_enabled": self.sms_enabled,
                 "idempotency_key": key,
                 "cc_membership_id": membership.id,
             }
@@ -737,6 +761,7 @@ class CodestraAgentOnboardingProvisioning(models.Model):
             provision_request = record._ensure_provisioning_request(
                 user, membership
             )
+            record._ensure_agent_channels(membership, provision_request)
             if membership.state == "draft":
                 membership.action_submit_identity()
             if provision_request.state == "draft":
@@ -823,6 +848,10 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 "extension": self.campaign_membership_id.extension or None,
                 "webrtc_enabled": self.webrtc_enabled,
                 "sms_enabled": self.sms_enabled,
+                "email_enabled": self.needs_company_email,
+                "phone_enabled": self.needs_sip_endpoint,
+                "incoming_allowed": self.incoming_calls_enabled,
+                "outgoing_allowed": self.outgoing_calls_enabled,
                 "webrtc_max_devices": 1,
             },
             "controls": {
@@ -1110,7 +1139,12 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                     record.operational_team_id.write(
                         {"agent_ids": [(4, user.id)]}
                     )
-        return super().action_activate()
+        result = super().action_activate()
+        for record in self:
+            self.env["codestra.agent.channel"].mark_effective_for_membership(
+                record.campaign_membership_id
+            )
+        return result
 
     def action_cancel(self):
         if any(
