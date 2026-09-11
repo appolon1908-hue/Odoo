@@ -137,9 +137,12 @@ class CcWebrtcSession(models.Model):
                 _("WebRTC is not enabled for this agent's membership.")
             )
         Session = self.with_context(_cc_webrtc_session_write=SESSION_WRITE_CAPABILITY)
-        membership.webrtc_session_ids.filtered(lambda s: not s.revoked_at)._revoke(
-            _("Replaced by a new device registration.")
-        )
+        active = membership.webrtc_session_ids.filtered(lambda s: not s.revoked_at)
+        active._revoke(_("Replaced by a new device registration."))
+        # The partial unique index only excludes rows with revoked_at IS NULL,
+        # so the revoke UPDATE must actually reach Postgres before the next
+        # INSERT below, or the index still sees the prior active row.
+        active.flush_recordset(["revoked_at"])
         return Session.create(
             {"membership_id": membership.id, "device_label": device_label}
         )
