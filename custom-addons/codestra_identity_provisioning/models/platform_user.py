@@ -173,7 +173,12 @@ class CodestraPlatformUser(models.Model):
     @api.model_create_multi
     def create(self, values_list):
         if self._has_full_platform_authority():
-            return super().create(values_list)
+            records = super().create(values_list)
+            records._sync_platform_role_group()
+            self.env["codestra.tenant.membership"]._sync_tenant_admin_group_for_users(
+                records.mapped("odoo_user_id")
+            )
+            return records
         if not self.env.user.has_group(TENANT_ADMIN_GROUP):
             self._require_super_admin()
         self._validate_tenant_admin_create(values_list)
@@ -192,6 +197,7 @@ class CodestraPlatformUser(models.Model):
         return records
 
     def write(self, values):
+        previous_odoo_users = self.mapped("odoo_user_id")
         if self._has_full_platform_authority():
             pass
         elif (
@@ -210,8 +216,12 @@ class CodestraPlatformUser(models.Model):
                 _("You are not authorized to change these fields on this platform user.")
             )
         result = super().write(values)
-        if "platform_role" in values:
+        if "platform_role" in values or "odoo_user_id" in values:
             self._sync_platform_role_group()
+        if "odoo_user_id" in values:
+            self.env["codestra.tenant.membership"]._sync_tenant_admin_group_for_users(
+                previous_odoo_users | self.mapped("odoo_user_id")
+            )
         return result
 
     def unlink(self):
@@ -262,6 +272,9 @@ class CodestraPlatformUser(models.Model):
             )
             record.odoo_user_id = user.id
             record._sync_platform_role_group()
+            self.env["codestra.tenant.membership"]._sync_tenant_admin_group_for_users(
+                record.odoo_user_id
+            )
 
     _PLATFORM_ROLE_GROUP_XMLID = {
         "platform_operator": "codestra_identity_provisioning.group_platform_operator",

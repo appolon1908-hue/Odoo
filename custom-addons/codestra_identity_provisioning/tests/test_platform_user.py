@@ -325,6 +325,37 @@ class TestPlatformUser(TransactionCase):
                 "platform_role": "platform_admin",
             })
 
+    def test_tenant_admin_membership_syncs_odoo_group(self):
+        tenant_admin_group = self.env.ref(
+            "codestra_identity_provisioning.group_tenant_admin"
+        )
+        linked_user = self._create_user(
+            "Tenant Membership Sync User",
+            "tenant-membership-sync@example.invalid",
+            ["base.group_user"],
+        )
+        platform_user = self.env["codestra.platform.user"].with_user(
+            self.platform_admin
+        ).create(self._platform_user_values(
+            name="Tenant Membership Sync Identity",
+            primary_email="tenant-membership-sync-identity@example.invalid",
+            odoo_access_enabled=True,
+            odoo_user_id=linked_user.id,
+        ))
+        self.assertNotIn(tenant_admin_group, linked_user.group_ids)
+
+        membership = self.env["codestra.tenant.membership"].with_user(
+            self.platform_admin
+        ).create({
+            "platform_user_id": platform_user.id,
+            "tenant_id": self.tenant.id,
+            "role": "tenant_admin",
+        })
+        self.assertIn(tenant_admin_group, linked_user.group_ids)
+
+        membership.with_user(self.platform_admin).write({"role": "member"})
+        self.assertNotIn(tenant_admin_group, linked_user.group_ids)
+
     def test_tenant_admin_cannot_reassign_membership_or_escalate_role(self):
         member = self.env["codestra.platform.user"].with_user(
             self.tenant_admin_user

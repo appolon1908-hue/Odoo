@@ -3,7 +3,6 @@ from odoo.exceptions import AccessError, ValidationError
 
 SUPER_ADMIN_GROUP = "codestra_identity_provisioning.group_provisioning_global_super_admin"
 PLATFORM_ADMIN_GROUP = "codestra_identity_provisioning.group_platform_admin"
-PLATFORM_OPERATOR_GROUP = "codestra_identity_provisioning.group_platform_operator"
 TENANT_ADMIN_GROUP = "codestra_identity_provisioning.group_tenant_admin"
 
 
@@ -83,38 +82,86 @@ class CodestraTenantMembership(models.Model):
                 _("The platform user and tenant membership must belong to the same tenant.")
             )
 
+    @api.model
+    def _sync_tenant_admin_group_for_users(self, users):
+        """Project active tenant-admin membership onto Odoo ACL groups.
+
+        The membership model is the source of truth; the group is only the
+        Odoo-side ACL projection. Keep both directions synchronized so a
+        promotion grants access and a demotion/deactivation revokes it.
+        """
+        users = users.sudo().exists()
+        if not users:
+            return
+        tenant_admin_group = self.env.ref(TENANT_ADMIN_GROUP).sudo()
+        admin_user_ids = set(
+            self.sudo().search([
+                ("role", "=", "tenant_admin"),
+                ("active", "=", True),
+                ("platform_user_id.odoo_user_id", "in", users.ids),
+            ]).mapped("platform_user_id.odoo_user_id").ids
+        )
+        for user in users:
+            command = (
+                (4, tenant_admin_group.id)
+                if user.id in admin_user_ids
+                else (3, tenant_admin_group.id)
+            )
+            user.write({"group_ids": [command]})
+
     @api.model_create_multi
     def create(self, values_list):
         if self._has_platform_admin_authority():
-            return super().create(values_list)
-        if not self.env.user.has_group(TENANT_ADMIN_GROUP):
-            raise AccessError(
-                _("Only a Platform Admin or Tenant Admin may create memberships.")
-            )
-        for values in values_list:
-            if values.get("role", "member") != "member":
-                self._require_platform_admin()
-            self._require_tenant_admin_scope(values.get("tenant_id"))
-            self._check_platform_user_alignment(values)
-        return super().create(values_list)
+            records = super().create(values_list)
+        else:
+            if not self.env.user.has_group(TENANT_ADMIN_GROUP):
+                raise AccessError(
+                    _("Only a Platform Admin or Tenant Admin may create memberships.")
+                )
+            for values in values_list:
+                if values.get("role", "member") != "member":
+                    self._require_platform_admin()
+                self._require_tenant_admin_scope(values.get("tenant_id"))
+                self._check_platform_user_alignment(values)
+            records = super().create(values_list)
+        self._sync_tenant_admin_group_for_users(
+            records.mapped("platform_user_id.odoo_user_id")
+        )
+        return records
 
     def write(self, values):
+        affected_users = self.mapped("platform_user_id.odoo_user_id")
+        if values.get("platform_user_id"):
+            affected_users |= self.env["codestra.platform.user"].browse(
+                values["platform_user_id"]
+            ).mapped("odoo_user_id")
         if self._has_platform_admin_authority():
-            return super().write(values)
-        if not self.env.user.has_group(TENANT_ADMIN_GROUP):
-            raise AccessError(_("Only a Platform Admin may change tenant memberships."))
-        if any(membership.role == "tenant_admin" for membership in self):
-            self._require_platform_admin()
-        if set(values) & {"platform_user_id", "tenant_id", "role"}:
-            raise AccessError(
-                _("Tenant Admins cannot reassign membership identity or privilege.")
-            )
-        if not all(
-            membership.tenant_id.id in self._tenant_admin_tenant_ids()
-            for membership in self
-        ):
-            self._require_tenant_admin_scope(False)
-        return super().write(values)
+            result = super().write(values)
+        else:
+            if not self.env.user.has_group(TENANT_ADMIN_GROUP):
+                raise AccessError(_("Only a Platform Admin may change tenant memberships."))
+            if any(membership.role == "tenant_admin" for membership in self):
+                self._require_platform_admin()
+            if set(values) & {"platform_user_id", "tenant_id", "role"}:
+                raise AccessError(
+                    _("Tenant Admins cannot reassign membership identity or privilege.")
+                )
+            if not all(
+                membership.tenant_id.id in self._tenant_admin_tenant_ids()
+                for membership in self
+            ):
+                self._require_tenant_admin_scope(False)
+            result = super().write(values)
+        if set(values) & {"platform_user_id", "role", "active"}:
+            affected_users |= self.mapped("platform_user_id.odoo_user_id")
+            self._sync_tenant_admin_group_for_users(affected_users)
+        return result
+
+    def unlink(self):
+        affected_users = self.mapped("platform_user_id.odoo_user_id")
+        result = super().unlink()
+        self._sync_tenant_admin_group_for_users(affected_users)
+        return result
 
     @api.constrains("platform_user_id", "tenant_id")
     def _check_tenant_alignment(self):
