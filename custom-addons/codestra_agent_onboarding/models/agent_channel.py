@@ -145,14 +145,19 @@ class AgentChannel(models.Model):
             raise AccessError(
                 _("Channel state changes require verified provisioning read-back.")
             )
-        if {"employee_id", "membership_id", "campaign_id", "channel_type"}.intersection(
-            values
-        ):
-            for channel in self:
-                if channel.state not in {"requested", "failed", "disabled"}:
-                    raise AccessError(
-                        _("Provisioned channel identity is immutable.")
-                    )
+        identity_fields = {
+            "employee_id",
+            "membership_id",
+            "campaign_id",
+            "channel_type",
+            "supervisor_id",
+            "onboarding_id",
+            "provisioning_request_id",
+        }
+        if identity_fields.intersection(values):
+            raise AccessError(
+                _("Channel identity is system managed; change the onboarding assignment.")
+            )
         return super().write(values)
 
     def unlink(self):
