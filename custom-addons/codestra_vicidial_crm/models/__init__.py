@@ -1,4 +1,4 @@
-from . import core, phone
+from . import core, phone, webrtc
 from . import res_users, middleware_client, crm_lead, integration_settings
 from . import test_syn_compatibility
 from . import reconciliation
