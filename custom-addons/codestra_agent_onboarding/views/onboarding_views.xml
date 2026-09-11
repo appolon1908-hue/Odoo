@@ -6,10 +6,10 @@
     <field name="arch" type="xml">
       <list string="Agent Onboarding" default_order="target_start_date desc">
         <field name="name"/>
-        <field name="employee_id"/>
-        <field name="campaign_id"/>
+        <field name="employee_id" readonly="1"/>
+        <field name="campaign_id" readonly="1"/>
         <field name="campaign_role"/>
-        <field name="supervisor_id"/>
+        <field name="supervisor_id" readonly="1"/>
         <field name="target_start_date"/>
         <field name="completion_percent"/>
         <field name="provisioning_request_id"/>
@@ -62,7 +62,7 @@
 
           <group>
             <group string="Person">
-              <field name="employee_id" readonly="campaign_membership_id"/>
+              <field name="employee_id" readonly="1"/>
               <field name="manager_id"/>
               <field name="target_start_date"/>
               <field name="activation_email"
@@ -87,9 +87,7 @@
             <page string="Campaign Assignment">
               <group>
                 <group>
-                  <field name="campaign_id"
-                         domain="[('is_human_staffed', '=', True), ('identifier_status', '=', 'canonical')]"
-                         readonly="campaign_membership_id"/>
+                  <field name="campaign_id" readonly="1"/>
                   <field name="business_unit_id" readonly="1"/>
                   <field name="campaign_role" readonly="campaign_membership_id"/>
                   <field name="branch_id"
@@ -103,9 +101,7 @@
                   <field name="operational_team_id"
                          domain="[('business_unit_id', '=', business_unit_id), ('department_id', '=', department_id)]"
                          readonly="campaign_membership_id"/>
-                  <field name="supervisor_id"
-                         domain="[('id', 'in', operational_team_id.supervisor_ids)]"
-                         readonly="campaign_membership_id"/>
+                  <field name="supervisor_id" readonly="1"/>
                   <field name="role_template_id"
                          domain="[('business_unit_id', '=', business_unit_id), ('active', '=', True)]"
                          readonly="campaign_membership_id"/>
@@ -207,10 +203,10 @@
     <field name="model">codestra.agent.channel</field>
     <field name="arch" type="xml">
       <list string="Agent Channels">
-        <field name="employee_id"/>
-        <field name="user_id"/>
-        <field name="campaign_id"/>
-        <field name="supervisor_id"/>
+        <field name="employee_id" readonly="1"/>
+        <field name="user_id" readonly="1"/>
+        <field name="campaign_id" readonly="1"/>
+        <field name="supervisor_id" readonly="1"/>
         <field name="channel_type"/>
         <field name="desired_enabled"/>
         <field name="incoming_allowed"/>
@@ -234,11 +230,11 @@
         <sheet>
           <group>
             <group string="Assignment">
-              <field name="employee_id"/>
+              <field name="employee_id" readonly="1"/>
               <field name="user_id" readonly="1"/>
-              <field name="campaign_id"/>
-              <field name="supervisor_id"/>
-              <field name="membership_id"/>
+              <field name="campaign_id" readonly="1"/>
+              <field name="supervisor_id" readonly="1"/>
+              <field name="membership_id" readonly="1"/>
               <field name="provisioning_request_id" readonly="1"/>
             </group>
             <group string="Channel">
