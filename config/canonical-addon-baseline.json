@@ -197,7 +197,7 @@
     },
     "codestra_vicidial_recording": {
       "base_tree": "3ef18226525231684891fc59d00d2b365b3350ed",
-      "current_tree": "7c3fc84b56ddb93d6e9340fc0e47c5ad875c690f",
+      "current_tree": "56212eb4bcd6d36e68ee999066e46fb67e9f7f8f",
       "reason": "PR #116 requires codestra.vicidial.agent records to carry a primary_campaign_id and an explicit or auto-allocated phone_login; update this addon's own test fixture to supply both explicitly (an already-authorized campaign and a synthetic extension) so agent creation continues to pass validation. No production model, controller, security, or view file in this addon changed.",
       "pull_request": 116,
       "integration_boundary_exceptions": [
