@@ -38,6 +38,7 @@ done < <(find scripts -type f -name '*.sh' -print0 | sort -z)
 printf '==> Validating the canonical calling-contract pin\n'
 python3 -I scripts/validate_calling_contract_pin.py
 python3 -I scripts/validate_calling_contract_pin.py --self-test
+python3 -I scripts/generate_calling_client_schema.py --check
 
 printf '==> Validating the declared calling-contract usage surface\n'
 python3 -I scripts/validate_calling_contract_usage.py
