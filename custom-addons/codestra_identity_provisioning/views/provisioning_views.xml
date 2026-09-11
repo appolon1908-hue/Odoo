@@ -115,15 +115,15 @@
               <field name="channel_ids">
                 <list editable="bottom">
                   <field name="channel_type"/>
-                  <field name="desired_enabled"/>
+                  <field name="desired_enabled" widget="boolean_toggle"/>
                   <field name="state" widget="badge"
                          decoration-success="state == 'effective'"
                          decoration-danger="state == 'failed'"
                          decoration-warning="state in ('requested', 'provisioning', 'provisioned')"
                          decoration-muted="state == 'revoked'"/>
                   <field name="effective_access" readonly="1"/>
-                  <field name="incoming_allowed"/>
-                  <field name="outgoing_allowed"/>
+                  <field name="incoming_allowed" widget="boolean_toggle"/>
+                  <field name="outgoing_allowed" widget="boolean_toggle"/>
                   <field name="campaign_id" readonly="1"/>
                   <field name="supervisor_id" readonly="1"/>
                   <field name="extension" readonly="1"/>

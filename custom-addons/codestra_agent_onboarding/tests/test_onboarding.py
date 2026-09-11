@@ -631,6 +631,22 @@ class TestCodestraAgentOnboarding(TransactionCase):
         self.assertEqual(payload["telephony_assignment"]["webrtc_max_devices"], 1)
         self.assertFalse(payload["controls"]["webrtc_credential_issuance"])
 
+    def test_communication_channel_switches_are_on_the_onboarding_form(self):
+        views = self.env["codestra.agent.onboarding"].get_views(
+            [(False, "form")], {"toolbar": False}
+        )
+        arch = views["views"]["form"]["arch"]
+        for field_name in (
+            "needs_company_email",
+            "sms_enabled",
+            "needs_sip_endpoint",
+            "webrtc_enabled",
+        ):
+            self.assertIn(field_name, views["models"]["codestra.agent.onboarding"]["fields"])
+            self.assertIn(
+                'name="%s" widget="boolean_toggle"' % field_name, arch
+            )
+
     def test_webrtc_and_sms_default_to_disabled(self):
         onboarding = self._new_onboarding(email="no.webrtc.agent@example.invalid")
         self._start(onboarding)

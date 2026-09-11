@@ -134,15 +134,19 @@
                 <group string="Requested Accounts">
                   <field name="needs_keycloak"/>
                   <field name="needs_vicidial"/>
-                  <field name="needs_sip_endpoint"/>
                   <field name="needs_agent_desktop"/>
                 </group>
                 <group string="Requested Services">
-                  <field name="needs_company_email"/>
                   <field name="needs_voicemail"/>
                   <field name="needs_recording_access"/>
                   <field name="needs_monitoring_access"/>
                 </group>
+              </group>
+              <group string="Communication Channels">
+                <field name="needs_company_email" widget="boolean_toggle" string="Email"/>
+                <field name="sms_enabled" widget="boolean_toggle" string="SMS"/>
+                <field name="needs_sip_endpoint" widget="boolean_toggle" string="Phone"/>
+                <field name="webrtc_enabled" widget="boolean_toggle" string="WebRTC"/>
               </group>
               <group string="Durable Links">
                 <field name="campaign_membership_id" readonly="1"/>

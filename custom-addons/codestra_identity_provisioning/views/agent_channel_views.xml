@@ -6,15 +6,15 @@
       <list>
         <field name="employee_id"/>
         <field name="channel_type"/>
-        <field name="desired_enabled"/>
+        <field name="desired_enabled" widget="boolean_toggle"/>
         <field name="state" widget="badge"
                decoration-success="state == 'effective'"
                decoration-danger="state == 'failed'"
                decoration-warning="state in ('requested', 'provisioning', 'provisioned')"
                decoration-muted="state == 'revoked'"/>
         <field name="effective_access"/>
-        <field name="incoming_allowed"/>
-        <field name="outgoing_allowed"/>
+        <field name="incoming_allowed" widget="boolean_toggle"/>
+        <field name="outgoing_allowed" widget="boolean_toggle"/>
         <field name="campaign_id"/>
         <field name="supervisor_id"/>
         <field name="extension"/>
@@ -48,9 +48,9 @@
             </group>
           </group>
           <group string="Provisioning Intent">
-            <field name="desired_enabled"/>
-            <field name="incoming_allowed"/>
-            <field name="outgoing_allowed"/>
+            <field name="desired_enabled" widget="boolean_toggle"/>
+            <field name="incoming_allowed" widget="boolean_toggle"/>
+            <field name="outgoing_allowed" widget="boolean_toggle"/>
             <field name="effective_access" readonly="1"/>
           </group>
           <group string="External Status"
