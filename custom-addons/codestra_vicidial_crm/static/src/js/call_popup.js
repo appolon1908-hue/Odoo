@@ -18,6 +18,10 @@ export class CodestraCallPopup extends Component {
         this.ui = useState({
             call: null, busy: false, error: "", notes: "", disposition: "",
             realtime: "", canonical: false, matches: [], history: [], callbackAt: "", callbackTimezone: "UTC", callbackReason: "",
+            dialpad: {
+                open: false, number: "", campaignId: "TEST_SYN", enabled: false,
+                busy: false, error: "", reason: "", status: "Loading dialer…", matches: [],
+            },
         });
         this.destroyed = false;
         this.openedCalls = new Set();
@@ -44,6 +48,7 @@ export class CodestraCallPopup extends Component {
             this.bus.removeEventListener("notification", this.busHandler);
         });
         onWillStart(async () => {
+            await this.loadDialpad();
             try {
                 const boot = await this.rpc("/codestra/calling/v1/bootstrap", {});
                 if (this.destroyed) return;
@@ -83,6 +88,113 @@ export class CodestraCallPopup extends Component {
                 this.ui.error = error.message || "Phone unavailable";
             }
         });
+    }
+
+    get dialpadKeys() {
+        return ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"];
+    }
+
+    async loadDialpad() {
+        try {
+            const state = await this.rpc("/codestra/call-control/v1/dialpad", {});
+            Object.assign(this.ui.dialpad, {
+                campaignId: state.campaign_id || "TEST_SYN",
+                enabled: Boolean(state.enabled),
+                reason: state.reason || "",
+                status: state.state === "ready" ? "Ready" : "Disabled",
+            });
+        } catch (error) {
+            this.ui.dialpad.enabled = false;
+            this.ui.dialpad.status = "Unavailable";
+            this.ui.dialpad.reason = error.message || "Dialer is unavailable.";
+        }
+    }
+
+    toggleDialpad() { this.ui.dialpad.open = !this.ui.dialpad.open; }
+
+    appendDialpadDigit(digit) {
+        if (!/^\d$/.test(digit) || this.ui.dialpad.number.length >= 15) return;
+        this.ui.dialpad.number += digit;
+        this.ui.dialpad.error = "";
+        this.ui.dialpad.matches = [];
+    }
+
+    backspaceDialpad() {
+        this.ui.dialpad.number = this.ui.dialpad.number.slice(0, -1);
+        this.ui.dialpad.error = "";
+        this.ui.dialpad.matches = [];
+    }
+
+    clearDialpad() {
+        this.ui.dialpad.number = "";
+        this.ui.dialpad.error = "";
+        this.ui.dialpad.matches = [];
+        this.ui.dialpad.status = this.ui.dialpad.enabled ? "Ready" : "Disabled";
+    }
+
+    onDialpadKeydown(event) {
+        if (/^\d$/.test(event.key)) {
+            event.preventDefault();
+            this.appendDialpadDigit(event.key);
+        } else if (event.key === "Backspace") {
+            event.preventDefault();
+            this.backspaceDialpad();
+        } else if (event.key === "Enter") {
+            event.preventDefault();
+            this.dialpadCall();
+        }
+    }
+
+    async resolveDialpad() {
+        if (!this.ui.dialpad.number) {
+            this.ui.dialpad.error = "Enter a phone number.";
+            return null;
+        }
+        try {
+            const result = await this.rpc("/codestra/call-control/v1/match", {
+                number: this.ui.dialpad.number,
+                campaign_code: this.ui.dialpad.campaignId,
+            });
+            this.ui.dialpad.matches = result.matches || [];
+            if (result.match !== "exact") {
+                this.ui.dialpad.error = result.match === "ambiguous"
+                    ? "More than one CRM record matches this number."
+                    : "No authorized CRM record matches this number.";
+                return null;
+            }
+            this.ui.dialpad.status = this.ui.dialpad.matches[0].name || "Exact CRM match";
+            this.ui.dialpad.error = "";
+            return result;
+        } catch (error) {
+            this.ui.dialpad.error = error.message || "Number lookup failed.";
+            return null;
+        }
+    }
+
+    async dialpadCall() {
+        if (this.ui.dialpad.busy) return;
+        if (!this.ui.dialpad.enabled) {
+            this.ui.dialpad.error = this.ui.dialpad.reason || "Outbound calling is disabled.";
+            return;
+        }
+        const match = await this.resolveDialpad();
+        if (!match) return;
+        this.ui.dialpad.busy = true;
+        try {
+            const result = await this.rpc("/codestra/call-control/v1/outbound", {
+                destination: this.ui.dialpad.number,
+                campaign_id: this.ui.dialpad.campaignId,
+                idempotency_key: this.key(),
+            });
+            this.ui.dialpad.open = false;
+            this.ui.dialpad.status = "Call queued; awaiting authoritative events";
+            await this.handleCall(result.call);
+            this.notification.add("Call request accepted; waiting for telephony confirmation.", { type: "info" });
+        } catch (error) {
+            this.ui.dialpad.error = error.message || "Call request failed.";
+        } finally {
+            this.ui.dialpad.busy = false;
+        }
     }
 
     key() { return crypto.randomUUID(); }
