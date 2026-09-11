@@ -87,7 +87,9 @@ done
 DB_PASSWORD="$(
   python3 -I - <<'PY'
 import secrets
-print(secrets.token_urlsafe(36))
+# Odoo forwards this value to argparse as a separate --db_password argument.
+# A leading dash can be mistaken for an option; retain all 288 random bits.
+print("ci_" + secrets.token_urlsafe(36))
 PY
 )"
 ADMIN_PASSWORD="$(
