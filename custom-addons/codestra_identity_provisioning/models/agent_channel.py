@@ -6,11 +6,13 @@ from odoo.exceptions import AccessError, ValidationError
 SERVICE_WRITE_FIELDS = {
     "external_system",
     "external_id",
-    "external_reference",
+    "provider_reference",
     "state",
-    "last_reconciled_at",
+    "last_verified_at",
     "last_error_code",
-    "last_error_sanitized",
+    "last_error_message",
+    "provider",
+    "last_provisioning_job_id",
 }
 TRANSITION_CAPABILITY = object()
 SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
@@ -23,7 +25,7 @@ class CodestraAgentChannel(models.Model):
     This model records what a Super Admin wants (``desired_enabled``,
     ``incoming_allowed``, ``outgoing_allowed``) and what Odoo has observed
     about the channel's provisioning lifecycle (``state``,
-    ``external_id``/``external_reference``, ``last_reconciled_at``). It does
+    ``external_id``/``provider_reference``, ``last_verified_at``). It does
     not itself perform any external provisioning: no Keycloak, VICIdial,
     Asterisk, Middleware, email, or SMS call is made by this model or its
     migration.
@@ -113,6 +115,19 @@ class CodestraAgentChannel(models.Model):
     effective_access = fields.Boolean(
         compute="_compute_effective_access", store=True, tracking=True
     )
+    # Standardized read-only projections of desired_enabled/state, so callers
+    # (and the sibling codestra.platform.user / codestra.agent.account model
+    # family) can query intent-vs-outcome without re-deriving the mapping.
+    # desired_enabled/state remain the single source of truth; these are
+    # deliberately not separate writable columns.
+    requested_state = fields.Selection(
+        [("not_requested", "Not Requested"), ("requested", "Requested")],
+        compute="_compute_requested_state", store=True,
+    )
+    provisioned_state = fields.Selection(
+        [("not_provisioned", "Not Provisioned"), ("provisioned", "Provisioned")],
+        compute="_compute_provisioned_state", store=True,
+    )
 
     extension_assignment_id = fields.Many2one(
         "codestra.extension.assignment", ondelete="restrict"
@@ -121,12 +136,19 @@ class CodestraAgentChannel(models.Model):
         related="extension_assignment_id.extension", store=True, readonly=True
     )
 
+    provider = fields.Char(
+        tracking=True,
+        help="The third-party provider actually handling this channel "
+        "(e.g. klyrow, telnexa, vicidial) - distinct from external_system, "
+        "which is the internal step-target vocabulary.",
+    )
+    last_provisioning_job_id = fields.Char(copy=False)
     external_system = fields.Char(tracking=True)
     external_id = fields.Char(copy=False)
-    external_reference = fields.Char(copy=False)
-    last_reconciled_at = fields.Datetime(copy=False)
+    provider_reference = fields.Char(copy=False)
+    last_verified_at = fields.Datetime(copy=False)
     last_error_code = fields.Char(copy=False)
-    last_error_sanitized = fields.Char(copy=False)
+    last_error_message = fields.Char(copy=False)
 
     _employee_channel_unique = models.Constraint(
         "unique(employee_id, channel_type)",
@@ -174,6 +196,22 @@ class CodestraAgentChannel(models.Model):
                     and channel.extension_assignment_id.state == "committed"
                 )
             channel.effective_access = base
+
+    @api.depends("desired_enabled")
+    def _compute_requested_state(self):
+        for channel in self:
+            channel.requested_state = (
+                "requested" if channel.desired_enabled else "not_requested"
+            )
+
+    @api.depends("state")
+    def _compute_provisioned_state(self):
+        for channel in self:
+            channel.provisioned_state = (
+                "provisioned"
+                if channel.state in ("provisioned", "effective")
+                else "not_provisioned"
+            )
 
     @api.constrains("extension_assignment_id")
     def _check_extension_not_6101(self):
@@ -252,7 +290,7 @@ class CodestraAgentChannel(models.Model):
         verified,
         evidence_hash=None,
         external_id=None,
-        external_reference=None,
+        provider_reference=None,
         error_code=None,
         error_sanitized=None,
     ):
@@ -270,17 +308,17 @@ class CodestraAgentChannel(models.Model):
             values = {
                 "state": "provisioned",
                 "external_id": external_id,
-                "external_reference": external_reference,
-                "last_reconciled_at": fields.Datetime.now(),
+                "provider_reference": provider_reference,
+                "last_verified_at": fields.Datetime.now(),
                 "last_error_code": False,
-                "last_error_sanitized": False,
+                "last_error_message": False,
             }
         else:
             values = {
                 "state": "failed",
                 "last_error_code": error_code,
-                "last_error_sanitized": error_sanitized,
-                "last_reconciled_at": fields.Datetime.now(),
+                "last_error_message": error_sanitized,
+                "last_verified_at": fields.Datetime.now(),
             }
         self.with_context(_agent_channel_transition=TRANSITION_CAPABILITY).write(
             values

@@ -763,6 +763,36 @@ class TestCodestraAgentOnboarding(TransactionCase):
         second.invalidate_recordset(["active_session", "revoked_at"])
         self.assertFalse(second.active_session)
 
+    def test_platform_user_dashboard_reflects_channel_and_drift_state(self):
+        tenant = self.env["codestra.tenant"].with_user(SUPERUSER_ID).create({
+            "name": "Dashboard Synthetic Tenant", "code": "DASH-TENANT",
+        })
+        platform_user = self.env["codestra.platform.user"].with_user(SUPERUSER_ID).create({
+            "name": "Dashboard Platform User",
+            "primary_email": "dashboard.platform.user@example.invalid",
+            "tenant_id": tenant.id,
+        })
+        onboarding = self._new_onboarding(email="dashboard.agent@example.invalid")
+        onboarding.write({
+            "needs_company_email": True,
+            "needs_sip_endpoint": True,
+            "sms_enabled": False,
+            "webrtc_enabled": False,
+        })
+        self._start(onboarding)
+        membership = onboarding.campaign_membership_id
+        membership.with_user(SUPERUSER_ID).write({"platform_user_id": platform_user.id})
+        platform_user.invalidate_recordset()
+
+        # email/phone are desired-but-not-yet-effective ("pending");
+        # sms/webrtc were never requested at all ("off").
+        self.assertEqual(platform_user.channel_status_email, "pending")
+        self.assertEqual(platform_user.channel_status_phone, "pending")
+        self.assertEqual(platform_user.channel_status_sms, "off")
+        self.assertEqual(platform_user.channel_status_webrtc, "off")
+        self.assertEqual(platform_user.provisioning_drift_status, "drift")
+        self.assertIn(membership, platform_user.membership_ids)
+
     def test_webrtc_session_requires_webrtc_enabled(self):
         onboarding = self._new_onboarding(email="webrtc.disabled.agent@example.invalid")
         self._start(onboarding)
@@ -770,6 +800,27 @@ class TestCodestraAgentOnboarding(TransactionCase):
         self.assertFalse(self._channel(onboarding, "webrtc").desired_enabled)
         with self.assertRaises(ValidationError):
             self.env["cc.webrtc.session"].action_register(membership, "Browser")
+
+    def test_second_active_webrtc_session_rejected_at_the_database(self):
+        """action_register() itself auto-revokes the prior session before
+        creating a new one (a deliberate "new login wins" design covered by
+        test_webrtc_session_single_device_enforced_and_revoked_on_disable).
+        This test instead proves the structural backstop underneath that
+        method: _one_active_session_per_membership rejects a second
+        unrevoked row for the same membership outright, for any caller
+        that does not go through action_register's revoke-then-create path.
+        """
+        from ..models.telephony_assignment import SESSION_WRITE_CAPABILITY
+
+        onboarding = self._new_onboarding(email="second.active.session@example.invalid")
+        onboarding.webrtc_enabled = True
+        self._start(onboarding)
+        membership = onboarding.campaign_membership_id
+        self.env["cc.webrtc.session"].action_register(membership, "First Browser")
+        with self.assertRaises(Exception):
+            self.env["cc.webrtc.session"].with_context(
+                _cc_webrtc_session_write=SESSION_WRITE_CAPABILITY
+            ).create({"membership_id": membership.id, "device_label": "Second Browser"})
 
     def test_email_collision_falls_back_to_firstname_lastname_then_numbered(self):
         def _onboarding_for(name, email):
@@ -880,3 +931,50 @@ class TestCodestraAgentOnboarding(TransactionCase):
         self.assertEqual(
             employee.user_id.login, "shared.name@example.invalid"
         )
+
+    def test_duplicate_platform_user_campaign_membership_rejected(self):
+        tenant = self.env["codestra.tenant"].with_user(SUPERUSER_ID).create({
+            "name": "Onboarding Synthetic Tenant", "code": "ONB-TENANT",
+        })
+        platform_user = self.env["codestra.platform.user"].with_user(SUPERUSER_ID).create({
+            "name": "Duplicate Membership Platform User",
+            "primary_email": "duplicate.membership.platform.user@example.invalid",
+            "tenant_id": tenant.id,
+        })
+        first_user = self._create_user(
+            "Duplicate Membership User One",
+            "duplicate.membership.one@example.invalid",
+            ["base.group_user"],
+        )
+        second_user = self._create_user(
+            "Duplicate Membership User Two",
+            "duplicate.membership.two@example.invalid",
+            ["base.group_user"],
+        )
+        first_employee = self.env["hr.employee"].create(
+            {"name": "First Slot", "user_id": first_user.id}
+        )
+        second_employee = self.env["hr.employee"].create(
+            {"name": "Second Slot", "user_id": second_user.id}
+        )
+        self.env["cc.campaign.membership"].create({
+            "user_id": first_user.id,
+            "employee_id": first_employee.id,
+            "campaign_id": self.campaign.id,
+            "role": "agent",
+            "requested_by_id": self.requester.id,
+            "source_ticket": "DUP-MEMBERSHIP-1",
+            "starts_at": fields.Datetime.now(),
+            "platform_user_id": platform_user.id,
+        })
+        with self.assertRaises(Exception):
+            self.env["cc.campaign.membership"].create({
+                "user_id": second_user.id,
+                "employee_id": second_employee.id,
+                "campaign_id": self.campaign.id,
+                "role": "agent",
+                "requested_by_id": self.requester.id,
+                "source_ticket": "DUP-MEMBERSHIP-2",
+                "starts_at": fields.Datetime.now(),
+                "platform_user_id": platform_user.id,
+            })

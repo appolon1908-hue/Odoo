@@ -1,0 +1,51 @@
+<odoo>
+  <record id="view_platform_user_form_dashboard_inherit" model="ir.ui.view">
+    <field name="name">codestra.platform.user.form.dashboard.inherit</field>
+    <field name="model">codestra.platform.user</field>
+    <field name="inherit_id" ref="codestra_identity_provisioning.view_platform_user_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//page[@name='provisioning_status']/group[@name='telephony']" position="before">
+        <group string="Campaigns">
+          <field name="membership_ids" nolabel="1">
+            <list>
+              <field name="campaign_id"/>
+              <field name="role"/>
+              <field name="state" widget="badge"
+                     decoration-success="state == 'active'"
+                     decoration-warning="state in ('draft', 'pending_approval', 'pending_sync')"
+                     decoration-danger="state in ('suspended', 'expired', 'revoked', 'blocked')"/>
+              <field name="vicidial_user"/>
+              <field name="campaign_email_identity"/>
+            </list>
+          </field>
+        </group>
+        <group string="Channels">
+          <field name="channel_status_email" string="Email" widget="badge"
+                 decoration-success="channel_status_email == 'effective'"
+                 decoration-warning="channel_status_email == 'pending'"
+                 decoration-muted="channel_status_email == 'off'"/>
+          <field name="channel_status_sms" string="SMS" widget="badge"
+                 decoration-success="channel_status_sms == 'effective'"
+                 decoration-warning="channel_status_sms == 'pending'"
+                 decoration-muted="channel_status_sms == 'off'"/>
+          <field name="channel_status_phone" string="Phone" widget="badge"
+                 decoration-success="channel_status_phone == 'effective'"
+                 decoration-warning="channel_status_phone == 'pending'"
+                 decoration-muted="channel_status_phone == 'off'"/>
+          <field name="channel_status_webrtc" string="WebRTC" widget="badge"
+                 decoration-success="channel_status_webrtc == 'effective'"
+                 decoration-warning="channel_status_webrtc == 'pending'"
+                 decoration-muted="channel_status_webrtc == 'off'"/>
+        </group>
+      </xpath>
+      <xpath expr="//page[@name='provisioning_status']/group[@name='telephony']" position="after">
+        <group string="Provisioning">
+          <field name="provisioning_drift_status" string="Drift" widget="badge"
+                 decoration-success="provisioning_drift_status == 'matched'"
+                 decoration-danger="provisioning_drift_status == 'drift'"
+                 decoration-muted="provisioning_drift_status == 'unknown'"/>
+        </group>
+      </xpath>
+    </field>
+  </record>
+</odoo>

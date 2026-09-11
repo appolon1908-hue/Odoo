@@ -37,11 +37,39 @@ class CcCampaignMembershipTelephonyAssignment(models.Model):
     channel_ids = fields.One2many(
         "codestra.agent.channel", "membership_id", string="Agent Channels"
     )
-
-    _extension_unique_active = models.UniqueIndex(
-        "(extension) WHERE state = 'active' AND extension IS NOT NULL",
-        "An extension may be assigned to only one active membership.",
+    # Campaign-scoped "agent account" fields, per the reconciled Milestone 1
+    # design: rather than a separate codestra.agent.account model duplicating
+    # user_id/employee_id/role/vicidial_user/campaign_email_identity (all
+    # already here), the platform identity and its per-channel resources are
+    # linked directly onto the membership that already carries those fields.
+    platform_user_id = fields.Many2one(
+        "codestra.platform.user", ondelete="restrict", index=True, copy=False
     )
+    phone_assignment_id = fields.Many2one(
+        "codestra.extension.assignment", ondelete="set null", copy=False,
+        help="The shared, environment-scoped extension assignment for this "
+        "agent's platform user - the same assignment is reused across every "
+        "campaign membership that platform user holds, never duplicated "
+        "per campaign.",
+    )
+    email_identity_id = fields.Many2one(
+        "codestra.company.mailbox", ondelete="set null", copy=False
+    )
+    sms_profile_id = fields.Many2one(
+        "codestra.agent.channel", compute="_compute_sms_profile_id", store=True,
+    )
+
+    _platform_user_campaign_unique = models.UniqueIndex(
+        "(platform_user_id, campaign_id) WHERE platform_user_id IS NOT NULL",
+        "A platform user may have only one membership per campaign.",
+    )
+
+    @api.depends("channel_ids.channel_type")
+    def _compute_sms_profile_id(self):
+        for membership in self:
+            membership.sms_profile_id = membership.channel_ids.filtered(
+                lambda c: c.channel_type == "sms"
+            )[:1]
 
     def _channel_enabled(self, channel_type):
         self.ensure_one()
@@ -79,6 +107,21 @@ class CcWebrtcSession(models.Model):
     active_session = fields.Boolean(
         compute="_compute_active_session", store=True, index=True
     )
+    # The real webphone session issuer (codestra-middleware-webphone-
+    # session-issuer) exists now, but its own provisioning contract locks
+    # every session to campaign_id=TEST_SYN, endpoint=6101, environment=
+    # STAGING, permitted_call_scope=["6000"] - rejected client- and
+    # server-side otherwise. This column is where that issuer's real
+    # session/token correlation id will go once a production-scoped issuer
+    # exists; unused (empty) until then.
+    active_session_reference = fields.Char(copy=False)
+
+    # max_webrtc_endpoints = 1 / max_active_sessions = 1: not separate
+    # columns - _one_active_session_per_membership already makes both
+    # structurally impossible to violate (one device/endpoint IS one
+    # session in this model), so a "1" column would carry no information
+    # a query against this index doesn't already guarantee.
+    MAX_ACTIVE_SESSIONS_PER_MEMBERSHIP = 1
 
     _one_active_session_per_membership = models.UniqueIndex(
         "(membership_id) WHERE revoked_at IS NULL",

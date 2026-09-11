@@ -187,6 +187,45 @@ class TestIdentityProvisioning(TransactionCase):
         self.assertEqual(first.extension, "6100")
         self.assertEqual(second.extension, "6102")
 
+    def test_adopt_existing_phone_assignment_brings_6101_under_management(self):
+        request = self.env["codestra.provisioning.request"].create(
+            self._request_values("adopt-6101-request")
+        )
+        self.env["codestra.extension.pool"].create({
+            "name": "Synthetic Supervisor Pool",
+            "code": "SYN-SUP",
+            "business_unit_id": self.unit.id,
+            "start_extension": 6900,
+            "end_extension": 6999,
+            "context": "codestra_restricted",
+            "active": True,
+        })
+        Assignment = self.env["codestra.extension.assignment"]
+        adopted = Assignment.action_adopt_existing_phone_assignment(
+            self.employee, request, extension="6101", vicidial_user="cod00016",
+        )
+        self.assertEqual(adopted.extension, "6101")
+        self.assertTrue(adopted.adopted)
+        self.assertEqual(adopted.state, "committed")
+
+        with self.assertRaises(UserError):
+            Assignment.action_adopt_existing_phone_assignment(
+                self.employee, request, extension="6101", vicidial_user="cod00016",
+            )
+
+        # Normal allocation must still never select 6101, even after adoption.
+        pool = self.env["codestra.extension.pool"].create({
+            "name": "Synthetic 6100 Range",
+            "code": "SYN-61B",
+            "business_unit_id": self.unit.id,
+            "start_extension": 6100,
+            "end_extension": 6102,
+            "context": "codestra_restricted",
+            "active": True,
+        })
+        allocated = pool.reserve_extension(self.employee, request)
+        self.assertNotEqual(allocated.extension, "6101")
+
     def test_role_privilege_change_creates_new_version(self):
         self.template.write({"allows_transfer": True})
         versions = self.env["codestra.role.template"].with_context(
@@ -562,7 +601,7 @@ class TestIdentityProvisioning(TransactionCase):
         channel.invalidate_recordset()
         self.assertEqual(channel.state, "provisioned")
         self.assertEqual(channel.external_id, "mailbox-1")
-        self.assertEqual(channel.external_reference, "mailbox-ref-1")
+        self.assertEqual(channel.provider_reference, "mailbox-ref-1")
 
     def test_service_callback_failed_step_marks_the_agent_channel_failed(self):
         provision_request = self.env["codestra.provisioning.request"].create({

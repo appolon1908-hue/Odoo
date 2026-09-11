@@ -1,0 +1,92 @@
+<odoo>
+  <record id="view_provisioning_wizard_form" model="ir.ui.view">
+    <field name="name">codestra.provisioning.wizard.form</field>
+    <field name="model">codestra.provisioning.wizard</field>
+    <field name="arch" type="xml">
+      <form string="Guided Agent Provisioning">
+        <header>
+          <field name="state" widget="statusbar"
+                 statusbar_visible="person,products,campaigns,telephony,plan_review,done"/>
+        </header>
+        <sheet>
+          <group string="Person" invisible="state != 'person'">
+            <field name="full_name"/>
+            <field name="primary_email"/>
+            <field name="tenant_id"/>
+            <field name="employee_external_id"/>
+          </group>
+
+          <group string="Products" invisible="state != 'products'">
+            <field name="odoo_access_enabled" widget="boolean_toggle" string="Odoo CRM"/>
+            <field name="phone_enabled" widget="boolean_toggle" string="Phone"/>
+            <field name="webrtc_enabled" widget="boolean_toggle" string="WebRTC"/>
+            <field name="sms_enabled" widget="boolean_toggle" string="Telnexa SMS"/>
+            <field name="email_enabled" widget="boolean_toggle" string="Klyrow Email"/>
+          </group>
+
+          <group string="Campaigns" invisible="state != 'campaigns'">
+            <field name="campaign_line_ids" nolabel="1">
+              <list editable="bottom">
+                <field name="campaign_id"/>
+                <field name="role"/>
+                <field name="campaign_username"/>
+                <field name="campaign_email_identity"/>
+                <field name="phone_access" widget="boolean_toggle"/>
+                <field name="email_access" widget="boolean_toggle"/>
+                <field name="sms_access" widget="boolean_toggle"/>
+              </list>
+            </field>
+          </group>
+
+          <group string="Telephony" invisible="state != 'telephony'">
+            <group>
+              <field name="extension_mode"/>
+              <field name="existing_extension_assignment_id"
+                     invisible="extension_mode != 'existing'"/>
+            </group>
+            <group>
+              <field name="incoming_allowed" widget="boolean_toggle"/>
+              <field name="outgoing_allowed" widget="boolean_toggle"/>
+              <field name="max_webrtc_endpoints" readonly="1"/>
+            </group>
+          </group>
+
+          <group string="Plan Review" invisible="state != 'plan_review'">
+            <field name="plan_summary" nolabel="1" readonly="1"/>
+          </group>
+
+          <group string="Submitted" invisible="state != 'done'">
+            <div class="alert alert-success" role="status">
+              A durable provisioning request has been recorded. Odoo has
+              made no Keycloak, VICIdial, Klyrow, or Telnexa call - the
+              Middleware-mediated dispatch path picks this up from here.
+            </div>
+            <field name="created_platform_user_id" readonly="1"/>
+            <field name="created_request_id" readonly="1"/>
+          </group>
+        </sheet>
+        <footer>
+          <button name="action_back" type="object" string="Back"
+                  invisible="state in ('person', 'done')"/>
+          <button name="action_next" type="object" string="Next" class="btn-primary"
+                  invisible="state in ('plan_review', 'done')"/>
+          <button name="action_submit" type="object" string="Submit" class="btn-primary"
+                  invisible="state != 'plan_review'"/>
+          <button name="action_view_provisioning_request" type="object"
+                  string="View Provisioning Request" class="btn-primary"
+                  invisible="state != 'done'"/>
+          <button string="Close" special="cancel"/>
+        </footer>
+      </form>
+    </field>
+  </record>
+  <record id="action_provisioning_wizard" model="ir.actions.act_window">
+    <field name="name">Guided Agent Provisioning</field>
+    <field name="res_model">codestra.provisioning.wizard</field>
+    <field name="view_mode">form</field>
+    <field name="target">new</field>
+  </record>
+  <menuitem id="menu_platform_admin_wizard" name="Guided Agent Provisioning"
+            parent="menu_platform_administration_root"
+            action="action_provisioning_wizard" sequence="1"/>
+</odoo>
