@@ -1,6 +1,6 @@
 {
     "name": "Codestra VICIdial CRM",
-    "version": "19.0.3.5.0",
+    "version": "19.0.3.6.0",
     "summary": "Fail-closed VICIdial integration with governed real-time agent screen pops",
     "author": "Codestra",
     "license": "LGPL-3",

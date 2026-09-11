@@ -11,7 +11,19 @@ class Agent(models.Model):
     employee_code = fields.Char()
     odoo_user_id = fields.Many2one("res.users")
     tenant_id = fields.Char(required=True, default="COD", index=True)
-    phone_login = fields.Char(index=True)
+    webrtc_enabled = fields.Boolean(
+        string="WebRTC Phone Enabled",
+        default=False,
+        help=(
+            "Allow this agent to receive exactly one browser WebRTC/SIP extension. "
+            "Leave disabled for agents who do not use the browser phone."
+        ),
+    )
+    phone_login = fields.Char(
+        string="WebRTC Extension",
+        index=True,
+        help="Exactly one extension is required when WebRTC Phone Enabled is on.",
+    )
     user_group = fields.Char()
     active = fields.Boolean(default=True)
     status = fields.Selection(
@@ -37,8 +49,67 @@ class Agent(models.Model):
     external_updated_at = fields.Datetime()
     sync_state = fields.Selection([("new", "New"), ("synced", "Synced"), ("error", "Error")], default="new")
     notes = fields.Text()
+    @api.model_create_multi
+    def create(self, vals_list):
+        normalized = []
+        for values in vals_list:
+            values = dict(values)
+            # Backward compatibility for existing integrations/tests that already
+            # use phone_login as the signal for a browser phone assignment. New
+            # agents created without an extension remain WebRTC-disabled.
+            if "webrtc_enabled" not in values and values.get("phone_login"):
+                values["webrtc_enabled"] = True
+            normalized.append(values)
+        return super().create(normalized)
+
     _vicidial_user_unique = models.Constraint("UNIQUE(vicidial_user)", "VICIdial user must be unique.")
-    _phone_login_unique = models.Constraint("UNIQUE(phone_login)", "Phone login must be unique.")
+    _phone_login_unique = models.Constraint(
+        "UNIQUE(phone_login)", "A WebRTC extension may belong to only one agent."
+    )
+    _odoo_user_unique = models.Constraint(
+        "UNIQUE(odoo_user_id)", "An Odoo user may have only one telephony agent profile."
+    )
+
+    @api.constrains("webrtc_enabled", "phone_login", "odoo_user_id")
+    def _check_webrtc_assignment(self):
+        for record in self:
+            extension = (record.phone_login or "").strip()
+            if record.webrtc_enabled:
+                if not record.odoo_user_id:
+                    raise ValidationError(
+                        "A WebRTC-enabled agent must be assigned to an Odoo user."
+                    )
+                if not extension:
+                    raise ValidationError(
+                        "A WebRTC-enabled agent must have exactly one extension."
+                    )
+            elif extension:
+                raise ValidationError(
+                    "Disable/remove the WebRTC extension before turning WebRTC off."
+                )
+
+            if record.odoo_user_id:
+                duplicate_user = self.search_count(
+                    [
+                        ("id", "!=", record.id),
+                        ("odoo_user_id", "=", record.odoo_user_id.id),
+                    ]
+                )
+                if duplicate_user:
+                    raise ValidationError(
+                        "An Odoo user may have only one telephony agent profile."
+                    )
+            if extension:
+                duplicate_extension = self.search_count(
+                    [
+                        ("id", "!=", record.id),
+                        ("phone_login", "=", extension),
+                    ]
+                )
+                if duplicate_extension:
+                    raise ValidationError(
+                        "A WebRTC extension may belong to only one agent."
+                    )
 
 
 class Campaign(models.Model):
@@ -90,6 +161,12 @@ class Phone(models.Model):
     assigned_agent_id = fields.Many2one("codestra.vicidial.agent")
     status = fields.Char()
     last_registration_at = fields.Datetime()
+    _extension_unique = models.Constraint(
+        "UNIQUE(extension)", "A phone extension may have only one Odoo phone projection."
+    )
+    _assigned_agent_unique = models.Constraint(
+        "UNIQUE(assigned_agent_id)", "An agent may have only one assigned phone."
+    )
 
 
 class Disposition(models.Model):
