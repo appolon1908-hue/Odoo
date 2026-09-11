@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="access_phone_manager_webrtc" model="ir.model.access">
+    <field name="name">WebRTC phone manager</field>
+    <field name="model_id" ref="model_codestra_vicidial_phone"/>
+    <field name="group_id" ref="group_manager"/>
+    <field name="perm_read" eval="True"/>
+    <field name="perm_write" eval="True"/>
+    <field name="perm_create" eval="True"/>
+    <field name="perm_unlink" eval="False"/>
+  </record>
+  <record id="access_phone_integration_admin_webrtc" model="ir.model.access">
+    <field name="name">WebRTC phone integration administrator</field>
+    <field name="model_id" ref="model_codestra_vicidial_phone"/>
+    <field name="group_id" ref="group_integration_admin"/>
+    <field name="perm_read" eval="True"/>
+    <field name="perm_write" eval="True"/>
+    <field name="perm_create" eval="True"/>
+    <field name="perm_unlink" eval="False"/>
+  </record>
+</odoo>
