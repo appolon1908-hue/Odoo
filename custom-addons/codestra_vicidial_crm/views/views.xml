@@ -42,7 +42,7 @@
             <field name="campaign_external_id" readonly="1"/>
             <field name="supervisor_user_id" groups="base.group_system"/>
             <field name="supervisor_user_id" readonly="1" groups="!base.group_system"/>
-            <field name="extension_pool_id" readonly="1"/>
+            <field name="extension_pool_active" readonly="1"/>
             <field name="phone_login" string="Odoo Extension" readonly="1"/>
           </group>
           <group>
@@ -76,7 +76,7 @@
       <field name="name"/>
       <field name="campaign_id"/>
       <field name="mode"/>
-      <field name="extension_pool_id"/>
+      <field name="extension_pool_active"/>
       <field name="read_only"/>
       <field name="sync_enabled"/>
     </list>
@@ -93,8 +93,12 @@
           <field name="campaign_id"/>
           <field name="mode"/>
           <field name="active"/>
-          <field name="extension_pool_id" groups="base.group_system"/>
-          <field name="extension_pool_id" readonly="1" groups="!base.group_system"/>
+          <field name="extension_range_start" groups="base.group_system"/>
+          <field name="extension_range_start" readonly="1" groups="!base.group_system"/>
+          <field name="extension_range_end" groups="base.group_system"/>
+          <field name="extension_range_end" readonly="1" groups="!base.group_system"/>
+          <field name="extension_pool_active" groups="base.group_system"/>
+          <field name="extension_pool_active" readonly="1" groups="!base.group_system"/>
           <field name="supervisor_ids" widget="many2many_tags"/>
           <field name="read_only"/>
           <field name="sync_enabled"/>

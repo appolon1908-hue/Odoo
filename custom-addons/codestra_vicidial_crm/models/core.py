@@ -43,9 +43,9 @@ class Agent(models.Model):
     campaign_external_id = fields.Char(
         related="primary_campaign_id.campaign_id", string="Campaign ID", readonly=True
     )
-    extension_pool_id = fields.Many2one(
-        related="primary_campaign_id.extension_pool_id",
-        string="Extension Pool",
+    extension_pool_active = fields.Boolean(
+        related="primary_campaign_id.extension_pool_active",
+        string="Extension Pool Active",
         readonly=True,
     )
     campaign_ids = fields.Many2many("codestra.vicidial.campaign")
@@ -150,14 +150,22 @@ class Agent(models.Model):
     def _allocate_extension_for_campaign(self, campaign, exclude_agent_id=0):
         if not campaign or not campaign.exists():
             raise UserError("A primary campaign is required before allocating an extension.")
-        pool = campaign.extension_pool_id
-        if not pool or not pool.active:
+        if not campaign.extension_pool_active:
             raise UserError(
                 "The campaign has no verified active extension pool. Configure the pool before assigning agents."
             )
+        # Lock the campaign row itself: this module owns and allocates from its
+        # own extension_range_start/end fields directly, rather than a separate
+        # pool model in another addon. codestra_vicidial_crm sits upstream of
+        # codestra_identity_provisioning in the module dependency graph (via
+        # call_center_campaign -> codestra_integration_hub ->
+        # codestra_vicidial_crm), so it cannot depend on that module's
+        # codestra.extension.pool/codestra.extension.assignment without a
+        # circular dependency; allocation here is self-contained and only
+        # checks this module's own tables.
         self.env.cr.execute(
-            "SELECT id FROM codestra_extension_pool WHERE id = %s FOR UPDATE",
-            [pool.id],
+            "SELECT id FROM codestra_vicidial_campaign WHERE id = %s FOR UPDATE",
+            [campaign.id],
         )
         self.env.cr.execute(
             """
@@ -176,18 +184,12 @@ class Agent(models.Model):
                      WHERE phone.extension = candidate::varchar
                        AND phone.active IS TRUE
                )
-               AND NOT EXISTS (
-                    SELECT 1
-                      FROM codestra_extension_assignment assignment
-                     WHERE assignment.extension = candidate::varchar
-                       AND assignment.state IN ('reserved', 'committed')
-               )
              ORDER BY candidate
              LIMIT 1
             """,
             [
-                pool.start_extension,
-                pool.end_extension,
+                campaign.extension_range_start,
+                campaign.extension_range_end,
                 list(AUTO_ALLOCATION_EXCLUDED_EXTENSIONS),
                 int(exclude_agent_id or 0),
             ],
@@ -412,14 +414,6 @@ class Agent(models.Model):
             )
             if phones:
                 phones.write({"active": False, "status": "REPLACEMENT_PENDING"})
-            assignments = self.env["codestra.extension.assignment"].sudo().search(
-                [("extension", "=", extension), ("state", "in", ("reserved", "committed"))]
-            )
-            if assignments:
-                assignments.write({
-                    "state": "released",
-                    "released_at": fields.Datetime.now(),
-                })
 
     def action_replace_extension(self):
         if not self._is_telephony_super_admin():
@@ -469,10 +463,17 @@ class Campaign(models.Model):
     dial_method = fields.Char()
     campaign_type = fields.Char()
     inbound_group = fields.Char()
-    extension_pool_id = fields.Many2one(
-        "codestra.extension.pool",
-        string="Extension Pool",
-        ondelete="restrict",
+    extension_range_start = fields.Integer(
+        string="Extension Range Start",
+        help="Lowest extension Odoo may auto-allocate for this campaign's agents.",
+    )
+    extension_range_end = fields.Integer(
+        string="Extension Range End",
+        help="Highest extension Odoo may auto-allocate for this campaign's agents.",
+    )
+    extension_pool_active = fields.Boolean(
+        string="Extension Pool Active",
+        default=False,
         help="Verified pool used by Odoo to allocate one extension per agent.",
     )
     allowed_agent_ids = fields.Many2many("codestra.vicidial.agent")
@@ -496,20 +497,36 @@ class Campaign(models.Model):
         "CHECK(wrap_up_timeout_seconds >= 0)", "Wrap-up timeout cannot be negative."
     )
 
+    _EXTENSION_POOL_FIELDS = frozenset(
+        {"extension_range_start", "extension_range_end", "extension_pool_active"}
+    )
+
     @api.model_create_multi
     def create(self, vals_list):
-        if any(values.get("extension_pool_id") for values in vals_list) and not (
-            self.env.su or self.env.user.has_group("base.group_system")
-        ):
+        if any(
+            self._EXTENSION_POOL_FIELDS.intersection(values) for values in vals_list
+        ) and not (self.env.su or self.env.user.has_group("base.group_system")):
             raise AccessError("Only a Super Admin may assign a campaign extension pool.")
         return super().create(vals_list)
 
     def write(self, values):
-        if "extension_pool_id" in values and not (
+        if self._EXTENSION_POOL_FIELDS.intersection(values) and not (
             self.env.su or self.env.user.has_group("base.group_system")
         ):
             raise AccessError("Only a Super Admin may change a campaign extension pool.")
         return super().write(values)
+
+    @api.constrains("extension_pool_active", "extension_range_start", "extension_range_end")
+    def _check_extension_pool_range(self):
+        for campaign in self:
+            if not campaign.extension_pool_active:
+                continue
+            if campaign.extension_range_start <= 0 or campaign.extension_range_end <= 0:
+                raise ValidationError(
+                    "An active extension pool requires a positive extension range."
+                )
+            if campaign.extension_range_start > campaign.extension_range_end:
+                raise ValidationError("The extension range start must not exceed its end.")
 
 
 class Phone(models.Model):

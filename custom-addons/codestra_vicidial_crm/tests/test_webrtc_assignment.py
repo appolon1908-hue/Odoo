@@ -9,18 +9,6 @@ class TestTelephonyAssignment(TransactionCase):
         cls.unit = cls.env["call.center.business.unit"].create(
             {"name": "WebRTC Assignment Unit", "code": "WRA"}
         )
-        cls.pool = cls.env["codestra.extension.pool"].create(
-            {
-                "name": "WebRTC Campaign Pool",
-                "code": "WRA-6100",
-                "business_unit_id": cls.unit.id,
-                "start_extension": 6100,
-                "end_extension": 6104,
-                "context": "codestra_restricted",
-                "active": True,
-                "one_user_one_endpoint": True,
-            }
-        )
         cls.supervisor = new_test_user(
             cls.env,
             login="webrtc.supervisor@example.test",
@@ -31,7 +19,9 @@ class TestTelephonyAssignment(TransactionCase):
                 "name": "Transportation",
                 "campaign_id": "TRANSPORT",
                 "mode": "production",
-                "extension_pool_id": cls.pool.id,
+                "extension_range_start": 6100,
+                "extension_range_end": 6104,
+                "extension_pool_active": True,
                 "supervisor_ids": [(6, 0, [cls.supervisor.id])],
             }
         )
