@@ -188,6 +188,11 @@
           "path": "models/crm_lead.py",
           "kind": "odoo_cursor_locking",
           "reason": "Click-to-call reservation creation locks the selected Odoo agent row with SELECT FOR UPDATE on the existing cursor so concurrent UI requests cannot originate two calls."
+        },
+        {
+          "path": "models/core.py",
+          "kind": "odoo_cursor_locking",
+          "reason": "Campaign extension allocation uses only the existing Odoo cursor: one SELECT ... FOR UPDATE serializes the mapped extension pool, followed by one statically inspectable SELECT that picks the lowest free extension while excluding 6101 and all active Odoo/provisioning assignments. No external database connection or mutation SQL is introduced."
         }
       ]
     },
