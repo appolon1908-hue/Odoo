@@ -1,6 +1,8 @@
 import uuid
 from unittest.mock import patch
 
+from psycopg2.errors import UniqueViolation
+
 from odoo import SUPERUSER_ID, fields
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import tagged
@@ -298,6 +300,64 @@ class TestCodestraAgentOnboarding(TransactionCase):
         self.assertEqual(onboarding.campaign_membership_id, existing_membership)
         self.assertEqual(onboarding.provisioning_request_id, existing_request)
 
+    def test_channel_switches_create_scoped_fail_closed_projections(self):
+        onboarding = self._new_onboarding(
+            email="channels.agent@example.invalid"
+        )
+        onboarding.write({
+            "needs_company_email": True,
+            "needs_sip_endpoint": True,
+            "webrtc_enabled": True,
+            "sms_enabled": True,
+            "incoming_calls_enabled": True,
+            "outgoing_calls_enabled": True,
+        })
+
+        self._start(onboarding)
+        channels = self.env["codestra.agent.channel"].search(
+            [("onboarding_id", "=", onboarding.id)],
+            order="channel_type",
+        )
+        self.assertEqual(
+            set(channels.mapped("channel_type")),
+            {"email", "sms", "phone", "webrtc"},
+        )
+        self.assertEqual(len(channels), 4)
+        self.assertEqual(
+            self.env["codestra.agent.channel"].search_count([
+                ("employee_id", "=", onboarding.employee_id.id),
+                ("channel_type", "=", "webrtc"),
+            ]),
+            1,
+        )
+        phone = channels.filtered(lambda channel: channel.channel_type == "phone")
+        self.assertEqual(phone.extension, onboarding.campaign_membership_id.extension)
+        self.assertTrue(phone.incoming_allowed)
+        self.assertTrue(phone.outgoing_allowed)
+        for channel in channels:
+            self.assertFalse(channel.effective_access)
+
+        email = channels.filtered(lambda channel: channel.channel_type == "email")
+        email.write({"desired_enabled": False})
+        self.assertFalse(email.desired_enabled)
+        self.assertFalse(email.effective_access)
+
+        with self.assertRaises(AccessError):
+            email.with_user(self.identity_service).write(
+                {"desired_enabled": True}
+            )
+
+        with self.cr.savepoint():
+            with self.assertRaises(UniqueViolation):
+                self.env["codestra.agent.channel"].sudo().create({
+                    "employee_id": onboarding.employee_id.id,
+                    "campaign_id": self.campaign.id,
+                    "membership_id": onboarding.campaign_membership_id.id,
+                    "supervisor_id": self.supervisor.id,
+                    "channel_type": "webrtc",
+                    "desired_enabled": True,
+                })
+
     def test_inactive_user_creation_is_safe_under_archived_lookup_context(self):
         onboarding = self._new_onboarding().with_context(active_test=False)
         request_record = self._prepare(onboarding)
@@ -440,6 +500,14 @@ class TestCodestraAgentOnboarding(TransactionCase):
         request_record.invalidate_recordset(["state", "mandatory_steps_complete"])
         self.assertEqual(request_record.state, "awaiting_user_activation")
         self.assertTrue(request_record.mandatory_steps_complete)
+        channels = self.env["codestra.agent.channel"].search([
+            ("onboarding_id", "=", onboarding.id),
+        ])
+        for channel in channels.filtered(
+            lambda row: row.channel_type in {"email", "phone"}
+        ):
+            self.assertEqual(channel.state, "provisioned")
+            self.assertEqual(channel.readback_evidence_hash, "a" * 64)
         self.assertEqual(
             provisioning_model.apply_service_callback(callback), {"state": "replayed"}
         )
