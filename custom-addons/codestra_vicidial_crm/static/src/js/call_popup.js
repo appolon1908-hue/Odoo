@@ -7,6 +7,16 @@ import { useService } from "@web/core/utils/hooks";
 
 import { CallingRealtimeClient } from "./calling_realtime";
 
+// Odoo's JSON-RPC dispatcher always sets the top-level error message to the
+// literal string "Odoo Server Error" (see odoo/http.py JsonRPCDispatcher.
+// handle_error) for any exception besides NotFound/SessionExpired. The actual
+// exception message (e.g. an AccessError raised by an agent-binding check)
+// only lives in `error.data.message`, so callers must read that first or the
+// agent sees the generic wrapper text instead of the real reason.
+function errorMessage(error, fallback) {
+    return error?.data?.message || error?.message || fallback;
+}
+
 export class CodestraCallPopup extends Component {
     static template = "codestra_vicidial_crm.CallPopup";
 
@@ -85,7 +95,7 @@ export class CodestraCallPopup extends Component {
                 const current = await this.rpc("/codestra/call-control/v1/current", {});
                 if (current) await this.handleCall(current);
             } catch (error) {
-                this.ui.error = error.message || "Phone unavailable";
+                this.ui.error = errorMessage(error, "Phone unavailable");
             }
         });
     }
@@ -106,7 +116,7 @@ export class CodestraCallPopup extends Component {
         } catch (error) {
             this.ui.dialpad.enabled = false;
             this.ui.dialpad.status = "Unavailable";
-            this.ui.dialpad.reason = error.message || "Dialer is unavailable.";
+            this.ui.dialpad.reason = errorMessage(error, "Dialer is unavailable.");
         }
     }
 
@@ -166,7 +176,7 @@ export class CodestraCallPopup extends Component {
             this.ui.dialpad.error = "";
             return result;
         } catch (error) {
-            this.ui.dialpad.error = error.message || "Number lookup failed.";
+            this.ui.dialpad.error = errorMessage(error, "Number lookup failed.");
             return null;
         }
     }
@@ -191,7 +201,7 @@ export class CodestraCallPopup extends Component {
             await this.handleCall(result.call);
             this.notification.add("Call request accepted; waiting for telephony confirmation.", { type: "info" });
         } catch (error) {
-            this.ui.dialpad.error = error.message || "Call request failed.";
+            this.ui.dialpad.error = errorMessage(error, "Call request failed.");
         } finally {
             this.ui.dialpad.busy = false;
         }
@@ -204,22 +214,32 @@ export class CodestraCallPopup extends Component {
         this.ui.call = payload;
         this.ui.notes = payload.notes || this.ui.notes;
         this.ui.matches = [];
-        if (!payload.customer && !payload.lead && payload.caller_number) {
-            const result = await this.rpc("/codestra/call-control/v1/match", {
-                number: payload.caller_number,
-                call_id: payload.call_id,
-                campaign_code: payload.campaign,
-                business_unit_id: payload.business_unit,
-            });
-            this.ui.matches = result.matches || [];
-            if (result.match === "exact") await this.openRecord(result.matches[0].model, result.matches[0].id, true);
-        } else if (payload.lead) {
-            await this.openRecord("crm.lead", payload.lead.id, true);
-        } else if (payload.customer) {
-            await this.openRecord("res.partner", payload.customer.id, true);
+        this.ui.error = "";
+        // Called unawaited from the bus listener on every authoritative call-state
+        // push (ringing/answering/connected/...), so a transient failure here -
+        // e.g. an agent/tenant binding race right as the call connects - must
+        // never propagate as an unhandled rejection. Surface it on the popup
+        // instead of letting the generic "Odoo Server Error" dialog appear.
+        try {
+            if (!payload.customer && !payload.lead && payload.caller_number) {
+                const result = await this.rpc("/codestra/call-control/v1/match", {
+                    number: payload.caller_number,
+                    call_id: payload.call_id,
+                    campaign_code: payload.campaign,
+                    business_unit_id: payload.business_unit,
+                });
+                this.ui.matches = result.matches || [];
+                if (result.match === "exact") await this.openRecord(result.matches[0].model, result.matches[0].id, true);
+            } else if (payload.lead) {
+                await this.openRecord("crm.lead", payload.lead.id, true);
+            } else if (payload.customer) {
+                await this.openRecord("res.partner", payload.customer.id, true);
+            }
+            const history = await this.rpc(`/codestra/call-control/v1/calls/${payload.call_id}/history`, { limit: 20 });
+            this.ui.history = history.items || [];
+        } catch (error) {
+            this.ui.error = errorMessage(error, "Call details are temporarily unavailable.");
         }
-        const history = await this.rpc(`/codestra/call-control/v1/calls/${payload.call_id}/history`, { limit: 20 });
-        this.ui.history = history.items || [];
     }
 
     async control(action, extra = {}) {
@@ -232,7 +252,7 @@ export class CodestraCallPopup extends Component {
             });
             this.notification.add(`${action[0].toUpperCase() + action.slice(1)} requested; awaiting Asterisk confirmation`, { type: "info" });
         } catch (error) {
-            this.ui.error = error.message || "Call control failed";
+            this.ui.error = errorMessage(error, "Call control failed");
         } finally {
             this.ui.busy = false;
         }
