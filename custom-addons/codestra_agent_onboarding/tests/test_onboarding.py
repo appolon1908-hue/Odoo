@@ -78,6 +78,14 @@ class TestCodestraAgentOnboarding(TransactionCase):
                 "codestra_cc_security.group_cc_campaign_supervisor",
             ],
         )
+        cls.non_admin_manager = cls._create_user(
+            "Onboarding Manager (Non-Admin)",
+            "onboarding.manager.nonadmin@example.invalid",
+            [
+                "base.group_user",
+                "call_center_core.group_call_center_manager",
+            ],
+        )
 
         cls.branch = cls.env["call.center.branch"].create(
             {
@@ -630,6 +638,50 @@ class TestCodestraAgentOnboarding(TransactionCase):
         self.assertTrue(payload["telephony_assignment"]["sms_enabled"])
         self.assertEqual(payload["telephony_assignment"]["webrtc_max_devices"], 1)
         self.assertFalse(payload["controls"]["webrtc_credential_issuance"])
+
+    def test_communication_channel_switches_require_global_administrator(self):
+        onboarding = self._new_onboarding(email="channel.switch.rbac@example.invalid")
+        for field_name, value in (
+            ("needs_company_email", False),
+            ("needs_sip_endpoint", False),
+            ("webrtc_enabled", True),
+            ("sms_enabled", True),
+        ):
+            with self.subTest(field=field_name), self.assertRaises(AccessError):
+                onboarding.with_user(self.non_admin_manager).write({field_name: value})
+        onboarding.with_user(self.requester).write(
+            {"webrtc_enabled": True, "sms_enabled": True}
+        )
+        self.assertTrue(onboarding.webrtc_enabled)
+        self.assertTrue(onboarding.sms_enabled)
+
+        with self.assertRaises(AccessError):
+            self.env["codestra.agent.onboarding"].with_user(
+                self.non_admin_manager
+            ).create(
+                {
+                    "employee_id": self.env["hr.employee"].create(
+                        {
+                            "name": "Channel Switch RBAC Candidate",
+                            "company_id": self.company.id,
+                            "call_center_branch_id": self.branch.id,
+                        }
+                    ).id,
+                    "manager_id": self.requester.id,
+                    "target_start_date": fields.Date.today(),
+                    "campaign_id": self.campaign.id,
+                    "campaign_role": "agent",
+                    "branch_id": self.branch.id,
+                    "department_id": self.department.id,
+                    "operational_team_id": self.team.id,
+                    "supervisor_id": self.supervisor.id,
+                    "role_template_id": self.role_template.id,
+                    "activation_email": "channel.switch.rbac.create@example.invalid",
+                    "preferred_language": "en_US",
+                    "timezone": "UTC",
+                    "webrtc_enabled": True,
+                }
+            )
 
     def test_communication_channel_switches_are_on_the_onboarding_form(self):
         views = self.env["codestra.agent.onboarding"].get_views(

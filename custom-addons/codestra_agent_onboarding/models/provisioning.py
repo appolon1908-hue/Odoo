@@ -51,6 +51,12 @@ SYSTEM_LINK_FIELDS = {
     "provisioning_outbox_id",
     "activation_outbox_id",
 }
+COMMUNICATION_CHANNEL_FIELDS = {
+    "needs_company_email",
+    "needs_sip_endpoint",
+    "webrtc_enabled",
+    "sms_enabled",
+}
 PROVISION_EVENT = "agent.provisioning.requested.v1"
 ACTIVATION_EMAIL_EVENT = "agent.activation-email.requested.v1"
 EVENT_SCHEMA_VERSION = "1.0"
@@ -227,14 +233,29 @@ class CodestraAgentOnboardingProvisioning(models.Model):
         "Agent-onboarding desired-state versions must be positive.",
     )
 
+    def _require_global_administrator_for_channels(self):
+        if self.env.uid != SUPERUSER_ID and not self.env.user.has_group(
+            "codestra_cc_security.group_cc_global_administrator"
+        ):
+            raise AccessError(
+                _(
+                    "Only a global contact-center administrator may change "
+                    "communication channel switches (email, SMS, phone, WebRTC)."
+                )
+            )
+
     @api.model_create_multi
     def create(self, values_list):
         for values in values_list:
+            if COMMUNICATION_CHANNEL_FIELDS.intersection(values):
+                self._require_global_administrator_for_channels()
             values.setdefault("integration_uuid", str(uuid.uuid4()))
             values.setdefault("desired_state_version", 1)
         return super().create(values_list)
 
     def write(self, values):
+        if COMMUNICATION_CHANNEL_FIELDS.intersection(values):
+            self._require_global_administrator_for_channels()
         protected = IMMUTABLE_ASSIGNMENT_FIELDS & values.keys()
         if protected:
             for record in self:
