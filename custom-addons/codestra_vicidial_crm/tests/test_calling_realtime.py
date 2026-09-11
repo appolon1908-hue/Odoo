@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from odoo import Command
 from datetime import datetime, timedelta, timezone
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import TransactionCase, HttpCase, tagged
 
 from ..controllers.calling_realtime import CallingRealtimeAPI
@@ -56,8 +56,11 @@ class TestCallingRealtimeScope(TransactionCase):
                          'campaign_id': 'RTCAMP', 'agent_id': 'RTAGENT', 'odoo_user_id': str(self.user.id)})
 
     def test_duplicate_agent_fails_closed(self):
-        self.agent.copy({'vicidial_user': 'RTOTHER'})
-        with self.assertRaises(AccessError): self.api._scope()
+        # A second telephony agent profile for the same Odoo user is now
+        # rejected at creation (Odoo user uniqueness), an even stronger
+        # fail-closed guarantee than the old scope-time rejection.
+        with self.assertRaises(ValidationError):
+            self.agent.copy({'vicidial_user': 'RTOTHER'})
 
     def test_disabled_agent_cannot_connect(self):
         self.agent.active = False
@@ -73,7 +76,11 @@ class TestCallingRealtimeScope(TransactionCase):
 
     def test_multiple_campaigns_cannot_connect(self):
         other = self.campaign.copy({'campaign_id': 'RTOTHER'})
-        self.agent.campaign_ids |= other
+        # Normal writes now force exactly one campaign per agent; use the
+        # same internal escape hatch the governed replace-extension flow
+        # uses to exercise _scope()'s own defensive rejection of an agent
+        # somehow holding more than one campaign.
+        self.agent.with_context(telephony_assignment_internal=True).campaign_ids |= other
         self.user.allowed_campaign_ids |= other
         with self.assertRaises(AccessError): self.api._scope()
 
