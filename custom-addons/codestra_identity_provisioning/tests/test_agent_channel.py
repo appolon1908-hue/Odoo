@@ -466,12 +466,15 @@ class TestAgentChannel(TransactionCase):
         self.assertNotEqual(staging_copy.environment, self.assignment.environment)
 
     def test_multi_campaign_platform_user_shares_one_phone_assignment(self):
+        tenant = self.env["codestra.tenant"].with_user(self.super_admin).create({
+            "name": "Agent Channel Synthetic Tenant", "code": "AGCH-TENANT",
+        })
         platform_user = self.env["codestra.platform.user"].with_user(
             self.super_admin
         ).create({
             "name": "Shared Phone Platform User",
             "primary_email": "shared.phone.platform.user@example.invalid",
-            "tenant_id": "tenant-synthetic",
+            "tenant_id": tenant.id,
         })
         second_pool = self.env["codestra.extension.pool"].create({
             "name": "Shared Phone Pool",

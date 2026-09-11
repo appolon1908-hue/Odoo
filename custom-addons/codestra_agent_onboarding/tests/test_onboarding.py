@@ -882,15 +882,14 @@ class TestCodestraAgentOnboarding(TransactionCase):
         )
 
     def test_duplicate_platform_user_campaign_membership_rejected(self):
-        platform_user = self.env["codestra.platform.user"].with_user(
-            self.env.ref("base.user_admin")
-        ).create({
+        tenant = self.env["codestra.tenant"].with_user(SUPERUSER_ID).create({
+            "name": "Onboarding Synthetic Tenant", "code": "ONB-TENANT",
+        })
+        platform_user = self.env["codestra.platform.user"].with_user(SUPERUSER_ID).create({
             "name": "Duplicate Membership Platform User",
             "primary_email": "duplicate.membership.platform.user@example.invalid",
-            "tenant_id": "tenant-synthetic",
+            "tenant_id": tenant.id,
         })
-        first_employee = self.env["hr.employee"].create({"name": "First Slot"})
-        second_employee = self.env["hr.employee"].create({"name": "Second Slot"})
         first_user = self._create_user(
             "Duplicate Membership User One",
             "duplicate.membership.one@example.invalid",
@@ -900,6 +899,12 @@ class TestCodestraAgentOnboarding(TransactionCase):
             "Duplicate Membership User Two",
             "duplicate.membership.two@example.invalid",
             ["base.group_user"],
+        )
+        first_employee = self.env["hr.employee"].create(
+            {"name": "First Slot", "user_id": first_user.id}
+        )
+        second_employee = self.env["hr.employee"].create(
+            {"name": "Second Slot", "user_id": second_user.id}
         )
         self.env["cc.campaign.membership"].create({
             "user_id": first_user.id,

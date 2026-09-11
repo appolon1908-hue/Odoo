@@ -1,6 +1,6 @@
 import uuid
 
-from odoo import _, api, fields, models
+from odoo import SUPERUSER_ID, _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
 SUPER_ADMIN_GROUP = "codestra_identity_provisioning.group_provisioning_global_super_admin"
@@ -34,7 +34,9 @@ class CodestraPlatformUser(models.Model):
     )
     name = fields.Char(required=True, tracking=True)
     primary_email = fields.Char(required=True, tracking=True)
-    tenant_id = fields.Char(required=True, index=True, tracking=True)
+    tenant_id = fields.Many2one(
+        "codestra.tenant", required=True, ondelete="restrict", index=True, tracking=True
+    )
     keycloak_subject = fields.Char(copy=False, index=True)
 
     odoo_access_enabled = fields.Boolean(default=False, tracking=True)
@@ -106,10 +108,18 @@ class CodestraPlatformUser(models.Model):
         standalone Phone/Telnexa/Klyrow customer with access disabled is
         left exactly as-is - this is deliberately a no-op for them.
         """
+        self._require_super_admin()
         for record in self:
             if not record.odoo_access_enabled or record.odoo_user_id:
                 continue
-            user = self.env["res.users"].with_context(no_reset_password=True).create(
+            # Creating res.users is gated by Odoo's own narrow "Access
+            # Rights" group, which this module's Super Admin does not (and
+            # should not) automatically hold - _require_super_admin() above
+            # is the real authorization check; this elevation only lets an
+            # already-authorized caller reach the resource it needs.
+            user = self.env["res.users"].with_user(SUPERUSER_ID).with_context(
+                no_reset_password=True
+            ).create(
                 {
                     "name": record.name,
                     "login": record.primary_email,

@@ -1,0 +1,45 @@
+<odoo>
+  <record id="view_tenant_list" model="ir.ui.view">
+    <field name="name">codestra.tenant.list</field>
+    <field name="model">codestra.tenant</field>
+    <field name="arch" type="xml">
+      <list>
+        <field name="name"/>
+        <field name="code"/>
+        <field name="status" widget="badge"
+               decoration-success="status == 'active'"
+               decoration-warning="status == 'suspended'"/>
+      </list>
+    </field>
+  </record>
+  <record id="view_tenant_form" model="ir.ui.view">
+    <field name="name">codestra.tenant.form</field>
+    <field name="model">codestra.tenant</field>
+    <field name="arch" type="xml">
+      <form>
+        <header>
+          <field name="status" widget="statusbar"/>
+        </header>
+        <sheet>
+          <group>
+            <field name="name"/>
+            <field name="code"/>
+          </group>
+          <field name="platform_user_ids" readonly="1">
+            <list create="0">
+              <field name="name"/>
+              <field name="primary_email"/>
+              <field name="status"/>
+            </list>
+          </field>
+        </sheet>
+        <chatter/>
+      </form>
+    </field>
+  </record>
+  <record id="action_tenants" model="ir.actions.act_window">
+    <field name="name">Tenants</field>
+    <field name="res_model">codestra.tenant</field>
+    <field name="view_mode">list,form</field>
+  </record>
+</odoo>

@@ -25,6 +25,9 @@ class TestPlatformUser(TransactionCase):
             "platform-user-supervisor@example.invalid",
             ["codestra_cc_security.group_cc_campaign_supervisor"],
         )
+        cls.tenant = cls.env["codestra.tenant"].with_user(cls.super_admin).create({
+            "name": "Synthetic Tenant", "code": "SYN-TENANT",
+        })
 
     @classmethod
     def _create_user(cls, name, login, group_xmlids):
@@ -39,7 +42,7 @@ class TestPlatformUser(TransactionCase):
         values = {
             "name": "Standalone Customer",
             "primary_email": "standalone.customer@example.invalid",
-            "tenant_id": "tenant-synthetic",
+            "tenant_id": self.tenant.id,
         }
         values.update(extra)
         return values

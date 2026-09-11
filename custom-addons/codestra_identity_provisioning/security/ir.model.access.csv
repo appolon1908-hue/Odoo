@@ -29,3 +29,6 @@ access_agent_channel_super_admin,agent channel super admin,model_codestra_agent_
 access_platform_user_user,platform user read,model_codestra_platform_user,group_provisioning_user,1,0,0,0
 access_platform_user_service,platform user service read,model_codestra_platform_user,group_provisioning_service,1,0,0,0
 access_platform_user_super_admin,platform user super admin,model_codestra_platform_user,group_provisioning_global_super_admin,1,1,1,1
+access_tenant_user,tenant read,model_codestra_tenant,group_provisioning_user,1,0,0,0
+access_tenant_service,tenant service read,model_codestra_tenant,group_provisioning_service,1,0,0,0
+access_tenant_super_admin,tenant super admin,model_codestra_tenant,group_provisioning_global_super_admin,1,1,1,1
