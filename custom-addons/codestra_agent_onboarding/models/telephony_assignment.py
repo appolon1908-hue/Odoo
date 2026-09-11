@@ -31,6 +31,8 @@ class CcCampaignMembershipTelephonyAssignment(models.Model):
     extension = fields.Char(copy=False, index=True)
     webrtc_enabled = fields.Boolean(default=False, copy=False)
     sms_enabled = fields.Boolean(default=False, copy=False)
+    incoming_calls_enabled = fields.Boolean(default=False, copy=False)
+    outgoing_calls_enabled = fields.Boolean(default=False, copy=False)
     webrtc_session_ids = fields.One2many(
         "cc.webrtc.session", "membership_id", string="WebRTC Sessions"
     )
@@ -41,6 +43,21 @@ class CcCampaignMembershipTelephonyAssignment(models.Model):
     )
 
     def write(self, values):
+        permission_fields = {
+            "webrtc_enabled",
+            "sms_enabled",
+            "incoming_calls_enabled",
+            "outgoing_calls_enabled",
+        }
+        if permission_fields.intersection(values) and not (
+            self.env.su
+            or self.env.user.has_group(
+                "codestra_cc_security.group_cc_global_administrator"
+            )
+        ):
+            raise AccessError(
+                _("Only a global contact-center administrator may change channels.")
+            )
         result = super().write(values)
         if "webrtc_enabled" in values and not values["webrtc_enabled"]:
             self.webrtc_session_ids.filtered(lambda s: not s.revoked_at)._revoke(
