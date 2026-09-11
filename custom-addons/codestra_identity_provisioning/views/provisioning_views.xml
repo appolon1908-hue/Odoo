@@ -90,6 +90,10 @@
                 <field name="needs_agent_desktop"/>
                 <field name="needs_keycloak"/>
                 <field name="needs_vicidial"/>
+                <field name="incoming_calls_enabled"/>
+                <field name="outgoing_calls_enabled"/>
+                <field name="webrtc_enabled"/>
+                <field name="sms_enabled"/>
                 <field name="mandatory_steps_complete"/>
               </group>
               <field name="step_ids"/>
