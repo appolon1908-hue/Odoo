@@ -35,7 +35,8 @@ class TestCallingRealtimeScope(TransactionCase):
         cls.canonical.agent_ids = cls.user
         cls.agent = cls.env['codestra.vicidial.agent'].create({
             'name': 'Realtime agent', 'vicidial_user': 'RTAGENT', 'odoo_user_id': cls.user.id,
-            'tenant_id': 'RTTENANT', 'campaign_ids': [Command.set(cls.campaign.ids)]})
+            'tenant_id': 'RTTENANT', 'phone_login': '6110',
+            'campaign_ids': [Command.set(cls.campaign.ids)]})
 
     def setUp(self):
         super().setUp()
