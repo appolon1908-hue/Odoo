@@ -18,4 +18,12 @@
     <field name="global" eval="True"/>
     <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.has_group('codestra_agent_onboarding.group_cc_webrtc_session_service') or user.cc_has_active_break_glass else [('membership_id.campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
   </record>
+
+  <record id="rule_codestra_agent_channel_scope" model="ir.rule">
+    <field name="name">Agent channels by campaign authorization</field>
+    <field name="model_id" ref="model_codestra_agent_channel"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_cc_security.group_cc_global_administrator') or user.cc_has_active_break_glass else [('campaign_id', 'in', user.cc_allowed_campaign_ids.ids)]</field>
+  </record>
+
 </odoo>
