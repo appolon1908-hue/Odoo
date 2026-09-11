@@ -23,6 +23,39 @@ SAFETY_FLAGS = (
     "allow_live_email", "allow_live_sms", "allow_live_calls",
     "allow_campaign_activation",
 )
+
+# The private provisioning service validates this shared vocabulary. Odoo's
+# internal step names remain stable for compatibility, while dispatch translates
+# them at the boundary and rejects targets that have no approved adapter.
+PROVISIONING_SERVICE_TARGET_MAP = {
+    "odoo": "odoo",
+    "keycloak": "keycloak",
+    "email": "email_provider",
+    "vicidial": "vicidial",
+    "sip": "sip",
+    "agent_desktop": "agent_desktop",
+    "secret_store": "secret_storage",
+    "verification": "verification",
+}
+PROVISIONING_SERVICE_OPERATION_MAP = {
+    "upsert_user": "create_disabled",
+    "upsert_identity": "create_disabled",
+    "upsert_mailbox": "create_disabled",
+    "upsert_agent": "create_disabled",
+    "upsert_endpoint": "create_disabled",
+    "assign_roles": "create_disabled",
+    "verify_all": "verify",
+}
+PROVISIONING_SERVICE_UNSUPPORTED_TARGETS = {
+    "voicemail",
+    "recording",
+    "recording_access",
+    "monitoring",
+    "monitoring_access",
+    "webrtc",
+    "sms",
+}
+SHA256_EVIDENCE = re.compile(r"^[0-9a-f]{64}$")
 DEFAULT_ROLE_POLICIES = {
     "AGENT": {},
     "CLOSER": {},
@@ -597,6 +630,12 @@ class ProvisioningRequest(models.Model):
     needs_agent_desktop = fields.Boolean(default=True)
     needs_keycloak = fields.Boolean(default=True)
     needs_vicidial = fields.Boolean(default=True)
+    # Voice direction and channel toggles are desired state only. External
+    # delivery remains owned by the approved Middleware/provider path.
+    incoming_calls_enabled = fields.Boolean(default=False, copy=False)
+    outgoing_calls_enabled = fields.Boolean(default=False, copy=False)
+    webrtc_enabled = fields.Boolean(default=False, copy=False)
+    sms_enabled = fields.Boolean(default=False, copy=False)
     idempotency_key = fields.Char(required=True, copy=False, index=True)
     correlation_id = fields.Char(
         required=True, copy=False, index=True, default=lambda self: str(uuid.uuid4())
@@ -868,7 +907,8 @@ class ProvisioningRequest(models.Model):
             "target_system", "operation",
         }
         if (
-            not required <= set(payload)
+            not isinstance(payload, dict)
+            or not required <= set(payload)
             or set(payload) - allowed_payload
             or not isinstance(payload["step_results"], list)
         ):
@@ -897,6 +937,7 @@ class ProvisioningRequest(models.Model):
             )
         ):
             raise ValueError("request_not_found")
+
         state_map = {
             "completed": "awaiting_user_activation",
             "dead_letter": "partially_provisioned",
@@ -904,23 +945,50 @@ class ProvisioningRequest(models.Model):
             "running": "provisioning",
             "pending": "provisioning",
         }
-        state = state_map.get(payload["state"], payload["state"])
-        if state not in {
+        requested_state = state_map.get(payload["state"], payload["state"])
+        if requested_state not in {
             "partially_provisioned", "failed", "verification",
             "awaiting_user_activation", "active", "provisioning",
         }:
             raise ValueError("invalid_state")
+
         target_map = {
-            "email_provider": "email",
-            "secret_storage": "secret_store",
-            "reconciliation": "verification",
+            **{
+                service: internal
+                for internal, service in PROVISIONING_SERVICE_TARGET_MAP.items()
+            },
+            "email": "email",
+            "voicemail": "voicemail",
             "recording": "recording_access",
+            "recording_access": "recording_access",
             "monitoring": "monitoring_access",
+            "monitoring_access": "monitoring_access",
+            "secret_store": "secret_store",
+            "verification": "verification",
+            "reconciliation": "verification",
         }
         step_state_map = {
             "retry_wait": "retry_scheduled",
             "dead_letter": "failed",
         }
+        expected_operations = {
+            "upsert_user": {"create_disabled"},
+            "upsert_identity": {"create_disabled"},
+            "upsert_mailbox": {"create_disabled"},
+            "upsert_agent": {"create_disabled"},
+            "upsert_endpoint": {"create_disabled"},
+            "assign_roles": {"create_disabled"},
+            "verify_all": {"verify"},
+        }
+        updated_steps = self.env["codestra.provisioning.step"]
+        channel_model = None
+        try:
+            channel_model = self.env["codestra.agent.channel"]
+        except KeyError:
+            # The base identity module can receive callbacks without the
+            # optional agent-onboarding extension installed.
+            pass
+
         for item in payload["step_results"]:
             allowed = {
                 "target_system", "operation", "state", "external_id",
@@ -929,29 +997,75 @@ class ProvisioningRequest(models.Model):
             }
             if not isinstance(item, dict) or set(item) - allowed:
                 raise ValueError("invalid_step_result")
-            target = target_map.get(
-                item.get("target_system"), item.get("target_system")
-            )
-            step = provision_request.step_ids.filtered(
-                lambda row: row.target_system == target
-            )[:1]
-            if not step:
-                continue
+            target = target_map.get(item.get("target_system"))
+            if not target:
+                raise ValueError("unknown_step_target")
+
+            step_id = str(item.get("step_id") or "")
+            if step_id:
+                step = provision_request.step_ids.filtered(
+                    lambda row: step_id in {
+                        str(row.id),
+                        "%s-step-%s" % (provision_request.id, row.id),
+                    }
+                )[:1]
+                if not step:
+                    raise ValueError("unknown_step")
+            else:
+                candidates = provision_request.step_ids.filtered(
+                    lambda row: row.target_system == target
+                )
+                item_operation = item.get("operation")
+                if item_operation:
+                    candidates = candidates.filtered(
+                        lambda row: item_operation in expected_operations.get(
+                            row.operation, {row.operation}
+                        ) | {row.operation}
+                    )
+                if len(candidates) != 1:
+                    raise ValueError("step_reference_required")
+                step = candidates
+
+            item_operation = item.get("operation")
+            if item_operation and item_operation not in (
+                expected_operations.get(step.operation, {step.operation})
+                | {step.operation}
+            ):
+                raise ValueError("step_operation_mismatch")
+            if step.target_system != target:
+                raise ValueError("step_target_mismatch")
+
             step_state = step_state_map.get(item.get("state"), item.get("state"))
             if step_state not in dict(step._fields["state"].selection):
                 raise ValueError("invalid_step_state")
+            evidence_hash = str(item.get("evidence_hash") or "").lower()
+            if evidence_hash and not SHA256_EVIDENCE.fullmatch(evidence_hash):
+                raise ValueError("invalid_evidence_hash")
+            if step_state in {"succeeded", "verified"} and not SHA256_EVIDENCE.fullmatch(
+                evidence_hash
+            ):
+                raise ValueError("verified_step_requires_evidence")
+            try:
+                attempt_count = int(item.get("attempt_count") or 0)
+            except (TypeError, ValueError) as error:
+                raise ValueError("invalid_attempt_count") from error
+            if attempt_count < 0 or attempt_count > step.max_attempts:
+                raise ValueError("invalid_attempt_count")
+
             values = {
                 "state": step_state,
                 "external_id": item.get("external_id"),
                 "external_reference": item.get("external_reference"),
-                "response_hash": item.get("evidence_hash"),
-                "attempt_count": int(item.get("attempt_count") or 0),
+                "response_hash": evidence_hash or False,
+                "attempt_count": attempt_count,
                 "last_error_code": False,
                 "last_error_sanitized": False,
                 "completed_at": fields.Datetime.now(),
                 "verification_state": (
                     "verified" if step_state == "verified"
-                    else "failed" if step_state in ("failed", "blocked") else "pending"
+                    else "failed"
+                    if step_state in ("failed", "blocked")
+                    else "pending"
                 ),
             }
             if item.get("error_code"):
@@ -959,6 +1073,36 @@ class ProvisioningRequest(models.Model):
                     r"[^A-Z0-9_.-]", "_", item["error_code"].upper()
                 )[:64]
             step.write(values)
+            updated_steps |= step
+            if channel_model is not None:
+                channel_model.sudo()._apply_provisioning_step(
+                    provision_request,
+                    step.target_system,
+                    step_state,
+                    evidence_hash=evidence_hash,
+                    external_id=item.get("external_id"),
+                    external_reference=item.get("external_reference"),
+                )
+
+        mandatory = provision_request.step_ids.filtered("mandatory")
+        mandatory_complete = bool(mandatory) and all(
+            step.state in ("verified", "skipped")
+            and step.verification_state == "verified"
+            for step in mandatory
+        )
+        has_failed = any(
+            step.state in ("failed", "blocked") for step in provision_request.step_ids
+        )
+        if payload["state"] == "completed":
+            state = (
+                "partially_provisioned"
+                if has_failed
+                else "awaiting_user_activation"
+                if mandatory_complete
+                else "verification"
+            )
+        else:
+            state = requested_state
         provision_request.state = state
         provision_request._audit(event_type, "accepted", after={
             "state": state,
@@ -966,6 +1110,7 @@ class ProvisioningRequest(models.Model):
                 item.get("evidence_hash") for item in payload["step_results"]
                 if item.get("evidence_hash")
             ],
+            "updated_step_ids": updated_steps.ids,
         })
         return {"state": "accepted"}
 
@@ -1094,40 +1239,316 @@ class ProvisioningRequest(models.Model):
             envelope,
         )
 
+    @staticmethod
+    def _parse_role_list(value, label):
+        if not value:
+            return []
+        if isinstance(value, list):
+            parsed = value
+        else:
+            raw = str(value).strip()
+            try:
+                parsed = json.loads(raw)
+            except (TypeError, ValueError):
+                parsed = [
+                    item.strip()
+                    for item in re.split(r"[\n,]+", raw)
+                    if item.strip()
+                ]
+        if isinstance(parsed, str):
+            parsed = [parsed]
+        if not isinstance(parsed, list) or any(
+            not isinstance(item, str) or not item.strip() for item in parsed
+        ):
+            raise ValidationError(
+                "Role-template %s must be a list of non-empty strings." % label
+            )
+        return [item.strip() for item in parsed]
+
+    @staticmethod
+    def _parse_role_mapping(value, label):
+        if not value:
+            return {}
+        try:
+            parsed = json.loads(str(value))
+        except (TypeError, ValueError) as error:
+            raise ValidationError(
+                "Role-template %s must be a JSON object." % label
+            ) from error
+        if not isinstance(parsed, dict):
+            raise ValidationError(
+                "Role-template %s must be a JSON object." % label
+            )
+        normalized = {}
+        for key, roles in parsed.items():
+            if not isinstance(key, str) or not isinstance(roles, list):
+                raise ValidationError(
+                    "Role-template %s must map clients to role lists." % label
+                )
+            if any(not isinstance(role, str) or not role.strip() for role in roles):
+                raise ValidationError(
+                    "Role-template %s contains an invalid role." % label
+                )
+            normalized[key] = [role.strip() for role in roles]
+        return normalized
+
+    @staticmethod
+    def _assert_service_payload_is_secret_free(value):
+        def walk(item):
+            if isinstance(item, dict):
+                for key, nested in item.items():
+                    yield str(key).lower()
+                    yield from walk(nested)
+            elif isinstance(item, list):
+                for nested in item:
+                    yield from walk(nested)
+
+        found = {
+            key for key in walk(value)
+            if key in SECRET_FIELD_NAMES or key in {
+                "passwd", "temporary_password", "client_secret", "api_key",
+                "authorization", "credentials",
+            }
+        }
+        if found:
+            raise ValidationError(
+                "Provisioning payload contains forbidden credential fields."
+            )
+
+    def _service_projection(self):
+        self.ensure_one()
+        employee = self.employee_id
+        user = self.requested_for or employee.user_id
+        employee_number = employee.codestra_employee_number
+        if not employee_number:
+            raise UserError("The employee identifier has not been reserved.")
+
+        reservations = self.env["codestra.identifier.reservation"].search([
+            ("request_id", "=", self.id),
+            ("state", "in", ("reserved", "committed")),
+        ])
+        reserved = {
+            row.identifier_type: row.normalized_value for row in reservations
+        }
+        username = (user.login if user else False) or reserved.get(
+            "keycloak_username"
+        ) or normalize_identifier(employee.name)
+        email = (user.email if user else False) or self.personal_email or ""
+        name_parts = (employee.name or user.name or "").strip().split()
+        first_name = name_parts[0] if name_parts else username
+        last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+
+        campaigns = self.campaign_ids
+        if not campaigns and self.primary_campaign_id:
+            campaigns = self.primary_campaign_id
+        campaign_ids = [
+            campaign.code or str(campaign.id) for campaign in campaigns
+        ] or ["pending"]
+        membership = getattr(self, "cc_membership_id", False)
+        extension = membership.extension if membership else False
+        if not extension and "codestra.extension.assignment" in self.env:
+            assignment = self.env["codestra.extension.assignment"].search([
+                ("request_id", "=", self.id),
+                ("state", "in", ("reserved", "committed")),
+            ], limit=1)
+            extension = assignment.extension if assignment else False
+
+        role = self.role_template_id
+        desktop_roles = self._parse_role_list(
+            role.agent_desktop_roles, "agent desktop roles"
+        )
+        return {
+            "employee_id": employee_number,
+            "odoo_user_id": user.id if user else False,
+            "username": username,
+            "email": email,
+            "first_name": first_name,
+            "last_name": last_name,
+            "business_unit_id": (
+                self.business_unit_id.code or str(self.business_unit_id.id)
+            ),
+            "department_id": (
+                self.department_id.code or str(self.department_id.id)
+            ),
+            "team_id": (
+                self.operational_team_id.code or str(self.operational_team_id.id)
+            ),
+            "supervisor_id": (
+                self.supervisor_id.login or str(self.supervisor_id.id)
+            ),
+            "campaign_ids": campaign_ids,
+            "campaign_id": campaign_ids[0],
+            "role_template": role.code or str(role.id),
+            "role_template_version": role.version,
+            "agent_desktop_roles": desktop_roles,
+            "extension": extension or False,
+            "vicidial_username": reserved.get("vicidial_username") or "",
+            "vicidial_campaign_id": (
+                self.primary_campaign_id.vicidial_campaign_id
+                if self.primary_campaign_id else ""
+            ),
+            "vicidial_user_group": role.vicidial_user_group or "",
+            "vicidial_inbound_groups": [
+                group.external_reference for group in self.inbound_group_ids
+            ],
+            "incoming_allowed": bool(self.incoming_calls_enabled),
+            "outgoing_allowed": bool(self.outgoing_calls_enabled),
+            "email_enabled": bool(self.needs_company_email),
+            "phone_enabled": bool(self.needs_sip_endpoint),
+            "webrtc_enabled": bool(self.webrtc_enabled),
+            "sms_enabled": bool(self.sms_enabled),
+        }
+
+    def _service_payload_for_step(self, step):
+        projection = self._service_projection()
+        target = PROVISIONING_SERVICE_TARGET_MAP.get(step.target_system)
+        if not target:
+            raise UserError(
+                "Provisioning target '%s' is not supported by the service contract."
+                % step.target_system
+            )
+        if step.target_system in PROVISIONING_SERVICE_UNSUPPORTED_TARGETS:
+            raise UserError(
+                "Provisioning target '%s' is not supported by the service contract."
+                % step.target_system
+            )
+        if target == "keycloak":
+            payload = {
+                "username": projection["username"],
+                "email": projection["email"],
+                "first_name": projection["first_name"],
+                "last_name": projection["last_name"],
+                "attributes": {
+                    "employee_id": projection["employee_id"],
+                    "company_id": str(self.company_id.id),
+                    "business_unit_id": projection["business_unit_id"],
+                    "department_id": projection["department_id"],
+                    "team_id": projection["team_id"],
+                    "supervisor_id": projection["supervisor_id"],
+                    "campaign_ids": projection["campaign_ids"],
+                    "role_template": projection["role_template"],
+                    "agent_desktop_roles": projection["agent_desktop_roles"],
+                },
+                "groups": self._parse_role_list(
+                    self.role_template_id.keycloak_group_paths,
+                    "Keycloak group paths",
+                ),
+                "realm_roles": self._parse_role_list(
+                    self.role_template_id.keycloak_realm_roles,
+                    "Keycloak realm roles",
+                ),
+                "client_roles": self._parse_role_mapping(
+                    self.role_template_id.keycloak_client_roles,
+                    "Keycloak client roles",
+                ),
+            }
+        elif target == "email_provider":
+            payload = {
+                "email_address": projection["email"],
+                "display_name": (
+                    "%s %s" % (
+                        projection["first_name"], projection["last_name"]
+                    )
+                ).strip(),
+                "employee_id": projection["employee_id"],
+                "username": projection["username"],
+            }
+        elif target == "vicidial":
+            payload = {
+                "username": projection["vicidial_username"],
+                "campaign_id": projection["vicidial_campaign_id"],
+                "user_group": projection["vicidial_user_group"],
+                "inbound_groups": projection["vicidial_inbound_groups"],
+                "extension": projection["extension"],
+                "incoming_allowed": projection["incoming_allowed"],
+                "outgoing_allowed": projection["outgoing_allowed"],
+            }
+        elif target == "sip":
+            payload = {
+                "username": projection["username"],
+                "employee_id": projection["employee_id"],
+                "campaign_id": projection["campaign_id"],
+                "extension": projection["extension"],
+                "incoming_allowed": projection["incoming_allowed"],
+                "outgoing_allowed": projection["outgoing_allowed"],
+                "webrtc_enabled": projection["webrtc_enabled"],
+            }
+        elif target == "agent_desktop":
+            payload = {
+                "odoo_user_id": projection["odoo_user_id"],
+                "employee_id": projection["employee_id"],
+                "campaign_ids": projection["campaign_ids"],
+                "roles": projection["agent_desktop_roles"],
+                "email_enabled": projection["email_enabled"],
+                "phone_enabled": projection["phone_enabled"],
+            }
+        elif target == "odoo":
+            payload = {
+                "odoo_user_id": projection["odoo_user_id"],
+                "employee_id": projection["employee_id"],
+                "username": projection["username"],
+                "email": projection["email"],
+                "campaign_id": projection["campaign_id"],
+                "supervisor_id": projection["supervisor_id"],
+                "create_disabled": True,
+            }
+        else:
+            payload = {
+                "employee_id": projection["employee_id"],
+                "desired": {
+                    "campaign_ids": projection["campaign_ids"],
+                    "role_template": projection["role_template"],
+                },
+            }
+        self._assert_service_payload_is_secret_free(payload)
+        return payload
+
     def _dispatch_provisioning_to_service(self):
-        """POST this request's already-created steps to the private
-        provisioning service's request-execution endpoint
-        (``/v1/provisioning/requests/{id}/execute``), mirroring
-        ``_dispatch_lifecycle_to_service``'s envelope shape. Callers decide
-        whether this should run at all (see
-        ``codestra_agent_onboarding``'s explicit dispatch guard) - once
-        invoked this always makes the live call.
+        """Dispatch an immutable, secret-free execution envelope.
+
+        Odoo step vocabulary is translated to the private service's validated
+        TargetSystem/Operation enums at this boundary. Unsupported channels are
+        rejected before any network call so they cannot be silently skipped.
         """
         self.ensure_one()
         self.assert_safe_mode()
         employee_number = self.employee_id.codestra_employee_number
         if not employee_number:
             raise UserError("The employee identifier has not been reserved.")
+        if not self.step_ids:
+            raise UserError("Provisioning steps must be created before dispatch.")
         timestamp = datetime.now(timezone.utc).isoformat()
         request_id = str(self.id)
         correlation = self.correlation_id
-        steps = [
-            {
+        steps = []
+        for step in self.step_ids.sorted(key=lambda row: (row.sequence, row.id)):
+            target = PROVISIONING_SERVICE_TARGET_MAP.get(step.target_system)
+            operation = PROVISIONING_SERVICE_OPERATION_MAP.get(step.operation)
+            if not target or not operation:
+                raise UserError(
+                    "Provisioning step '%s/%s' is not supported by the service contract."
+                    % (step.target_system, step.operation)
+                )
+            if step.target_system in PROVISIONING_SERVICE_UNSUPPORTED_TARGETS:
+                raise UserError(
+                    "Provisioning target '%s' is not supported by the service contract."
+                    % step.target_system
+                )
+            steps.append({
                 "schema_version": "1.0",
                 "request_id": request_id,
                 "correlation_id": correlation,
                 "idempotency_key": step.idempotency_key,
                 "employee_id": employee_number,
-                "target_system": step.target_system,
-                "operation": step.operation,
+                "target_system": target,
+                "operation": operation,
                 "timestamp": timestamp,
-                "step_id": str(step.id),
+                "step_id": "%s-step-%s" % (request_id, step.id),
                 "sequence": step.sequence,
-                "max_attempts": step.max_attempts,
-                "payload": {},
-            }
-            for step in self.step_ids
-        ]
+                "max_attempts": min(max(step.max_attempts, 1), 8),
+                "mandatory": bool(step.mandatory),
+                "payload": self._service_payload_for_step(step),
+            })
         envelope = {
             "schema_version": "1.0",
             "request_id": request_id,
@@ -1135,7 +1556,7 @@ class ProvisioningRequest(models.Model):
             "idempotency_key": self.idempotency_key,
             "employee_id": employee_number,
             "target_system": "odoo",
-            "operation": "provision",
+            "operation": "update",
             "timestamp": timestamp,
             "steps": steps,
         }
