@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_phone_list" model="ir.ui.view">
+    <field name="name">codestra.vicidial.phone.list</field>
+    <field name="model">codestra.vicidial.phone</field>
+    <field name="arch" type="xml">
+      <list>
+        <field name="name"/>
+        <field name="extension"/>
+        <field name="login"/>
+        <field name="assigned_agent_id"/>
+        <field name="is_webrtc"/>
+        <field name="protocol"/>
+        <field name="active"/>
+        <field name="status"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_phone_form" model="ir.ui.view">
+    <field name="name">codestra.vicidial.phone.form</field>
+    <field name="model">codestra.vicidial.phone</field>
+    <field name="arch" type="xml">
+      <form>
+        <sheet>
+          <group>
+            <group>
+              <field name="name"/>
+              <field name="extension"/>
+              <field name="login"/>
+              <field name="assigned_agent_id"/>
+            </group>
+            <group>
+              <field name="is_webrtc"/>
+              <field name="protocol"/>
+              <field name="context"/>
+              <field name="active"/>
+              <field name="status"/>
+              <field name="last_registration_at" readonly="1"/>
+            </group>
+          </group>
+          <group>
+            <field name="server_ip"/>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="view_agent_form_webrtc" model="ir.ui.view">
+    <field name="name">codestra.vicidial.agent.form.webrtc</field>
+    <field name="model">codestra.vicidial.agent</field>
+    <field name="inherit_id" ref="view_agent_form"/>
+    <field name="arch" type="xml">
+      <field name="phone_login" position="after">
+        <field name="webrtc_enabled"/>
+      </field>
+      <field name="campaign_ids" position="after">
+        <field name="phone_ids" context="{'default_assigned_agent_id': id}">
+          <list editable="bottom">
+            <field name="name"/>
+            <field name="extension"/>
+            <field name="is_webrtc"/>
+            <field name="active"/>
+            <field name="status"/>
+          </list>
+        </field>
+      </field>
+    </field>
+  </record>
+
+  <record id="view_users_form_webrtc" model="ir.ui.view">
+    <field name="name">res.users.form.codestra.webrtc</field>
+    <field name="model">res.users</field>
+    <field name="inherit_id" ref="base.view_users_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//notebook" position="inside">
+        <page string="Telephony" groups="codestra_vicidial_crm.group_manager,codestra_vicidial_crm.group_integration_admin">
+          <group>
+            <field name="vicidial_agent_id"/>
+            <field name="webrtc_enabled"/>
+          </group>
+          <p class="text-muted">
+            Each agent can have at most one phone extension. WebRTC must be enabled
+            on both the linked agent and its assigned phone.
+          </p>
+        </page>
+      </xpath>
+    </field>
+  </record>
+
+  <record id="action_codestra_phone" model="ir.actions.act_window">
+    <field name="name">Phones</field>
+    <field name="res_model">codestra.vicidial.phone</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <menuitem
+    id="menu_codestra_phones"
+    name="Phones"
+    parent="menu_codestra_root"
+    action="action_codestra_phone"
+    sequence="15"
+    groups="codestra_vicidial_crm.group_manager,codestra_vicidial_crm.group_integration_admin"
+  />
+</odoo>
