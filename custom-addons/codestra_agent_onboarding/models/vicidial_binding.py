@@ -16,8 +16,25 @@ class CodestraAgentOnboardingVicidialBinding(models.Model):
     # module does not implement.
     webrtc_enabled = fields.Boolean(default=False, tracking=True)
     sms_enabled = fields.Boolean(default=False, tracking=True)
+    incoming_calls_enabled = fields.Boolean(default=False, tracking=True)
+    outgoing_calls_enabled = fields.Boolean(default=False, tracking=True)
 
     def _assert_assignment_ready(self):
+        for record in self:
+            if (
+                (record.incoming_calls_enabled or record.outgoing_calls_enabled)
+                and not record.needs_sip_endpoint
+            ):
+                raise ValidationError(
+                    _(
+                        "Incoming or outgoing calling requires the phone channel "
+                        "to be enabled."
+                    )
+                )
+            if record.webrtc_enabled and not record.needs_sip_endpoint:
+                raise ValidationError(
+                    _("WebRTC requires the phone channel to be enabled.")
+                )
         result = super()._assert_assignment_ready()
         for record in self.filtered("needs_vicidial"):
             campaign = record.campaign_id.legacy_campaign_id
@@ -81,6 +98,8 @@ class CodestraAgentOnboardingVicidialBinding(models.Model):
                     if self.needs_vicidial and campaign.vicidial_in_group
                     else []
                 ),
+                "incoming_calls_enabled": self.incoming_calls_enabled,
+                "outgoing_calls_enabled": self.outgoing_calls_enabled,
             }
         )
         return result
