@@ -1,7 +1,7 @@
 {
     "name": "Codestra Agent Onboarding",
     "summary": "Governed agent onboarding, campaign assignment, provisioning, and secure activation",
-    "version": "19.0.2.0.2",
+    "version": "19.0.2.0.3",
     "author": "Codestra",
     "license": "LGPL-3",
     "depends": [
