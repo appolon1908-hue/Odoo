@@ -278,3 +278,15 @@ class TestCallControl(TransactionCase):
                     campaign_id="TEST_SYN",
                     idempotency_key="dialpad-synthetic-two",
                 )
+
+    def test_dialpad_returns_disabled_state_for_unmapped_agent(self):
+        controller = call_control_controller.CallControlAPI()
+        with patch.object(
+            call_control_controller,
+            "request",
+            SimpleNamespace(env=self.env(user=self.other_user.id)),
+        ):
+            result = controller.dialpad()
+        self.assertFalse(result["enabled"])
+        self.assertEqual(result["state"], "disabled")
+        self.assertIn("not mapped", result["reason"])
