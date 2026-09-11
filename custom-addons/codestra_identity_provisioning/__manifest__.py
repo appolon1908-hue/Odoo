@@ -1,6 +1,6 @@
 {
     "name": "Codestra Identity Provisioning",
-    "version": "19.0.1.2.1",
+    "version": "19.0.1.3.0",
     "category": "Administration",
     "summary": "Fail-closed, audited multi-system identity provisioning",
     "license": "LGPL-3",
@@ -15,6 +15,7 @@
         "codestra_base",
         "call_center_core",
         "call_center_campaign",
+        "codestra_cc_security",
     ],
     "data": [
         "security/provisioning_security.xml",
@@ -22,6 +23,7 @@
         "data/sequence.xml",
         "data/safety_flags.xml",
         "views/provisioning_views.xml",
+        "views/agent_channel_views.xml",
     ],
     "post_init_hook": "post_init_hook",
     "application": True,

@@ -44,12 +44,22 @@ IMMUTABLE_ASSIGNMENT_FIELDS = {
     "needs_vicidial",
     "webrtc_enabled",
     "sms_enabled",
+    "incoming_calls_enabled",
+    "outgoing_calls_enabled",
 }
 SYSTEM_LINK_FIELDS = {
     "campaign_membership_id",
     "provisioning_request_id",
     "provisioning_outbox_id",
     "activation_outbox_id",
+}
+COMMUNICATION_CHANNEL_FIELDS = {
+    "needs_company_email",
+    "needs_sip_endpoint",
+    "webrtc_enabled",
+    "sms_enabled",
+    "incoming_calls_enabled",
+    "outgoing_calls_enabled",
 }
 PROVISION_EVENT = "agent.provisioning.requested.v1"
 ACTIVATION_EMAIL_EVENT = "agent.activation-email.requested.v1"
@@ -227,14 +237,29 @@ class CodestraAgentOnboardingProvisioning(models.Model):
         "Agent-onboarding desired-state versions must be positive.",
     )
 
+    def _require_global_administrator_for_channels(self):
+        if self.env.uid != SUPERUSER_ID and not self.env.user.has_group(
+            "codestra_cc_security.group_cc_global_administrator"
+        ):
+            raise AccessError(
+                _(
+                    "Only a global contact-center administrator may change "
+                    "communication channel switches (email, SMS, phone, WebRTC)."
+                )
+            )
+
     @api.model_create_multi
     def create(self, values_list):
         for values in values_list:
+            if COMMUNICATION_CHANNEL_FIELDS.intersection(values):
+                self._require_global_administrator_for_channels()
             values.setdefault("integration_uuid", str(uuid.uuid4()))
             values.setdefault("desired_state_version", 1)
         return super().create(values_list)
 
     def write(self, values):
+        if COMMUNICATION_CHANNEL_FIELDS.intersection(values):
+            self._require_global_administrator_for_channels()
         protected = IMMUTABLE_ASSIGNMENT_FIELDS & values.keys()
         if protected:
             for record in self:
@@ -581,8 +606,6 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 "is_primary_supervisor": self.campaign_role == "supervisor",
                 "requested_by_id": self.env.user.id,
                 "source_ticket": self.name,
-                "webrtc_enabled": self.webrtc_enabled,
-                "sms_enabled": self.sms_enabled,
                 "vicidial_user_group": (
                     self.role_template_id.vicidial_user_group
                     if self.needs_vicidial
@@ -590,6 +613,63 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 ),
             }
         )
+
+    _CHANNEL_DESIRED_SOURCE_FIELD = {
+        "email": "needs_company_email",
+        "sms": "sms_enabled",
+        "phone": "needs_sip_endpoint",
+        "webrtc": "webrtc_enabled",
+    }
+
+    def _ensure_agent_channels(self):
+        """Create (or resync) the ``codestra.agent.channel`` intent rows for
+        this onboarding's employee from its own desired-state fields.
+
+        ``codestra.agent.channel`` (``codestra_identity_provisioning``) is
+        the source of truth for per-channel provisioning intent going
+        forward; this onboarding record's ``needs_company_email``,
+        ``needs_sip_endpoint``, ``webrtc_enabled``, and ``sms_enabled`` stay
+        the Super Admin's desired-state *input* fields, projected here onto
+        the channel rows rather than onto ``cc.campaign.membership`` booleans
+        directly. Idempotent: never duplicates a (employee, channel_type)
+        row, and only rewrites ``desired_enabled`` when it actually changed.
+        """
+        self.ensure_one()
+        Channel = self.env["codestra.agent.channel"].with_user(SUPERUSER_ID)
+        existing_by_type = {
+            channel.channel_type: channel
+            for channel in Channel.search([("employee_id", "=", self.employee_id.id)])
+        }
+        for channel_type, source_field in self._CHANNEL_DESIRED_SOURCE_FIELD.items():
+            desired = bool(getattr(self, source_field))
+            voice_values = (
+                {
+                    "incoming_allowed": self.incoming_calls_enabled,
+                    "outgoing_allowed": self.outgoing_calls_enabled,
+                }
+                if channel_type in ("phone", "webrtc")
+                else {}
+            )
+            channel = existing_by_type.get(channel_type)
+            if channel:
+                changes = {
+                    key: value
+                    for key, value in {"desired_enabled": desired, **voice_values}.items()
+                    if channel[key] != value
+                }
+                if changes:
+                    channel.write(changes)
+            else:
+                Channel.create(
+                    {
+                        "employee_id": self.employee_id.id,
+                        "membership_id": self.campaign_membership_id.id,
+                        "provisioning_request_id": self.provisioning_request_id.id or False,
+                        "channel_type": channel_type,
+                        "desired_enabled": desired,
+                        **voice_values,
+                    }
+                )
 
     def _provisioning_idempotency_key(self):
         self.ensure_one()
@@ -742,6 +822,7 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                     "access_request_prepared_at": fields.Datetime.now(),
                 }
             )
+            record._ensure_agent_channels()
         return True
 
     def _sync_reserved_identifiers_to_membership(self):
@@ -1097,7 +1178,12 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                     record.operational_team_id.write(
                         {"agent_ids": [(4, user.id)]}
                     )
-        return super().action_activate()
+        result = super().action_activate()
+        for record in self:
+            record.campaign_membership_id.channel_ids.with_user(
+                SUPERUSER_ID
+            )._mark_effective()
+        return result
 
     def action_cancel(self):
         if any(

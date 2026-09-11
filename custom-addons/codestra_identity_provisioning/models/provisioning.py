@@ -959,6 +959,35 @@ class ProvisioningRequest(models.Model):
                     r"[^A-Z0-9_.-]", "_", item["error_code"].upper()
                 )[:64]
             step.write(values)
+            channel_type = {"email": "email", "sip": "phone"}.get(target)
+            terminal = (
+                "success" if step_state == "verified"
+                else "failure" if step_state in ("failed", "blocked", "cancelled")
+                else None
+            )
+            if channel_type and terminal:
+                channel = provision_request.channel_ids.filtered(
+                    lambda c, ct=channel_type: c.channel_type == ct
+                )[:1]
+                if channel:
+                    # apply_service_callback is a system-authenticated
+                    # operation (HMAC-verified webhook, or an internal
+                    # service caller) regardless of which Odoo user
+                    # actually invokes this method; sudo() so it isn't
+                    # gated by that caller's own ACLs on the channel model.
+                    channel.sudo()._apply_step_evidence(
+                        verified=terminal == "success",
+                        evidence_hash=item.get("evidence_hash"),
+                        external_id=item.get("external_id"),
+                        external_reference=item.get("external_reference"),
+                        error_code=values.get("last_error_code"),
+                        error_sanitized=(
+                            "Provisioning step failed; inspect protected "
+                            "server logs (%s)" % values["last_error_code"]
+                        )
+                        if values.get("last_error_code")
+                        else False,
+                    )
         provision_request.state = state
         provision_request._audit(event_type, "accepted", after={
             "state": state,

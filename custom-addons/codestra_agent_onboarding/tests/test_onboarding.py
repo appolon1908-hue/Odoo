@@ -78,6 +78,14 @@ class TestCodestraAgentOnboarding(TransactionCase):
                 "codestra_cc_security.group_cc_campaign_supervisor",
             ],
         )
+        cls.non_admin_manager = cls._create_user(
+            "Onboarding Manager (Non-Admin)",
+            "onboarding.manager.nonadmin@example.invalid",
+            [
+                "base.group_user",
+                "call_center_core.group_call_center_manager",
+            ],
+        )
 
         cls.branch = cls.env["call.center.branch"].create(
             {
@@ -256,6 +264,15 @@ class TestCodestraAgentOnboarding(TransactionCase):
             results, "staging://agent-onboarding/readback/matched"
         )
         return operation
+
+    def _channel(self, onboarding, channel_type):
+        return self.env["codestra.agent.channel"].search(
+            [
+                ("employee_id", "=", onboarding.employee_id.id),
+                ("channel_type", "=", channel_type),
+            ],
+            limit=1,
+        )
 
     def test_approval_requires_all_readiness_gates(self):
         onboarding = self._new_onboarding()
@@ -611,8 +628,8 @@ class TestCodestraAgentOnboarding(TransactionCase):
         onboarding.write({"webrtc_enabled": True, "sms_enabled": True})
         self._start(onboarding)
         membership = onboarding.campaign_membership_id
-        self.assertTrue(membership.webrtc_enabled)
-        self.assertTrue(membership.sms_enabled)
+        self.assertTrue(self._channel(onboarding, "webrtc").desired_enabled)
+        self.assertTrue(self._channel(onboarding, "sms").desired_enabled)
         payload = onboarding._provisioning_event_payload()
         self.assertIn("webrtc", payload["targets"])
         self.assertIn("sms", payload["targets"])
@@ -622,12 +639,110 @@ class TestCodestraAgentOnboarding(TransactionCase):
         self.assertEqual(payload["telephony_assignment"]["webrtc_max_devices"], 1)
         self.assertFalse(payload["controls"]["webrtc_credential_issuance"])
 
+    def test_incoming_and_outgoing_call_permissions_flow_to_phone_and_webrtc_channels(
+        self,
+    ):
+        onboarding = self._new_onboarding(email="calling.agent@example.invalid")
+        onboarding.write(
+            {
+                "webrtc_enabled": True,
+                "incoming_calls_enabled": True,
+                "outgoing_calls_enabled": True,
+            }
+        )
+        self._start(onboarding)
+        phone = self._channel(onboarding, "phone")
+        webrtc = self._channel(onboarding, "webrtc")
+        self.assertTrue(phone.incoming_allowed)
+        self.assertTrue(phone.outgoing_allowed)
+        self.assertTrue(webrtc.incoming_allowed)
+        self.assertTrue(webrtc.outgoing_allowed)
+        email = self._channel(onboarding, "email")
+        self.assertFalse(email.incoming_allowed)
+        self.assertFalse(email.outgoing_allowed)
+
+    def test_calling_permissions_require_sip_endpoint(self):
+        onboarding = self._new_onboarding(email="calling.no.sip@example.invalid")
+        with self.assertRaises(ValidationError):
+            onboarding.write(
+                {"needs_sip_endpoint": False, "outgoing_calls_enabled": True}
+            )
+
+    def test_membership_channel_ids_reflect_created_channels(self):
+        onboarding = self._new_onboarding(email="channel.reflection@example.invalid")
+        self._start(onboarding)
+        membership = onboarding.campaign_membership_id
+        self.assertEqual(len(membership.channel_ids), 4)
+        self.assertEqual(
+            set(membership.channel_ids.mapped("channel_type")),
+            {"email", "sms", "phone", "webrtc"},
+        )
+
+    def test_communication_channel_switches_require_global_administrator(self):
+        onboarding = self._new_onboarding(email="channel.switch.rbac@example.invalid")
+        for field_name, value in (
+            ("needs_company_email", False),
+            ("needs_sip_endpoint", False),
+            ("webrtc_enabled", True),
+            ("sms_enabled", True),
+        ):
+            with self.subTest(field=field_name), self.assertRaises(AccessError):
+                onboarding.with_user(self.non_admin_manager).write({field_name: value})
+        onboarding.with_user(self.requester).write(
+            {"webrtc_enabled": True, "sms_enabled": True}
+        )
+        self.assertTrue(onboarding.webrtc_enabled)
+        self.assertTrue(onboarding.sms_enabled)
+
+        with self.assertRaises(AccessError):
+            self.env["codestra.agent.onboarding"].with_user(
+                self.non_admin_manager
+            ).create(
+                {
+                    "employee_id": self.env["hr.employee"].create(
+                        {
+                            "name": "Channel Switch RBAC Candidate",
+                            "company_id": self.company.id,
+                            "call_center_branch_id": self.branch.id,
+                        }
+                    ).id,
+                    "manager_id": self.requester.id,
+                    "target_start_date": fields.Date.today(),
+                    "campaign_id": self.campaign.id,
+                    "campaign_role": "agent",
+                    "branch_id": self.branch.id,
+                    "department_id": self.department.id,
+                    "operational_team_id": self.team.id,
+                    "supervisor_id": self.supervisor.id,
+                    "role_template_id": self.role_template.id,
+                    "activation_email": "channel.switch.rbac.create@example.invalid",
+                    "preferred_language": "en_US",
+                    "timezone": "UTC",
+                    "webrtc_enabled": True,
+                }
+            )
+
+    def test_communication_channel_switches_are_on_the_onboarding_form(self):
+        views = self.env["codestra.agent.onboarding"].get_views(
+            [(False, "form")], {"toolbar": False}
+        )
+        arch = views["views"]["form"]["arch"]
+        for field_name in (
+            "needs_company_email",
+            "sms_enabled",
+            "needs_sip_endpoint",
+            "webrtc_enabled",
+        ):
+            self.assertIn(field_name, views["models"]["codestra.agent.onboarding"]["fields"])
+            self.assertIn(
+                'name="%s" widget="boolean_toggle"' % field_name, arch
+            )
+
     def test_webrtc_and_sms_default_to_disabled(self):
         onboarding = self._new_onboarding(email="no.webrtc.agent@example.invalid")
         self._start(onboarding)
-        membership = onboarding.campaign_membership_id
-        self.assertFalse(membership.webrtc_enabled)
-        self.assertFalse(membership.sms_enabled)
+        self.assertFalse(self._channel(onboarding, "webrtc").desired_enabled)
+        self.assertFalse(self._channel(onboarding, "sms").desired_enabled)
         payload = onboarding._provisioning_event_payload()
         self.assertNotIn("webrtc", payload["targets"])
         self.assertNotIn("sms", payload["targets"])
@@ -644,7 +759,7 @@ class TestCodestraAgentOnboarding(TransactionCase):
         first.invalidate_recordset(["active_session", "revoked_at"])
         self.assertFalse(first.active_session)
         self.assertTrue(second.active_session)
-        membership.write({"webrtc_enabled": False})
+        self._channel(onboarding, "webrtc").write({"desired_enabled": False})
         second.invalidate_recordset(["active_session", "revoked_at"])
         self.assertFalse(second.active_session)
 
@@ -652,7 +767,7 @@ class TestCodestraAgentOnboarding(TransactionCase):
         onboarding = self._new_onboarding(email="webrtc.disabled.agent@example.invalid")
         self._start(onboarding)
         membership = onboarding.campaign_membership_id
-        self.assertFalse(membership.webrtc_enabled)
+        self.assertFalse(self._channel(onboarding, "webrtc").desired_enabled)
         with self.assertRaises(ValidationError):
             self.env["cc.webrtc.session"].action_register(membership, "Browser")
 
