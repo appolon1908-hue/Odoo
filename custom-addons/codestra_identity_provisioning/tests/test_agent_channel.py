@@ -326,11 +326,11 @@ class TestAgentChannel(TransactionCase):
             verified=True,
             evidence_hash="a" * 64,
             external_id="ext-1",
-            external_reference="ref-1",
+            provider_reference="ref-1",
         )
         self.assertEqual(channel.state, "provisioned")
         self.assertEqual(channel.external_id, "ext-1")
-        self.assertTrue(channel.last_reconciled_at)
+        self.assertTrue(channel.last_verified_at)
 
     def test_apply_step_evidence_failure_sets_failed_state(self):
         Channel = self.env["codestra.agent.channel"].with_user(self.super_admin)

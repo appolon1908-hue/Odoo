@@ -12,11 +12,15 @@
         <field name="environment"/>
         <field name="employee_id"/>
         <field name="platform_user_id"/>
+        <field name="vicidial_user"/>
         <field name="pool_id"/>
         <field name="state" widget="badge"
                decoration-success="state == 'committed'"
                decoration-warning="state == 'reserved'"
                decoration-muted="state in ('released', 'expired')"/>
+        <field name="incoming_allowed" widget="boolean_toggle"/>
+        <field name="outgoing_allowed" widget="boolean_toggle"/>
+        <field name="webrtc_enabled" widget="boolean_toggle"/>
         <field name="reserved_at"/>
         <field name="committed_at"/>
       </list>
@@ -41,8 +45,18 @@
               <field name="employee_id"/>
               <field name="platform_user_id"/>
               <field name="request_id"/>
-              <field name="endpoint_external_id" readonly="1"/>
+              <field name="vicidial_user"/>
+              <field name="provider_reference" readonly="1"/>
             </group>
+          </group>
+          <group string="Telephony Policy">
+            <field name="incoming_allowed" widget="boolean_toggle"/>
+            <field name="outgoing_allowed" widget="boolean_toggle"/>
+            <field name="webrtc_enabled" widget="boolean_toggle"/>
+            <field name="max_webrtc_endpoints" readonly="1"/>
+            <field name="max_active_sessions" readonly="1"/>
+            <field name="active_session_reference" readonly="1"/>
+            <field name="active_browser_reference" readonly="1"/>
           </group>
           <group string="Lifecycle">
             <field name="reserved_at" readonly="1"/>

@@ -29,6 +29,14 @@ access_agent_channel_super_admin,agent channel super admin,model_codestra_agent_
 access_platform_user_user,platform user read,model_codestra_platform_user,group_provisioning_user,1,0,0,0
 access_platform_user_service,platform user service read,model_codestra_platform_user,group_provisioning_service,1,0,0,0
 access_platform_user_super_admin,platform user super admin,model_codestra_platform_user,group_provisioning_global_super_admin,1,1,1,1
+access_platform_user_operator,platform user operator,model_codestra_platform_user,group_platform_operator,1,1,0,0
+access_platform_user_platform_admin,platform user platform admin,model_codestra_platform_user,group_platform_admin,1,1,1,1
+access_platform_user_tenant_admin,platform user tenant admin,model_codestra_platform_user,group_tenant_admin,1,1,1,0
 access_tenant_user,tenant read,model_codestra_tenant,group_provisioning_user,1,0,0,0
 access_tenant_service,tenant service read,model_codestra_tenant,group_provisioning_service,1,0,0,0
 access_tenant_super_admin,tenant super admin,model_codestra_tenant,group_provisioning_global_super_admin,1,1,1,1
+access_tenant_membership_user,tenant membership read,model_codestra_tenant_membership,group_provisioning_user,1,0,0,0
+access_tenant_membership_operator,tenant membership operator read,model_codestra_tenant_membership,group_platform_operator,1,0,0,0
+access_tenant_membership_tenant_admin,tenant membership tenant admin,model_codestra_tenant_membership,group_tenant_admin,1,1,1,0
+access_tenant_membership_platform_admin,tenant membership platform admin,model_codestra_tenant_membership,group_platform_admin,1,1,1,1
+access_tenant_membership_super_admin,tenant membership super admin,model_codestra_tenant_membership,group_provisioning_global_super_admin,1,1,1,1

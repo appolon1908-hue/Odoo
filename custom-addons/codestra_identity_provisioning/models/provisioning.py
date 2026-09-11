@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timezone
 
 from psycopg2 import IntegrityError
-from odoo import api, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
 
@@ -296,19 +296,86 @@ class ExtensionAssignment(models.Model):
     expires_at = fields.Datetime()
     committed_at = fields.Datetime()
     released_at = fields.Datetime()
-    endpoint_external_id = fields.Char(copy=False)
+    provider_reference = fields.Char(copy=False)
+
+    vicidial_user = fields.Char(copy=False, index=True)
+    incoming_allowed = fields.Boolean(default=True)
+    outgoing_allowed = fields.Boolean(default=True)
+    webrtc_enabled = fields.Boolean(default=False)
+    max_webrtc_endpoints = fields.Integer(default=1, required=True)
+    max_active_sessions = fields.Integer(default=1, required=True)
+    active_session_reference = fields.Char(copy=False)
+    active_browser_reference = fields.Char(copy=False)
+
+    adopted = fields.Boolean(
+        default=False, copy=False,
+        help="Set only by action_adopt_existing_phone_assignment() for a "
+        "specific, pre-existing, already-in-production extension (e.g. "
+        "6101) that must never be reachable through the normal candidate "
+        "allocator in reserve_extension().",
+    )
 
     _extension_unique = models.Constraint(
         "unique(extension, environment)",
         "An extension may have only one assignment record per environment.",
     )
     _extension_6101_excluded = models.Constraint(
-        "CHECK (extension <> '6101')", "Extension 6101 is reserved from allocation."
+        "CHECK (extension <> '6101' OR adopted = true)",
+        "Extension 6101 is reserved from normal allocation; "
+        "only an explicit adoption may create this row.",
     )
     _platform_user_environment_unique = models.UniqueIndex(
         "(platform_user_id, environment) WHERE platform_user_id IS NOT NULL",
         "A platform user may have only one phone assignment per environment.",
     )
+
+    @api.constrains("max_webrtc_endpoints", "max_active_sessions")
+    def _check_single_device_ceiling(self):
+        for record in self:
+            if record.max_webrtc_endpoints != 1 or record.max_active_sessions != 1:
+                raise ValidationError(
+                    _("Only one WebRTC endpoint and one active session are permitted per phone assignment.")
+                )
+
+    @api.model
+    def action_adopt_existing_phone_assignment(
+        self, employee, request, *, extension, vicidial_user, environment="production",
+        platform_user=None,
+    ):
+        """Bring an already-existing, already-in-production extension (the
+        6101 bootstrap identity: appolon1908@gmail.com / cod00016 /
+        TEST_SYN) under management, without going through
+        reserve_extension()'s candidate allocator - which structurally
+        cannot select 6101 - and without the CHECK constraint above ever
+        allowing a second, non-adopted row to reuse it.
+        """
+        existing = self.search([
+            ("extension", "=", extension), ("environment", "=", environment),
+        ], limit=1)
+        if existing:
+            raise UserError(
+                _("Extension %s is already adopted in %s.") % (extension, environment)
+            )
+        pool = self.env["codestra.extension.pool"].search(
+            [("start_extension", "<=", int(extension) if extension.isdigit() else 0),
+             ("end_extension", ">=", int(extension) if extension.isdigit() else 0)],
+            limit=1,
+        ) or self.env["codestra.extension.pool"].search([], limit=1)
+        if not pool:
+            raise UserError(_("No extension pool is configured to adopt this extension into."))
+        return self.create({
+            "pool_id": pool.id,
+            "extension": extension,
+            "environment": environment,
+            "employee_id": employee.id,
+            "platform_user_id": platform_user.id if platform_user else False,
+            "request_id": request.id,
+            "vicidial_user": vicidial_user,
+            "state": "committed",
+            "reserved_at": fields.Datetime.now(),
+            "committed_at": fields.Datetime.now(),
+            "adopted": True,
+        })
 
 
 class EmailDomain(models.Model):
@@ -1047,7 +1114,7 @@ class ProvisioningRequest(models.Model):
                         verified=terminal == "success",
                         evidence_hash=item.get("evidence_hash"),
                         external_id=item.get("external_id"),
-                        external_reference=item.get("external_reference"),
+                        provider_reference=item.get("external_reference"),
                         error_code=values.get("last_error_code"),
                         error_sanitized=(
                             "Provisioning step failed; inspect protected "

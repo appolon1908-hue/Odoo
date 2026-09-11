@@ -1,6 +1,6 @@
 {
     "name": "Codestra Identity Provisioning",
-    "version": "19.0.1.5.0",
+    "version": "19.0.1.7.0",
     "category": "Administration",
     "summary": "Fail-closed, audited multi-system identity provisioning",
     "license": "LGPL-3",
@@ -20,6 +20,7 @@
     ],
     "data": [
         "security/provisioning_security.xml",
+        "security/rbac_security.xml",
         "security/ir.model.access.csv",
         "data/sequence.xml",
         "data/safety_flags.xml",

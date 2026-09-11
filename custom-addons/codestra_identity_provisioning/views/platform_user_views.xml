@@ -58,6 +58,45 @@
           <button name="action_ensure_odoo_access" type="object"
                   string="Ensure Odoo Access" class="btn-secondary"
                   invisible="not odoo_access_enabled or odoo_user_id"/>
+          <button name="action_suspend" type="object"
+                  string="Suspend" class="btn-secondary"
+                  invisible="status == 'suspended'"/>
+          <button name="action_reactivate" type="object"
+                  string="Reactivate" class="btn-secondary"
+                  invisible="status != 'suspended'"/>
+          <notebook>
+            <page string="Provisioning Status" name="provisioning_status">
+              <group string="Identity">
+                <field name="keycloak_status" widget="badge"
+                       decoration-success="keycloak_status == 'ready'"
+                       decoration-warning="keycloak_status == 'not_ready'"/>
+              </group>
+              <group name="telephony" string="Telephony">
+                <field name="phone_assignment_ids" nolabel="1">
+                  <list>
+                    <field name="environment"/>
+                    <field name="extension"/>
+                    <field name="vicidial_user"/>
+                    <field name="incoming_allowed" widget="boolean_toggle"/>
+                    <field name="outgoing_allowed" widget="boolean_toggle"/>
+                    <field name="webrtc_enabled" widget="boolean_toggle"/>
+                    <field name="max_webrtc_endpoints" string="Browser Limit"/>
+                    <field name="active_browser_reference" string="Active Browser"/>
+                    <field name="state" widget="badge"
+                           decoration-success="state == 'committed'"
+                           decoration-warning="state == 'reserved'"
+                           decoration-muted="state in ('released', 'expired')"/>
+                  </list>
+                </field>
+              </group>
+              <!-- Campaigns / Channels / Drift: codestra.agent.channel and
+                   cc.campaign.membership's platform_user_id both live in
+                   codestra_agent_onboarding, which depends on this module
+                   (not the reverse) - that section of the dashboard is
+                   defined there instead, as an inherited extension of this
+                   same view (see views/platform_user_dashboard_views.xml). -->
+            </page>
+          </notebook>
         </sheet>
         <chatter/>
       </form>

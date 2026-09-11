@@ -18,7 +18,7 @@
         <field name="campaign_id"/>
         <field name="supervisor_id"/>
         <field name="extension"/>
-        <field name="last_reconciled_at"/>
+        <field name="last_verified_at"/>
       </list>
     </field>
   </record>
@@ -57,10 +57,10 @@
                  groups="codestra_identity_provisioning.group_provisioning_global_super_admin,codestra_identity_provisioning.group_provisioning_service">
             <field name="external_system"/>
             <field name="external_id"/>
-            <field name="external_reference"/>
-            <field name="last_reconciled_at"/>
+            <field name="provider_reference"/>
+            <field name="last_verified_at"/>
             <field name="last_error_code"/>
-            <field name="last_error_sanitized"/>
+            <field name="last_error_message"/>
           </group>
         </sheet>
         <chatter/>

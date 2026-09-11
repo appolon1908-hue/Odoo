@@ -127,8 +127,8 @@
                   <field name="campaign_id" readonly="1"/>
                   <field name="supervisor_id" readonly="1"/>
                   <field name="extension" readonly="1"/>
-                  <field name="last_reconciled_at" readonly="1"/>
-                  <field name="last_error_sanitized" readonly="1"/>
+                  <field name="last_verified_at" readonly="1"/>
+                  <field name="last_error_message" readonly="1"/>
                 </list>
               </field>
             </page>
