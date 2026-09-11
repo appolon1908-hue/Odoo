@@ -5,7 +5,8 @@
     <field name="inherit_id" ref="codestra_identity_provisioning.view_platform_user_form"/>
     <field name="arch" type="xml">
       <xpath expr="//page[@name='provisioning_status']/group[@name='telephony']" position="before">
-        <group string="Campaigns">
+        <group string="Campaigns"
+               groups="codestra_identity_provisioning.group_platform_admin,codestra_identity_provisioning.group_platform_operator,codestra_identity_provisioning.group_provisioning_global_super_admin">
           <field name="membership_ids" nolabel="1">
             <list>
               <field name="campaign_id"/>
@@ -19,7 +20,8 @@
             </list>
           </field>
         </group>
-        <group string="Channels">
+        <group string="Channels"
+               groups="codestra_identity_provisioning.group_platform_admin,codestra_identity_provisioning.group_platform_operator,codestra_identity_provisioning.group_provisioning_global_super_admin">
           <field name="channel_status_email" string="Email" widget="badge"
                  decoration-success="channel_status_email == 'effective'"
                  decoration-warning="channel_status_email == 'pending'"
@@ -39,7 +41,8 @@
         </group>
       </xpath>
       <xpath expr="//page[@name='provisioning_status']/group[@name='telephony']" position="after">
-        <group string="Provisioning">
+        <group string="Provisioning"
+               groups="codestra_identity_provisioning.group_platform_admin,codestra_identity_provisioning.group_platform_operator,codestra_identity_provisioning.group_provisioning_global_super_admin">
           <field name="provisioning_drift_status" string="Drift" widget="badge"
                  decoration-success="provisioning_drift_status == 'matched'"
                  decoration-danger="provisioning_drift_status == 'drift'"

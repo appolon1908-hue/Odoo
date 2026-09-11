@@ -1,25 +1,26 @@
 <odoo>
-  <!-- Three genuinely new, flat global/tenant roles. Deliberately NOT
-       chained by implied_ids among themselves - platform_operator does
-       not imply tenant_admin, tenant_admin does not imply platform_admin.
-       Campaign-scoped supervisor/agent roles already exist
-       (codestra_cc_security.group_cc_campaign_supervisor /
-       group_cc_campaign_agent, enforced by
-       codestra_cc_security's rule_cc_membership_global_scope via
-       user.cc_supervised_campaign_ids / user.cc_allowed_campaign_ids) -
-       reused here rather than duplicated. -->
+  <!-- Global platform roles remain separate from tenant and campaign roles.
+       Platform Admin is the internal full administrator; Platform Operator is
+       support/operations; Tenant Admin is restricted by tenant membership.
+       Campaign Supervisor/Agent and specialized campaign roles remain owned
+       by codestra_cc_security and cc.campaign.membership. -->
+
   <record id="group_platform_operator" model="res.groups">
     <field name="name">Platform Operator</field>
     <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
     <field name="privilege_id" ref="privilege_identity_provisioning"/>
     <field name="sequence">60</field>
   </record>
+
   <record id="group_platform_admin" model="res.groups">
     <field name="name">Platform Admin</field>
-    <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    <field name="implied_ids" eval="[(4, ref('base.group_user')),
+                                     (4, ref('group_provisioning_security_admin')),
+                                     (4, ref('codestra_cc_security.group_cc_global_administrator'))]"/>
     <field name="privilege_id" ref="privilege_identity_provisioning"/>
     <field name="sequence">70</field>
   </record>
+
   <record id="group_tenant_admin" model="res.groups">
     <field name="name">Tenant Admin</field>
     <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
@@ -27,26 +28,37 @@
     <field name="sequence">45</field>
   </record>
 
-  <!-- Backward compatibility only: an existing provisioning Super Admin
-       automatically gets the new Platform Admin capability without
-       needing re-assignment. This is the one and only implied_ids edge
-       involving the three new groups - group_platform_admin itself
-       implies nothing further, and group_platform_operator/
-       group_tenant_admin are not implied by anything. -->
+  <!-- Backward compatibility: the existing provisioning Super Admin gains
+       the new Platform Admin label/authority without re-assignment. -->
   <record id="group_provisioning_global_super_admin" model="res.groups">
     <field name="implied_ids" eval="[(4, ref('group_platform_admin'))]"/>
   </record>
 
+  <record id="rule_tenant_scope" model="ir.rule">
+    <field name="name">Tenant: platform-wide or assigned tenant scope</field>
+    <field name="model_id" ref="model_codestra_tenant"/>
+    <field name="global" eval="True"/>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_identity_provisioning.group_platform_admin') or user.has_group('codestra_identity_provisioning.group_platform_operator') or user.has_group('codestra_identity_provisioning.group_provisioning_global_super_admin') else [('id', 'in', user.codestra_tenant_admin_ids.ids)]</field>
+  </record>
+
   <record id="rule_tenant_membership_scope" model="ir.rule">
-    <field name="name">Tenant membership: platform admin or own tenant's admin</field>
+    <field name="name">Tenant membership: platform operations or assigned tenant</field>
     <field name="model_id" ref="model_codestra_tenant_membership"/>
     <field name="global" eval="True"/>
-    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_identity_provisioning.group_platform_admin') or user.has_group('codestra_identity_provisioning.group_provisioning_global_super_admin') else [('tenant_id', 'in', user.codestra_tenant_admin_ids.ids)]</field>
+    <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_identity_provisioning.group_platform_admin') or user.has_group('codestra_identity_provisioning.group_platform_operator') or user.has_group('codestra_identity_provisioning.group_provisioning_global_super_admin') else [('tenant_id', 'in', user.codestra_tenant_admin_ids.ids)]</field>
   </record>
+
   <record id="rule_platform_user_tenant_scope" model="ir.rule">
-    <field name="name">Platform user: platform admin/operator, or own tenant's admin</field>
+    <field name="name">Platform user: platform operations or assigned tenant</field>
     <field name="model_id" ref="model_codestra_platform_user"/>
     <field name="global" eval="True"/>
     <field name="domain_force">[(1, '=', 1)] if user.has_group('codestra_identity_provisioning.group_platform_admin') or user.has_group('codestra_identity_provisioning.group_platform_operator') or user.has_group('codestra_identity_provisioning.group_provisioning_global_super_admin') else [('tenant_id', 'in', user.codestra_tenant_admin_ids.ids)]</field>
+  </record>
+
+  <record id="rule_extension_assignment_tenant_admin_scope" model="ir.rule">
+    <field name="name">Phone assignment: assigned tenant scope</field>
+    <field name="model_id" ref="model_codestra_extension_assignment"/>
+    <field name="groups" eval="[(4, ref('group_tenant_admin'))]"/>
+    <field name="domain_force">[('platform_user_id.tenant_id', 'in', user.codestra_tenant_admin_ids.ids)]</field>
   </record>
 </odoo>

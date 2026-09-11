@@ -1,8 +1,10 @@
 from odoo import _, api, fields, models
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, ValidationError
 
 SUPER_ADMIN_GROUP = "codestra_identity_provisioning.group_provisioning_global_super_admin"
 PLATFORM_ADMIN_GROUP = "codestra_identity_provisioning.group_platform_admin"
+PLATFORM_OPERATOR_GROUP = "codestra_identity_provisioning.group_platform_operator"
+TENANT_ADMIN_GROUP = "codestra_identity_provisioning.group_tenant_admin"
 
 
 class CodestraTenantMembership(models.Model):
@@ -40,25 +42,88 @@ class CodestraTenantMembership(models.Model):
         "A platform user may have only one membership per tenant.",
     )
 
+    def _has_platform_admin_authority(self):
+        return (
+            self.env.su
+            or self.env.user.has_group(SUPER_ADMIN_GROUP)
+            or self.env.user.has_group(PLATFORM_ADMIN_GROUP)
+        )
+
+    def _tenant_admin_tenant_ids(self):
+        return set(self.env.user.codestra_tenant_admin_ids.ids)
+
     def _require_platform_admin(self):
-        if not self.env.su and not self.env.user.has_group(SUPER_ADMIN_GROUP) \
-                and not self.env.user.has_group(PLATFORM_ADMIN_GROUP):
+        if not self._has_platform_admin_authority():
             raise AccessError(
-                _("Only a Platform Admin may create additional Tenant Admins.")
+                _("Only a Platform Admin may create or promote Tenant Admins.")
+            )
+
+    def _require_tenant_admin_scope(self, tenant_id):
+        if self._has_platform_admin_authority():
+            return
+        if (
+            self.env.user.has_group(TENANT_ADMIN_GROUP)
+            and tenant_id in self._tenant_admin_tenant_ids()
+        ):
+            return
+        raise AccessError(
+            _("Tenant Admins may manage memberships only inside their assigned tenant.")
+        )
+
+    def _check_platform_user_alignment(self, values):
+        tenant_id = values.get("tenant_id")
+        platform_user_id = values.get("platform_user_id")
+        if not tenant_id or not platform_user_id:
+            raise ValidationError(
+                _("A tenant membership needs both a tenant and a platform user.")
+            )
+        platform_user = self.env["codestra.platform.user"].browse(platform_user_id).exists()
+        if not platform_user or platform_user.tenant_id.id != tenant_id:
+            raise ValidationError(
+                _("The platform user and tenant membership must belong to the same tenant.")
             )
 
     @api.model_create_multi
     def create(self, values_list):
-        if any(values.get("role") == "tenant_admin" for values in values_list):
-            self._require_platform_admin()
+        if self._has_platform_admin_authority():
+            return super().create(values_list)
+        if not self.env.user.has_group(TENANT_ADMIN_GROUP):
+            raise AccessError(
+                _("Only a Platform Admin or Tenant Admin may create memberships.")
+            )
+        for values in values_list:
+            if values.get("role", "member") != "member":
+                self._require_platform_admin()
+            self._require_tenant_admin_scope(values.get("tenant_id"))
+            self._check_platform_user_alignment(values)
         return super().create(values_list)
 
     def write(self, values):
-        if values.get("role") == "tenant_admin" or any(
-            membership.role == "tenant_admin" for membership in self
-        ):
+        if self._has_platform_admin_authority():
+            return super().write(values)
+        if not self.env.user.has_group(TENANT_ADMIN_GROUP):
+            raise AccessError(_("Only a Platform Admin may change tenant memberships."))
+        if any(membership.role == "tenant_admin" for membership in self):
             self._require_platform_admin()
+        if set(values) & {"platform_user_id", "tenant_id", "role"}:
+            raise AccessError(
+                _("Tenant Admins cannot reassign membership identity or privilege.")
+            )
+        if not all(
+            membership.tenant_id.id in self._tenant_admin_tenant_ids()
+            for membership in self
+        ):
+            self._require_tenant_admin_scope(False)
         return super().write(values)
+
+    @api.constrains("platform_user_id", "tenant_id")
+    def _check_tenant_alignment(self):
+        for membership in self:
+            self._check_platform_user_alignment({
+                "tenant_id": membership.tenant_id.id,
+                "platform_user_id": membership.platform_user_id.id,
+            })
+
 
 
 class ResUsers(models.Model):

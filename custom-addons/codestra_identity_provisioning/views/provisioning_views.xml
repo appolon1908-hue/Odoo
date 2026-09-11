@@ -155,8 +155,9 @@
     <field name="view_mode">list,form</field>
   </record>
   <menuitem id="menu_identity_provisioning_root" name="Identity Provisioning"
-            groups="codestra_identity_provisioning.group_provisioning_user"/>
+            groups="codestra_identity_provisioning.group_provisioning_user,codestra_identity_provisioning.group_platform_operator,codestra_identity_provisioning.group_tenant_admin"/>
   <menuitem id="menu_provisioning_requests" name="Provisioning Requests"
             parent="menu_identity_provisioning_root"
+            groups="codestra_identity_provisioning.group_provisioning_user,codestra_identity_provisioning.group_platform_operator"
             action="action_provisioning_requests"/>
 </odoo>

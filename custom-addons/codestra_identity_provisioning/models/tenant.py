@@ -2,6 +2,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import AccessError
 
 SUPER_ADMIN_GROUP = "codestra_identity_provisioning.group_provisioning_global_super_admin"
+PLATFORM_ADMIN_GROUP = "codestra_identity_provisioning.group_platform_admin"
 
 
 class CodestraTenant(models.Model):
@@ -29,8 +30,12 @@ class CodestraTenant(models.Model):
     )
 
     def _require_super_admin(self):
-        if not self.env.su and not self.env.user.has_group(SUPER_ADMIN_GROUP):
-            raise AccessError(_("Only a provisioning Super Admin may change tenants."))
+        if not (
+            self.env.su
+            or self.env.user.has_group(SUPER_ADMIN_GROUP)
+            or self.env.user.has_group(PLATFORM_ADMIN_GROUP)
+        ):
+            raise AccessError(_("Only a Platform Admin may change tenants."))
 
     @api.model_create_multi
     def create(self, values_list):

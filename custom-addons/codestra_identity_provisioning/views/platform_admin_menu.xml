@@ -101,30 +101,36 @@
        elsewhere (cc.campaign, cc.campaign.membership) - reused here, not
        redefined, so there is exactly one action per model. -->
   <menuitem id="menu_platform_administration_root" name="Platform Administration"
-            groups="codestra_identity_provisioning.group_provisioning_user"
+            groups="codestra_identity_provisioning.group_provisioning_user,codestra_identity_provisioning.group_platform_operator,codestra_identity_provisioning.group_tenant_admin"
             sequence="5"/>
   <menuitem id="menu_platform_admin_tenants" name="Tenants"
             parent="menu_platform_administration_root"
             action="action_tenants" sequence="10"/>
   <menuitem id="menu_platform_admin_campaigns" name="Campaigns"
             parent="menu_platform_administration_root"
+            groups="codestra_identity_provisioning.group_provisioning_user,codestra_identity_provisioning.group_platform_operator"
             action="codestra_cc_core.action_cc_campaigns" sequence="20"/>
   <menuitem id="menu_platform_admin_platform_users" name="Platform Users"
             parent="menu_platform_administration_root"
             action="action_platform_users" sequence="30"/>
   <menuitem id="menu_platform_admin_agent_accounts" name="Agent Accounts"
             parent="menu_platform_administration_root"
+            groups="codestra_identity_provisioning.group_provisioning_user"
             action="codestra_cc_security.action_cc_campaign_membership" sequence="40"/>
   <menuitem id="menu_platform_admin_channel_access" name="Channel Access"
             parent="menu_platform_administration_root"
+            groups="codestra_identity_provisioning.group_provisioning_user,codestra_identity_provisioning.group_platform_operator"
             action="action_agent_channels" sequence="50"/>
   <menuitem id="menu_platform_admin_phone_assignments" name="Phone Assignments"
             parent="menu_platform_administration_root"
+            groups="codestra_identity_provisioning.group_provisioning_user,codestra_identity_provisioning.group_platform_operator"
             action="action_extension_assignments" sequence="60"/>
   <menuitem id="menu_platform_admin_provisioning_requests" name="Provisioning Requests"
             parent="menu_platform_administration_root"
+            groups="codestra_identity_provisioning.group_provisioning_user,codestra_identity_provisioning.group_platform_operator"
             action="action_provisioning_requests" sequence="70"/>
   <menuitem id="menu_platform_admin_provisioning_audit" name="Provisioning Audit"
             parent="menu_platform_administration_root"
+            groups="codestra_identity_provisioning.group_provisioning_user,codestra_identity_provisioning.group_platform_operator"
             action="action_provisioning_audit" sequence="80"/>
 </odoo>
