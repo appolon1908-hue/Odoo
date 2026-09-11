@@ -17,8 +17,8 @@
     },
     {
       "path": "/v1/telephony/operations/{operation_id}",
-      "status": "planned",
-      "reason": "Authoritative operation status used to resolve unknown command outcomes."
+      "status": "in_use",
+      "reason": "The scoped reconciliation queue reads canonical operation status with the browser session user identity. Observations never release ambiguous reservations or authorize redial."
     },
     {
       "path": "/v1/telephony/operations/{operation_id}/cancel",
@@ -32,8 +32,8 @@
     },
     {
       "path": "/api/v1/realtime/sessions",
-      "status": "planned",
-      "reason": "Realtime session ticket acquisition preceding the authenticated /ws/agent stream."
+      "status": "in_use",
+      "reason": "The disabled canonical BFF read side requests a one-use session with the authenticated user credential, server-derived campaign and replay cursor; deployment requires matching contract gates."
     }
   ],
   "command_families": [
@@ -76,43 +76,43 @@
   "event_families": [
     {
       "name": "telephony.call.ringing.v1",
-      "status": "planned",
-      "reason": "Drives the Odoo screen pop for an offered call, replacing the assigned-agent Odoo Bus projection."
+      "status": "in_use",
+      "reason": "Validated by the generated read-side event schema in the disabled canonical calling client. Scope, event identity, sequence and persisted CRM projection must match before a screen pop; gaps freeze advancement."
     },
     {
       "name": "telephony.call.answered.v1",
-      "status": "planned",
-      "reason": "Marks the offered call as answered so the CRM timeline and talk-time reporting start from authority."
+      "status": "in_use",
+      "reason": "Validated by the generated read-side event schema in the disabled canonical calling client. Scope, event identity, sequence and persisted CRM projection must match before a screen pop; gaps freeze advancement."
     },
     {
       "name": "telephony.call.connected.v1",
-      "status": "planned",
-      "reason": "Media path established between agent and customer."
+      "status": "in_use",
+      "reason": "Validated by the generated read-side event schema in the disabled canonical calling client. Scope, event identity, sequence and persisted CRM projection must match before a screen pop; gaps freeze advancement."
     },
     {
       "name": "telephony.call.transferred.v1",
-      "status": "planned",
-      "reason": "Records a transfer so ownership and the CRM timeline follow the call to its new agent or queue."
+      "status": "in_use",
+      "reason": "Validated by the generated read-side event schema in the disabled canonical calling client. Scope, event identity, sequence and persisted CRM projection must match before a screen pop; gaps freeze advancement."
     },
     {
       "name": "telephony.call.completed.v1",
-      "status": "planned",
-      "reason": "Terminal call outcome with CDR reference."
+      "status": "in_use",
+      "reason": "Validated by the generated read-side event schema in the disabled canonical calling client. Scope, event identity, sequence and persisted CRM projection must match before a screen pop; gaps freeze advancement."
     },
     {
       "name": "telephony.call.missed.v1",
-      "status": "planned",
-      "reason": "Records an offered call that was never answered, which callback and retry policy both depend on."
+      "status": "in_use",
+      "reason": "Validated by the generated read-side event schema in the disabled canonical calling client. Scope, event identity, sequence and persisted CRM projection must match before a screen pop; gaps freeze advancement."
     },
     {
       "name": "telephony.call.dispositioned.v1",
-      "status": "planned",
-      "reason": "Carries the authoritative disposition back to the CRM lead and compliance evidence."
+      "status": "in_use",
+      "reason": "Validated by the generated read-side event schema in the disabled canonical calling client. Scope, event identity, sequence and persisted CRM projection must match before a screen pop; gaps freeze advancement."
     },
     {
       "name": "telephony.agent.status-changed.v1",
-      "status": "planned",
-      "reason": "Agent state transition observed by supervisor views."
+      "status": "in_use",
+      "reason": "Validated by the generated read-side event schema in the disabled canonical calling client. Scope, event identity, sequence and persisted CRM projection must match before a screen pop; gaps freeze advancement."
     }
   ]
 }

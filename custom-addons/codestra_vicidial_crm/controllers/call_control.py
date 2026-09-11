@@ -25,6 +25,17 @@ class CallControlAPI(http.Controller):
     def _feature(name):
         return request.env["codestra.feature.flags"].flag_enabled(name)
 
+    @staticmethod
+    def _disabled_dialpad(reason):
+        """Return a safe, structured state when the caller is not dial-pad eligible."""
+        return {
+            "enabled": False,
+            "campaign_id": "TEST_SYN",
+            "campaign_mode": None,
+            "state": "disabled",
+            "reason": reason,
+        }
+
     @classmethod
     def _owned_call(cls, call_id):
         cls._agent()
@@ -82,7 +93,10 @@ class CallControlAPI(http.Controller):
     @http.route("/codestra/call-control/v1/dialpad", type="jsonrpc", auth="user", methods=["POST"])
     def dialpad(self):
         """Return the current governed dial-pad state without changing call state."""
-        agent = self._agent()
+        try:
+            agent = self._agent()
+        except AccessError as exc:
+            return self._disabled_dialpad(str(exc))
         campaign = agent.campaign_ids.filtered(
             lambda item: item.active and item.campaign_id == "TEST_SYN" and item.mode == "test"
         )[:1]
