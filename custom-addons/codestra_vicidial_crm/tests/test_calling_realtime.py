@@ -78,6 +78,10 @@ class TestCallingRealtimeScope(TransactionCase):
 
     def test_cross_unit_campaign_is_rejected(self):
         other = self.unit.copy({'code': 'RTOTHER'})
+        # The campaign model validates assigned users when its business unit
+        # changes; authorize the existing fixture user for the alternate unit
+        # first, then assert the server-derived default unit still fails closed.
+        self.user.call_center_business_unit_ids |= other
         self.canonical.business_unit_id = other
         with self.assertRaises(AccessError): self.api._scope()
 
