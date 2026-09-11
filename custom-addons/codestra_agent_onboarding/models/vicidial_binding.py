@@ -9,6 +9,13 @@ class CodestraAgentOnboardingVicidialBinding(models.Model):
     # company mailbox. Mailbox creation remains opt-in until a governed company
     # address and provider binding are present.
     needs_company_email = fields.Boolean(default=False)
+    # Super-Admin-only telephony device/channel permissions. These only carry
+    # the agent's intended permission state onto the campaign membership and
+    # the provisioning event payload (see ``_provisioning_event_payload``);
+    # actual WebRTC credential issuance/SMS delivery are external systems this
+    # module does not implement.
+    webrtc_enabled = fields.Boolean(default=False, tracking=True)
+    sms_enabled = fields.Boolean(default=False, tracking=True)
 
     def _assert_assignment_ready(self):
         result = super()._assert_assignment_ready()

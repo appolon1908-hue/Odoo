@@ -322,6 +322,15 @@ class TestIdentityProvisioning(TransactionCase):
             self.env["codestra.provisioning.request"].assert_safe_mode()
 
     def test_reservation_and_steps_are_idempotent(self):
+        self.env["codestra.extension.pool"].create({
+            "name": "Idempotency Pool",
+            "code": "SYN-IDEMP",
+            "business_unit_id": self.unit.id,
+            "start_extension": 7100,
+            "end_extension": 7199,
+            "context": "codestra_restricted",
+            "active": True,
+        })
         values = self._request_values("prepare-request")
         values.update({
             "needs_company_email": True,
@@ -333,6 +342,10 @@ class TestIdentityProvisioning(TransactionCase):
         first_reservations = request.env[
             "codestra.identifier.reservation"
         ].search_count([("request_id", "=", request.id)])
+        first_assignments = request.env[
+            "codestra.extension.assignment"
+        ].search_count([("request_id", "=", request.id)])
+        self.assertEqual(first_assignments, 1)
         first_steps = len(request.step_ids)
         request.state = "failed"
         request.action_reserve_identifiers()
@@ -342,8 +355,22 @@ class TestIdentityProvisioning(TransactionCase):
             ]),
             first_reservations,
         )
+        self.assertEqual(
+            request.env["codestra.extension.assignment"].search_count([
+                ("request_id", "=", request.id),
+            ]),
+            first_assignments,
+        )
         self.assertEqual(len(request.step_ids), first_steps)
         self.assertTrue(request.employee_id.codestra_employee_number)
+
+    def test_reserve_identifiers_fails_closed_without_an_active_extension_pool(self):
+        values = self._request_values("no-pool-request")
+        values["needs_sip_endpoint"] = True
+        request = self.env["codestra.provisioning.request"].create(values)
+        request.state = "approved"
+        with self.assertRaises(UserError):
+            request.action_reserve_identifiers()
 
     def test_partial_failure_is_sanitized_and_retry_is_targeted(self):
         request = self.env["codestra.provisioning.request"].create(

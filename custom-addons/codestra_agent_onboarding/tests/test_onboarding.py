@@ -145,6 +145,17 @@ class TestCodestraAgentOnboarding(TransactionCase):
                 "requires_mfa": True,
             }
         )
+        cls.extension_pool = cls.env["codestra.extension.pool"].create(
+            {
+                "name": "Onboarding Test Pool",
+                "code": "ONB-EXT",
+                "business_unit_id": cls.unit.id,
+                "start_extension": 7200,
+                "end_extension": 7299,
+                "context": "codestra_restricted",
+                "active": True,
+            }
+        )
         cls.env["ir.config_parameter"].with_user(SUPERUSER_ID).set_param(
             "codestra.integration.environment", "STAGING"
         )
@@ -578,3 +589,179 @@ class TestCodestraAgentOnboarding(TransactionCase):
                 bool(onboarding._successful_activation_results()),
                 explicit and execution == "SUCCEEDED" and reconciliation == "RECONCILED",
             )
+
+    def test_extension_is_reserved_and_synced_to_membership(self):
+        onboarding = self._new_onboarding()
+        self._start(onboarding)
+        extension = onboarding.campaign_membership_id.extension
+        self.assertTrue(extension)
+        self.assertTrue(
+            self.extension_pool.start_extension
+            <= int(extension)
+            <= self.extension_pool.end_extension
+        )
+        assignment = self.env["codestra.extension.assignment"].search(
+            [("request_id", "=", onboarding.provisioning_request_id.id)]
+        )
+        self.assertEqual(len(assignment), 1)
+        self.assertEqual(assignment.extension, extension)
+
+    def test_webrtc_and_sms_flags_flow_to_membership_and_event_payload(self):
+        onboarding = self._new_onboarding(email="webrtc.agent@example.invalid")
+        onboarding.write({"webrtc_enabled": True, "sms_enabled": True})
+        self._start(onboarding)
+        membership = onboarding.campaign_membership_id
+        self.assertTrue(membership.webrtc_enabled)
+        self.assertTrue(membership.sms_enabled)
+        payload = onboarding._provisioning_event_payload()
+        self.assertIn("webrtc", payload["targets"])
+        self.assertIn("sms", payload["targets"])
+        self.assertEqual(payload["telephony_assignment"]["extension"], membership.extension)
+        self.assertTrue(payload["telephony_assignment"]["webrtc_enabled"])
+        self.assertTrue(payload["telephony_assignment"]["sms_enabled"])
+        self.assertEqual(payload["telephony_assignment"]["webrtc_max_devices"], 1)
+        self.assertFalse(payload["controls"]["webrtc_credential_issuance"])
+
+    def test_webrtc_and_sms_default_to_disabled(self):
+        onboarding = self._new_onboarding(email="no.webrtc.agent@example.invalid")
+        self._start(onboarding)
+        membership = onboarding.campaign_membership_id
+        self.assertFalse(membership.webrtc_enabled)
+        self.assertFalse(membership.sms_enabled)
+        payload = onboarding._provisioning_event_payload()
+        self.assertNotIn("webrtc", payload["targets"])
+        self.assertNotIn("sms", payload["targets"])
+
+    def test_webrtc_session_single_device_enforced_and_revoked_on_disable(self):
+        onboarding = self._new_onboarding(email="single.device.agent@example.invalid")
+        onboarding.webrtc_enabled = True
+        self._start(onboarding)
+        membership = onboarding.campaign_membership_id
+        Session = self.env["cc.webrtc.session"]
+        first = Session.action_register(membership, "First Browser")
+        self.assertTrue(first.active_session)
+        second = Session.action_register(membership, "Second Browser")
+        first.invalidate_recordset(["active_session", "revoked_at"])
+        self.assertFalse(first.active_session)
+        self.assertTrue(second.active_session)
+        membership.write({"webrtc_enabled": False})
+        second.invalidate_recordset(["active_session", "revoked_at"])
+        self.assertFalse(second.active_session)
+
+    def test_webrtc_session_requires_webrtc_enabled(self):
+        onboarding = self._new_onboarding(email="webrtc.disabled.agent@example.invalid")
+        self._start(onboarding)
+        membership = onboarding.campaign_membership_id
+        self.assertFalse(membership.webrtc_enabled)
+        with self.assertRaises(ValidationError):
+            self.env["cc.webrtc.session"].action_register(membership, "Browser")
+
+    def test_email_collision_falls_back_to_firstname_lastname_then_numbered(self):
+        def _onboarding_for(name, email):
+            employee = self.env["hr.employee"].create(
+                {
+                    "name": name,
+                    "company_id": self.company.id,
+                    "work_email": email,
+                    "call_center_branch_id": self.branch.id,
+                }
+            )
+            return self.env["codestra.agent.onboarding"].create(
+                {
+                    "employee_id": employee.id,
+                    "manager_id": self.requester.id,
+                    "target_start_date": fields.Date.today(),
+                    "campaign_id": self.campaign.id,
+                    "campaign_role": "agent",
+                    "branch_id": self.branch.id,
+                    "department_id": self.department.id,
+                    "operational_team_id": self.team.id,
+                    "supervisor_id": self.supervisor.id,
+                    "role_template_id": self.role_template.id,
+                    "activation_email": email,
+                    "preferred_language": "en_US",
+                    "timezone": "UTC",
+                    "identity_verified": True,
+                    "employment_documents_complete": True,
+                    "approved_checks_complete": True,
+                    "equipment_ready": True,
+                    "training_complete": True,
+                    "compliance_approved": True,
+                }
+            )
+
+        # Every candidate below is a distinct new hire who happens to share the
+        # same requested address and first name — never the same person as an
+        # earlier candidate, so each must land on its own new account.
+        first = _onboarding_for("Maria Lopez", "maria@example.invalid")
+        self._prepare(first)
+        self.assertEqual(first.employee_id.user_id.login, "maria@example.invalid")
+
+        # Same first AND last name as `first`: "maria@" is taken, and so is
+        # "maria.lopez@" would be if it were a repeat - here it's the first
+        # attempt at that candidate, so it succeeds.
+        second = _onboarding_for("Maria Lopez", "maria@example.invalid")
+        self._prepare(second)
+        self.assertEqual(
+            second.employee_id.user_id.login, "maria.lopez@example.invalid"
+        )
+        self.assertNotEqual(second.employee_id.user_id, first.employee_id.user_id)
+
+        # A third "Maria Lopez": both "maria@" and "maria.lopez@" are now
+        # taken, so this falls through to the numbered suffix.
+        third = _onboarding_for("Maria Lopez", "maria@example.invalid")
+        self._prepare(third)
+        self.assertEqual(third.employee_id.user_id.login, "maria2@example.invalid")
+
+        fourth = _onboarding_for("Maria Lopez", "maria@example.invalid")
+        self._prepare(fourth)
+        self.assertEqual(fourth.employee_id.user_id.login, "maria3@example.invalid")
+
+    def test_email_collision_never_attaches_to_an_existing_account(self):
+        existing_user = self.env["res.users"].with_context(
+            no_reset_password=True
+        ).create(
+            {
+                "name": "Existing Account",
+                "login": "shared@example.invalid",
+                "email": "shared@example.invalid",
+                "company_id": self.company.id,
+                "company_ids": [(6, 0, self.company.ids)],
+            }
+        )
+        employee = self.env["hr.employee"].create(
+            {
+                "name": "Shared Name",
+                "company_id": self.company.id,
+                "work_email": "shared@example.invalid",
+                "call_center_branch_id": self.branch.id,
+            }
+        )
+        onboarding = self.env["codestra.agent.onboarding"].create(
+            {
+                "employee_id": employee.id,
+                "manager_id": self.requester.id,
+                "target_start_date": fields.Date.today(),
+                "campaign_id": self.campaign.id,
+                "campaign_role": "agent",
+                "branch_id": self.branch.id,
+                "department_id": self.department.id,
+                "operational_team_id": self.team.id,
+                "supervisor_id": self.supervisor.id,
+                "role_template_id": self.role_template.id,
+                "activation_email": "shared@example.invalid",
+                "preferred_language": "en_US",
+                "timezone": "UTC",
+                "identity_verified": True,
+                "employment_documents_complete": True,
+                "approved_checks_complete": True,
+                "equipment_ready": True,
+                "training_complete": True,
+                "compliance_approved": True,
+            }
+        )
+        self._prepare(onboarding)
+        self.assertNotEqual(employee.user_id, existing_user)
+        self.assertEqual(
+            employee.user_id.login, "shared.name@example.invalid"
+        )
