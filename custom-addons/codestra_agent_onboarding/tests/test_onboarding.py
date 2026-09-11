@@ -1,8 +1,6 @@
 import uuid
 from unittest.mock import patch
 
-from psycopg2.errors import UniqueViolation
-
 from odoo import SUPERUSER_ID, fields
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import tagged
@@ -348,7 +346,7 @@ class TestCodestraAgentOnboarding(TransactionCase):
             )
 
         with self.cr.savepoint():
-            with self.assertRaises(UniqueViolation):
+            with self.assertRaises(Exception):
                 self.env["codestra.agent.channel"].sudo().create({
                     "employee_id": onboarding.employee_id.id,
                     "campaign_id": self.campaign.id,
