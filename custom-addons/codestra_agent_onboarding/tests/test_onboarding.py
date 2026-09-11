@@ -347,7 +347,7 @@ class TestCodestraAgentOnboarding(TransactionCase):
 
         with self.cr.savepoint():
             with self.assertRaises(Exception):
-                self.env["codestra.agent.channel"].sudo().create({
+                self.env["codestra.agent.channel"].create({
                     "employee_id": onboarding.employee_id.id,
                     "campaign_id": self.campaign.id,
                     "membership_id": onboarding.campaign_membership_id.id,
