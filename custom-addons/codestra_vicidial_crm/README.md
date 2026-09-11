@@ -42,3 +42,29 @@ with the original operation and idempotency identities.
 
 Offline regressions: `python3 tests/security/test_telephony_command_envelope.py`.
 These tests do not certify live token provisioning or telephony activation.
+
+## Controlled TEST_SYN transport
+
+The operator-only `action_test_syn_internal_call` action is the sole Odoo
+entrypoint for the first transport certification. It requires an active agent
+whose reviewed identity is exactly `appolon` / phone login `6901`, a `TEST_SYN`
+campaign in `test` mode, a tenant-bound Keycloak subject, and an enabled system
+parameter `codestra.telephony.test_syn_enabled=true`. It always sends the named
+`internal:TEST_ECHO` alias with `recording_requested=false`; a lead phone number,
+PSTN route, trunk, or arbitrary dialplan value is never read.
+
+Configure `codestra.middleware.telephony_test_syn_url` as the Middleware HTTPS
+`/v1/calls/originate` compatibility ingress and set
+`codestra.middleware.telephony_expected_host` to the exact Middleware hostname.
+The client rejects a different host, redirects, credentials, query strings,
+Server-B URLs, and non-HTTPS endpoints before acquiring a token. Configure
+`codestra.telephony.test_syn_caller_id` only with the reviewed E.164 test caller
+ID. The synthetic transport requests the exact Middleware route scope
+`telephony.calls.originate`; the issuer must return that scope in the short-lived
+Bearer token. It uses the same OIDC client and duplicate-prevention key as the
+durable call reservation; timeouts and malformed responses remain
+reconciliation-required and are never retried blindly.
+
+Run the exact controlled test once, verify the internal adapter read-back, then
+repeat the same correlation/idempotency test. Do not enable PSTN dialing until
+both runs have authoritative evidence and independent review.

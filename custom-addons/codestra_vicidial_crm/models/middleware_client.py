@@ -115,6 +115,38 @@ class TelephonyMiddlewareClient(models.AbstractModel):
         return value
 
     @api.model
+    def _validated_test_syn_target(self, value, expected_host):
+        """Validate the Middleware-only internal TEST_SYN ingress.
+
+        This is intentionally a different reviewed path from the legacy public
+        originate route.  The downstream Vicidial adapter owns the same path on
+        Server B for external dialing, so Odoo must never be allowed to target
+        that host directly.
+        """
+        try:
+            if not _visible_ascii(value, 2048) or "?" in value or "#" in value:
+                raise ValueError("invalid target")
+            if not _visible_ascii(expected_host, 255):
+                raise ValueError("invalid expected host")
+            parsed = urllib.parse.urlsplit(value)
+            port = parsed.port
+            if (
+                parsed.scheme != "https"
+                or not parsed.hostname
+                or parsed.hostname.lower() != expected_host.lower()
+                or parsed.username is not None
+                or parsed.password is not None
+                or (port is not None and port < 1)
+                or parsed.path != "/v1/calls/originate"
+            ):
+                raise ValueError("invalid target")
+        except (ValueError, TypeError) as exc:
+            raise OriginateRejected(
+                "The TEST_SYN internal call must use the reviewed Middleware ingress."
+            ) from exc
+        return value
+
+    @api.model
     def _validate_originate_response(self, result):
         if not isinstance(result, dict):
             raise OriginateOutcomeUnknown(
@@ -373,7 +405,114 @@ class TelephonyMiddlewareClient(models.AbstractModel):
 
     @api.private
     @api.model
-    def _command_access_token(self):
+    def originate_test_syn(self, correlation_id, idempotency_key, values):
+        """Submit one exact TEST_SYN internal command to Middleware.
+
+        This transport is deliberately separate from the legacy customer-number
+        sender.  The request contains only the fixed internal alias and reviewed
+        identity fields; it cannot be used to select a PSTN destination.
+        """
+        params = self.env["ir.config_parameter"].sudo()
+        target = params.get_param("codestra.middleware.telephony_test_syn_url")
+        expected_host = params.get_param("codestra.middleware.telephony_expected_host")
+        if not target or not expected_host:
+            raise OriginateRejected("TEST_SYN internal calling is not configured.")
+        target = self._validated_test_syn_target(target, expected_host)
+        if (
+            not _visible_ascii(correlation_id, 255)
+            or not _visible_ascii(idempotency_key, 128)
+            or len(idempotency_key) < 16
+            or not isinstance(values, dict)
+            or set(values) != {
+                "employee_id", "campaign", "business_unit", "destination",
+                "destination_class", "destination_country", "destination_timezone",
+                "caller_id", "lead_model", "lead_id", "recording_requested",
+            }
+            or values["campaign"] != "TEST_SYN"
+            or values["destination"] != "internal:TEST_ECHO"
+            or values["destination_class"] != "internal_test"
+            or values["destination_country"] != "ZZ"
+            or values["destination_timezone"] != "UTC"
+            or values["lead_model"] != "crm.lead"
+            or type(values["lead_id"]) is not int
+            or values["lead_id"] <= 0
+            or values["recording_requested"] is not False
+            or not _visible_ascii(values["employee_id"], 128)
+            or not _visible_ascii(values["business_unit"], 128)
+            or not isinstance(values["caller_id"], str)
+            or re.fullmatch(r"\+[1-9][0-9]{7,14}", values["caller_id"]) is None
+        ):
+            raise OriginateRejected("TEST_SYN internal command fields are invalid.")
+        access_token = self._command_access_token("telephony.calls.originate")
+        payload = dict(values, idempotency_key=idempotency_key)
+        try:
+            raw = json.dumps(payload, separators=(",", ":"), allow_nan=False).encode("utf-8")
+            if len(raw) > _MAX_MESSAGE_BYTES:
+                raise ValueError("request exceeds maximum size")
+        except (ValueError, TypeError, UnicodeError, RecursionError) as exc:
+            raise OriginateRejected("TEST_SYN internal command payload is invalid.") from exc
+        outbound_request = urllib.request.Request(
+            target,
+            raw,
+            {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + access_token,
+                "X-Correlation-ID": correlation_id,
+                "Idempotency-Key": idempotency_key,
+            },
+            method="POST",
+        )
+        try:
+            opener = urllib.request.build_opener(
+                urllib.request.ProxyHandler({}), _NoTelephonyRedirect()
+            )
+            with opener.open(outbound_request, timeout=10) as response:  # nosec B310
+                raw_result = response.read(_MAX_MESSAGE_BYTES + 1)
+                if len(raw_result) > _MAX_MESSAGE_BYTES:
+                    raise ValueError("response exceeds maximum size")
+                result = json.loads(
+                    raw_result.decode("utf-8"),
+                    object_pairs_hook=_unique_object,
+                    parse_constant=_reject_constant,
+                    parse_float=_finite_float,
+                )
+        except urllib.error.HTTPError as exc:
+            if exc.code in {401, 403, 422, 429}:
+                raise OriginateRejected("TEST_SYN internal command was rejected.") from exc
+            raise OriginateOutcomeUnknown(
+                "Middleware returned an error after receiving the TEST_SYN command; "
+                "reconcile before retrying."
+            ) from exc
+        except (TimeoutError, socket.timeout):
+            return {
+                "dialing": "unknown",
+                "reason": "timeout; reconcile this TEST_SYN operation before retrying",
+                "retry_safe": False,
+            }
+        except urllib.error.URLError as exc:
+            if isinstance(exc.reason, (TimeoutError, socket.timeout)):
+                return {
+                    "dialing": "unknown",
+                    "reason": "timeout; reconcile this TEST_SYN operation before retrying",
+                    "retry_safe": False,
+                }
+            raise OriginateOutcomeUnknown(
+                "The TEST_SYN internal transport failed with an unknown outcome; "
+                "reconcile before retrying."
+            ) from exc
+        except (ValueError, UnicodeError, RecursionError) as exc:
+            raise OriginateOutcomeUnknown(
+                "Middleware returned an invalid TEST_SYN result; reconcile before retrying."
+            ) from exc
+        if not isinstance(result, dict) or result.get("external_dialing") is not False:
+            raise OriginateOutcomeUnknown(
+                "Middleware returned an unsafe TEST_SYN result; reconcile before retrying."
+            )
+        return self._validate_originate_response(result)
+
+    @api.private
+    @api.model
+    def _command_access_token(self, required_scope="telephony:command"):
         """Acquire a scoped service token before dispatch; never use the legacy key.
 
         Only deployment-controlled environment and secret files configure OIDC.
@@ -432,8 +571,9 @@ class TelephonyMiddlewareClient(models.AbstractModel):
                 or not _visible_ascii(result.get("access_token"), 16384)
                 or type(result.get("expires_in")) is not int
                 or result["expires_in"] <= 10
+                or not _visible_ascii(required_scope, 128)
                 or not isinstance(result.get("scope"), str)
-                or "telephony:command" not in result["scope"].split()
+                or required_scope not in result["scope"].split()
             ):
                 raise ValueError("invalid scoped token response")
             return result["access_token"]

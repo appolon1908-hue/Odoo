@@ -101,6 +101,54 @@ class TestClickToCall(TransactionCase):
         self.assertEqual(captured["caller_id"], "+18095550999")
         self.assertNotEqual(captured["caller_id"], self.agent.phone_login)
 
+    def test_test_syn_action_uses_fixed_internal_alias_and_transport(self):
+        self.agent.write(
+            {"vicidial_user": "appolon", "employee_code": "appolon", "phone_login": "6901"}
+        )
+        self.env["codestra.vicidial.campaign"].browse(self.agent.campaign_ids.ids).write(
+            {"campaign_id": "TEST_SYN", "mode": "test"}
+        )
+        self.lead.write({"x_vicidial_campaign_id": "TEST_SYN"})
+        params = self.env["ir.config_parameter"].sudo()
+        params.set_param("codestra.telephony.test_syn_enabled", "true")
+        params.set_param("codestra.telephony.test_syn_caller_id", "+18095550111")
+        captured = []
+
+        def fake_test_syn(_self, correlation_id, idempotency_key, values):
+            captured.append((correlation_id, idempotency_key, values))
+            return {
+                "dialing": "attempting", "reason": "accepted",
+                "call_id": "synthetic-test-syn-call", "external_dialing": False,
+            }
+
+        self.patch(
+            type(self.env["codestra.telephony.middleware.client"]),
+            "originate_test_syn", fake_test_syn,
+        )
+        self.patch(
+            type(self.env["codestra.telephony.middleware.client"]),
+            "originate_call", mock.Mock(side_effect=AssertionError("legacy transport used")),
+        )
+        action = self.lead.action_test_syn_internal_call()
+        call = self.env["codestra.vicidial.call"].search(
+            [("crm_lead_id", "=", self.lead.id)], order="id desc", limit=1,
+        )
+        call._dispatch_click_to_call()
+        self.assertEqual(action["params"]["type"], "success")
+        self.assertEqual(len(captured), 1)
+        values = captured[0][2]
+        self.assertEqual(values["destination"], "internal:TEST_ECHO")
+        self.assertEqual(values["campaign"], "TEST_SYN")
+        self.assertFalse(values["recording_requested"])
+        self.assertEqual(call.status, "attempting")
+
+    def test_test_syn_action_rejects_unreviewed_agent_or_campaign(self):
+        params = self.env["ir.config_parameter"].sudo()
+        params.set_param("codestra.telephony.test_syn_enabled", "true")
+        params.set_param("codestra.telephony.test_syn_caller_id", "+18095550111")
+        with self.assertRaises(UserError):
+            self.lead.action_test_syn_internal_call()
+
     @contextlib.contextmanager
     def middleware_response(self, body, *, redirect_code=None, location=None):
         """Exercise the real urllib redirect chain with an in-memory transport."""
