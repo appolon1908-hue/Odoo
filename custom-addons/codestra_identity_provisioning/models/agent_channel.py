@@ -1,3 +1,5 @@
+import re
+
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
@@ -10,6 +12,9 @@ SERVICE_WRITE_FIELDS = {
     "last_error_code",
     "last_error_sanitized",
 }
+TRANSITION_CAPABILITY = object()
+SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
+SAFE_CAMPAIGN_LIFECYCLE_STATES = {"staging_ready", "activation_pending", "active"}
 
 
 class CodestraAgentChannel(models.Model):
@@ -21,15 +26,32 @@ class CodestraAgentChannel(models.Model):
     ``external_id``/``external_reference``, ``last_reconciled_at``). It does
     not itself perform any external provisioning: no Keycloak, VICIdial,
     Asterisk, Middleware, email, or SMS call is made by this model or its
-    migration. ``effective_access`` is intentionally only the Odoo-side half
-    of the eventual safe-activation formula
+    migration.
+
+    ``state`` may only be changed through a governed transition (see
+    ``TRANSITION_CAPABILITY``): ``_apply_step_evidence`` (real read-back
+    evidence from ``codestra.provisioning.request.apply_service_callback``,
+    for the ``email``/``phone`` channels that actually have a corresponding
+    provisioning step today) and ``_mark_effective`` (called from
+    ``codestra.agent.onboarding.action_activate`` once the campaign
+    membership itself is fully active and synced). A bare write to
+    ``state`` - even by a Super Admin - is rejected outside those paths.
+
+    ``effective_access`` folds in real membership synchronization state
+    (``last_sync_status``/``read_back_evidence``) and campaign lifecycle,
+    not just this record's own fields - this is still the Odoo-side half of
+    the eventual safe-activation formula
 
         effective_X = agent_X_switch AND campaign_X_policy
                       AND global_PSTN_gate AND successful_readback
 
-    -- the global-safety-gate and external-read-back terms require a live
-    Middleware integration that does not exist yet and are out of scope for
-    this model.
+    -- the global-PSTN-safety-gate term requires a live Middleware
+    integration that does not exist yet and stays out of scope for this
+    model; ``sms``/``webrtc`` channels have no external provisioning step at
+    all today (this module never issues WebRTC credentials or sends SMS
+    itself), so for those two ``successful_readback`` can only ever be
+    satisfied by the governed ``_mark_effective`` activation path, not by
+    real external evidence.
     """
 
     _name = "codestra.agent.channel"
@@ -125,15 +147,26 @@ class CodestraAgentChannel(models.Model):
         "supervisor_id",
         "channel_type",
         "extension_assignment_id.state",
+        "membership_id.state",
+        "membership_id.last_sync_status",
+        "membership_id.read_back_evidence",
+        "campaign_id.lifecycle_state",
     )
     def _compute_effective_access(self):
         for channel in self:
+            membership = channel.membership_id
             base = (
                 channel.desired_enabled
                 and channel.state == "effective"
                 and channel.employee_id.active
                 and bool(channel.campaign_id)
                 and bool(channel.supervisor_id)
+                and membership
+                and membership.state == "active"
+                and membership.last_sync_status == "matched"
+                and bool(membership.read_back_evidence)
+                and channel.campaign_id.lifecycle_state
+                in SAFE_CAMPAIGN_LIFECYCLE_STATES
             )
             if channel.channel_type in ("phone", "webrtc"):
                 base = base and bool(
@@ -174,6 +207,15 @@ class CodestraAgentChannel(models.Model):
                     _("Email and SMS channels cannot carry voice permissions.")
                 )
 
+    @api.model_create_multi
+    def create(self, values_list):
+        for values in values_list:
+            if values.get("state", "requested") != "requested":
+                raise ValidationError(
+                    _("New channel records must start in the Requested state.")
+                )
+        return super().create(values_list)
+
     def write(self, values):
         user = self.env.user
         if user.has_group(
@@ -189,7 +231,68 @@ class CodestraAgentChannel(models.Model):
                         "external status fields on this record."
                     )
                 )
+        if "state" in values and self.env.context.get(
+            "_agent_channel_transition"
+        ) is not TRANSITION_CAPABILITY:
+            raise AccessError(
+                _(
+                    "Channel state changes require verified provisioning "
+                    "read-back or governed activation, not a direct edit."
+                )
+            )
         return super().write(values)
+
+    def _apply_step_evidence(
+        self,
+        verified,
+        evidence_hash=None,
+        external_id=None,
+        external_reference=None,
+        error_code=None,
+        error_sanitized=None,
+    ):
+        """Apply real read-back evidence from a provisioning-service
+        callback step to this channel (``email``/``phone`` only - those are
+        the only channel types with a corresponding provisioning step
+        today). Requires a SHA-256 evidence hash on success.
+        """
+        self.ensure_one()
+        if verified:
+            if not evidence_hash or not SHA256_HEX.match(evidence_hash):
+                raise ValidationError(
+                    _("A verified step requires a SHA-256 evidence hash.")
+                )
+            values = {
+                "state": "provisioned",
+                "external_id": external_id,
+                "external_reference": external_reference,
+                "last_reconciled_at": fields.Datetime.now(),
+                "last_error_code": False,
+                "last_error_sanitized": False,
+            }
+        else:
+            values = {
+                "state": "failed",
+                "last_error_code": error_code,
+                "last_error_sanitized": error_sanitized,
+                "last_reconciled_at": fields.Datetime.now(),
+            }
+        self.with_context(_agent_channel_transition=TRANSITION_CAPABILITY).write(
+            values
+        )
+
+    def _mark_effective(self):
+        """Governed transition to ``effective`` for every desired-enabled
+        channel in this recordset, called once the owning campaign
+        membership is itself fully active and synced (see
+        ``codestra.agent.onboarding.action_activate``).
+        """
+        enabled = self.filtered("desired_enabled")
+        if not enabled:
+            return
+        enabled.with_context(_agent_channel_transition=TRANSITION_CAPABILITY).write(
+            {"state": "effective"}
+        )
 
 
 class ProvisioningRequestAgentChannels(models.Model):

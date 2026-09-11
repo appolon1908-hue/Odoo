@@ -18,6 +18,7 @@ class TestAgentChannel(TransactionCase):
         cls.identity_managed = "cc.identity.outbox" in cls.env
         cls.campaign_a = cls.Campaign.search([("code", "=", "COD-WEB-OUT")], limit=1)
         cls.campaign_a.ensure_one()
+        cls.campaign_a.write({"lifecycle_state": "active"})
         cls.legacy_unit = cls.campaign_a.legacy_campaign_id.business_unit_id
 
         cls.requester = cls._create_user(
@@ -243,9 +244,29 @@ class TestAgentChannel(TransactionCase):
             )
         )
         self.assertFalse(channel.effective_access)
-        channel.write({"state": "effective"})
+        channel._mark_effective()
         self.assertTrue(channel.campaign_id)
         self.assertTrue(channel.supervisor_id)
+        self.assertTrue(channel.effective_access)
+
+    def test_effective_access_requires_membership_sync_and_campaign_lifecycle(self):
+        Channel = self.env["codestra.agent.channel"].with_user(self.super_admin)
+        channel = Channel.create(
+            self._channel_values(
+                "email", desired_enabled=True, state="requested"
+            )
+        )
+        channel._mark_effective()
+        self.assertTrue(channel.effective_access)
+
+        # effective_access also requires the campaign to be in a safe
+        # lifecycle state - moving it out (without touching the governed
+        # identity read-back path at all) must clear effective_access too.
+        self.campaign_a.write({"lifecycle_state": "draft"})
+        channel.invalidate_recordset(["effective_access"])
+        self.assertFalse(channel.effective_access)
+        self.campaign_a.write({"lifecycle_state": "active"})
+        channel.invalidate_recordset(["effective_access"])
         self.assertTrue(channel.effective_access)
 
     def test_disabling_desired_enabled_clears_effective_access(self):
@@ -254,10 +275,10 @@ class TestAgentChannel(TransactionCase):
             self._channel_values(
                 "phone",
                 desired_enabled=True,
-                state="effective",
                 extension_assignment_id=self.assignment.id,
             )
         )
+        channel._mark_effective()
         self.assertTrue(channel.effective_access)
         channel.write({"desired_enabled": False})
         self.assertFalse(channel.effective_access)
@@ -265,9 +286,58 @@ class TestAgentChannel(TransactionCase):
     def test_email_channel_can_be_effective_without_an_extension(self):
         Channel = self.env["codestra.agent.channel"].with_user(self.super_admin)
         channel = Channel.create(
-            self._channel_values("email", desired_enabled=True, state="effective")
+            self._channel_values("email", desired_enabled=True)
         )
+        channel._mark_effective()
         self.assertTrue(channel.effective_access)
+
+    def test_state_cannot_be_written_directly_even_by_super_admin(self):
+        Channel = self.env["codestra.agent.channel"].with_user(self.super_admin)
+        channel = Channel.create(self._channel_values("email"))
+        with self.assertRaises(AccessError):
+            channel.write({"state": "effective"})
+        with self.assertRaises(ValidationError):
+            Channel.create(
+                self._channel_values("phone", state="provisioned")
+            )
+
+    def test_mark_effective_only_affects_desired_enabled_channels(self):
+        Channel = self.env["codestra.agent.channel"].with_user(self.super_admin)
+        enabled = Channel.create(
+            self._channel_values("email", desired_enabled=True)
+        )
+        disabled = Channel.create(
+            self._channel_values("sms", desired_enabled=False)
+        )
+        (enabled | disabled)._mark_effective()
+        self.assertEqual(enabled.state, "effective")
+        self.assertEqual(disabled.state, "requested")
+
+    def test_apply_step_evidence_requires_sha256_hash_on_success(self):
+        Channel = self.env["codestra.agent.channel"].with_user(self.super_admin)
+        channel = Channel.create(self._channel_values("email"))
+        with self.assertRaises(ValidationError):
+            channel._apply_step_evidence(verified=True, evidence_hash="not-a-hash")
+        with self.assertRaises(ValidationError):
+            channel._apply_step_evidence(verified=True, evidence_hash=None)
+        channel._apply_step_evidence(
+            verified=True,
+            evidence_hash="a" * 64,
+            external_id="ext-1",
+            external_reference="ref-1",
+        )
+        self.assertEqual(channel.state, "provisioned")
+        self.assertEqual(channel.external_id, "ext-1")
+        self.assertTrue(channel.last_reconciled_at)
+
+    def test_apply_step_evidence_failure_sets_failed_state(self):
+        Channel = self.env["codestra.agent.channel"].with_user(self.super_admin)
+        channel = Channel.create(self._channel_values("phone"))
+        channel._apply_step_evidence(
+            verified=False, error_code="UPSTREAM_TIMEOUT", error_sanitized="timed out"
+        )
+        self.assertEqual(channel.state, "failed")
+        self.assertEqual(channel.last_error_code, "UPSTREAM_TIMEOUT")
 
     def test_only_super_admin_and_service_can_write(self):
         Channel = self.env["codestra.agent.channel"].with_user(self.super_admin)
@@ -280,12 +350,21 @@ class TestAgentChannel(TransactionCase):
     def test_service_account_can_only_write_external_status_fields(self):
         Channel = self.env["codestra.agent.channel"].with_user(self.super_admin)
         channel = Channel.create(self._channel_values("phone"))
+        # external_system is an allowed field and needs no transition
+        # capability; state changes always require the governed path (see
+        # test_state_cannot_be_written_directly_even_by_super_admin and
+        # test_apply_step_evidence_*), even for the service account.
         channel.with_user(self.provisioning_service_user).write(
-            {"state": "provisioning", "external_system": "vicidial"}
+            {"external_system": "vicidial"}
         )
+        self.assertEqual(channel.external_system, "vicidial")
         with self.assertRaises(AccessError):
             channel.with_user(self.provisioning_service_user).write(
                 {"desired_enabled": True}
+            )
+        with self.assertRaises(AccessError):
+            channel.with_user(self.provisioning_service_user).write(
+                {"state": "provisioning"}
             )
 
     def test_super_admin_group_granted_to_known_login(self):

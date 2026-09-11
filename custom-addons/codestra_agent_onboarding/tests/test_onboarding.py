@@ -639,6 +639,45 @@ class TestCodestraAgentOnboarding(TransactionCase):
         self.assertEqual(payload["telephony_assignment"]["webrtc_max_devices"], 1)
         self.assertFalse(payload["controls"]["webrtc_credential_issuance"])
 
+    def test_incoming_and_outgoing_call_permissions_flow_to_phone_and_webrtc_channels(
+        self,
+    ):
+        onboarding = self._new_onboarding(email="calling.agent@example.invalid")
+        onboarding.write(
+            {
+                "webrtc_enabled": True,
+                "incoming_calls_enabled": True,
+                "outgoing_calls_enabled": True,
+            }
+        )
+        self._start(onboarding)
+        phone = self._channel(onboarding, "phone")
+        webrtc = self._channel(onboarding, "webrtc")
+        self.assertTrue(phone.incoming_allowed)
+        self.assertTrue(phone.outgoing_allowed)
+        self.assertTrue(webrtc.incoming_allowed)
+        self.assertTrue(webrtc.outgoing_allowed)
+        email = self._channel(onboarding, "email")
+        self.assertFalse(email.incoming_allowed)
+        self.assertFalse(email.outgoing_allowed)
+
+    def test_calling_permissions_require_sip_endpoint(self):
+        onboarding = self._new_onboarding(email="calling.no.sip@example.invalid")
+        with self.assertRaises(ValidationError):
+            onboarding.write(
+                {"needs_sip_endpoint": False, "outgoing_calls_enabled": True}
+            )
+
+    def test_membership_channel_ids_reflect_created_channels(self):
+        onboarding = self._new_onboarding(email="channel.reflection@example.invalid")
+        self._start(onboarding)
+        membership = onboarding.campaign_membership_id
+        self.assertEqual(len(membership.channel_ids), 4)
+        self.assertEqual(
+            set(membership.channel_ids.mapped("channel_type")),
+            {"email", "sms", "phone", "webrtc"},
+        )
+
     def test_communication_channel_switches_require_global_administrator(self):
         onboarding = self._new_onboarding(email="channel.switch.rbac@example.invalid")
         for field_name, value in (

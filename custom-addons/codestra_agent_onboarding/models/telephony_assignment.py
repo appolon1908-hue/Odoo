@@ -34,6 +34,9 @@ class CcCampaignMembershipTelephonyAssignment(models.Model):
     webrtc_session_ids = fields.One2many(
         "cc.webrtc.session", "membership_id", string="WebRTC Sessions"
     )
+    channel_ids = fields.One2many(
+        "codestra.agent.channel", "membership_id", string="Agent Channels"
+    )
 
     _extension_unique_active = models.UniqueIndex(
         "(extension) WHERE state = 'active' AND extension IS NOT NULL",

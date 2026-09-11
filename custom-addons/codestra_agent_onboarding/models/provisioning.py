@@ -44,6 +44,8 @@ IMMUTABLE_ASSIGNMENT_FIELDS = {
     "needs_vicidial",
     "webrtc_enabled",
     "sms_enabled",
+    "incoming_calls_enabled",
+    "outgoing_calls_enabled",
 }
 SYSTEM_LINK_FIELDS = {
     "campaign_membership_id",
@@ -56,6 +58,8 @@ COMMUNICATION_CHANNEL_FIELDS = {
     "needs_sip_endpoint",
     "webrtc_enabled",
     "sms_enabled",
+    "incoming_calls_enabled",
+    "outgoing_calls_enabled",
 }
 PROVISION_EVENT = "agent.provisioning.requested.v1"
 ACTIVATION_EMAIL_EVENT = "agent.activation-email.requested.v1"
@@ -638,10 +642,23 @@ class CodestraAgentOnboardingProvisioning(models.Model):
         }
         for channel_type, source_field in self._CHANNEL_DESIRED_SOURCE_FIELD.items():
             desired = bool(getattr(self, source_field))
+            voice_values = (
+                {
+                    "incoming_allowed": self.incoming_calls_enabled,
+                    "outgoing_allowed": self.outgoing_calls_enabled,
+                }
+                if channel_type in ("phone", "webrtc")
+                else {}
+            )
             channel = existing_by_type.get(channel_type)
             if channel:
-                if channel.desired_enabled != desired:
-                    channel.write({"desired_enabled": desired})
+                changes = {
+                    key: value
+                    for key, value in {"desired_enabled": desired, **voice_values}.items()
+                    if channel[key] != value
+                }
+                if changes:
+                    channel.write(changes)
             else:
                 Channel.create(
                     {
@@ -650,6 +667,7 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                         "provisioning_request_id": self.provisioning_request_id.id or False,
                         "channel_type": channel_type,
                         "desired_enabled": desired,
+                        **voice_values,
                     }
                 )
 
@@ -1160,7 +1178,12 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                     record.operational_team_id.write(
                         {"agent_ids": [(4, user.id)]}
                     )
-        return super().action_activate()
+        result = super().action_activate()
+        for record in self:
+            record.campaign_membership_id.channel_ids.with_user(
+                SUPERUSER_ID
+            )._mark_effective()
+        return result
 
     def action_cancel(self):
         if any(

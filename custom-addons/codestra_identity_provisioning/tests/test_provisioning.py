@@ -528,6 +528,73 @@ class TestIdentityProvisioning(TransactionCase):
             "replayed",
         )
 
+    def test_service_callback_verified_evidence_reaches_the_agent_channel(self):
+        provision_request = self.env["codestra.provisioning.request"].create(
+            self._request_values("callback-channel-evidence")
+        )
+        channel = self.env["codestra.agent.channel"].create({
+            "employee_id": provision_request.employee_id.id,
+            "provisioning_request_id": provision_request.id,
+            "channel_type": "email",
+        })
+        provision_request._ensure_steps()
+        step = provision_request.step_ids.filtered(
+            lambda s: s.target_system == "email"
+        )
+        step.ensure_one()
+        payload = {
+            "event_id": "callback-event-channel-0001",
+            "request_id": provision_request.id,
+            "correlation_id": provision_request.correlation_id,
+            "state": "verification",
+            "step_results": [{
+                "target_system": "email",
+                "operation": step.operation,
+                "state": "verified",
+                "external_id": "mailbox-1",
+                "external_reference": "mailbox-ref-1",
+                "evidence_hash": "b" * 64,
+            }],
+            "timestamp": "2026-07-26T00:00:00Z",
+        }
+        self.env["codestra.provisioning.request"].apply_service_callback(payload)
+        channel.invalidate_recordset()
+        self.assertEqual(channel.state, "provisioned")
+        self.assertEqual(channel.external_id, "mailbox-1")
+        self.assertEqual(channel.external_reference, "mailbox-ref-1")
+
+    def test_service_callback_failed_step_marks_the_agent_channel_failed(self):
+        provision_request = self.env["codestra.provisioning.request"].create(
+            self._request_values("callback-channel-failure")
+        )
+        channel = self.env["codestra.agent.channel"].create({
+            "employee_id": provision_request.employee_id.id,
+            "provisioning_request_id": provision_request.id,
+            "channel_type": "phone",
+        })
+        provision_request._ensure_steps()
+        step = provision_request.step_ids.filtered(
+            lambda s: s.target_system == "sip"
+        )
+        step.ensure_one()
+        payload = {
+            "event_id": "callback-event-channel-0002",
+            "request_id": provision_request.id,
+            "correlation_id": provision_request.correlation_id,
+            "state": "verification",
+            "step_results": [{
+                "target_system": "sip",
+                "operation": step.operation,
+                "state": "dead_letter",
+                "error_code": "upstream_timeout",
+            }],
+            "timestamp": "2026-07-26T00:00:00Z",
+        }
+        self.env["codestra.provisioning.request"].apply_service_callback(payload)
+        channel.invalidate_recordset()
+        self.assertEqual(channel.state, "failed")
+        self.assertEqual(channel.last_error_code, "UPSTREAM_TIMEOUT")
+
     def test_business_unit_campaign_isolation_constraint(self):
         other_unit = self.env["call.center.business.unit"].create({
             "name": "Other Unit", "code": "OTHER",
