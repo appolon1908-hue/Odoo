@@ -7,3 +7,6 @@ access_cc_webrtc_session_config,cc.webrtc.session configuration,model_cc_webrtc_
 access_cc_webrtc_session_auditor,cc.webrtc.session auditor,model_cc_webrtc_session,codestra_cc_security.group_cc_auditor,1,0,0,0
 access_cc_webrtc_session_admin,cc.webrtc.session administrator,model_cc_webrtc_session,codestra_cc_security.group_cc_global_administrator,1,1,1,0
 access_cc_webrtc_session_service,cc.webrtc.session service,model_cc_webrtc_session,group_cc_webrtc_session_service,1,1,1,0
+access_codestra_agent_channel_user,codestra.agent.channel user,model_codestra_agent_channel,call_center_core.group_call_center_user,1,0,0,0
+access_codestra_agent_channel_manager,codestra.agent.channel manager,model_codestra_agent_channel,call_center_core.group_call_center_manager,1,0,0,0
+access_codestra_agent_channel_admin,codestra.agent.channel global administrator,model_codestra_agent_channel,codestra_cc_security.group_cc_global_administrator,1,1,1,0
