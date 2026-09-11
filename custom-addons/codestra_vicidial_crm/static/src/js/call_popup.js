@@ -5,6 +5,13 @@ import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
+// Odoo's JSON-RPC layer labels every server-side exception with the literal
+// "Odoo Server Error" and carries the real reason in `error.data.message`.
+// Prefer that so the agent sees why the dialer refused, not the generic label.
+function rpcErrorMessage(error, fallback) {
+    return error?.data?.message || error?.message || fallback;
+}
+
 export class CodestraCallPopup extends Component {
     static template = "codestra_vicidial_crm.CallPopup";
 
@@ -44,7 +51,7 @@ export class CodestraCallPopup extends Component {
                 const current = await this.rpc("/codestra/call-control/v1/current", {});
                 if (current) await this.handleCall(current);
             } catch (error) {
-                this.ui.error = error.message || "Phone unavailable";
+                this.ui.error = rpcErrorMessage(error, "Phone unavailable");
             }
         });
     }
@@ -65,7 +72,7 @@ export class CodestraCallPopup extends Component {
         } catch (error) {
             this.ui.dialpad.enabled = false;
             this.ui.dialpad.status = "Unavailable";
-            this.ui.dialpad.reason = error.message || "Dialer is unavailable.";
+            this.ui.dialpad.reason = rpcErrorMessage(error, "Dialer is unavailable.");
         }
     }
 
@@ -127,7 +134,7 @@ export class CodestraCallPopup extends Component {
             this.ui.dialpad.error = "";
             return result;
         } catch (error) {
-            this.ui.dialpad.error = error.message || "Number lookup failed.";
+            this.ui.dialpad.error = rpcErrorMessage(error, "Number lookup failed.");
             return null;
         }
     }
@@ -152,7 +159,7 @@ export class CodestraCallPopup extends Component {
             await this.handleCall(result.call);
             this.notification.add("Call request accepted; waiting for telephony confirmation.", { type: "info" });
         } catch (error) {
-            this.ui.dialpad.error = error.message || "Call request failed.";
+            this.ui.dialpad.error = rpcErrorMessage(error, "Call request failed.");
         } finally {
             this.ui.dialpad.busy = false;
         }
@@ -193,7 +200,7 @@ export class CodestraCallPopup extends Component {
             });
             this.notification.add(`${action[0].toUpperCase() + action.slice(1)} requested; awaiting Asterisk confirmation`, { type: "info" });
         } catch (error) {
-            this.ui.error = error.message || "Call control failed";
+            this.ui.error = rpcErrorMessage(error, "Call control failed");
         } finally {
             this.ui.busy = false;
         }
