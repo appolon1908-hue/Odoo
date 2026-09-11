@@ -177,6 +177,11 @@ class CodestraAgentChannel(models.Model):
 
     @api.constrains("extension_assignment_id")
     def _check_extension_not_6101(self):
+        # codestra.extension.assignment already has a hard database CHECK
+        # excluding extension 6101, so no assignment with that value can
+        # exist to reach this constraint - this is intentional,
+        # unreachable defense-in-depth against that other model's
+        # guarantee being weakened later, not independently testable.
         for channel in self:
             if (
                 channel.extension_assignment_id

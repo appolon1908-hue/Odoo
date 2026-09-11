@@ -1,6 +1,6 @@
 from datetime import date
 
-from psycopg2.errors import UniqueViolation
+from psycopg2.errors import CheckViolation, UniqueViolation
 
 from odoo import fields
 from odoo.exceptions import AccessError, ValidationError
@@ -197,6 +197,14 @@ class TestAgentChannel(TransactionCase):
             Channel.create(self._channel_values("sms", outgoing_allowed=True))
 
     def test_extension_6101_rejected(self):
+        # codestra.extension.assignment has its own hard database CHECK
+        # constraint excluding extension 6101 (see
+        # codestra_identity_provisioning/tests/test_provisioning.py::
+        # test_extension_6101_is_hard_excluded) - no assignment with that
+        # extension can ever exist to attach to a channel, so
+        # CodestraAgentChannel._check_extension_not_6101 is unreachable
+        # defense-in-depth, not something with an independent failure path.
+        # What's actually testable here is that this lower layer holds.
         pool = self.env["codestra.extension.pool"].create({
             "name": "Blocked Pool",
             "code": "AGCH-BLK",
@@ -206,24 +214,15 @@ class TestAgentChannel(TransactionCase):
             "context": "codestra_restricted",
             "active": True,
         })
-        blocked_assignment = self.env["codestra.extension.assignment"].create({
-            "pool_id": pool.id,
-            "extension": "6101",
-            "employee_id": self.other_employee.id,
-            "request_id": self.request.id,
-            "state": "reserved",
-            "reserved_at": fields.Datetime.now(),
-        })
-        Channel = self.env["codestra.agent.channel"].with_user(self.super_admin)
-        with self.assertRaises(ValidationError):
-            Channel.create(
-                self._channel_values(
-                    "phone",
-                    employee_id=self.other_employee.id,
-                    membership_id=False,
-                    extension_assignment_id=blocked_assignment.id,
-                )
-            )
+        with self.assertRaises(CheckViolation):
+            self.env["codestra.extension.assignment"].create({
+                "pool_id": pool.id,
+                "extension": "6101",
+                "employee_id": self.other_employee.id,
+                "request_id": self.request.id,
+                "state": "reserved",
+                "reserved_at": fields.Datetime.now(),
+            })
 
     def test_extension_assignment_must_belong_to_same_employee(self):
         Channel = self.env["codestra.agent.channel"].with_user(self.super_admin)
