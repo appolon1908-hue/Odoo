@@ -266,3 +266,80 @@ class TestPlatformUser(TransactionCase):
             member.with_user(self.tenant_admin_user).write({"role": "tenant_admin"})
         member.with_user(self.platform_admin).write({"role": "tenant_admin"})
         self.assertEqual(member.role, "tenant_admin")
+
+    def test_platform_admin_can_create_and_update_tenant(self):
+        tenant = self.env["codestra.tenant"].with_user(self.platform_admin).create({
+            "name": "Platform Admin Tenant",
+            "code": "PLATFORM-ADMIN-TENANT",
+        })
+        tenant.write({"status": "suspended"})
+        self.assertEqual(tenant.status, "suspended")
+
+    def test_platform_operator_can_read_tenants_but_cannot_change_them(self):
+        tenants = self.env["codestra.tenant"].with_user(self.platform_operator).search([])
+        self.assertIn(self.tenant, tenants)
+        with self.assertRaises(AccessError):
+            self.tenant.with_user(self.platform_operator).write({"status": "suspended"})
+
+    def test_platform_operator_can_read_memberships_but_cannot_change_them(self):
+        memberships = self.env["codestra.tenant.membership"].with_user(
+            self.platform_operator
+        ).search([])
+        self.assertTrue(memberships)
+        with self.assertRaises(AccessError):
+            memberships[0].with_user(self.platform_operator).write({"active": False})
+
+    def test_tenant_admin_can_create_a_member_only_inside_assigned_tenant(self):
+        member = self.env["codestra.platform.user"].with_user(
+            self.tenant_admin_user
+        ).create({
+            "name": "Tenant Invited Member",
+            "primary_email": "tenant.invited.member@example.invalid",
+            "tenant_id": self.tenant.id,
+            "phone_enabled": True,
+        })
+        self.assertEqual(member.tenant_id, self.tenant)
+        membership = self.env["codestra.tenant.membership"].with_user(
+            self.tenant_admin_user
+        ).search([
+            ("platform_user_id", "=", member.id),
+            ("tenant_id", "=", self.tenant.id),
+        ])
+        self.assertEqual(membership.role, "member")
+
+    def test_tenant_admin_cannot_create_cross_tenant_or_privileged_identity(self):
+        PlatformUser = self.env["codestra.platform.user"].with_user(
+            self.tenant_admin_user
+        )
+        with self.assertRaises(AccessError):
+            PlatformUser.create({
+                "name": "Cross Tenant Member",
+                "primary_email": "cross.tenant.member@example.invalid",
+                "tenant_id": self.other_tenant.id,
+            })
+        with self.assertRaises(AccessError):
+            PlatformUser.create({
+                "name": "Attempted Platform Admin",
+                "primary_email": "attempted.platform.admin@example.invalid",
+                "tenant_id": self.tenant.id,
+                "platform_role": "platform_admin",
+            })
+
+    def test_tenant_admin_cannot_reassign_membership_or_escalate_role(self):
+        member = self.env["codestra.platform.user"].with_user(
+            self.tenant_admin_user
+        ).create({
+            "name": "Membership Boundary Member",
+            "primary_email": "membership.boundary.member@example.invalid",
+            "tenant_id": self.tenant.id,
+        })
+        membership = self.env["codestra.tenant.membership"].with_user(
+            self.tenant_admin_user
+        ).search([
+            ("platform_user_id", "=", member.id),
+            ("tenant_id", "=", self.tenant.id),
+        ])
+        with self.assertRaises(AccessError):
+            membership.write({"role": "tenant_admin"})
+        with self.assertRaises(AccessError):
+            membership.write({"tenant_id": self.other_tenant.id})

@@ -7,6 +7,14 @@ SUPER_ADMIN_GROUP = "codestra_identity_provisioning.group_provisioning_global_su
 PLATFORM_ADMIN_GROUP = "codestra_identity_provisioning.group_platform_admin"
 PLATFORM_OPERATOR_GROUP = "codestra_identity_provisioning.group_platform_operator"
 TENANT_ADMIN_GROUP = "codestra_identity_provisioning.group_tenant_admin"
+TENANT_ADMIN_CREATE_FIELDS = {
+    "name", "primary_email", "tenant_id",
+    "phone_enabled", "webrtc_enabled", "sms_enabled", "email_enabled",
+}
+TENANT_ADMIN_WRITE_FIELDS = {
+    "name", "primary_email", "status",
+    "phone_enabled", "webrtc_enabled", "sms_enabled", "email_enabled",
+}
 TENANT_ADMIN_RESTRICTED_FIELDS = {
     "platform_role", "tenant_id", "odoo_access_enabled", "odoo_user_id",
 }
@@ -136,20 +144,52 @@ class CodestraPlatformUser(models.Model):
                 _("Only a provisioning Super Admin or Platform Admin may change platform users.")
             )
 
+    def _tenant_admin_tenant_ids(self):
+        return set(self.env.user.codestra_tenant_admin_ids.ids)
+
     def _has_tenant_admin_scope(self):
-        admin_tenant_ids = set(self.env.user.codestra_tenant_admin_ids.ids)
+        admin_tenant_ids = self._tenant_admin_tenant_ids()
         return bool(admin_tenant_ids) and all(
             record.tenant_id.id in admin_tenant_ids for record in self
         )
 
+    def _validate_tenant_admin_create(self, values_list):
+        admin_tenant_ids = self._tenant_admin_tenant_ids()
+        if not admin_tenant_ids:
+            raise AccessError(_("You are not assigned as an administrator of a tenant."))
+        for values in values_list:
+            unexpected = set(values) - TENANT_ADMIN_CREATE_FIELDS
+            if unexpected:
+                raise AccessError(
+                    _("Tenant Admins may not set protected fields: %s")
+                    % ", ".join(sorted(unexpected))
+                )
+            tenant_id = values.get("tenant_id")
+            if not tenant_id or tenant_id not in admin_tenant_ids:
+                raise AccessError(
+                    _("A Tenant Admin may create users only inside an assigned tenant.")
+                )
+
     @api.model_create_multi
     def create(self, values_list):
-        # Tenant Admin-initiated creation goes through an approval/
-        # provisioning request, not a direct create() - see section 10 of
-        # the RBAC design: only Platform Admin creates platform users for
-        # the first release.
-        self._require_super_admin()
-        return super().create(values_list)
+        if self._has_full_platform_authority():
+            return super().create(values_list)
+        if not self.env.user.has_group(TENANT_ADMIN_GROUP):
+            self._require_super_admin()
+        self._validate_tenant_admin_create(values_list)
+        records = super().create(values_list)
+        # A tenant-created identity is a tenant member by default. It cannot
+        # grant itself platform or tenant-admin authority; Platform Admin is
+        # still required to promote or assign privileged roles.
+        self.env["codestra.tenant.membership"].create([
+            {
+                "platform_user_id": record.id,
+                "tenant_id": record.tenant_id.id,
+                "role": "member",
+            }
+            for record in records
+        ])
+        return records
 
     def write(self, values):
         if self._has_full_platform_authority():
@@ -160,7 +200,7 @@ class CodestraPlatformUser(models.Model):
         ):
             pass
         elif (
-            set(values).isdisjoint(TENANT_ADMIN_RESTRICTED_FIELDS)
+            set(values) <= TENANT_ADMIN_WRITE_FIELDS
             and self.env.user.has_group(TENANT_ADMIN_GROUP)
             and self._has_tenant_admin_scope()
         ):

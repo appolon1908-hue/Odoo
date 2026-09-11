@@ -7,6 +7,8 @@
         <field name="name"/>
         <field name="primary_email"/>
         <field name="tenant_id"/>
+        <field name="platform_role"
+               groups="codestra_identity_provisioning.group_platform_admin,codestra_identity_provisioning.group_platform_operator,codestra_identity_provisioning.group_provisioning_global_super_admin"/>
         <field name="odoo_access_enabled" widget="boolean_toggle"/>
         <field name="odoo_user_id"/>
         <field name="phone_enabled" widget="boolean_toggle"/>
@@ -39,14 +41,22 @@
               <field name="name"/>
               <field name="primary_email"/>
               <field name="tenant_id"/>
-              <field name="keycloak_subject" readonly="1"/>
+              <field name="platform_role"
+                     groups="codestra_identity_provisioning.group_platform_admin,codestra_identity_provisioning.group_provisioning_global_super_admin"/>
+              <field name="keycloak_subject" readonly="1"
+                     groups="codestra_identity_provisioning.group_platform_admin,codestra_identity_provisioning.group_platform_operator,codestra_identity_provisioning.group_provisioning_global_super_admin"/>
             </group>
             <group>
-              <field name="odoo_access_enabled" widget="boolean_toggle"/>
-              <field name="odoo_user_id" readonly="1"/>
-              <field name="provisioning_state" readonly="1"/>
-              <field name="last_verified_at" readonly="1"/>
-              <field name="last_error" readonly="1"/>
+              <field name="odoo_access_enabled" widget="boolean_toggle"
+                     groups="codestra_identity_provisioning.group_platform_admin,codestra_identity_provisioning.group_provisioning_global_super_admin"/>
+              <field name="odoo_user_id" readonly="1"
+                     groups="codestra_identity_provisioning.group_platform_admin,codestra_identity_provisioning.group_platform_operator,codestra_identity_provisioning.group_provisioning_global_super_admin"/>
+              <field name="provisioning_state" readonly="1"
+                     groups="codestra_identity_provisioning.group_platform_admin,codestra_identity_provisioning.group_platform_operator,codestra_identity_provisioning.group_provisioning_global_super_admin"/>
+              <field name="last_verified_at" readonly="1"
+                     groups="codestra_identity_provisioning.group_platform_admin,codestra_identity_provisioning.group_platform_operator,codestra_identity_provisioning.group_provisioning_global_super_admin"/>
+              <field name="last_error" readonly="1"
+                     groups="codestra_identity_provisioning.group_platform_admin,codestra_identity_provisioning.group_platform_operator,codestra_identity_provisioning.group_provisioning_global_super_admin"/>
             </group>
           </group>
           <group string="Channel Entitlements">
@@ -57,12 +67,15 @@
           </group>
           <button name="action_ensure_odoo_access" type="object"
                   string="Ensure Odoo Access" class="btn-secondary"
+                  groups="codestra_identity_provisioning.group_platform_admin,codestra_identity_provisioning.group_provisioning_global_super_admin"
                   invisible="not odoo_access_enabled or odoo_user_id"/>
           <button name="action_suspend" type="object"
                   string="Suspend" class="btn-secondary"
+                  groups="codestra_identity_provisioning.group_platform_admin,codestra_identity_provisioning.group_platform_operator,codestra_identity_provisioning.group_tenant_admin,codestra_identity_provisioning.group_provisioning_global_super_admin"
                   invisible="status == 'suspended'"/>
           <button name="action_reactivate" type="object"
                   string="Reactivate" class="btn-secondary"
+                  groups="codestra_identity_provisioning.group_platform_admin,codestra_identity_provisioning.group_platform_operator,codestra_identity_provisioning.group_tenant_admin,codestra_identity_provisioning.group_provisioning_global_super_admin"
                   invisible="status != 'suspended'"/>
           <notebook>
             <page string="Provisioning Status" name="provisioning_status">
