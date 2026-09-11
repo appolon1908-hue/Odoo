@@ -29,6 +29,9 @@ class TestRecordingReference(TransactionCase):
                 "name": "Synthetic Agent",
                 "vicidial_user": "recording-agent",
                 "odoo_user_id": cls.agent_user.id,
+                "primary_campaign_id": cls.campaign.id,
+                "campaign_ids": [(6, 0, [cls.campaign.id])],
+                "phone_login": "7300",
                 "recording_scope_group_id": cls.scope.id,
             }
         )
