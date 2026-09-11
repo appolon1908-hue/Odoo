@@ -12,7 +12,7 @@ async function popupHarness(routeHandlers = {}) {
     const requests = [];
     const startup = [];
     const services = {
-        bus_service: { addEventListener() {} },
+        bus_service: { addEventListener() {}, removeEventListener() {} },
         action: { doAction() {} },
         notification: { add() {} },
     };
@@ -21,7 +21,16 @@ async function popupHarness(routeHandlers = {}) {
         "@odoo/owl": {
             Component: class {},
             onWillStart: (callback) => startup.push(callback),
+            onWillDestroy: () => {},
             useState: (state) => state,
+        },
+        // PR #102 wires the canonical realtime client into the popup. The harness
+        // never returns an enabled boot payload, so it is only imported, not run.
+        "./calling_realtime": {
+            CallingRealtimeClient: class {
+                connect() {}
+                stop() {}
+            },
         },
         "@web/core/network/rpc": {
             rpc: async (route, params) => {
