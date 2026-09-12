@@ -16,24 +16,24 @@
     <field name="name">Codestra CRM API leads in authorized business unit</field>
     <field name="model_id" ref="crm.model_crm_lead"/>
     <field name="groups" eval="[(4, ref('group_codestra_crm_api'))]"/>
-    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+    <field name="domain_force">[('business_unit_id.legacy_business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
   </record>
   <record id="rule_codestra_crm_api_customer_profile_unit" model="ir.rule">
     <field name="name">Codestra CRM API customer profiles in authorized business unit</field>
     <field name="model_id" ref="codestra_cc_crm.model_cc_customer_profile"/>
     <field name="groups" eval="[(4, ref('group_codestra_crm_api'))]"/>
-    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+    <field name="domain_force">[('business_unit_id.legacy_business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
   </record>
   <record id="rule_codestra_crm_api_ticket_unit" model="ir.rule">
     <field name="name">Codestra CRM API tickets in authorized business unit</field>
     <field name="model_id" ref="codestra_cc_helpdesk.model_cc_helpdesk_ticket"/>
     <field name="groups" eval="[(4, ref('group_codestra_crm_api'))]"/>
-    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+    <field name="domain_force">[('business_unit_id.legacy_business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
   </record>
   <record id="rule_codestra_crm_api_ticket_queue_unit" model="ir.rule">
     <field name="name">Codestra CRM API ticket queues in authorized business unit</field>
     <field name="model_id" ref="codestra_cc_helpdesk.model_cc_helpdesk_queue"/>
     <field name="groups" eval="[(4, ref('group_codestra_crm_api'))]"/>
-    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+    <field name="domain_force">[('business_unit_id.legacy_business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
   </record>
 </odoo>
