@@ -120,6 +120,9 @@ MIDDLEWARE_STEP_TARGETS = {
     ("klyrow", "provision_sender_identity"): ("email", "upsert_mailbox"),
     ("telnexa", "provision_sender_profile"): ("sms", "upsert_sender_profile"),
     ("odoo", "upsert_user"): ("odoo", "upsert_user"),
+    ("odoo", "provision_voicemail"): ("voicemail", "provision_mailbox"),
+    ("odoo", "grant_recording_access"): ("recording_access", "grant_access"),
+    ("odoo", "grant_monitoring_access"): ("monitoring_access", "grant_access"),
 }
 
 
