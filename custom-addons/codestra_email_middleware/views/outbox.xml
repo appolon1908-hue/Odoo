@@ -34,4 +34,3 @@
             parent="base.menu_administration" action="email_outbox_action"
             groups="base.group_system"/>
 </odoo>
-
