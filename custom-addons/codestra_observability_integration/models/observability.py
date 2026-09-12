@@ -96,6 +96,22 @@ def _timestamp(value, field_name, *, required=True):
     )
 
 
+def _document_timestamp(value):
+    if not value:
+        return None
+    parsed = value
+    if isinstance(parsed, str):
+        parsed = datetime.fromisoformat(parsed.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return (
+        parsed.astimezone(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+
+
 def _storage_values(values):
     values = dict(values)
     for key in (
@@ -445,19 +461,19 @@ class KyyowObservabilityKpiSnapshot(models.Model):
             "service_id": self.service_id,
             "environment": self.environment,
             "period_reference": self.period_reference,
-            "period_start": fields.Datetime.to_string(self.period_start),
-            "period_end": fields.Datetime.to_string(self.period_end),
+            "period_start": _document_timestamp(self.period_start),
+            "period_end": _document_timestamp(self.period_end),
             "value": self.value,
             "unit": self.unit,
             "dimensions": self.dimensions or {},
             "source": self.source,
             "source_revision": self.source_revision,
             "source_payload_hash": f"sha256:{self.source_payload_hash}",
-            "observed_at": fields.Datetime.to_string(self.observed_at),
+            "observed_at": _document_timestamp(self.observed_at),
             "reconciliation_state": self.reconciliation_state,
             "correlation_id": self.correlation_id,
             "projection_hash": f"sha256:{self.projection_hash}",
-            "created_at": fields.Datetime.to_string(self.created_at),
+            "created_at": _document_timestamp(self.created_at),
         }
 
 
@@ -631,18 +647,18 @@ class KyyowObservabilityIncident(models.Model):
             "host": self.host or None,
             "summary": self.summary,
             "labels": self.labels or {},
-            "first_seen_at": fields.Datetime.to_string(self.first_seen_at),
-            "last_seen_at": fields.Datetime.to_string(self.last_seen_at),
-            "resolved_at": fields.Datetime.to_string(self.resolved_at)
+            "first_seen_at": _document_timestamp(self.first_seen_at),
+            "last_seen_at": _document_timestamp(self.last_seen_at),
+            "resolved_at": _document_timestamp(self.resolved_at)
             if self.resolved_at
             else None,
             "source_deployment": self.source_deployment,
             "resource_version": self.resource_version,
             "source_payload_hash": f"sha256:{self.source_payload_hash}",
-            "observed_at": fields.Datetime.to_string(self.observed_at),
+            "observed_at": _document_timestamp(self.observed_at),
             "correlation_id": self.correlation_id,
             "projection_hash": f"sha256:{self.projection_hash}",
-            "updated_at": fields.Datetime.to_string(self.updated_at),
+            "updated_at": _document_timestamp(self.updated_at),
         }
 
 
@@ -709,6 +725,6 @@ class KyyowObservabilityIncidentEvent(models.Model):
             "projection_hash": f"sha256:{self.projection_hash}",
             "correlation_id": self.correlation_id,
             "source_deployment": self.source_deployment,
-            "observed_at": fields.Datetime.to_string(self.observed_at),
-            "created_at": fields.Datetime.to_string(self.created_at),
+            "observed_at": _document_timestamp(self.observed_at),
+            "created_at": _document_timestamp(self.created_at),
         }
