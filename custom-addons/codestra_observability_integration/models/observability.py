@@ -78,7 +78,7 @@ def _clean_digest(value, field_name):
 
 def _timestamp(value, field_name, *, required=True):
     if value is None and not required:
-        return False
+        return None
     if not isinstance(value, str):
         raise ValidationError(f"{field_name} must be an RFC3339 timestamp")
     try:
@@ -145,7 +145,11 @@ def _projection_hash(payload, keys):
 
 def _validate_projection_hash(payload, keys):
     supplied = _clean_digest(payload.get("projection_hash"), "projection_hash")
-    expected = _projection_hash(payload, keys)
+    hash_payload = dict(payload)
+    source_hash = hash_payload.get("source_payload_hash")
+    if isinstance(source_hash, str) and not source_hash.startswith("sha256:"):
+        hash_payload["source_payload_hash"] = "sha256:" + source_hash
+    expected = _projection_hash(hash_payload, keys)
     if supplied != expected:
         raise ValidationError("projection hash does not match the immutable payload")
     return expected
@@ -333,7 +337,7 @@ def validate_incident_payload(payload):
         "state": state,
         "service_id": service_id,
         "environment": environment,
-        "host": host or False,
+        "host": host,
         "summary": summary.strip(),
         "labels": labels,
         "first_seen_at": first_seen_at,
