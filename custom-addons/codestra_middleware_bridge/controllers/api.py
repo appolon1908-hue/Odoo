@@ -10,6 +10,7 @@ from typing import ClassVar
 
 from odoo import fields, http
 from odoo.http import request
+from odoo.exceptions import AccessError
 
 PREFIX = "CODESTRA-INTEGRATION-TEST-"
 # PostgreSQL unique_violation. Matched on the driver's SQLSTATE so the
@@ -946,10 +947,15 @@ class CodestraMiddlewareBridge(http.Controller):
         unit = self._canonical_unit(auth)
         if not unit:
             return None
-        profile = request.env["cc.customer.profile"].with_user(auth["user"]).browse(profile_id).exists()
-        if not profile or profile.business_unit_id != unit:
+        try:
+            profile = request.env["cc.customer.profile"].with_user(auth["user"]).browse(profile_id).exists()
+            if not profile or profile.business_unit_id != unit:
+                return None
+            return profile
+        except AccessError:
+            # Record rules intentionally hide cross-unit records. The HTTP
+            # contract presents that boundary as a not-found response.
             return None
-        return profile
 
     @staticmethod
     def _customer_profile_value(profile):
@@ -1099,13 +1105,16 @@ class CodestraMiddlewareBridge(http.Controller):
         unit = self._canonical_unit(auth)
         if not unit:
             return None, None
-        activity = request.env["mail.activity"].with_user(auth["user"]).browse(task_id).exists()
-        if not activity or activity.res_model != "cc.customer.profile":
+        try:
+            activity = request.env["mail.activity"].with_user(auth["user"]).browse(task_id).exists()
+            if not activity or activity.res_model != "cc.customer.profile":
+                return None, None
+            profile = request.env["cc.customer.profile"].with_user(auth["user"]).browse(activity.res_id).exists()
+            if not profile or profile.business_unit_id != unit:
+                return None, None
+            return activity, profile
+        except AccessError:
             return None, None
-        profile = request.env["cc.customer.profile"].with_user(auth["user"]).browse(activity.res_id).exists()
-        if not profile or profile.business_unit_id != unit:
-            return None, None
-        return activity, profile
 
     @http.route("/codestra/middleware/v1/tasks/<int:task_id>", type="http", auth="none", methods=["PATCH"], csrf=False, readonly=False)
     def task_update(self, task_id):
@@ -1148,10 +1157,13 @@ class CodestraMiddlewareBridge(http.Controller):
         unit = self._canonical_unit(auth)
         if not unit:
             return None
-        ticket = request.env["cc.helpdesk.ticket"].with_user(auth["user"]).browse(ticket_id).exists()
-        if not ticket or ticket.business_unit_id != unit:
+        try:
+            ticket = request.env["cc.helpdesk.ticket"].with_user(auth["user"]).browse(ticket_id).exists()
+            if not ticket or ticket.business_unit_id != unit:
+                return None
+            return ticket
+        except AccessError:
             return None
-        return ticket
 
     @staticmethod
     def _ticket_value(ticket):
