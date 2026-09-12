@@ -7,7 +7,7 @@ import uuid
 from odoo import SUPERUSER_ID, _, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
-from codestra_cc_identity.models.identity import IDENTITY_WRITE_CAPABILITY
+from odoo.addons.codestra_cc_identity.models.identity import IDENTITY_WRITE_CAPABILITY
 
 from odoo.addons.codestra_identity_provisioning.models.provisioning import (
     normalize_identifier,
