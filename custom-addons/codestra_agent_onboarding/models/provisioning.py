@@ -254,6 +254,8 @@ class CodestraAgentOnboardingProvisioning(models.Model):
     )
     needs_company_email = fields.Boolean(default=True, tracking=True)
     needs_sip_endpoint = fields.Boolean(default=True, tracking=True)
+    incoming_calls_enabled = fields.Boolean(default=False, tracking=True)
+    outgoing_calls_enabled = fields.Boolean(default=False, tracking=True)
     needs_voicemail = fields.Boolean(default=True, tracking=True)
     needs_recording_access = fields.Boolean(tracking=True)
     needs_monitoring_access = fields.Boolean(tracking=True)
@@ -413,6 +415,9 @@ class CodestraAgentOnboardingProvisioning(models.Model):
         "sms_sender",
         "sms_sender_type",
         "sms_countries",
+        "needs_sip_endpoint",
+        "incoming_calls_enabled",
+        "outgoing_calls_enabled",
     )
     def _check_assignment_scope(self):
         for record in self:
@@ -422,6 +427,11 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 raise ValidationError(_("The activation email address is invalid."))
             if record.sms_enabled and not (record.sms_sender or "").strip():
                 raise ValidationError(_("SMS provisioning requires an approved sender."))
+            if (
+                (record.incoming_calls_enabled or record.outgoing_calls_enabled)
+                and not record.needs_sip_endpoint
+            ):
+                raise ValidationError(_("Call permissions require a SIP endpoint."))
             campaign = record.campaign_id
             if not campaign:
                 continue
@@ -1058,10 +1068,16 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 }
             ],
             "channels": channels,
+            "entitlements": {
+                "agent_desktop": bool(record.needs_agent_desktop),
+                "voicemail": bool(record.needs_voicemail),
+                "recording_access": bool(record.needs_recording_access),
+                "monitoring_access": bool(record.needs_monitoring_access),
+            },
             "telephony": {
                 "existing_extension": record._middleware_existing_extension() or None,
-                "incoming_allowed": True,
-                "outgoing_allowed": True,
+                "incoming_allowed": bool(record.incoming_calls_enabled),
+                "outgoing_allowed": bool(record.outgoing_calls_enabled),
                 "max_webrtc_sessions": 1,
                 "extension_pool": (
                     request_record.extension_pool_id.code
@@ -1218,9 +1234,7 @@ class CodestraAgentOnboardingProvisioning(models.Model):
             != request_record.correlation_id
         ):
             raise ValueError("middleware_correlation_mismatch")
-        if normalized["state"] not in {
-            "EFFECTIVE", "PARTIAL", "FAILED", "SUSPENDED", "REVOKED"
-        }:
+        if normalized["state"] not in (MIDDLEWARE_STATES - {"NOT_STARTED", "UNKNOWN"}):
             raise ValueError("invalid_middleware_state")
         try:
             version = int(normalized["version"])
