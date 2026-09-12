@@ -12,7 +12,7 @@ from odoo.exceptions import AccessError, ValidationError
 EVENT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$")
 IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$")
 DIGEST_RE = re.compile(r"^(?:sha256:)?[0-9a-f]{64}$")
-SAFE_DIMENSION_KEY_RE = re.compile(r"^[a-z][a-z0-9_.-]{0,63}$")
+SAFE_DIMENSION_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]{0,63}$")
 SENSITIVE_KEY_PARTS = (
     "password",
     "passwd",
@@ -62,6 +62,14 @@ def _clean_text(value, field_name, maximum=128, *, required=True):
     return value
 
 
+def _bounded_text(value, field_name, maximum):
+    if not isinstance(value, str) or not value.strip() or len(value) > maximum:
+        raise ValidationError(f"{field_name} is malformed")
+    if any(ord(char) < 32 for char in value):
+        raise ValidationError(f"{field_name} contains control characters")
+    return value.strip()
+
+
 def _clean_digest(value, field_name):
     if not isinstance(value, str) or not DIGEST_RE.fullmatch(value):
         raise ValidationError(f"{field_name} must be a SHA-256 digest")
@@ -79,8 +87,33 @@ def _timestamp(value, field_name, *, required=True):
         raise ValidationError(f"{field_name} must be an RFC3339 timestamp") from exc
     if parsed.tzinfo is None:
         raise ValidationError(f"{field_name} must include a timezone")
-    parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
-    return fields.Datetime.to_string(parsed)
+    return (
+        parsed.astimezone(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+
+
+def _storage_values(values):
+    values = dict(values)
+    for key in (
+        "period_start",
+        "period_end",
+        "observed_at",
+        "first_seen_at",
+        "last_seen_at",
+        "resolved_at",
+    ):
+        value = values.get(key)
+        if not value:
+            continue
+        if isinstance(value, str):
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            values[key] = fields.Datetime.to_string(
+                parsed.astimezone(timezone.utc).replace(tzinfo=None)
+            )
+    return values
 
 
 def _safe_mapping(value, field_name, *, maximum=32):
@@ -250,7 +283,7 @@ def validate_incident_payload(payload):
     incident_id = _clean_text(payload["incident_id"], "incident_id")
     fingerprint = _clean_text(payload["fingerprint"], "fingerprint")
     alertname = _clean_text(payload["alertname"], "alertname", 128)
-    group_key = _clean_text(payload["group_key"], "group_key", 256)
+    group_key = _bounded_text(payload["group_key"], "group_key", 2048)
     severity = payload["severity"]
     state = payload["state"]
     if severity not in INCIDENT_SEVERITIES:
@@ -381,10 +414,13 @@ class KyyowObservabilityKpiSnapshot(models.Model):
     def create(self, values_list):
         if not self.env.context.get("codestra_observability_service"):
             raise AccessError("KPI snapshots are service-managed and immutable.")
+        prepared = []
         for values in values_list:
+            values = _storage_values(values)
             if values.get("projection_hash") and len(values["projection_hash"]) != 64:
                 raise ValidationError("KPI projection hash is invalid.")
-        return super().create(values_list)
+            prepared.append(values)
+        return super().create(prepared)
 
     def write(self, values):
         raise AccessError("KPI snapshots are immutable.")
@@ -560,7 +596,7 @@ class KyyowObservabilityIncident(models.Model):
     def create(self, values_list):
         if not self.env.context.get("codestra_observability_service"):
             raise AccessError("Incidents are service-managed and immutable.")
-        return super().create(values_list)
+        return super().create([_storage_values(values) for values in values_list])
 
     def write(self, values):
         if not self.env.context.get("codestra_observability_service"):
@@ -568,7 +604,7 @@ class KyyowObservabilityIncident(models.Model):
         protected = set(values) - {"updated_at"}
         if protected and not self.env.context.get("codestra_observability_service"):
             raise AccessError("Incident state is service-managed.")
-        return super().write(values)
+        return super().write(_storage_values(values))
 
     def unlink(self):
         raise AccessError("Incidents cannot be deleted.")
@@ -646,7 +682,7 @@ class KyyowObservabilityIncidentEvent(models.Model):
     def create(self, values_list):
         if not self.env.context.get("codestra_observability_service"):
             raise AccessError("Incident transitions are service-managed and immutable.")
-        return super().create(values_list)
+        return super().create([_storage_values(values) for values in values_list])
 
     def write(self, values):
         raise AccessError("Incident transitions are immutable.")
