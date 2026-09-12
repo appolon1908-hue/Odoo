@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="group_kyqra_service" model="res.groups">
+    <field name="name">Kyqra Middleware Service</field>
+    <field name="category_id" ref="base.module_category_hidden"/>
+    <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+  </record>
+  <record id="group_kyqra_reviewer" model="res.groups">
+    <field name="name">Kyqra Review User</field>
+    <field name="category_id" ref="base.module_category_hidden"/>
+    <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+  </record>
+  <record id="group_kyqra_manager" model="res.groups">
+    <field name="name">Kyqra Review Manager</field>
+    <field name="category_id" ref="base.module_category_hidden"/>
+    <field name="implied_ids" eval="[(4, ref('codestra_kyqra_review_hub.group_kyqra_reviewer'))]"/>
+  </record>
+</odoo>
