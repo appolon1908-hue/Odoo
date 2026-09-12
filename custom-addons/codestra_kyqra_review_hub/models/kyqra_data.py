@@ -428,7 +428,7 @@ class CodestraKyqraBatch(models.Model):
         return {
             "batch_id": batch.id,
             "record_id": item["record_id"],
-            "display_name": display_name,
+            "name": display_name,
             "entity_type": entity_type[:120] or "unknown",
             "source_url": item["source_url"],
             "data_json": item["data"],
@@ -615,7 +615,7 @@ class CodestraKyqraEntity(models.Model):
     _description = "Codestra Kyqra Extracted Entity"
     _inherit = ["mail.thread", "mail.activity.mixin"]
     _order = "create_date desc"
-    _rec_name = "display_name"
+    _rec_name = "name"
 
     batch_id = fields.Many2one(
         "codestra.kyqra.batch",
@@ -626,7 +626,7 @@ class CodestraKyqraEntity(models.Model):
         copy=False,
     )
     record_id = fields.Char(required=True, index=True, readonly=True, copy=False)
-    display_name = fields.Char(required=True, index=True, readonly=True, copy=False)
+    name = fields.Char(required=True, index=True, readonly=True, copy=False)
     entity_type = fields.Char(required=True, readonly=True, copy=False)
     source_url = fields.Char(required=True, readonly=True, copy=False)
     data_json = fields.Json(required=True, readonly=True, copy=False)
