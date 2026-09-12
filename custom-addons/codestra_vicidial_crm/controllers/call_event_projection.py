@@ -21,7 +21,12 @@ class CodestraCallEventProjectionAPI(http.Controller):
     SAFE_ID = re.compile(r"^[A-Za-z0-9._:-]{1,255}$")
     CALL_EVENTS: ClassVar[dict[str, str]] = {
         "call.created": "new",
-        "call.offered": "offered",
+        # Wire event renamed upstream (Vicidialer-Codestra#55): this
+        # adapter's flow is agent-originated click-to-dial, not ACD
+        # call-offering. Odoo's own internal state label is kept as
+        # "offered" (existing business terminology/UI), only the incoming
+        # wire event_type name changed.
+        "call.dialing": "offered",
         "call.ringing": "ringing",
         "call.answered": "answering",
         "call.connected": "connected",
@@ -32,7 +37,16 @@ class CodestraCallEventProjectionAPI(http.Controller):
         "call.hangup": "ending",
         "call.completed": "completed",
         "call.failed": "failed",
-        "call.missed": "missed",
+        # These five real, already-observed AMI outcomes (see
+        # Vicidialer-Codestra#55) previously all arrived as "call.missed" --
+        # "cancelled" keeps its existing British spelling to match this
+        # model's own pre-existing state value; only the wire event_type
+        # name uses the mission's canonical "canceled" spelling.
+        "call.busy": "busy",
+        "call.no_answer": "no_answer",
+        "call.rejected": "rejected",
+        "call.canceled": "cancelled",
+        "call.timeout": "timeout",
     }
     REQUIRED_FIELDS = {
         "schema_version", "event_id", "event_type", "timestamp",
@@ -297,7 +311,7 @@ class CodestraCallEventProjectionAPI(http.Controller):
         ):
             raise Forbidden("existing call binding conflict")
         if not call and payload["event_type"] not in {
-            "call.created", "call.offered", "call.ringing"
+            "call.created", "call.dialing", "call.ringing"
         }:
             raise NotFound("call must be established before this lifecycle event")
 

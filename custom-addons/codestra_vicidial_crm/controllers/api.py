@@ -14,7 +14,10 @@ from werkzeug.exceptions import BadRequest, Conflict, Forbidden, NotFound
 class CodestraAPI(http.Controller):
     CALL_EVENTS: ClassVar = {
         "call.created": "new",
-        "call.offered": "offered",
+        # Renamed upstream (Vicidialer-Codestra#55) -- agent-originated
+        # click-to-dial, not ACD call-offering. Internal state label stays
+        # "offered" (existing business terminology).
+        "call.dialing": "offered",
         "call.ringing": "ringing",
         "call.answered": "answering",
         "call.connected": "connected",
@@ -26,7 +29,13 @@ class CodestraAPI(http.Controller):
         "call.completed": "completed",
         "call.ended": "completed",
         "call.failed": "failed",
-        "call.missed": "missed",
+        # These five real, already-observed AMI outcomes (see
+        # Vicidialer-Codestra#55) previously all arrived as "call.missed".
+        "call.busy": "busy",
+        "call.no_answer": "no_answer",
+        "call.rejected": "rejected",
+        "call.canceled": "cancelled",
+        "call.timeout": "timeout",
         "call.recording_available": None,
         "call.disposition_required": None,
     }

@@ -151,7 +151,7 @@ class TestCallEventAPIContract(HttpCase):
         self.assertEqual(self.post(created).status_code, 202)
         ringing = self.payload(call_id=call_id, event_type="call.ringing", sequence=2)
         self.assertEqual(self.post(ringing).status_code, 202)
-        stale = self.payload(call_id=call_id, event_type="call.offered", sequence=1)
+        stale = self.payload(call_id=call_id, event_type="call.dialing", sequence=1)
         stale_response = self.post(stale)
         self.assertEqual(stale_response.status_code, 202)
         self.assertFalse(stale_response.json()["applied"])
