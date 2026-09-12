@@ -145,7 +145,7 @@ def main() -> int:
         fail("_begin no longer proves required security markers: " + ", ".join(missing))
 
     expected_routes = {
-        "/codestra/middleware/v1/crm/leads": {"POST"},
+        "/codestra/middleware/v1/crm/leads": {"GET", "POST"},
         "/codestra/middleware/v1/crm/leads/<string:external_id>": {
             "GET",
             "PATCH",
