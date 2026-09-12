@@ -19,20 +19,35 @@ CALL_STATES = [
     ("ending", "Ending"),
     ("completed", "Completed"),
     ("failed", "Failed"),
+    # "missed" is retained for historical records only -- the upstream AMI
+    # gateway (Vicidialer-Codestra#55) no longer emits it, having split it
+    # into the specific outcomes below. No new row will ever get this state.
     ("missed", "Missed"),
+    ("busy", "Busy"),
+    ("no_answer", "No Answer"),
     ("rejected", "Rejected"),
     ("cancelled", "Cancelled"),
+    ("timeout", "Timeout"),
 ]
-TERMINAL_STATES = {"completed", "failed", "missed", "rejected", "cancelled", "transferred"}
+TERMINAL_STATES = {
+    "completed", "failed", "missed", "busy", "no_answer", "rejected", "cancelled",
+    "timeout", "transferred",
+}
 ALLOWED_TRANSITIONS = {
     None: {"new", "initiating", "ringing", "offered"},
     "new": {"initiating", "ringing", "offered", "cancelled", "failed"},
     "initiating": {
-        "ringing", "answering", "connected", "completed", "missed", "rejected", "cancelled",
-        "failed", "transferred",
+        "ringing", "answering", "connected", "completed", "missed", "busy", "no_answer",
+        "rejected", "cancelled", "timeout", "failed", "transferred",
     },
-    "ringing": {"offered", "answering", "connected", "missed", "rejected", "cancelled", "failed"},
-    "offered": {"answering", "connected", "missed", "rejected", "cancelled", "failed"},
+    "ringing": {
+        "offered", "answering", "connected", "missed", "busy", "no_answer", "rejected",
+        "cancelled", "timeout", "failed",
+    },
+    "offered": {
+        "answering", "connected", "missed", "busy", "no_answer", "rejected", "cancelled",
+        "timeout", "failed",
+    },
     "answering": {"connected", "completed", "rejected", "failed"},
     "connected": {"held", "transferring", "ending", "completed", "failed"},
     "held": {"connected", "transferring", "ending", "completed", "failed"},

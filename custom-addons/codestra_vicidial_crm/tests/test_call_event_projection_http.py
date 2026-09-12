@@ -223,7 +223,7 @@ class TestCallEventProjectionHttp(HttpCase):
                 [("idempotency_key", "=", gap["event_id"])]
             )
         )
-        offered = self.next_event(created, "call.offered", 2)
+        offered = self.next_event(created, "call.dialing", 2)
         self.assertEqual(self.post_payload(offered).status_code, 202)
         self.assertEqual(self.post_payload(gap).status_code, 202)
         call = self.env["codestra.vicidial.call"].sudo().search(
@@ -235,7 +235,7 @@ class TestCallEventProjectionHttp(HttpCase):
     def test_stale_sequence_is_terminal_and_not_recorded(self):
         created = self.payload()
         self.assertEqual(self.post_payload(created).status_code, 202)
-        offered = self.next_event(created, "call.offered", 2)
+        offered = self.next_event(created, "call.dialing", 2)
         self.assertEqual(self.post_payload(offered).status_code, 202)
         stale = self.next_event(created, "call.ringing", 1)
         rejected = self.post_payload(stale)
