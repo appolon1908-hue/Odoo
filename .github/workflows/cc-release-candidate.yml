@@ -248,6 +248,8 @@ jobs:
           subject-name: ${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.image.outputs.digest }}
           push-to-registry: true
+          # GitHub storage records are unavailable for private user-owned repositories.
+          create-storage-record: false
 
       - name: Create signed SBOM attestation
         id: sbom
@@ -257,6 +259,23 @@ jobs:
           subject-digest: ${{ steps.image.outputs.digest }}
           sbom-path: dist/container-sbom.spdx.json
           push-to-registry: true
+          # GitHub storage records are unavailable for private user-owned repositories.
+          create-storage-record: false
+
+      # Registry-pushed Sigstore bundles remain the source of truth when GitHub's
+      # artifact-attestation storage records are unavailable for this repository.
+      - name: Bind registry-only attestation evidence
+        id: registry-attestation
+        env:
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          set -Eeuo pipefail
+          registry_name="${IMAGE_NAME#ghcr.io/}"
+          referrer_url="https://ghcr.io/v2/${registry_name}/referrers/${IMAGE_DIGEST}"
+          printf 'provenance_url=%s\n' "$referrer_url" >> "$GITHUB_OUTPUT"
+          printf 'sbom_url=%s\n' "$referrer_url" >> "$GITHUB_OUTPUT"
+          printf 'REGISTRY_ATTESTATION_REFERRER=%s\n' "$referrer_url"
 
       - name: Cryptographically verify published candidate attestations
         env:
@@ -294,8 +313,8 @@ jobs:
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
           IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
           SOURCE_COMMIT_VERIFIED: "true"
-          PROVENANCE_ATTESTATION_URL: ${{ steps.provenance.outputs.attestation-url }}
-          SBOM_ATTESTATION_URL: ${{ steps.sbom.outputs.attestation-url }}
+          PROVENANCE_ATTESTATION_URL: ${{ steps.registry-attestation.outputs.provenance_url }}
+          SBOM_ATTESTATION_URL: ${{ steps.registry-attestation.outputs.sbom_url }}
           PROVENANCE_BUNDLE_PATH: ${{ steps.provenance.outputs.bundle-path }}
           SBOM_BUNDLE_PATH: ${{ steps.sbom.outputs.bundle-path }}
         run: |
