@@ -97,7 +97,7 @@ class TestCodestraKyqraData(TransactionCase):
         self.assertTrue(first["review_required"])
         self.assertFalse(first["allow_external_contact"])
         self.assertEqual(batch.state, "review_pending")
-        self.assertEqual(batch.entity_ids[0].display_name, "Example Logistics")
+        self.assertEqual(batch.entity_ids[0].name, "Example Logistics")
         self.assertEqual(batch.entity_ids[0].evidence_ids[0].content_digest, "a" * 64)
         duplicate = self.env["codestra.kyqra.batch"].apply_middleware_event(self._event())
         self.assertEqual(duplicate["action"], "duplicate")
