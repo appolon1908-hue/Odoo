@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from call_center_campaign.controllers.integration_api import (
+from odoo.addons.call_center_campaign.controllers.integration_api import (
     IntegrationConflict,
     IntegrationNotFound,
     IntegrationRejected,
