@@ -714,7 +714,7 @@ class TestCodestraAgentOnboarding(TransactionCase):
             "incoming_calls_enabled": True,
             "outgoing_calls_enabled": False,
         })
-        self._prepare(onboarding)
+        self._start(onboarding)
         payload = onboarding._middleware_provisioning_payload()
         self.assertTrue(payload["telephony"]["incoming_allowed"])
         self.assertFalse(payload["telephony"]["outgoing_allowed"])
@@ -727,7 +727,7 @@ class TestCodestraAgentOnboarding(TransactionCase):
             "needs_recording_access": True,
             "needs_monitoring_access": True,
         })
-        self._prepare(onboarding)
+        self._start(onboarding)
         payload = onboarding._middleware_provisioning_payload()
         self.assertEqual(
             payload["entitlements"],
