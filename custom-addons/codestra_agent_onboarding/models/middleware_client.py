@@ -5,7 +5,7 @@ from __future__ import annotations
 from odoo import SUPERUSER_ID, api, models
 from odoo.exceptions import ValidationError
 
-from codestra_middleware_bridge.models.agent_provisioning_transport import (
+from odoo.addons.codestra_middleware_bridge.models.agent_provisioning_transport import (
     MiddlewareProvisioningOutcomeUnknown,
     MiddlewareProvisioningRejected,
 )
