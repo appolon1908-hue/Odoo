@@ -80,6 +80,10 @@ class TestKyyowObservability(TransactionCase):
         replay, duplicate = model._from_payload(payload)
         self.assertTrue(duplicate)
         self.assertEqual(record.id, replay.id)
+        self.assertEqual(
+            record.document()["period_start"],
+            "2026-09-12T12:00:00Z",
+        )
 
         with self.assertRaises(ValidationError):
             model._from_payload({**payload, "projection_hash": "sha256:" + "f" * 64})
