@@ -708,6 +708,61 @@ class TestCodestraAgentOnboarding(TransactionCase):
                 {"needs_sip_endpoint": False, "outgoing_calls_enabled": True}
             )
 
+    def test_middleware_payload_preserves_approved_call_permissions(self):
+        onboarding = self._new_onboarding(email="calling.payload@example.invalid")
+        onboarding.write({
+            "incoming_calls_enabled": True,
+            "outgoing_calls_enabled": False,
+        })
+        self._prepare(onboarding)
+        payload = onboarding._middleware_provisioning_payload()
+        self.assertTrue(payload["telephony"]["incoming_allowed"])
+        self.assertFalse(payload["telephony"]["outgoing_allowed"])
+
+    def test_middleware_payload_preserves_optional_entitlements(self):
+        onboarding = self._new_onboarding(email="entitlements.payload@example.invalid")
+        onboarding.write({
+            "needs_agent_desktop": False,
+            "needs_voicemail": True,
+            "needs_recording_access": True,
+            "needs_monitoring_access": True,
+        })
+        self._prepare(onboarding)
+        payload = onboarding._middleware_provisioning_payload()
+        self.assertEqual(
+            payload["entitlements"],
+            {
+                "agent_desktop": False,
+                "voicemail": True,
+                "recording_access": True,
+                "monitoring_access": True,
+            },
+        )
+
+    def test_middleware_accepts_an_accepted_nonterminal_response(self):
+        onboarding = self._new_onboarding(email="async.middleware@example.invalid")
+        request_record = self._prepare(onboarding)
+        middleware_request_id = str(uuid.uuid4())
+        response = {
+            "middleware_request_id": middleware_request_id,
+            "request_id": onboarding.integration_uuid,
+            "tenant_id": "codestra-test",
+            "employee_id": request_record.employee_id.codestra_employee_number,
+            "state": "READBACK",
+            "correlation_id": request_record.correlation_id,
+            "version": 1,
+            "keycloak_subject": False,
+            "last_error_code": False,
+            "last_error_summary": False,
+            "channels": [],
+            "steps": [],
+        }
+        result = onboarding._apply_middleware_result(response)
+        self.assertEqual(result["state"], "accepted")
+        self.assertEqual(onboarding.middleware_request_id, middleware_request_id)
+        self.assertEqual(onboarding.middleware_state, "READBACK")
+        self.assertEqual(request_record.state, "provisioning")
+
     def test_membership_channel_ids_reflect_created_channels(self):
         onboarding = self._new_onboarding(email="channel.reflection@example.invalid")
         self._start(onboarding)
