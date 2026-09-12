@@ -313,7 +313,7 @@ def validate_incident_payload(payload):
     if state == "resolved" and not resolved_at:
         raise ValidationError("resolved incidents require resolved_at")
     if state != "resolved":
-        resolved_at = False
+        resolved_at = None
     source_deployment = _clean_text(
         payload["source_deployment"], "source_deployment", 128
     )
