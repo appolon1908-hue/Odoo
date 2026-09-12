@@ -215,6 +215,7 @@ if ((${#module_names[@]} == 0)); then
   exit 1
 fi
 module_csv="$(IFS=,; printf '%s' "${module_names[*]}")"
+ODOO_CI_ADDONS_PATH="${ODOO_CI_ADDONS_PATH:-/usr/lib/python3/dist-packages/odoo/addons,/mnt/extra-addons}"
 test_tags=""
 for module_name in "${module_names[@]}"; do
   if [[ -n "$test_tags" ]]; then
@@ -239,6 +240,7 @@ if ! docker run --rm \
   -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
   "$ODOO_TEST_IMAGE" \
   -- \
+  --addons-path="$ODOO_CI_ADDONS_PATH" \
   -d "$DATABASE" \
   --db-filter="^${DATABASE}$" \
   --init="$module_csv" \
@@ -293,6 +295,7 @@ if ! docker run --rm \
   -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
   "$ODOO_IMAGE" \
   -- \
+  --addons-path="$ODOO_CI_ADDONS_PATH" \
   -d "$DATABASE" \
   --db-filter="^${DATABASE}$" \
   --update="$module_csv" \
@@ -347,6 +350,7 @@ docker run --rm -i \
   -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
   "$ODOO_IMAGE" \
   -- \
+  --addons-path="$ODOO_CI_ADDONS_PATH" \
   shell -d "$DATABASE" --no-http \
   < "$ROOT_DIR/scripts/ensure_codestra_admin.py"
 
@@ -369,6 +373,7 @@ run_database_audits() {
     -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
     "$ODOO_IMAGE" \
     -- \
+  --addons-path="$ODOO_CI_ADDONS_PATH" \
     shell -d "$target_database" --no-http \
     < "$ROOT_DIR/scripts/audit_odoo_state.py"
 
@@ -408,6 +413,7 @@ sentinel_output="$(docker run --rm -i \
   -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
   "$ODOO_IMAGE" \
   -- \
+  --addons-path="$ODOO_CI_ADDONS_PATH" \
   shell -d "$DATABASE" --no-http \
   < "$ROOT_DIR/scripts/create_filestore_restore_sentinel.py" 2>&1)"
 printf '%s\n' "$sentinel_output"
@@ -482,6 +488,7 @@ docker run --rm -i \
   -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
   "$ODOO_IMAGE" \
   -- \
+  --addons-path="$ODOO_CI_ADDONS_PATH" \
   shell -d "$RESTORE_DATABASE" --no-http \
   < "$ROOT_DIR/scripts/audit_filestore_restore.py"
 
