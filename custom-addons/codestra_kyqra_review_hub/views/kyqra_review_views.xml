@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_codestra_kyqra_batch_list" model="ir.ui.view">
+    <field name="name">codestra.kyqra.batch.list</field>
+    <field name="model">codestra.kyqra.batch</field>
+    <field name="arch" type="xml">
+      <list string="Kyqra Crawl Batches" default_order="create_date desc">
+        <field name="job_id"/>
+        <field name="tenant_id"/>
+        <field name="source_system"/>
+        <field name="result_count"/>
+        <field name="state"/>
+        <field name="review_required"/>
+        <field name="allow_external_contact"/>
+        <field name="company_id" groups="base.group_multi_company"/>
+        <field name="received_at"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_codestra_kyqra_batch_form" model="ir.ui.view">
+    <field name="name">codestra.kyqra.batch.form</field>
+    <field name="model">codestra.kyqra.batch</field>
+    <field name="arch" type="xml">
+      <form string="Kyqra Crawl Batch">
+        <header>
+          <button name="action_approve" type="object" string="Approve Batch" class="btn-primary" invisible="state != 'review_pending'"/>
+          <button name="action_reject" type="object" string="Reject Batch" invisible="state != 'review_pending'"/>
+          <field name="state" widget="statusbar" statusbar_visible="review_pending,approved,rejected"/>
+        </header>
+        <sheet>
+          <div class="oe_title"><h1><field name="job_id"/></h1></div>
+          <group>
+            <group>
+              <field name="tenant_id"/>
+              <field name="source_system"/>
+              <field name="event_type"/>
+              <field name="event_id"/>
+              <field name="idempotency_key"/>
+              <field name="correlation_id"/>
+              <field name="causation_id"/>
+            </group>
+            <group>
+              <field name="result_count"/>
+              <field name="review_required"/>
+              <field name="allow_external_contact"/>
+              <field name="company_id" groups="base.group_multi_company"/>
+              <field name="occurred_at"/>
+              <field name="received_at"/>
+              <field name="reviewed_by_id"/>
+            </group>
+          </group>
+          <notebook>
+            <page string="Entities">
+              <field name="entity_ids" readonly="1">
+                <list>
+                  <field name="record_id"/>
+                  <field name="display_name"/>
+                  <field name="entity_type"/>
+                  <field name="source_url"/>
+                  <field name="confidence"/>
+                  <field name="review_state"/>
+                  <field name="review_required"/>
+                </list>
+              </field>
+            </page>
+            <page string="Progress">
+              <field name="progress_json" readonly="1"/>
+              <field name="metadata_json" readonly="1"/>
+              <field name="provenance_json" readonly="1"/>
+            </page>
+            <page string="Raw Event">
+              <field name="raw_event_json" readonly="1"/>
+              <field name="event_digest" readonly="1"/>
+            </page>
+          </notebook>
+        </sheet>
+        <chatter/>
+      </form>
+    </field>
+  </record>
+
+  <record id="view_codestra_kyqra_entity_list" model="ir.ui.view">
+    <field name="name">codestra.kyqra.entity.list</field>
+    <field name="model">codestra.kyqra.entity</field>
+    <field name="arch" type="xml">
+      <list string="Kyqra Entities" default_order="create_date desc">
+        <field name="record_id"/>
+        <field name="display_name"/>
+        <field name="entity_type"/>
+        <field name="batch_id"/>
+        <field name="source_url"/>
+        <field name="confidence"/>
+        <field name="review_state"/>
+        <field name="review_required"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_codestra_kyqra_entity_form" model="ir.ui.view">
+    <field name="name">codestra.kyqra.entity.form</field>
+    <field name="model">codestra.kyqra.entity</field>
+    <field name="arch" type="xml">
+      <form string="Kyqra Entity">
+        <header>
+          <button name="action_approve" type="object" string="Approve Entity" class="btn-primary" invisible="review_state != 'review_pending'"/>
+          <button name="action_reject" type="object" string="Reject Entity" invisible="review_state != 'review_pending'"/>
+          <field name="review_state" widget="statusbar" statusbar_visible="review_pending,approved,rejected"/>
+        </header>
+        <sheet>
+          <div class="oe_title"><h1><field name="display_name"/></h1></div>
+          <group>
+            <group>
+              <field name="record_id"/>
+              <field name="entity_type"/>
+              <field name="batch_id"/>
+              <field name="source_url"/>
+              <field name="review_required"/>
+            </group>
+            <group>
+              <field name="confidence"/>
+              <field name="reviewed_by_id"/>
+              <field name="reviewed_at"/>
+            </group>
+          </group>
+          <notebook>
+            <page string="Extracted Data">
+              <field name="data_json" readonly="1"/>
+            </page>
+            <page string="Provenance">
+              <field name="provenance_json" readonly="1"/>
+            </page>
+            <page string="Evidence">
+              <field name="evidence_ids" readonly="1">
+                <list>
+                  <field name="source_url"/>
+                  <field name="capture_method"/>
+                  <field name="content_digest"/>
+                  <field name="locator"/>
+                  <field name="captured_at"/>
+                </list>
+              </field>
+            </page>
+          </notebook>
+        </sheet>
+        <chatter/>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_codestra_kyqra_batches" model="ir.actions.act_window">
+    <field name="name">Crawl Batches</field>
+    <field name="res_model">codestra.kyqra.batch</field>
+    <field name="view_mode">list,form</field>
+  </record>
+  <record id="action_codestra_kyqra_entities" model="ir.actions.act_window">
+    <field name="name">Entities</field>
+    <field name="res_model">codestra.kyqra.entity</field>
+    <field name="view_mode">list,form</field>
+  </record>
+  <menuitem id="menu_codestra_kyqra_root" name="Kyqra Review" sequence="80" groups="codestra_kyqra_review_hub.group_kyqra_reviewer"/>
+  <menuitem id="menu_codestra_kyqra_batches" name="Crawl Batches" parent="menu_codestra_kyqra_root" action="action_codestra_kyqra_batches" sequence="10" groups="codestra_kyqra_review_hub.group_kyqra_reviewer"/>
+  <menuitem id="menu_codestra_kyqra_entities" name="Entities" parent="menu_codestra_kyqra_root" action="action_codestra_kyqra_entities" sequence="20" groups="codestra_kyqra_review_hub.group_kyqra_reviewer"/>
+</odoo>
