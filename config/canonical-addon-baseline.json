@@ -116,7 +116,6 @@
         {"path": "models/reconciliation.py", "kind": "odoo_schema_index", "reason": "Odoo model initialization creates reviewed partial unique indexes that enforce active reconciliation and sync-run invariants."},
         {"path": "tests/test_lead_reconciliation.py", "kind": "odoo_test_driver_exception", "reason": "The test imports only UniqueViolation to assert a partial unique mapping invariant and does not open an external database connection."},
         {"path": "tests/test_reconciliation.py", "kind": "odoo_test_driver_exception", "reason": "The test imports only IntegrityError to assert call-record database constraints and does not open an external database connection."},
-        {"path": "controllers/api.py", "kind": "odoo_cursor_locking", "reason": "Lifecycle ingestion locks the mapped agent row with SELECT FOR UPDATE before call lookup or creation, sharing the click-to-call reservation boundary and preventing concurrent active-call creation."},
         {"path": "models/crm_lead.py", "kind": "odoo_cursor_locking", "reason": "Click-to-call reservation creation locks the selected Odoo agent row with SELECT FOR UPDATE on the existing cursor so concurrent UI requests cannot originate two calls."},
         {"path": "models/core.py", "kind": "odoo_cursor_locking", "reason": "Campaign extension allocation uses only the existing Odoo cursor: one SELECT ... FOR UPDATE locks the owning campaign row (self-contained since this module cannot depend on codestra_identity_provisioning's pool tables without a circular module dependency), followed by one statically inspectable SELECT that picks the lowest free extension within that campaign's own range while excluding 6101 and this module's own active agent/phone assignments. No external database connection or mutation SQL is introduced."}
       ]
@@ -143,7 +142,7 @@
       "reason": "Add the reviewed MoneyBee CRM identity and immutable command-receipt boundary, derive tenant scope from the authenticated principal's single Odoo company, reject direct RPC mutations with server-only capability tokens, and limit receipts to the exact principal and company.",
       "pull_request": 5,
       "integration_boundary_exceptions": [
-        {"path": "models/res_partner.py", "kind": "odoo_internal_driver_exception", "reason": "The model imports only IntegrityError to reconcile unique-constraint races inside Odoo savepoints and never opens an external database connection."},
+        {"path": "models/res_partner.py", "kind": "odoo_internal_driver_exception", "reason": "The model imports only IntegrityError to reconcile unique-constraint races inside Odoo savepoints and never opens a database connection."},
         {"path": "models/moneybee_identity_guard.py", "kind": "odoo_internal_driver_exception", "reason": "Imports only IntegrityError to classify a rolled-back Odoo unique-constraint race; the authenticated identity collision probe reads immutable bindings, including archived records, and never opens a database connection."},
         {"path": "tests/test_moneybee_crm.py", "kind": "odoo_test_driver_exception", "reason": "Imports only IntegrityError to verify database uniqueness inside a rolled-back synthetic Odoo savepoint; no connection is opened."}
       ]
