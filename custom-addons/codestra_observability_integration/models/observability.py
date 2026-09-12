@@ -128,6 +128,8 @@ def _safe_mapping(value, field_name, *, maximum=32):
             raise ValidationError(f"{field_name} contains a sensitive key")
         if isinstance(item, bool):
             clean[key] = item
+        elif isinstance(item, float) and not math.isfinite(item):
+            raise ValidationError(f"{field_name} contains a non-finite value")
         elif isinstance(item, (int, float)) and not isinstance(item, bool):
             clean[key] = item
         elif isinstance(item, str) and len(item) <= 128 and item:
