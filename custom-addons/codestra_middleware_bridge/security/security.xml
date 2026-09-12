@@ -10,11 +10,29 @@
          business-unit scope by testing for it. It no longer carries the ordinary
          call centre user or the all-leads sales role, so this identity holds only
          the internal-user baseline plus the explicit ACLs below. -->
-    <field name="implied_ids" eval="[(4, ref('group_codestra_middleware_bridge')), (4, ref('call_center_core.group_call_center_integration_service'))]"/>
+    <field name="implied_ids" eval="[(4, ref('group_codestra_middleware_bridge')), (4, ref('call_center_core.group_call_center_integration_service')), (4, ref('codestra_cc_crm.group_cc_crm_service'))]"/>
   </record>
   <record id="rule_codestra_crm_api_lead_unit" model="ir.rule">
     <field name="name">Codestra CRM API leads in authorized business unit</field>
     <field name="model_id" ref="crm.model_crm_lead"/>
+    <field name="groups" eval="[(4, ref('group_codestra_crm_api'))]"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
+  <record id="rule_codestra_crm_api_customer_profile_unit" model="ir.rule">
+    <field name="name">Codestra CRM API customer profiles in authorized business unit</field>
+    <field name="model_id" ref="codestra_cc_crm.model_cc_customer_profile"/>
+    <field name="groups" eval="[(4, ref('group_codestra_crm_api'))]"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
+  <record id="rule_codestra_crm_api_ticket_unit" model="ir.rule">
+    <field name="name">Codestra CRM API tickets in authorized business unit</field>
+    <field name="model_id" ref="codestra_cc_helpdesk.model_cc_helpdesk_ticket"/>
+    <field name="groups" eval="[(4, ref('group_codestra_crm_api'))]"/>
+    <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
+  </record>
+  <record id="rule_codestra_crm_api_ticket_queue_unit" model="ir.rule">
+    <field name="name">Codestra CRM API ticket queues in authorized business unit</field>
+    <field name="model_id" ref="codestra_cc_helpdesk.model_cc_helpdesk_queue"/>
     <field name="groups" eval="[(4, ref('group_codestra_crm_api'))]"/>
     <field name="domain_force">[('business_unit_id', 'in', user.call_center_business_unit_ids.ids)]</field>
   </record>

@@ -603,6 +603,35 @@ class CodestraMiddlewareBridge(http.Controller):
             })
         return None
 
+    def _crm_lead_list(self):
+        auth, _payload, error = self._begin(
+            "crm.lead.list", allow_event_replay=True,
+            tenant_allowlist_parameter="codestra.crm.tenant_ids",
+            service_user_parameter="codestra.crm.service_user_id",
+        )
+        if error: return error
+        unit = self._crm_scope(auth)
+        if not unit: return self._json(403, {"error": "crm_service_scope_rejected"})
+        try:
+            limit = min(int(request.httprequest.args.get("limit", 50)), 200)
+            offset = max(int(request.httprequest.args.get("offset", 0)), 0)
+        except ValueError:
+            return self._json(422, {"error": "invalid_pagination"})
+        mappings = request.env["codestra.crm.external.mapping"].with_user(auth["user"]).search(
+            [("customer_key", "=", auth["tenant_id"]), ("model", "=", "crm.lead"),
+             ("business_unit_id", "=", unit.id)],
+            limit=limit, offset=offset, order="id",
+        )
+        by_record_id = {mapping.record_id: mapping for mapping in mappings}
+        leads = request.env["crm.lead"].with_user(auth["user"]).browse(list(by_record_id))
+        items = [
+            self._crm_lead_value(lead, by_record_id[lead.id])
+            for lead in leads if lead.exists() and lead.business_unit_id == unit
+        ]
+        return self._complete(auth, "crm.lead.list", {
+            "items": items, "limit": limit, "offset": offset,
+        })
+
     def _create_crm_lead(self, auth, payload, unit):
         values, error = self._crm_values(
             payload, self.CRM_LEAD_CREATE_FIELDS, unit, auth["user"]
@@ -630,8 +659,10 @@ class CodestraMiddlewareBridge(http.Controller):
         self._apply_crm_compliance(auth, lead, payload, unit)
         return lead, mapping, None
 
-    @http.route("/codestra/middleware/v1/crm/leads", type="http", auth="none", methods=["POST"], csrf=False)
+    @http.route("/codestra/middleware/v1/crm/leads", type="http", auth="none", methods=["GET", "POST"], csrf=False, readonly=False)
     def crm_lead_create(self):
+        if request.httprequest.method == "GET":
+            return self._crm_lead_list()
         auth, payload, error = self._begin("crm.lead.create", allow_event_replay=True, tenant_allowlist_parameter="codestra.crm.tenant_ids", service_user_parameter="codestra.crm.service_user_id")
         if error: return error
         unit = self._crm_scope(auth)
@@ -893,3 +924,303 @@ class CodestraMiddlewareBridge(http.Controller):
             "name": partner.name, "email": partner.email, "phone": partner.phone,
             "status": partner.codestra_integration_status,
         }
+
+    # -- Customer profiles (real production contacts; unlike res.partner
+    # above, these are not synthetic-tag-gated -- cc.customer.profile is the
+    # actual contact-center customer record, scoped to the caller's business
+    # unit the same way crm.lead already is. --
+
+    def _canonical_unit(self, auth):
+        """cc.customer.profile/cc.helpdesk.* scope by cc.business.unit, the
+        _inherits-delegated canonical model -- _crm_scope's business unit is
+        the legacy call.center.business.unit it wraps, a different id/model.
+        """
+        unit = self._crm_scope(auth)
+        if not unit:
+            return None
+        return request.env["cc.business.unit"].with_user(auth["user"]).search(
+            [("legacy_business_unit_id", "=", unit.id)], limit=1
+        )
+
+    def _customer_profile(self, auth, profile_id):
+        unit = self._canonical_unit(auth)
+        if not unit:
+            return None
+        profile = request.env["cc.customer.profile"].with_user(auth["user"]).browse(profile_id).exists()
+        if not profile or profile.business_unit_id != unit:
+            return None
+        return profile
+
+    @staticmethod
+    def _customer_profile_value(profile):
+        return {
+            "profile_id": profile.id, "profile_uuid": profile.profile_uuid,
+            "name": profile.name, "email_masked": profile.email_masked,
+            "phone_masked": profile.phone_masked, "state": profile.state,
+            "verification_state": profile.verification_state,
+            "assigned_user_id": profile.assigned_user_id.id or None,
+            "campaign_id": profile.campaign_id.id,
+        }
+
+    @http.route("/codestra/middleware/v1/customer-profiles", type="http", auth="none", methods=["GET", "POST"], csrf=False, readonly=False)
+    def customer_profiles(self):
+        if request.httprequest.method == "GET":
+            auth, _payload, error = self._begin("customer_profile.list", allow_event_replay=True, tenant_allowlist_parameter="codestra.crm.tenant_ids", service_user_parameter="codestra.crm.service_user_id")
+            if error: return error
+            unit = self._canonical_unit(auth)
+            if not unit: return self._json(403, {"error": "crm_service_scope_rejected"})
+            try:
+                limit = min(int(request.httprequest.args.get("limit", 50)), 200)
+                offset = max(int(request.httprequest.args.get("offset", 0)), 0)
+            except ValueError:
+                return self._json(422, {"error": "invalid_pagination"})
+            profiles = request.env["cc.customer.profile"].with_user(auth["user"]).search(
+                [("business_unit_id", "=", unit.id)], limit=limit, offset=offset, order="id",
+            )
+            return self._complete(auth, "customer_profile.list", {
+                "items": [self._customer_profile_value(profile) for profile in profiles],
+                "limit": limit, "offset": offset,
+            })
+
+        auth, payload, error = self._begin("customer_profile.create", tenant_allowlist_parameter="codestra.crm.tenant_ids", service_user_parameter="codestra.crm.service_user_id")
+        if error: return error
+        unit = self._canonical_unit(auth)
+        if not unit: return self._json(403, {"error": "crm_service_scope_rejected"})
+        partner_id = payload.get("partner_id")
+        campaign_id = payload.get("campaign_id")
+        if not partner_id or not campaign_id or not payload.get("integration_key"):
+            return self._json(422, {"error": "missing_required_field", "fields": ["partner_id", "campaign_id", "integration_key"]})
+        partner = request.env["res.partner"].with_user(auth["user"]).browse(int(partner_id)).exists()
+        campaign = request.env["cc.campaign"].with_user(auth["user"]).browse(int(campaign_id)).exists()
+        if not partner or not campaign or campaign.cc_business_unit_id != unit:
+            return self._json(404, {"error": "referenced_record_not_found"})
+
+        def run():
+            profile = request.env["cc.customer.profile"].with_user(auth["user"]).create_from_partner(
+                partner, campaign, integration_key=payload["integration_key"],
+            )
+            # name is service-managed (create_from_partner derives it from
+            # partner.display_name) -- the model's write() rejects direct
+            # changes to it without a governance capability this bridge
+            # doesn't hold, so no caller-supplied override is applied here.
+            return self._complete(auth, "customer_profile.create", self._customer_profile_value(profile), status=201)
+
+        return self._serialized(auth, run)
+
+    @http.route("/codestra/middleware/v1/customer-profiles/<int:profile_id>", type="http", auth="none", methods=["GET", "PATCH"], csrf=False, readonly=False)
+    def customer_profile(self, profile_id):
+        operation = "customer_profile.read" if request.httprequest.method == "GET" else "customer_profile.update"
+        auth, payload, error = self._begin(operation, allow_event_replay=True, tenant_allowlist_parameter="codestra.crm.tenant_ids", service_user_parameter="codestra.crm.service_user_id")
+        if error: return error
+        profile = self._customer_profile(auth, profile_id)
+        if not profile: return self._json(404, {"error": "customer_profile_not_found"})
+        if operation.endswith("update"):
+            allowed = {"name", "assigned_user_id", "state"}
+            unsupported = sorted(set(payload) - allowed)
+            if unsupported: return self._json(422, {"error": "unsupported_fields", "fields": unsupported})
+            profile.write(payload)
+        return self._complete(auth, operation, self._customer_profile_value(profile))
+
+    # -- Notes (mail.message chatter entries) and tasks (mail.activity
+    # to-do items) on a customer profile. These are two distinct standard
+    # Odoo concepts: a note has no due date and is never "completed"; a task
+    # (activity) has a deadline and a completion action. --
+
+    @http.route("/codestra/middleware/v1/customer-profiles/<int:profile_id>/notes", type="http", auth="none", methods=["GET", "POST"], csrf=False, readonly=False)
+    def customer_profile_notes(self, profile_id):
+        operation = "note.list" if request.httprequest.method == "GET" else "note.create"
+        auth, payload, error = self._begin(operation, allow_event_replay=(operation == "note.list"), tenant_allowlist_parameter="codestra.crm.tenant_ids", service_user_parameter="codestra.crm.service_user_id")
+        if error: return error
+        profile = self._customer_profile(auth, profile_id)
+        if not profile: return self._json(404, {"error": "customer_profile_not_found"})
+        if operation == "note.list":
+            messages = profile.message_ids.filtered(lambda message: message.message_type == "comment")
+            return self._complete(auth, operation, {
+                "items": [{"note_id": message.id, "body": message.body, "author_id": message.author_id.id, "created_at": message.date.isoformat()} for message in messages],
+            })
+        body = str(payload.get("body", "")).strip()
+        if not body: return self._json(422, {"error": "body_required"})
+
+        def run():
+            message = profile.with_user(auth["user"]).message_post(body=body, message_type="comment", subtype_xmlid="mail.mt_note")
+            return self._complete(auth, operation, {"note_id": message.id, "profile_id": profile.id}, status=201)
+
+        return self._serialized(auth, run)
+
+    @http.route("/codestra/middleware/v1/notes/<int:note_id>", type="http", auth="none", methods=["PATCH"], csrf=False, readonly=False)
+    def note_update(self, note_id):
+        auth, payload, error = self._begin("note.update", tenant_allowlist_parameter="codestra.crm.tenant_ids", service_user_parameter="codestra.crm.service_user_id")
+        if error: return error
+        unit = self._canonical_unit(auth)
+        if not unit: return self._json(403, {"error": "crm_service_scope_rejected"})
+        message = request.env["mail.message"].with_user(auth["user"]).browse(note_id).exists()
+        if not message or message.model != "cc.customer.profile":
+            return self._json(404, {"error": "note_not_found"})
+        profile = request.env["cc.customer.profile"].with_user(auth["user"]).browse(message.res_id).exists()
+        if not profile or profile.business_unit_id != unit:
+            return self._json(404, {"error": "note_not_found"})
+        body = payload.get("body")
+        if not body: return self._json(422, {"error": "body_required"})
+        message.write({"body": body})
+        return self._complete(auth, "note.update", {"note_id": message.id, "body": message.body}, profile.partner_id)
+
+    @http.route("/codestra/middleware/v1/customer-profiles/<int:profile_id>/tasks", type="http", auth="none", methods=["GET", "POST"], csrf=False, readonly=False)
+    def customer_profile_tasks(self, profile_id):
+        operation = "task.list" if request.httprequest.method == "GET" else "task.create"
+        auth, payload, error = self._begin(operation, allow_event_replay=(operation == "task.list"), tenant_allowlist_parameter="codestra.crm.tenant_ids", service_user_parameter="codestra.crm.service_user_id")
+        if error: return error
+        profile = self._customer_profile(auth, profile_id)
+        if not profile: return self._json(404, {"error": "customer_profile_not_found"})
+        if operation == "task.list":
+            activities = request.env["mail.activity"].with_user(auth["user"]).search([
+                ("res_model", "=", "cc.customer.profile"), ("res_id", "=", profile.id),
+            ])
+            return self._complete(auth, operation, {
+                "items": [{"task_id": activity.id, "summary": activity.summary, "due_date": activity.date_deadline.isoformat() if activity.date_deadline else None, "user_id": activity.user_id.id} for activity in activities],
+            })
+        summary = str(payload.get("summary", "")).strip()
+        if not summary: return self._json(422, {"error": "summary_required"})
+        activity_refs = {"todo": "mail.mail_activity_data_todo", "call": "mail.mail_activity_data_call", "email": "mail.mail_activity_data_email"}
+        ref = activity_refs.get(str(payload.get("activity_type", "todo")))
+        if not ref: return self._json(422, {"error": "invalid_activity_type"})
+
+        def run():
+            activity = request.env["mail.activity"].with_user(auth["user"]).create({
+                "activity_type_id": request.env.ref(ref).id, "summary": summary,
+                "note": payload.get("note"), "date_deadline": payload.get("due_date") or fields.Date.today(),
+                "res_model_id": request.env["ir.model"]._get_id("cc.customer.profile"),
+                "res_id": profile.id, "user_id": payload.get("user_id") or auth["user"].id,
+            })
+            return self._complete(auth, operation, {"task_id": activity.id, "profile_id": profile.id, "status": "scheduled"}, profile.partner_id, status=201)
+
+        return self._serialized(auth, run)
+
+    def _task(self, auth, task_id):
+        unit = self._canonical_unit(auth)
+        if not unit:
+            return None, None
+        activity = request.env["mail.activity"].with_user(auth["user"]).browse(task_id).exists()
+        if not activity or activity.res_model != "cc.customer.profile":
+            return None, None
+        profile = request.env["cc.customer.profile"].with_user(auth["user"]).browse(activity.res_id).exists()
+        if not profile or profile.business_unit_id != unit:
+            return None, None
+        return activity, profile
+
+    @http.route("/codestra/middleware/v1/tasks/<int:task_id>", type="http", auth="none", methods=["PATCH"], csrf=False, readonly=False)
+    def task_update(self, task_id):
+        auth, payload, error = self._begin("task.update", tenant_allowlist_parameter="codestra.crm.tenant_ids", service_user_parameter="codestra.crm.service_user_id")
+        if error: return error
+        activity, profile = self._task(auth, task_id)
+        if not activity: return self._json(404, {"error": "task_not_found"})
+        allowed = {"summary", "note", "due_date"}
+        values = {}
+        if "summary" in payload: values["summary"] = payload["summary"]
+        if "note" in payload: values["note"] = payload["note"]
+        if "due_date" in payload: values["date_deadline"] = payload["due_date"]
+        unsupported = sorted(set(payload) - allowed)
+        if unsupported: return self._json(422, {"error": "unsupported_fields", "fields": unsupported})
+        activity.write(values)
+        return self._complete(auth, "task.update", {"task_id": activity.id, "summary": activity.summary}, profile.partner_id)
+
+    @http.route("/codestra/middleware/v1/tasks/<int:task_id>/complete", type="http", auth="none", methods=["POST"], csrf=False, readonly=False)
+    def task_complete(self, task_id):
+        auth, payload, error = self._begin("task.complete", tenant_allowlist_parameter="codestra.crm.tenant_ids", service_user_parameter="codestra.crm.service_user_id")
+        if error: return error
+        activity, profile = self._task(auth, task_id)
+        if not activity: return self._json(404, {"error": "task_not_found"})
+
+        def run():
+            # action_feedback marks the activity done and unlinks it, per
+            # standard Odoo mail.activity behavior -- capture what's needed
+            # for the response before it disappears.
+            result = {"task_id": activity.id, "profile_id": profile.id, "status": "completed"}
+            activity.action_feedback(feedback=payload.get("feedback") or None)
+            return self._complete(auth, "task.complete", result, profile.partner_id)
+
+        return self._serialized(auth, run)
+
+    # -- Tickets (cc.helpdesk.ticket). SLA due-dates/ticket_number are
+    # derived by the model's own create() from queue_id -- this endpoint
+    # supplies only the caller-facing fields and trusts that computation. --
+
+    def _ticket(self, auth, ticket_id):
+        unit = self._canonical_unit(auth)
+        if not unit:
+            return None
+        ticket = request.env["cc.helpdesk.ticket"].with_user(auth["user"]).browse(ticket_id).exists()
+        if not ticket or ticket.business_unit_id != unit:
+            return None
+        return ticket
+
+    @staticmethod
+    def _ticket_value(ticket):
+        return {
+            "ticket_id": ticket.id, "ticket_uuid": ticket.ticket_uuid,
+            "ticket_number": ticket.ticket_number, "subject": ticket.subject,
+            "category": ticket.category, "priority": ticket.priority,
+            "severity": ticket.severity, "state": ticket.state,
+            "customer_profile_id": ticket.customer_profile_id.id,
+            "queue_id": ticket.queue_id.id, "sla_state": ticket.sla_state,
+            "opened_at": ticket.opened_at.isoformat() if ticket.opened_at else None,
+            "resolution_due_at": ticket.resolution_due_at.isoformat() if ticket.resolution_due_at else None,
+        }
+
+    @http.route("/codestra/middleware/v1/tickets", type="http", auth="none", methods=["GET", "POST"], csrf=False, readonly=False)
+    def tickets(self):
+        if request.httprequest.method == "GET":
+            auth, _payload, error = self._begin("ticket.list", allow_event_replay=True, tenant_allowlist_parameter="codestra.crm.tenant_ids", service_user_parameter="codestra.crm.service_user_id")
+            if error: return error
+            unit = self._canonical_unit(auth)
+            if not unit: return self._json(403, {"error": "crm_service_scope_rejected"})
+            try:
+                limit = min(int(request.httprequest.args.get("limit", 50)), 200)
+                offset = max(int(request.httprequest.args.get("offset", 0)), 0)
+            except ValueError:
+                return self._json(422, {"error": "invalid_pagination"})
+            tickets = request.env["cc.helpdesk.ticket"].with_user(auth["user"]).search(
+                [("business_unit_id", "=", unit.id)], limit=limit, offset=offset, order="id desc",
+            )
+            return self._complete(auth, "ticket.list", {
+                "items": [self._ticket_value(ticket) for ticket in tickets], "limit": limit, "offset": offset,
+            })
+
+        auth, payload, error = self._begin("ticket.create", tenant_allowlist_parameter="codestra.crm.tenant_ids", service_user_parameter="codestra.crm.service_user_id")
+        if error: return error
+        unit = self._canonical_unit(auth)
+        if not unit: return self._json(403, {"error": "crm_service_scope_rejected"})
+        required = {"queue_id", "customer_profile_id", "subject", "category", "priority", "severity"}
+        missing = sorted(required - set(payload))
+        if missing: return self._json(422, {"error": "missing_required_field", "fields": missing})
+        queue = request.env["cc.helpdesk.queue"].with_user(auth["user"]).browse(int(payload["queue_id"])).exists()
+        profile = self._customer_profile(auth, int(payload["customer_profile_id"]))
+        if not queue or queue.business_unit_id != unit or not profile:
+            return self._json(404, {"error": "referenced_record_not_found"})
+
+        def run():
+            # ticket_uuid/ticket_number/integration_key/sla_policy_id/due-dates
+            # are all server-managed by the model's own create() -- passing
+            # them here would raise AccessError; only caller-facing fields go in.
+            ticket = request.env["cc.helpdesk.ticket"].with_user(auth["user"]).create({
+                "queue_id": queue.id, "customer_profile_id": profile.id,
+                "subject": payload["subject"], "description": payload.get("description"),
+                "category": payload["category"], "priority": payload["priority"],
+                "severity": payload["severity"],
+            })
+            return self._complete(auth, "ticket.create", self._ticket_value(ticket), profile.partner_id, status=201)
+
+        return self._serialized(auth, run)
+
+    @http.route("/codestra/middleware/v1/tickets/<int:ticket_id>", type="http", auth="none", methods=["GET", "PATCH"], csrf=False, readonly=False)
+    def ticket(self, ticket_id):
+        operation = "ticket.read" if request.httprequest.method == "GET" else "ticket.update"
+        auth, payload, error = self._begin(operation, allow_event_replay=True, tenant_allowlist_parameter="codestra.crm.tenant_ids", service_user_parameter="codestra.crm.service_user_id")
+        if error: return error
+        ticket = self._ticket(auth, ticket_id)
+        if not ticket: return self._json(404, {"error": "ticket_not_found"})
+        if operation.endswith("update"):
+            allowed = {"subject", "description", "priority", "severity", "state", "resolution", "assigned_user_id"}
+            unsupported = sorted(set(payload) - allowed)
+            if unsupported: return self._json(422, {"error": "unsupported_fields", "fields": unsupported})
+            ticket.write(payload)
+        return self._complete(auth, operation, self._ticket_value(ticket))
