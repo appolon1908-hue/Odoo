@@ -16,9 +16,9 @@ from .provisioning import ACTIVATION_EMAIL_EVENT, PROVISION_EVENT, _canonical_js
 
 
 AGENT_EVENT_TYPES = {
-    PROVISION_EVENT: "codestra.odoo.agent.provisioning_requested",
     ACTIVATION_EMAIL_EVENT: "codestra.odoo.agent.activation_email_requested",
 }
+RETIRED_AGENT_EVENT_TYPES = {PROVISION_EVENT}
 MIDDLEWARE_EVENT_PATH = "/api/v1/odoo/events"
 MAX_ACK_BYTES = 65536
 
@@ -213,6 +213,11 @@ class CodestraAgentOnboardingOutboxDelivery(models.Model):
 
     def _send_to_middleware(self):
         self.ensure_one()
+        if self.event_type in RETIRED_AGENT_EVENT_TYPES:
+            raise ValidationError(
+                "The legacy agent-provisioning outbox event is retired; "
+                "use the canonical Middleware agent-provisioning saga."
+            )
         if self.event_type in AGENT_EVENT_TYPES:
             return self._send_agent_event_to_middleware()
         return super()._send_to_middleware()
@@ -243,6 +248,24 @@ class CodestraAgentOnboardingOutboxDelivery(models.Model):
 
     def _finalize_delivery_failure(self, exc):
         self.ensure_one()
+        if self.event_type in RETIRED_AGENT_EVENT_TYPES:
+            return self._worker_write(
+                {
+                    "delivery_state": "dead_letter",
+                    "integration_status": "FAILED",
+                    "next_attempt_at": False,
+                    "processing_started_at": False,
+                    "last_error_code": "RETIRED_AGENT_PROVISIONING_EVENT",
+                    "last_error_class": type(exc).__name__[:128],
+                    "last_error_safe_message": (
+                        "Legacy agent-provisioning event retired; no external "
+                        "delivery was attempted."
+                    ),
+                    "last_error_fingerprint": hashlib.sha256(
+                        b"RETIRED_AGENT_PROVISIONING_EVENT"
+                    ).hexdigest(),
+                }
+            )
         if self.event_type not in AGENT_EVENT_TYPES:
             return super()._finalize_delivery_failure(exc)
         retry_count = self.retry_count + 1

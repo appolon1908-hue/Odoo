@@ -1,7 +1,9 @@
 # Agent event delivery
 
-Agent onboarding events use the canonical signed Odoo ingress rather than the
-campaign-design preview endpoint.
+Secure activation-email events still use the canonical signed Odoo ingress.
+Initial agent provisioning calls Middleware's canonical
+`/platform/v1/agent-provisioning/requests` API directly. The old
+`agent.provisioning.requested.v1` event is retired and is never delivered.
 
 Required protected runtime bindings:
 
@@ -20,10 +22,9 @@ envelope, signs the exact raw JSON body with the Middleware v1 HMAC contract,
 and requires an acknowledgement bound to the original event, tenant, and
 correlation identity. Accepted and duplicate acknowledgements are safe.
 
-The two public event types are:
+The remaining public event type is:
 
 ```text
-codestra.odoo.agent.provisioning_requested
 codestra.odoo.agent.activation_email_requested
 ```
 

@@ -13,6 +13,7 @@
         <field name="target_start_date"/>
         <field name="completion_percent"/>
         <field name="provisioning_request_id"/>
+        <field name="middleware_state"/>
         <field name="state"/>
         <field name="company_id" groups="base.group_multi_company"/>
       </list>
@@ -34,9 +35,9 @@
                   groups="codestra_cc_security.group_cc_global_administrator"
                   invisible="state != 'approved' or provisioning_request_id"/>
           <button name="action_start_provisioning" type="object"
-                  string="Start Disabled Provisioning" class="btn-primary"
+                  string="Provision via Middleware" class="btn-primary"
                   groups="codestra_cc_security.group_cc_global_administrator"
-                  invisible="state != 'approved' or not provisioning_request_id"/>
+                  invisible="state not in ('approved', 'provisioning', 'failed') or not provisioning_request_id"/>
           <button name="action_request_activation_email" type="object"
                   string="Request Secure Login Email" class="btn-primary"
                   groups="codestra_cc_security.group_cc_global_administrator"
@@ -79,6 +80,12 @@
               <field name="access_request_prepared_at" readonly="1"/>
               <field name="provisioning_started_at" readonly="1"/>
               <field name="activation_email_requested_at" readonly="1"/>
+              <field name="middleware_state" readonly="1"/>
+              <field name="middleware_version" readonly="1"/>
+              <field name="middleware_request_id" readonly="1"/>
+              <field name="middleware_correlation_id" readonly="1"/>
+              <field name="middleware_last_sync_at" readonly="1"/>
+              <field name="keycloak_subject" readonly="1"/>
               <field name="failure_reason" invisible="state != 'failed'"/>
             </group>
           </group>
@@ -145,6 +152,9 @@
               <group string="Communication Channels">
                 <field name="needs_company_email" widget="boolean_toggle" string="Email"/>
                 <field name="sms_enabled" widget="boolean_toggle" string="SMS"/>
+                <field name="sms_sender" invisible="not sms_enabled"/>
+                <field name="sms_sender_type" invisible="not sms_enabled"/>
+                <field name="sms_countries" invisible="not sms_enabled"/>
                 <field name="needs_sip_endpoint" widget="boolean_toggle" string="Phone"/>
                 <field name="webrtc_enabled" widget="boolean_toggle" string="WebRTC"/>
                 <field name="incoming_calls_enabled" widget="boolean_toggle" string="Incoming Calls"/>
@@ -155,6 +165,14 @@
                 <field name="provisioning_request_id" readonly="1"/>
                 <field name="provisioning_outbox_id" readonly="1"/>
                 <field name="activation_outbox_id" readonly="1"/>
+              </group>
+              <group string="Middleware Read-back">
+                <field name="middleware_state" readonly="1"/>
+                <field name="middleware_channel_status" readonly="1"/>
+                <field name="middleware_last_error_code" readonly="1"/>
+                <field name="middleware_last_error_summary" readonly="1"/>
+                <field name="middleware_payload_hash" readonly="1"/>
+                <field name="keycloak_subject" readonly="1"/>
               </group>
               <div class="alert alert-warning" role="status">
                 External identities are created disabled and verified before any

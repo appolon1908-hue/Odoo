@@ -10,6 +10,7 @@ from odoo.tests.common import TransactionCase
 
 from ..models.outbox_delivery import (
     MIDDLEWARE_EVENT_PATH,
+    RETIRED_AGENT_EVENT_TYPES,
     _event_document,
     _event_endpoint,
     _signed_headers,
@@ -20,7 +21,7 @@ from ..models.outbox_delivery import (
 
 @tagged("post_install", "-at_install")
 class TestAgentOnboardingOutboxDelivery(TransactionCase):
-    def _event(self, event_type="agent.provisioning.requested.v1"):
+    def _event(self, event_type="agent.activation-email.requested.v1"):
         return SimpleNamespace(
             event_type=event_type,
             event_uuid="9d4f15f7-339e-4d46-b754-1c6418b9daf1",
@@ -59,10 +60,7 @@ class TestAgentOnboardingOutboxDelivery(TransactionCase):
                 2026, 9, 4, 16, 1, tzinfo=timezone.utc
             ),
         )
-        self.assertEqual(
-            document["event_type"],
-            "codestra.odoo.agent.provisioning_requested",
-        )
+        self.assertEqual(document["event_type"], "codestra.odoo.agent.activation_email_requested")
         self.assertEqual(document["source"], "odoo-integration")
         self.assertEqual(document["idempotency_key"], document["event_id"])
         self.assertEqual(document["tenant_id"], "tenant-1")
@@ -88,6 +86,11 @@ class TestAgentOnboardingOutboxDelivery(TransactionCase):
             document["event_type"],
             "codestra.odoo.agent.activation_email_requested",
         )
+
+    def test_provisioning_event_is_retired(self):
+        self.assertIn("agent.provisioning.requested.v1", RETIRED_AGENT_EVENT_TYPES)
+        with self.assertRaises(ValidationError):
+            _event_document(self._event("agent.provisioning.requested.v1"))
 
     def test_signed_headers_match_middleware_v1_contract(self):
         event = _event_document(self._event())

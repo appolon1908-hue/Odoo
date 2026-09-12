@@ -6,8 +6,8 @@ governed contact-center identity and campaign assignment.
 ## Authority and lifecycle
 
 Odoo owns the employee, the canonical `cc.campaign.membership`, the selected
-role, the requested systems, and the approval evidence. The module never writes
-to VICIdial, Keycloak, Klyrow, SIP, or Middleware directly.
+role, the requested systems, and the approval evidence. Middleware is the sole
+provisioning executor for Keycloak, VICIdial, Klyrow, Telnexa, and WebRTC.
 
 The supported flow is:
 
@@ -21,9 +21,10 @@ draft
 → create one durable provisioning request
 → independent approval
 → reserve identifiers
-→ emit agent.provisioning.requested.v1
-→ external create-disabled + verification
-→ matched Odoo/Keycloak/Middleware/VICIdial read-back
+→ POST the canonical Middleware agent-provisioning request
+→ Middleware executes the create-disabled saga and channel adapters
+→ authenticated Middleware response read-back through the provisioning transport
+→ matched Odoo/Keycloak/Middleware/VICIdial/Klyrow/Telnexa status
 → emit agent.activation-email.requested.v1
 → Keycloak creates a one-time action email delivered through Klyrow
 → explicit final activation
@@ -74,17 +75,46 @@ All external identities are requested in disabled state. No source flag enables
 live dialing, live call control, external email delivery, or production
 activation.
 
+## Canonical Middleware integration
+
+The provisioning button calls exactly:
+
+```text
+POST https://<middleware>/platform/v1/agent-provisioning/requests
+```
+
+Odoo sends one idempotent command using the `provisioning-service` Keycloak
+client and never receives provider credentials. Configure the endpoint and
+client through protected runtime variables:
+
+```text
+CODESTRA_MIDDLEWARE_AGENT_PROVISIONING_URL=https://<middleware>/platform/v1/agent-provisioning/requests
+CODESTRA_MIDDLEWARE_AGENT_PROVISIONING_TOKEN_URL=https://auth.codestra.co/realms/codestra/protocol/openid-connect/token
+CODESTRA_MIDDLEWARE_AGENT_PROVISIONING_AUDIENCE=middleware-api
+CODESTRA_MIDDLEWARE_AGENT_PROVISIONING_CLIENT_ID=provisioning-service
+CODESTRA_MIDDLEWARE_AGENT_PROVISIONING_CLIENT_SECRET_FILE=/run/secrets/middleware-agent-provisioning-client
+CODESTRA_MIDDLEWARE_AGENT_PROVISIONING_CA_FILE=/run/secrets/internal-integration-ca.crt
+CODESTRA_MIDDLEWARE_AGENT_PROVISIONING_SCOPE=identity.request
+```
+
+If the POST response is unavailable, Odoo reconciles the same Middleware saga
+through `POST /platform/v1/agent-provisioning/requests/{id}/reconcile` before
+retrying. The response is applied only when its request, tenant, correlation,
+version, and Odoo record bindings match; provider credentials are never
+returned to Odoo.
+
 ## Durable integration
 
-Two immutable, idempotent events use the existing
-`codestra.runtime.integration.outbox`:
+The old provisioning POST to `/api/v1/odoo/events` is retired. New onboarding
+records do not create `agent.provisioning.requested.v1` outbox rows. The
+existing outbox remains only for the separate secure activation-email event:
 
-- `agent.provisioning.requested.v1`
 - `agent.activation-email.requested.v1`
 
-Retries return the same event and cannot create duplicate users or duplicate
-welcome emails. Result processing remains owned by the established integration
-result inbox and Middleware/provisioning-service workflow.
+Middleware owns saga idempotency and its own signed callback outbox. Retries
+return the same saga and cannot create duplicate users or duplicate provider
+identities. Historical provisioning outbox rows fail closed as retired and are
+never posted to the dead endpoint.
 
 ## Verification
 
