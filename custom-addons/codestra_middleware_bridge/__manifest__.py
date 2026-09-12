@@ -13,6 +13,7 @@
         "call_center_compliance",
         "codestra_cc_core",
         "codestra_cc_crm",
+        "codestra_cc_helpdesk",
         "codestra_integration_hub",
     ],
     "data": [
