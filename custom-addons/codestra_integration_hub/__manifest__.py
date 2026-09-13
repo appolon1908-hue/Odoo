@@ -11,6 +11,7 @@
         "security/ir.model.access.csv",
         "security/record_rules.xml",
         "data/sequence.xml",
+        "data/audit_lock.xml",
         "data/cron.xml",
         "views/event_views.xml",
         "views/delivery_views.xml",
