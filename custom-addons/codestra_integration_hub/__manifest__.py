@@ -1,6 +1,6 @@
 {
     "name": "Codestra Integration Hub",
-    "version": "19.0.1.0.1",
+    "version": "19.0.1.0.2",
     "author": "Codestra",
     "category": "Codestra/Integration",
     "license": "LGPL-3",

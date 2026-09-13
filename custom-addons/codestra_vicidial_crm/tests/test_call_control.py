@@ -1,12 +1,14 @@
 import json
+import threading
 import uuid
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from odoo import fields
+from odoo import SUPERUSER_ID, api, fields
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import tagged
+from odoo.modules.registry import Registry
 from odoo.tests.common import TransactionCase
 
 from ..controllers import call_control as call_control_controller
@@ -104,7 +106,7 @@ class TestCallControl(TransactionCase):
                 "business_unit_id": self.unit.id,
             }
         )
-        lead.flush_recordset(["x_phone_e164"])
+        lead.flush_recordset(["x_codestra_phone_digits", "x_phone_e164"])
         self.env.cr.execute(
             "UPDATE crm_lead SET x_phone_e164 = NULL WHERE id = %s",
             (lead.id,),
@@ -133,20 +135,21 @@ class TestCallControl(TransactionCase):
         )
         self.assertEqual(call_control_controller._integration_event_route_values(standalone), {})
 
-    def test_audit_uses_integration_hub_append_contract_when_available(self):
+    def test_audit_uses_append_contract_without_elevating_actor(self):
         audit_record = object()
         captured = {}
 
         class HubAudit:
             def sudo(self):
-                return self
+                raise AssertionError("The controller must not elevate the audit actor.")
 
-            def _append(self, event, action, result, metadata):
+            def _append(self, event, action, result, metadata, **anchors):
                 captured.update(
                     event=event,
                     action=action,
                     result=result,
                     metadata=metadata,
+                    anchors=anchors,
                 )
                 return audit_record
 
@@ -166,22 +169,87 @@ class TestCallControl(TransactionCase):
                 "call.outbound",
                 {"command_id": 77},
                 event=event,
+                actor_role="agent",
             )
 
         self.assertIs(result, audit_record)
+        self.assertEqual(captured["event"], event)
+        self.assertEqual(captured["action"], "call.outbound")
+        self.assertEqual(captured["result"], "success")
         self.assertEqual(
-            captured,
+            captured["metadata"],
             {
-                "event": event,
-                "action": "call.outbound",
-                "result": "success",
-                "metadata": {
-                    "model_name": "codestra.vicidial.call",
-                    "record_res_id": 42,
-                    "after": {"command_id": 77},
-                },
+                "model_name": "codestra.vicidial.call",
+                "record_res_id": 42,
+                "after": {"command_id": 77},
             },
         )
+        self.assertEqual(
+            captured["anchors"],
+            {
+                "actor_role": "agent",
+                "correlation_id": "call-audit-compatibility",
+                "subject_model": "codestra.vicidial.call",
+                "subject_id": 42,
+            },
+        )
+
+    def test_audit_appends_eventless_call_without_event_lookup(self):
+        captured = {}
+
+        class HubAudit:
+            def _append(self, event, action, result, metadata, **anchors):
+                captured.update(event=event, action=action, anchors=anchors)
+                return True
+
+        call = SimpleNamespace(
+            _name="codestra.vicidial.call",
+            id=43,
+            correlation_id="call-audit-eventless",
+        )
+        request = SimpleNamespace(
+            env={"codestra.integration.audit": HubAudit()},
+        )
+
+        with patch.object(call_control_controller, "request", request):
+            self.assertTrue(
+                call_control_controller.CallControlAPI._audit(
+                    call,
+                    "call.workspace.viewed",
+                    {"sequence": 3},
+                    actor_role="agent",
+                )
+            )
+
+        self.assertFalse(captured["event"])
+        self.assertEqual(captured["action"], "call.workspace.viewed")
+        self.assertEqual(captured["anchors"]["correlation_id"], "call-audit-eventless")
+        self.assertEqual(captured["anchors"]["subject_id"], 43)
+
+    def test_model_append_contract_preserves_non_superuser_actor(self):
+        audit = self.env["codestra.integration.audit"].with_user(self.agent_user)._append(
+            False,
+            "call.workspace.viewed",
+            "success",
+            {
+                "model_name": "codestra.vicidial.call",
+                "record_res_id": 99,
+                "after": {"sequence": 1},
+            },
+            actor_role="agent",
+            correlation_id="call-audit-actor",
+            subject_model="codestra.vicidial.call",
+            subject_id=99,
+        )
+
+        self.assertEqual(audit.actor_user_id, self.agent_user)
+        self.assertEqual(audit.action, "call.workspace.viewed")
+        self.assertEqual(audit.correlation_id, "call-audit-actor")
+        self.assertEqual(audit.model_name, "codestra.vicidial.call")
+        self.assertEqual(audit.record_res_id, 99)
+        self.assertEqual(json.loads(audit.after_json), {"sequence": 1})
+        if "actor_role" in audit._fields:
+            self.assertEqual(audit.actor_role, "agent")
 
     def test_number_normalization_and_exact_matching(self):
         partner = self.env["res.partner"].create({"name": "Synthetic Customer", "phone": "+1 (617) 555-0100"})
@@ -214,6 +282,30 @@ class TestCallControl(TransactionCase):
         result = self.env["codestra.vicidial.call"].match_customer("+18095550199")
         self.assertEqual(result["match"], "ambiguous")
         self.assertEqual(len(result["matches"]), 2)
+
+    def test_raw_phone_digit_projections_are_stored_and_indexed(self):
+        lead = self.env["crm.lead"].create(
+            {
+                "name": "Indexed lead digits",
+                "phone": "00442079460111",
+                "business_unit_id": self.unit.id,
+            }
+        )
+        partner = self.env["res.partner"].create(
+            {
+                "name": "Indexed partner digits",
+                "phone": "+1 (849) 555-0112",
+            }
+        )
+
+        lead_field = lead._fields["x_codestra_phone_digits"]
+        partner_field = partner._fields["x_codestra_phone_digits"]
+        self.assertTrue(lead_field.store)
+        self.assertTrue(lead_field.index)
+        self.assertTrue(partner_field.store)
+        self.assertTrue(partner_field.index)
+        self.assertEqual(lead.x_codestra_phone_digits, "00442079460111")
+        self.assertEqual(partner.x_codestra_phone_digits, "18495550112")
 
     def test_match_auto_repairs_one_owned_unassigned_test_syn_lead(self):
         lead = self._stale_unassigned_lead(
@@ -712,7 +804,7 @@ class TestCallControlCanonicalRepair(TransactionCase):
                 "company_id": self.env.company.id,
             }
         )
-        lead.flush_recordset(["x_phone_e164"])
+        lead.flush_recordset(["x_codestra_phone_digits", "x_phone_e164"])
         self.env.cr.execute(
             "UPDATE crm_lead SET x_phone_e164 = NULL WHERE id = %s",
             (lead.id,),
@@ -777,3 +869,61 @@ class TestCallControlCanonicalRepair(TransactionCase):
                 [("crm_lead_id", "=", lead.id)]
             )
         )
+
+@tagged("post_install", "-at_install")
+class TestTestSynRepairDestinationLock(TransactionCase):
+    def test_destination_contention_returns_without_waiting(self):
+        dbname = self.env.cr.dbname
+        normalized = "+18495550198"
+        acquired = threading.Event()
+        release = threading.Event()
+        contender_done = threading.Event()
+        results = {}
+        errors = []
+
+        def hold_lock():
+            try:
+                with Registry(dbname).cursor() as cr:
+                    env = api.Environment(cr, SUPERUSER_ID, {})
+                    results["holder"] = env[
+                        "codestra.vicidial.test.syn.repair"
+                    ]._try_lock_destination(normalized)
+                    acquired.set()
+                    release.wait(timeout=10)
+                    cr.rollback()
+            except BaseException as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+                acquired.set()
+
+        def contend_for_lock():
+            try:
+                acquired.wait(timeout=5)
+                with Registry(dbname).cursor() as cr:
+                    env = api.Environment(cr, SUPERUSER_ID, {})
+                    results["contender"] = env[
+                        "codestra.vicidial.test.syn.repair"
+                    ]._try_lock_destination(normalized)
+                    cr.rollback()
+            except BaseException as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+            finally:
+                contender_done.set()
+
+        holder = threading.Thread(target=hold_lock)
+        contender = threading.Thread(target=contend_for_lock)
+        holder.start()
+        self.assertTrue(acquired.wait(timeout=5), "The holder did not acquire the destination lock.")
+        contender.start()
+        completed_before_release = contender_done.wait(timeout=5)
+        release.set()
+        holder.join(timeout=10)
+        contender.join(timeout=10)
+
+        self.assertTrue(completed_before_release, "Destination contention blocked instead of failing closed.")
+        self.assertFalse(holder.is_alive())
+        self.assertFalse(contender.is_alive())
+        self.assertFalse(errors, repr(errors))
+        self.assertTrue(results.get("holder"))
+        self.assertFalse(results.get("contender"))
+
+

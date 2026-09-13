@@ -1,0 +1,7 @@
+<odoo>
+  <record id="group_codestra_observability_service" model="res.groups">
+    <field name="name">Codestra Observability Service</field>
+    <field name="comment">Dedicated non-interactive identity for signed Middleware observability projections.</field>
+    <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+  </record>
+</odoo>

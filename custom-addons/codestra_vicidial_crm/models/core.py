@@ -804,6 +804,63 @@ class Audit(models.Model):
     success = fields.Boolean(readonly=True)
     error_message = fields.Text(readonly=True)
 
+    @api.model
+    def _append(
+        self,
+        event,
+        action,
+        result,
+        metadata,
+        *,
+        actor_role=None,
+        correlation_id=None,
+        subject_model=None,
+        subject_id=None,
+    ):
+        """Append through one contract whether or not Integration Hub is installed."""
+        if not isinstance(metadata, dict):
+            raise ValidationError("Audit metadata must be an object.")
+        if actor_role not in {
+            None,
+            "system",
+            "user",
+            "agent",
+            "supervisor",
+            "qa",
+            "admin",
+            "service",
+        }:
+            raise ValidationError("Audit actor role is invalid.")
+
+        if event:
+            event.ensure_one()
+            event = event.exists()
+            if not event:
+                raise ValidationError("Audit event anchor is unavailable.")
+            if correlation_id and event.correlation_id != correlation_id:
+                raise ValidationError("Audit correlation does not match the event anchor.")
+            correlation_id = event.correlation_id
+
+        subject_model = subject_model or metadata.get("model_name")
+        subject_id = subject_id or metadata.get("record_res_id")
+        correlation_id = (correlation_id or "").strip()
+        if not correlation_id or not subject_model or not subject_id:
+            raise ValidationError("Audit correlation and subject are required.")
+
+        after = metadata.get("after", metadata)
+        return self.sudo().create(
+            {
+                "actor_user_id": self.env.user.id,
+                "action": action,
+                "model_name": subject_model,
+                "record_res_id": int(subject_id),
+                "correlation_id": correlation_id,
+                "after_json": json.dumps(after, sort_keys=True, default=str),
+                "success": result == "success",
+                "error_message": metadata.get("error_message") if result != "success" else False,
+            }
+        )
+
     @api.ondelete(at_uninstall=False)
     def _no_delete(self):
         if not self.env.is_superuser():

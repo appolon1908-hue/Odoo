@@ -86,16 +86,27 @@ active lead and no contact; malformed raw values fail closed. The lead must be
 owned by the caller, belong to an authorized company and business unit, have no
 campaign assignment, and not be DNC.
 
-When installed global campaign rules hide that otherwise eligible pre-repair
-row from an ordinary agent, the repair additionally requires exactly one
-active, same-business-unit canonical `TEST_SYN` campaign that explicitly
-authorizes that user. A constrained elevated ORM write may then bind only that
-canonical campaign, the two legacy TEST_SYN fields, and the normalized phone;
-a row already visible to the user stays on the ordinary ORM path. Destination
-and lead rows are serialized first. After either path, the lead must be visible
-again without elevation and the ordinary campaign-scoped matcher must return it
-as the sole exact result, or the request rolls back.
+Raw discovery uses stored, B-tree-indexed ASCII digit projections on both
+`crm.lead` and `res.partner`; it does not use a leading-wildcard predicate or
+a runtime regex table scan. A non-blocking transaction advisory lock serializes
+repair attempts by normalized destination. Lock contention returns the normal
+`match=none` response, so a worker never waits indefinitely.
+
+When installed global campaign rules hide an otherwise eligible pre-repair row
+from an ordinary agent, the repair additionally requires exactly one active,
+same-business-unit canonical `TEST_SYN` campaign that explicitly authorizes
+that user. A constrained elevated ORM write may then bind only that canonical
+campaign and the two legacy TEST_SYN fields; the stored phone projection is
+recomputed from the unchanged raw value. A row already visible to the user
+stays on the ordinary ORM path.
+
+After the sole candidate row is locked, every ownership, company, business-unit,
+DNC, campaign, active-state, raw-phone, contact-collision, and ambiguity guard
+is evaluated again from invalidated records. The write runs in a savepoint, and
+a fresh ordinary-user read plus the normal campaign-scoped matcher must both
+return the same sole lead or the repair rolls back and returns `match=none`.
 
 Matching never creates a call, command, integration event, audit event, or
 external effect. Any ambiguity or failed guard preserves the normal
 `match=none` result.
+

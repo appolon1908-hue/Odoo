@@ -68,35 +68,21 @@ class CallControlAPI(http.Controller):
         return call
 
     @staticmethod
-    def _audit(call, action, after=None, event=None):
-        Audit = request.env["codestra.integration.audit"].sudo()
-        if hasattr(Audit, "_append"):
-            event = event or request.env["codestra.integration.event"].sudo().search(
-                [("correlation_id", "=", call.correlation_id)],
-                order="id desc",
-                limit=1,
-            )
-            if event:
-                return Audit._append(
-                    event,
-                    action,
-                    "success",
-                    {
-                        "model_name": call._name,
-                        "record_res_id": call.id,
-                        "after": after or {},
-                    },
-                )
-        return Audit.create(
+    def _audit(call, action, after=None, *, event=None, actor_role):
+        """Append through the model contract without elevating the request actor."""
+        return request.env["codestra.integration.audit"]._append(
+            event or False,
+            action,
+            "success",
             {
-                "actor_user_id": request.env.user.id,
-                "action": action,
                 "model_name": call._name,
                 "record_res_id": call.id,
-                "correlation_id": call.correlation_id,
-                "after_json": json.dumps(after or {}, sort_keys=True),
-                "success": True,
-            }
+                "after": after or {},
+            },
+            actor_role=actor_role,
+            correlation_id=call.correlation_id,
+            subject_model=call._name,
+            subject_id=call.id,
         )
 
     @staticmethod
@@ -107,260 +93,10 @@ class CallControlAPI(http.Controller):
         return key
 
     @staticmethod
-    def _automatic_test_syn_repair_enabled():
-        params = request.env["ir.config_parameter"].sudo()
-        enabled = str(
-            params.get_param(
-                "codestra.telephony.auto_repair_owned_test_syn_leads"
-            )
-            or ""
-        ).strip().lower()
-        external_effects = str(
-            params.get_param("codestra.telephony.external_effects_enabled")
-            or ""
-        ).strip().lower()
-        return enabled == "true" and external_effects in {
-            "",
-            "0",
-            "false",
-            "no",
-            "off",
-        }
-
-    @staticmethod
-    def _single_test_syn_campaign(agent, campaign_code):
-        active_campaigns = agent.campaign_ids.filtered(lambda item: item.active)
-        if len(active_campaigns) != 1:
-            return False
-        campaign = active_campaigns[:1]
-        if (
-            campaign_code != "TEST_SYN"
-            or campaign.campaign_id != "TEST_SYN"
-            or campaign.mode != "test"
-        ):
-            return False
-        return campaign
-
-    @staticmethod
-    def _authorized_canonical_test_syn_campaign(campaign_code, lead):
-        if (
-            "call_center_campaign_id" not in lead._fields
-            or "call.center.campaign" not in request.env
-        ):
-            return False
-
-        Campaign = request.env["call.center.campaign"]
-        required_fields = {
-            "active",
-            "authorized_user_ids",
-            "business_unit_id",
-            "code",
-            "state",
-        }
-        if not required_fields.issubset(Campaign._fields):
-            return False
-        if not Campaign.check_access_rights("read", raise_exception=False):
-            return False
-
-        identity_domain = [("code", "=", campaign_code)]
-        if "vicidial_campaign_id" in Campaign._fields:
-            identity_domain = [
-                "|",
-                ("code", "=", campaign_code),
-                ("vicidial_campaign_id", "=", campaign_code),
-            ]
-        try:
-            campaigns = Campaign.search(
-                [
-                    ("active", "=", True),
-                    ("state", "=", "active"),
-                    ("business_unit_id", "=", lead.business_unit_id.id),
-                    ("authorized_user_ids", "in", request.env.user.id),
-                    *identity_domain,
-                ],
-                limit=2,
-            )
-        except AccessError:
-            return False
-        if len(campaigns) != 1:
-            return False
-        campaign = campaigns[:1]
-        if (
-            campaign.business_unit_id != lead.business_unit_id
-            or request.env.user not in campaign.authorized_user_ids
-        ):
-            return False
-        return campaign
-
-    def _auto_repair_owned_test_syn_lead(self, number, campaign_code, agent):
-        """Repair one stale, owner-controlled TEST_SYN lead and nothing broader."""
-        if not self._automatic_test_syn_repair_enabled():
-            return False
-        if not self._single_test_syn_campaign(agent, campaign_code):
-            return False
-
-        Call = request.env["codestra.vicidial.call"]
-        Lead = request.env["crm.lead"]
-        Partner = request.env["res.partner"]
-        if not Lead.check_access_rights("read", raise_exception=False):
-            return False
-        if not Lead.check_access_rights("write", raise_exception=False):
-            return False
-
-        normalized = Call.normalize_number(number)
-        digits = normalized.removeprefix("+")
-        variants = [digits, "00" + digits]
-        if len(digits) == 11 and digits.startswith("1"):
-            variants.append(digits[1:])
-        variants = tuple(dict.fromkeys(variants))
-
-        # Serialize by destination so concurrent requests cannot authorize two
-        # stale rows before either normalized projection becomes visible.
-        request.env.cr.execute(
-            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
-            ("codestra:auto-test-syn:" + normalized,),
-        )
-        if Lead.sudo().search_count([("x_phone_e164", "=", normalized)]):
-            return False
-        if Partner.sudo().search_count(
-            [("x_codestra_phone_e164", "=", normalized)]
-        ):
-            return False
-
-        # Stored projections can be stale. Compare normalized raw digits only to
-        # discover IDs, then reapply ownership, scope, and ordinary ORM access.
-        request.env.cr.execute(
-            """
-            SELECT id
-              FROM crm_lead
-             WHERE active IS TRUE
-               AND phone IS NOT NULL
-               AND regexp_replace(phone, '[^0-9]', '', 'g') IN %s
-             ORDER BY id
-             LIMIT 3
-            """,
-            (variants,),
-        )
-        raw_ids = [row[0] for row in request.env.cr.fetchall()]
-        if len(raw_ids) != 1:
-            return False
-
-        request.env.cr.execute(
-            """
-            SELECT id
-              FROM res_partner
-             WHERE active IS TRUE
-               AND regexp_replace(COALESCE(phone, ''), '[^0-9]', '', 'g') IN %s
-             LIMIT 1
-            """,
-            (variants,),
-        )
-        if request.env.cr.fetchone():
-            return False
-
-        request.env.cr.execute(
-            "SELECT id FROM crm_lead WHERE id = %s FOR UPDATE",
-            (raw_ids[0],),
-        )
-        domain = [
-            ("id", "=", raw_ids[0]),
-            ("active", "=", True),
-            ("user_id", "=", request.env.user.id),
-            ("x_phone_e164", "=", False),
-            ("vicidial_campaign_id", "=", False),
-            ("x_vicidial_campaign_id", "=", False),
-        ]
-        if "call_center_campaign_id" in Lead._fields:
-            domain.append(("call_center_campaign_id", "=", False))
-
-        visible_lead = Lead.search(domain, limit=1)
-        candidate = visible_lead or Lead.sudo().browse(raw_ids[0]).exists()
-        if not candidate:
-            return False
-        if (
-            not candidate.active
-            or candidate.user_id != request.env.user
-            or candidate.x_phone_e164
-            or candidate.vicidial_campaign_id
-            or candidate.x_vicidial_campaign_id
-        ):
-            return False
-        if (
-            "call_center_campaign_id" in candidate._fields
-            and candidate.call_center_campaign_id
-        ):
-            return False
-        try:
-            candidate_normalized = Call.normalize_number(candidate.phone)
-        except ValidationError:
-            return False
-        if candidate_normalized != normalized:
-            return False
-        if self._blocked_destination(candidate):
-            return False
-        if not candidate.business_unit_id:
-            return False
-        if candidate.company_id and candidate.company_id not in request.env.user.company_ids:
-            return False
-        if "call_center_business_unit_ids" in request.env.user._fields:
-            authorized_units = request.env.user.call_center_business_unit_ids
-            if (
-                candidate.business_unit_id not in authorized_units
-                and not request.env.user.has_group("base.group_system")
-            ):
-                return False
-
-        canonical_campaign = False
-        if not visible_lead:
-            if not request.env.user.has_group("codestra_vicidial_crm.group_agent"):
-                return False
-            canonical_campaign = self._authorized_canonical_test_syn_campaign(
-                campaign_code, candidate
-            )
-            if not canonical_campaign:
-                return False
-
-        values = {
-            "vicidial_campaign_id": campaign_code,
-            "x_vicidial_campaign_id": campaign_code,
-        }
-        if canonical_campaign:
-            values["call_center_campaign_id"] = canonical_campaign.id
-        write_target = visible_lead or candidate.sudo()
-        flush_fields = [
-            "x_phone_e164",
-            "vicidial_campaign_id",
-            "x_vicidial_campaign_id",
-        ]
-        if canonical_campaign:
-            flush_fields.append("call_center_campaign_id")
-
-        with request.env.cr.savepoint():
-            write_target.write(values)
-            write_target._compute_codestra_phone()
-            write_target.flush_recordset(flush_fields)
-            write_target.invalidate_recordset(flush_fields)
-            if write_target.x_phone_e164 != normalized:
-                raise ValidationError(
-                    "Automatic CRM phone normalization could not be verified."
-                )
-            if (
-                write_target.vicidial_campaign_id != campaign_code
-                or write_target.x_vicidial_campaign_id != campaign_code
-                or (
-                    canonical_campaign
-                    and write_target.call_center_campaign_id != canonical_campaign
-                )
-            ):
-                raise ValidationError(
-                    "Automatic CRM campaign assignment could not be verified."
-                )
-            lead = Lead.search([("id", "=", write_target.id)], limit=1)
-            if not lead:
-                raise ValidationError(
-                    "Automatic CRM record-rule visibility could not be verified."
-                )
-        return lead
+    def _auto_repair_owned_test_syn_lead(number, campaign_code, agent):
+        return request.env[
+            "codestra.vicidial.test.syn.repair"
+        ].repair_owned_lead(number, campaign_code, agent)
 
     def _match_customer(self, number, campaign_code, agent):
         Call = request.env["codestra.vicidial.call"]
@@ -665,6 +401,7 @@ class CallControlAPI(http.Controller):
                     "revision": note.revision,
                     "notes_present": bool(notes),
                 },
+                actor_role="agent",
             )
         else:
             note = request.env["codestra.call.note"].search(
@@ -733,6 +470,7 @@ class CallControlAPI(http.Controller):
                     "disposition": disposition.code,
                     "sub_disposition": sub_disposition.code,
                 },
+                actor_role="agent",
             )
         return {
             "duplicate": duplicate,
@@ -919,7 +657,12 @@ class CallControlAPI(http.Controller):
                 },
             }
         )
-        self._audit(call, "call.workspace.viewed", {"sequence": call.sequence})
+        self._audit(
+            call,
+            "call.workspace.viewed",
+            {"sequence": call.sequence},
+            actor_role="agent",
+        )
         return payload
 
     @http.route(
@@ -961,7 +704,12 @@ class CallControlAPI(http.Controller):
             }
         )
         command._record_callback_result(callback)
-        self._audit(call, "call.callback", {"callback_id": callback.id})
+        self._audit(
+            call,
+            "call.callback",
+            {"callback_id": callback.id},
+            actor_role="agent",
+        )
         return {"duplicate": False, "callback_id": callback.id, "dispatch_enabled": False}
 
     @http.route(
@@ -992,7 +740,12 @@ class CallControlAPI(http.Controller):
             callback.action_cancel()
         else:
             raise ValidationError("Unsupported callback action.")
-        self._audit(call, f"call.callback.{action}", {"callback_id": callback.id})
+        self._audit(
+            call,
+            f"call.callback.{action}",
+            {"callback_id": callback.id},
+            actor_role="agent",
+        )
         return {
             "callback_id": callback.id,
             "status": callback.status,
@@ -1046,7 +799,12 @@ class CallControlAPI(http.Controller):
         allowed = {("crm.lead", lead.id), ("res.partner", call.customer_id.id)}
         if (model, int(record_id)) not in allowed:
             raise AccessError("CRM record is not correlated to this call.")
-        self._audit(call, "call.record_opened", {"model": model, "record_id": int(record_id)})
+        self._audit(
+            call,
+            "call.record_opened",
+            {"model": model, "record_id": int(record_id)},
+            actor_role="agent",
+        )
         return {"recorded": True}
 
     @http.route(
@@ -1056,10 +814,8 @@ class CallControlAPI(http.Controller):
         methods=["POST"],
     )
     def recording_playback(self, call_id):
-        reviewer = request.env.user.has_group("codestra_vicidial_crm.group_supervisor") or request.env.user.has_group(
-            "codestra_vicidial_crm.group_qa"
-        )
-        call = self._review_call(call_id) if reviewer else self._owned_call(call_id)
+        reviewer_role = self._reviewer_role(required=False)
+        call = self._review_call(call_id) if reviewer_role else self._owned_call(call_id)
         manager = request.env.user.has_group("codestra_vicidial_crm.group_manager")
         if not manager and not request.env.user.can_view_recordings:
             raise AccessError("Recording playback permission is required.")
@@ -1103,16 +859,28 @@ class CallControlAPI(http.Controller):
             raise ValidationError("Recording service returned an invalid playback grant.") from exc
         if parsed.scheme != "https" or not parsed.netloc or not (1 <= expires_in <= 120):
             raise ValidationError("Recording service returned an invalid playback grant.")
-        self._audit(call, "call.recording.viewed", {"recording_id": recording.recording_id})
+        self._audit(
+            call,
+            "call.recording.viewed",
+            {"recording_id": recording.recording_id},
+            actor_role=reviewer_role or "agent",
+        )
         return {"playback_url": playback_url, "expires_in": expires_in, "cacheable": False}
 
     @staticmethod
-    def _review_call(call_id):
-        if not (
-            request.env.user.has_group("codestra_vicidial_crm.group_supervisor")
-            or request.env.user.has_group("codestra_vicidial_crm.group_qa")
-        ):
+    def _reviewer_role(required=True):
+        """Return the role used to authorize this review request."""
+        if request.env.user.has_group("codestra_vicidial_crm.group_supervisor"):
+            return "supervisor"
+        if request.env.user.has_group("codestra_vicidial_crm.group_qa"):
+            return "qa"
+        if required:
             raise AccessError("Supervisor or QA access is required.")
+        return False
+
+    @staticmethod
+    def _review_call(call_id):
+        CallControlAPI._reviewer_role()
         call = request.env["codestra.vicidial.call"].search([("call_id", "=", call_id)], limit=1)
         if not call:
             raise AccessError("The call is outside the authorized review scope.")
@@ -1196,7 +964,13 @@ class CallControlAPI(http.Controller):
         )
         notes = request.env["codestra.call.note"].search([("call_id", "=", call.id)])
         reviews = request.env["codestra.call.qa.review"].search([("call_id", "=", call.id)])
-        self._audit(call, "call.detail.viewed", {"role": "reviewer"})
+        reviewer_role = self._reviewer_role()
+        self._audit(
+            call,
+            "call.detail.viewed",
+            {"role": reviewer_role},
+            actor_role=reviewer_role,
+        )
         lead = call.crm_lead_id or call.lead_id
         return {
             "call": {
@@ -1332,7 +1106,12 @@ class CallControlAPI(http.Controller):
                 "state": "submitted" if submit else "draft",
             }
         )
-        self._audit(call, "call.qa.scored", {"review_id": review.id, "score": review.score, "state": review.state})
+        self._audit(
+            call,
+            "call.qa.scored",
+            {"review_id": review.id, "score": review.score, "state": review.state},
+            actor_role="qa",
+        )
         return {"review_id": review.id, "score": review.score, "state": review.state}
 
     @http.route(
@@ -1360,7 +1139,13 @@ class CallControlAPI(http.Controller):
                 "comments": comments,
             }
         )
-        self._audit(call, "call.coaching.created", {"coaching_id": coaching.id, "assigned_agent_id": assignee.id})
+        reviewer_role = self._reviewer_role()
+        self._audit(
+            call,
+            "call.coaching.created",
+            {"coaching_id": coaching.id, "assigned_agent_id": assignee.id},
+            actor_role=reviewer_role,
+        )
         return {"coaching_id": coaching.id, "state": coaching.state}
 
     @http.route(
@@ -1374,7 +1159,12 @@ class CallControlAPI(http.Controller):
         if not coaching:
             raise AccessError("Coaching is unavailable.")
         coaching.action_acknowledge()
-        self._audit(coaching.call_id, "call.coaching.acknowledged", {"coaching_id": coaching.id})
+        self._audit(
+            coaching.call_id,
+            "call.coaching.acknowledged",
+            {"coaching_id": coaching.id},
+            actor_role="agent",
+        )
         return {"coaching_id": coaching.id, "state": coaching.state, "acknowledged_at": coaching.acknowledged_at}
 
     @http.route(
@@ -1400,7 +1190,10 @@ class CallControlAPI(http.Controller):
             }
         )
         self._audit(
-            call, "call.follow_up.created", {"activity_id": activity.id, "owner_id": owner.id, "priority": priority}
+            call,
+            "call.follow_up.created",
+            {"activity_id": activity.id, "owner_id": owner.id, "priority": priority},
+            actor_role="agent",
         )
         return {"activity_id": activity.id, "created": True}
 
@@ -1458,5 +1251,7 @@ class CallControlAPI(http.Controller):
             f"call.{action}",
             {"command_id": command.id},
             event=event,
+            actor_role="agent",
         )
         return command, False
+
