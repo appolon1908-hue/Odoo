@@ -834,9 +834,18 @@ class CodestraMiddlewareBridge(http.Controller):
         auth, payload, error = self._begin("email.status", allow_event_replay=True, tenant_allowlist_parameter="codestra.middleware.email_tenant_ids")
         if error: return error
         status_by_type = {
+            "klyrow.email.accepted": "accepted",
+            "klyrow.email.queued": "queued",
+            "klyrow.email.submitted": "provider_accepted",
+            "klyrow.email.sent": "provider_accepted",
             "klyrow.email.delivered": "delivered",
             "klyrow.email.bounced": "bounced",
             "klyrow.email.deferred": "deferred",
+            "klyrow.email.complained": "complained",
+            "klyrow.email.unsubscribed": "suppressed",
+            "klyrow.email.suppressed": "suppressed",
+            "klyrow.email.rejected": "rejected",
+            "klyrow.email.failed": "failed",
         }
         event_type = str(payload.get("event_type", ""))
         status = status_by_type.get(event_type)
@@ -852,9 +861,26 @@ class CodestraMiddlewareBridge(http.Controller):
             "customer_id": payload.get("customer_id"), "provider": "klyrow",
             "event_type": event_type, "status": status, "occurred_at": occurred_at,
         })
+        projection = "not_installed"
+        if "codestra.email.outbox" in request.env.registry.models:
+            job = request.env["codestra.email.outbox"].sudo().search([
+                ("tenant_id", "=", auth["tenant_id"]),
+                ("correlation_id", "=", auth["correlation_id"]),
+                ("message_id", "=", message_id),
+            ], limit=1)
+            if job:
+                changed = job._apply_callback(
+                    state=status, tenant=auth["tenant_id"],
+                    correlation=auth["correlation_id"], message_id=message_id,
+                    provider_reference=detail.get("provider_message_id"),
+                )
+                projection = "updated" if changed else "ignored_older_state"
+            else:
+                projection = "unmatched"
         return self._complete(auth, "email.status", {
             "record_id": record.id, "model": record._name, "status": record.status,
             "event_id": record.event_id, "message_id": record.message_id,
+            "projection": projection,
         }, status=201)
 
     @http.route("/codestra/middleware/v1/contacts", type="http", auth="none", methods=["POST"], csrf=False)
