@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 import urllib.parse
+from datetime import datetime, timezone
 
 from psycopg2.errors import SerializationFailure, UniqueViolation
 
@@ -22,16 +23,43 @@ ALLOWED_EVENT_TYPES = frozenset(
 ALLOWED_CAPTURE_METHODS = frozenset({"http", "browser"})
 FORBIDDEN_KEYS = frozenset(
     {
+        "access_key",
         "access_token",
+        "api_key",
+        "auth_token",
+        "authorization",
+        "bearer_token",
         "client_secret",
+        "cookie",
+        "credential",
+        "credentials",
         "password",
         "private_key",
         "provider_token",
         "refresh_token",
+        "secret",
+        "session_token",
+        "set_cookie",
+        "token",
     }
+)
+FORBIDDEN_KEY_SUFFIXES = (
+    "_api_key",
+    "_authorization",
+    "_cookie",
+    "_credential",
+    "_credentials",
+    "_password",
+    "_private_key",
+    "_secret",
+    "_token",
 )
 IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$")
 HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
+RFC3339_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}"
+    r"(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$"
+)
 INTERNAL_CONTEXT = "codestra_kyqra_internal"
 # Process-local capability; RPC context values cannot supply this object identity.
 _INTERNAL_CAPABILITY = object()
@@ -87,16 +115,51 @@ def _safe_url(value, label):
     return value
 
 
+def _normalized_key(value):
+    key = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", str(value))
+    key = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", key)
+    return re.sub(r"[^a-z0-9]+", "_", key.lower()).strip("_")
+
+
 def _contains_forbidden_key(value):
     if isinstance(value, dict):
         for key, child in value.items():
-            if str(key).lower() in FORBIDDEN_KEYS:
+            normalized_key = _normalized_key(key)
+            if (
+                normalized_key in FORBIDDEN_KEYS
+                or normalized_key.endswith(FORBIDDEN_KEY_SUFFIXES)
+            ):
                 return True
             if _contains_forbidden_key(child):
                 return True
     elif isinstance(value, list):
         return any(_contains_forbidden_key(child) for child in value)
     return False
+
+
+def _rfc3339(value, label):
+    value = _text(value, label, 80)
+    if RFC3339_RE.fullmatch(value) is None:
+        raise ValidationError(
+            _("%s must be a timezone-aware RFC3339 timestamp.") % label
+        )
+    iso_value = f"{value[:-1]}+00:00" if value.endswith("Z") else value
+    try:
+        parsed = datetime.fromisoformat(iso_value)
+    except ValueError as exc:
+        raise ValidationError(
+            _("%s must be a valid RFC3339 timestamp.") % label
+        ) from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValidationError(
+            _("%s must include an explicit timezone offset.") % label
+        )
+    timespec = "microseconds" if parsed.microsecond else "seconds"
+    return (
+        parsed.astimezone(timezone.utc)
+        .isoformat(timespec=timespec)
+        .replace("+00:00", "Z")
+    )
 
 
 def _non_negative_int(value, label):
@@ -312,8 +375,8 @@ class CodestraKyqraBatch(models.Model):
         correlation_id = _identifier(envelope["correlation_id"], "correlation_id")
         causation_id = _identifier(envelope["causation_id"], "causation_id")
         idempotency_key = _identifier(envelope["idempotency_key"], "idempotency_key")
-        occurred_at = _text(envelope["occurred_at"], "occurred_at", 80)
-        received_at = _text(envelope["received_at"], "received_at", 80)
+        occurred_at = _rfc3339(envelope["occurred_at"], "occurred_at")
+        received_at = _rfc3339(envelope["received_at"], "received_at")
         if envelope.get("customer_id") not in (None, False):
             _optional_text(envelope["customer_id"], "customer_id", 256)
         if not isinstance(envelope.get("metadata"), dict):
@@ -369,6 +432,11 @@ class CodestraKyqraBatch(models.Model):
                 for key, value in item["provenance"].items()
             ):
                 raise ValidationError(_("%s.provenance must contain strings.") % label)
+            provenance = dict(item["provenance"])
+            if "captured_at" in provenance:
+                provenance["captured_at"] = _rfc3339(
+                    provenance["captured_at"], f"{label}.provenance.captured_at"
+                )
             if item.get("review_required") is not True:
                 raise ValidationError(
                     _("Every Kyqra result must remain review required.")
@@ -390,7 +458,7 @@ class CodestraKyqraBatch(models.Model):
                     "record_id": record_id,
                     "source_url": source_url,
                     "data": data,
-                    "provenance": dict(item["provenance"]),
+                    "provenance": provenance,
                     "review_required": True,
                     "confidence": confidence,
                     "capture_method": capture_method,
@@ -461,10 +529,13 @@ class CodestraKyqraBatch(models.Model):
                 provenance.get("quote"), "provenance.quote", 10_000
             )
             or False,
-            "captured_at": _optional_text(
-                provenance.get("captured_at"), "provenance.captured_at", 80
-            )
-            or False,
+            "captured_at": (
+                _rfc3339(
+                    provenance["captured_at"], "provenance.captured_at"
+                )
+                if provenance.get("captured_at")
+                else False
+            ),
         }
 
     @api.model

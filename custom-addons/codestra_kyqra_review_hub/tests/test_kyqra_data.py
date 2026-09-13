@@ -154,14 +154,61 @@ class TestCodestraKyqraData(TransactionCase):
         invalid["payload"]["results"][0]["review_required"] = False
         with self.assertRaises(ValidationError):
             self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
-        invalid = copy.deepcopy(self._event())
-        invalid["payload"]["results"][0]["data"]["password"] = "secret"
-        with self.assertRaises(ValidationError):
-            self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
+        for secret_key in (
+            "api_key",
+            "authorization",
+            "cookie",
+            "credential",
+            "secret",
+            "token",
+            "APIKey",
+            "clientSecret",
+            "provider-token",
+            "userPassword",
+        ):
+            with self.subTest(secret_key=secret_key):
+                invalid = copy.deepcopy(self._event())
+                invalid["payload"]["results"][0]["data"][secret_key] = "secret"
+                with self.assertRaises(ValidationError):
+                    self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
         invalid = copy.deepcopy(self._event())
         invalid["payload"]["results"][0]["source_url"] = "http://example.invalid/page"
         with self.assertRaises(ValidationError):
             self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
+
+    def test_invalid_rfc3339_timestamps_fail_closed(self):
+        for field_name, invalid_value in (
+            ("occurred_at", "unknown"),
+            ("received_at", "2026-09-12T12:00:01"),
+            ("occurred_at", "2026-02-30T12:00:00Z"),
+        ):
+            with self.subTest(field_name=field_name, invalid_value=invalid_value):
+                invalid = copy.deepcopy(self._event())
+                invalid[field_name] = invalid_value
+                with self.assertRaises(ValidationError):
+                    self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
+        invalid = copy.deepcopy(self._event())
+        invalid["payload"]["results"][0]["provenance"]["captured_at"] = (
+            "2026-09-12T12:00:00"
+        )
+        with self.assertRaises(ValidationError):
+            self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
+
+    def test_rfc3339_timestamps_are_normalized_to_utc(self):
+        event = self._event()
+        event["occurred_at"] = "2026-09-12T14:00:00+02:00"
+        event["received_at"] = "2026-09-12T07:30:00.123-04:30"
+        event["payload"]["results"][0]["provenance"]["captured_at"] = (
+            "2026-09-12T13:00:00+01:00"
+        )
+        result = self.env["codestra.kyqra.batch"].apply_middleware_event(event)
+        batch = self.env["codestra.kyqra.batch"].browse(result["batch_id"])
+        self.assertEqual(batch.occurred_at, "2026-09-12T12:00:00Z")
+        self.assertEqual(batch.received_at, "2026-09-12T12:00:00.123000Z")
+        self.assertEqual(
+            batch.entity_ids.evidence_ids.captured_at,
+            "2026-09-12T12:00:00Z",
+        )
 
     def test_non_reviewer_cannot_approve(self):
         user = self.env["res.users"].create(

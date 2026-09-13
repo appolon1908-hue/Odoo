@@ -152,8 +152,8 @@
   "additional_strict_overrides": {
     "codestra_kyqra_review_hub": {
       "base_tree": "93ed2c44e0208abc733d1ef5f189973857e9c2d1",
-      "current_tree": "90a775c61d9cf19ff65888d2709c1d6bf5e0d52e",
-      "reason": "PR #134 retries only the two batch reservation unique constraints through Odoo whole-transaction retry. Driver imports contain exception classes only; no external database connection or new write authority.",
+      "current_tree": "79d12cfbb79927d1058b69c32f933cf768294ef8",
+      "reason": "PR #134 retries only the two batch reservation unique constraints through Odoo whole-transaction retry, rejects normalized common secret-key aliases before immutable storage, and validates and normalizes audit timestamps as timezone-aware RFC3339. Driver imports contain exception classes only; no external database connection or new write authority.",
       "pull_request": 134,
       "integration_boundary_exceptions": [
         {
