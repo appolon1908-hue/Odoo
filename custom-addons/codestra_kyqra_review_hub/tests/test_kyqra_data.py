@@ -221,6 +221,11 @@ class TestCodestraKyqraData(TransactionCase):
             "https://example.invalid/page?AWS_SECRET_ACCESS_KEY=secret",
             "https://example.invalid/page?awssecretaccesskey=secret",
             "https://example.invalid/page?serviceSecretKey=secret",
+            "https://account.blob.core.windows.net/object?sv=1&sig=secret",
+            "https://example.invalid/page?Signature=secret",
+            "https://example.invalid/page?X-Amz-Signature=secret",
+            "https://example.invalid/page?xamzsignature=secret",
+            "https://example.invalid/page?oauth_signature=secret",
             "https://example.invalid/page?x-api-key=secret",
             "https://example.invalid/page?safe=value;token=secret",
             "https://example.invalid/page?api%5Fkey=secret",
@@ -228,14 +233,20 @@ class TestCodestraKyqraData(TransactionCase):
         ):
             with self.subTest(source_url=source_url):
                 invalid = copy.deepcopy(self._event())
-                invalid["payload"]["results"][0]["source_url"] = source_url
-                with self.assertRaises(ValidationError):
+                item = invalid["payload"]["results"][0]
+                item["source_url"] = source_url
+                item["provenance"]["source_url"] = source_url
+                with self.assertRaisesRegex(
+                    ValidationError, "credential-bearing URL parameters"
+                ):
                     self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
         invalid = copy.deepcopy(self._event())
         invalid["payload"]["results"][0]["provenance"]["source_url"] = (
             "https://example.invalid/page?token=secret"
         )
-        with self.assertRaises(ValidationError):
+        with self.assertRaisesRegex(
+            ValidationError, "credential-bearing URL parameters"
+        ):
             self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
 
     def test_source_url_authority_and_encoding_are_strict(self):
@@ -247,6 +258,7 @@ class TestCodestraKyqraData(TransactionCase):
             "https://exa mple.invalid/path",
             "https://example.invalid:70000/path",
             "https://example.invalid:/path",
+            "https://@example.invalid/path",
             "https://bad_label.example/path",
             "https://999.999.999.999/path",
             "https://example.invalid/%ZZ",

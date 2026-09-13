@@ -63,6 +63,11 @@ FORBIDDEN_COMPACT_KEYS = frozenset(key.replace("_", "") for key in FORBIDDEN_KEY
 FORBIDDEN_COMPACT_SUFFIXES = tuple(
     suffix.replace("_", "") for suffix in FORBIDDEN_KEY_SUFFIXES
 )
+FORBIDDEN_URL_PARAMETER_KEYS = frozenset({"sig", "signature"})
+FORBIDDEN_URL_PARAMETER_SUFFIXES = ("_sig", "_signature")
+FORBIDDEN_COMPACT_URL_PARAMETER_SUFFIXES = tuple(
+    suffix.replace("_", "") for suffix in FORBIDDEN_URL_PARAMETER_SUFFIXES
+)
 IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$")
 HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 RFC3339_RE = re.compile(
@@ -162,6 +167,7 @@ def _safe_url(value, label):
         or not hostname
         or parsed.username
         or parsed.password
+        or "@" in parsed.netloc
         or parsed.netloc.endswith(":")
         or (port is not None and port == 0)
         or not _valid_hostname(hostname)
@@ -187,7 +193,9 @@ def _safe_url(value, label):
             raise ValidationError(
                 _("%s contains an invalid or excessive URL parameter set.") % label
             ) from exc
-        if any(_is_forbidden_key(key) for key, _value in parameters):
+        if any(
+            _is_forbidden_url_parameter(key) for key, _value in parameters
+        ):
             raise ValidationError(
                 _("%s must not contain credential-bearing URL parameters.") % label
             )
@@ -208,6 +216,18 @@ def _is_forbidden_key(value):
         or normalized_key.endswith(FORBIDDEN_KEY_SUFFIXES)
         or compact_key in FORBIDDEN_COMPACT_KEYS
         or compact_key.endswith(FORBIDDEN_COMPACT_SUFFIXES)
+    )
+
+
+def _is_forbidden_url_parameter(value):
+    normalized_key = _normalized_key(value)
+    compact_key = normalized_key.replace("_", "")
+    return (
+        _is_forbidden_key(value)
+        or normalized_key in FORBIDDEN_URL_PARAMETER_KEYS
+        or normalized_key.endswith(FORBIDDEN_URL_PARAMETER_SUFFIXES)
+        or compact_key in FORBIDDEN_URL_PARAMETER_KEYS
+        or compact_key.endswith(FORBIDDEN_COMPACT_URL_PARAMETER_SUFFIXES)
     )
 
 

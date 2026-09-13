@@ -152,8 +152,8 @@
   "additional_strict_overrides": {
     "codestra_kyqra_review_hub": {
       "base_tree": "93ed2c44e0208abc733d1ef5f189973857e9c2d1",
-      "current_tree": "e4b3d6a5673f2c3bb60e5d3af4e41916a7409e77",
-      "reason": "PR #134 retries only the two batch reservation unique constraints through Odoo whole-transaction retry, rejects normalized and separator-free secret/access-key aliases plus credential-bearing URL parameters, strictly validates original and decoded source URLs, rejects surrounding whitespace in retained canonical text before immutable storage, normalizes audit timestamps as timezone-aware RFC3339, and prevents batch decisions from overwriting prior entity-level decisions. Driver imports contain exception classes only; no external database connection or new write authority.",
+      "current_tree": "cbd6558667d3ce38f4a71513c2da73ce6e874bf4",
+      "reason": "PR #134 retries only the two batch reservation unique constraints through Odoo whole-transaction retry, rejects normalized and separator-free secret/access-key aliases plus credential- and signature-bearing URL parameters, strictly validates original and decoded source URLs, rejects surrounding whitespace in retained canonical text before immutable storage, normalizes audit timestamps as timezone-aware RFC3339, and prevents batch decisions from overwriting prior entity-level decisions. Driver imports contain exception classes only; no external database connection or new write authority.",
       "pull_request": 134,
       "integration_boundary_exceptions": [
         {
