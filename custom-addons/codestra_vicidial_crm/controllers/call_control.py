@@ -68,8 +68,26 @@ class CallControlAPI(http.Controller):
         return call
 
     @staticmethod
-    def _audit(call, action, after=None):
-        request.env["codestra.integration.audit"].sudo().create(
+    def _audit(call, action, after=None, event=None):
+        Audit = request.env["codestra.integration.audit"].sudo()
+        if hasattr(Audit, "_append"):
+            event = event or request.env["codestra.integration.event"].sudo().search(
+                [("correlation_id", "=", call.correlation_id)],
+                order="id desc",
+                limit=1,
+            )
+            if event:
+                return Audit._append(
+                    event,
+                    action,
+                    "success",
+                    {
+                        "model_name": call._name,
+                        "record_res_id": call.id,
+                        "after": after or {},
+                    },
+                )
+        return Audit.create(
             {
                 "actor_user_id": request.env.user.id,
                 "action": action,
@@ -1130,9 +1148,10 @@ class CallControlAPI(http.Controller):
                 "state": "queued" if telephony_action else "confirmed",
             }
         )
+        event = False
         if telephony_action:
             Event = request.env["codestra.integration.event"].sudo()
-            Event.create(
+            event = Event.create(
                 {
                     "name": f"Call control {action}",
                     "event_type": f"call.command.{action}",
@@ -1154,15 +1173,10 @@ class CallControlAPI(http.Controller):
                     "state": "queued",
                 }
             )
-        request.env["codestra.integration.audit"].sudo().create(
-            {
-                "actor_user_id": request.env.user.id,
-                "action": f"call.{action}",
-                "model_name": call._name,
-                "record_res_id": call.id,
-                "correlation_id": call.correlation_id,
-                "after_json": json.dumps({"command_id": command.id}),
-                "success": True,
-            }
+        CallControlAPI._audit(
+            call,
+            f"call.{action}",
+            {"command_id": command.id},
+            event=event,
         )
         return command, False

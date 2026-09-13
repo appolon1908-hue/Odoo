@@ -104,6 +104,56 @@ class TestCallControl(TransactionCase):
         )
         self.assertEqual(call_control_controller._integration_event_route_values(standalone), {})
 
+    def test_audit_uses_integration_hub_append_contract_when_available(self):
+        audit_record = object()
+        captured = {}
+
+        class HubAudit:
+            def sudo(self):
+                return self
+
+            def _append(self, event, action, result, metadata):
+                captured.update(
+                    event=event,
+                    action=action,
+                    result=result,
+                    metadata=metadata,
+                )
+                return audit_record
+
+        event = SimpleNamespace(id=77)
+        call = SimpleNamespace(
+            _name="codestra.vicidial.call",
+            id=42,
+            correlation_id="call-audit-compatibility",
+        )
+        request = SimpleNamespace(
+            env={"codestra.integration.audit": HubAudit()},
+        )
+
+        with patch.object(call_control_controller, "request", request):
+            result = call_control_controller.CallControlAPI._audit(
+                call,
+                "call.outbound",
+                {"command_id": 77},
+                event=event,
+            )
+
+        self.assertIs(result, audit_record)
+        self.assertEqual(
+            captured,
+            {
+                "event": event,
+                "action": "call.outbound",
+                "result": "success",
+                "metadata": {
+                    "model_name": "codestra.vicidial.call",
+                    "record_res_id": 42,
+                    "after": {"command_id": 77},
+                },
+            },
+        )
+
     def test_number_normalization_and_exact_matching(self):
         partner = self.env["res.partner"].create({"name": "Synthetic Customer", "phone": "+1 (617) 555-0100"})
         result = self.env["codestra.vicidial.call"].match_customer("617-555-0100")
