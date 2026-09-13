@@ -83,14 +83,13 @@ class CodestraKyyowObservabilityApi(http.Controller):
             ]._from_payload(body)
             document = {
                 "status": "APPLIED",
-                "operation": "observability.kpis.create",
+                "operation": "odoo.observability.kpis.create",
                 "event_id": record.event_id,
                 "tenant_id": record.tenant_id,
                 "correlation_id": record.correlation_id,
                 "receipt_id": f"kyyow-kpi-{record.id}",
-                "duplicate": duplicate,
             }
-            return _json_response(document, 200 if duplicate else 201)
+            return _json_response(document, 201)
 
         return _handle_errors(operation)
 
@@ -114,19 +113,13 @@ class CodestraKyyowObservabilityApi(http.Controller):
             record, duplicate = request.env[
                 "kyyow.observability.incident"
             ]._from_payload(body)
-            document = {
-                "status": "APPLIED",
-                "operation": "observability.incidents.upsert",
-                "event_id": body["event_id"],
-                "tenant_id": tenant_id,
-                "incident_id": record.incident_id,
-                "state": record.state,
-                "resource_version": record.resource_version,
-                "correlation_id": record.correlation_id,
-                "receipt_id": f"kyyow-incident-{record.id}",
-                "duplicate": duplicate,
-            }
-            return _json_response(document, 200 if duplicate else 201)
+            event = request.env["kyyow.observability.incident.event"].search(
+                [("event_id", "=", body["event_id"]), ("tenant_id", "=", tenant_id)], limit=1,
+            )
+            if not event or not event.receipt:
+                raise IntegrationConflict("immutable incident receipt unavailable")
+            document = dict(event.receipt)
+            return _json_response(document, 201)
 
         return _handle_errors(operation)
 
@@ -154,7 +147,7 @@ class CodestraKyyowObservabilityApi(http.Controller):
             return _json_response(
                 {
                     "status": "FOUND",
-                    "operation": "observability.kpis.read",
+                    "operation": "odoo.observability.kpis.read",
                     "tenant_id": tenant_id,
                     "data": record.document(),
                 }
@@ -186,7 +179,7 @@ class CodestraKyyowObservabilityApi(http.Controller):
             return _json_response(
                 {
                     "status": "FOUND",
-                    "operation": "observability.incidents.read",
+                    "operation": "odoo.observability.incidents.read",
                     "tenant_id": tenant_id,
                     "data": record.document(),
                 }
@@ -229,7 +222,7 @@ class CodestraKyyowObservabilityApi(http.Controller):
             return _json_response(
                 {
                     "status": "READY",
-                    "operation": "observability.sync.read",
+                    "operation": "odoo.observability.sync.read",
                     "tenant_id": tenant_id,
                     "kpi_snapshot_count": kpis,
                     "incident_count": incidents,

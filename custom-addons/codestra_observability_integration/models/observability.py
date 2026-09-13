@@ -4,6 +4,9 @@ import hashlib
 import json
 import math
 import re
+from functools import wraps
+
+from psycopg2.errors import SerializationFailure, UniqueViolation
 from datetime import datetime, timezone
 
 from odoo import api, fields, models
@@ -14,6 +17,7 @@ EVENT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$")
 IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$")
 DIGEST_RE = re.compile(r"^(?:sha256:)?[0-9a-f]{64}$")
 SAFE_DIMENSION_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]{0,63}$")
+PROHIBITED_DATA_KEYS = {"body", "logs", "traces", "raw_samples", "raw_logs", "raw_traces", "samples"}
 SENSITIVE_KEY_PARTS = (
     "password",
     "passwd",
@@ -26,6 +30,13 @@ SENSITIVE_KEY_PARTS = (
     "api_key",
     "access_key",
     "message_body",
+    "raw_sample",
+    "raw_log",
+    "raw_trace",
+    "notification_body",
+    "request_body",
+    "response_body",
+    "email_body",
     "phone",
     "email",
 )
@@ -140,7 +151,7 @@ def _safe_mapping(value, field_name, *, maximum=32):
     for key, item in value.items():
         if not isinstance(key, str) or not SAFE_DIMENSION_KEY_RE.fullmatch(key):
             raise ValidationError(f"{field_name} contains an unsafe key")
-        if any(part in key.lower().replace("-", "_") for part in SENSITIVE_KEY_PARTS):
+        if key.lower().replace("-", "_") in PROHIBITED_DATA_KEYS or any(part in key.lower().replace("-", "_") for part in SENSITIVE_KEY_PARTS):
             raise ValidationError(f"{field_name} contains a sensitive key")
         if isinstance(item, bool):
             clean[key] = item
@@ -221,10 +232,46 @@ INCIDENT_HASH_KEYS = (
 )
 
 
+TRANSPORT_FIELDS = {"operation", "idempotency_key", "causation_id"}
+
+
+def _validate_fields(payload, required, operation):
+    if payload.keys() - required - TRANSPORT_FIELDS:
+        raise ValidationError("unknown projection fields are prohibited")
+    if "operation" in payload and payload["operation"] != operation:
+        raise ValidationError("projection operation does not match the endpoint")
+    for field_name in ("idempotency_key", "causation_id"):
+        if field_name in payload:
+            _clean_text(payload[field_name], field_name)
+    if payload.get("causation_id", payload.get("event_id")) != payload.get("event_id"):
+        raise ValidationError("projection causation binding conflict")
+
+
+def _retry_concurrent_projection(method):
+    @wraps(method)
+    def wrapped(self, payload):
+        try:
+            with self.env.cr.savepoint():
+                return method(self, payload)
+        except UniqueViolation as error:
+            # Odoo uses REPEATABLE READ. A concurrent insert cannot be read in
+            # this snapshot; let Odoo's HTTP transaction retry start a new one.
+            if error.diag.constraint_name in {
+                "kyyow_observability_kpi_snapshot_event_unique",
+                "kyyow_observability_incident_event_event_unique",
+                "kyyow_observability_incident_incident_unique",
+                "kyyow_observability_incident_fingerprint_unique",
+            }:
+                raise SerializationFailure("concurrent observability projection; retry transaction") from error
+            raise
+    return wrapped
+
+
 def validate_kpi_payload(payload):
     if not isinstance(payload, dict):
         raise ValidationError("KPI payload must be an object")
     required = set(KPI_HASH_KEYS) | {"projection_hash"}
+    _validate_fields(payload, required, "odoo.observability.kpis.create")
     missing = sorted(required - payload.keys())
     if missing:
         raise ValidationError(f"KPI payload is missing: {', '.join(missing)}")
@@ -295,6 +342,7 @@ def validate_incident_payload(payload):
     if not isinstance(payload, dict):
         raise ValidationError("incident payload must be an object")
     required = set(INCIDENT_HASH_KEYS) | {"projection_hash"}
+    _validate_fields(payload, required, "odoo.observability.incidents.upsert")
     missing = sorted(required - payload.keys())
     if missing:
         raise ValidationError(f"incident payload is missing: {', '.join(missing)}")
@@ -331,8 +379,8 @@ def validate_incident_payload(payload):
     )
     if state == "resolved" and not resolved_at:
         raise ValidationError("resolved incidents require resolved_at")
-    if state != "resolved":
-        resolved_at = None
+    if state != "resolved" and resolved_at is not None:
+        raise ValidationError("only resolved incidents may have resolved_at")
     source_deployment = _clean_text(
         payload["source_deployment"], "source_deployment", 128
     )
@@ -423,6 +471,7 @@ class KyyowObservabilityKpiSnapshot(models.Model):
     )
 
     @api.model
+    @_retry_concurrent_projection
     def _from_payload(self, payload):
         clean = validate_kpi_payload(payload)
         existing = self.search([("event_id", "=", clean["event_id"])], limit=1)
@@ -542,6 +591,7 @@ class KyyowObservabilityIncident(models.Model):
     )
 
     @api.model
+    @_retry_concurrent_projection
     def _from_payload(self, payload):
         clean = validate_incident_payload(payload)
         event_model = self.env["kyyow.observability.incident.event"]
@@ -550,6 +600,22 @@ class KyyowObservabilityIncident(models.Model):
             if prior_event.projection_hash != clean["projection_hash"]:
                 raise ValidationError("incident event replay has a different payload")
             return prior_event.incident_id, True
+        # Serialize updates before reading the current version. PostgreSQL
+        # raises a serialization failure if a concurrent writer changed a row
+        # since this transaction's snapshot; Odoo retries the entire request.
+        self.env.cr.execute(
+            "SELECT id FROM kyyow_observability_incident WHERE tenant_id=%s AND incident_id=%s FOR UPDATE",
+            (clean["tenant_id"], clean["incident_id"]),
+        )
+        locked = self.env.cr.fetchone()
+        if locked:
+            self.browse(locked[0]).invalidate_recordset()
+        fingerprint_owner = self.search([
+            ("tenant_id", "=", clean["tenant_id"]),
+            ("fingerprint", "=", clean["fingerprint"]),
+        ], limit=1)
+        if fingerprint_owner and fingerprint_owner.incident_id != clean["incident_id"]:
+            raise ValidationError("incident fingerprint is already bound")
         incident = self.search(
             [
                 ("tenant_id", "=", clean["tenant_id"]),
@@ -602,6 +668,17 @@ class KyyowObservabilityIncident(models.Model):
         event_model.with_context(codestra_observability_service=True).create(
             {
                 "event_id": clean["event_id"],
+                "receipt": {
+                    "status": "APPLIED",
+                    "operation": "odoo.observability.incidents.upsert",
+                    "event_id": clean["event_id"],
+                    "tenant_id": clean["tenant_id"],
+                    "incident_id": clean["incident_id"],
+                    "state": clean["state"],
+                    "resource_version": clean["resource_version"],
+                    "correlation_id": clean["correlation_id"],
+                    "receipt_id": f"kyyow-incident-{incident.id}-{clean['resource_version']}",
+                },
                 "incident_id": incident.id,
                 "tenant_id": clean["tenant_id"],
                 "previous_state": previous_state or False,
@@ -667,6 +744,7 @@ class KyyowObservabilityIncidentEvent(models.Model):
     _description = "Kyyow Observability Incident Transition"
     _order = "id desc"
 
+    receipt = fields.Json(required=True, readonly=True, copy=False)
     event_id = fields.Char(required=True, index=True, readonly=True, copy=False)
     incident_id = fields.Many2one(
         "kyyow.observability.incident",

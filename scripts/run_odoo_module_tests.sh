@@ -283,6 +283,16 @@ printf 'ODOO_BROWSER_SKIPS=0\n'
 printf 'ODOO_MODULE_INSTALL_AND_TEST=PASS\n'
 printf 'CUSTOM_MODULES_TESTED=%s\n' "${#module_names[@]}"
 
+# Use a normal registry after TransactionCase releases its process-wide lock.
+docker run --rm -i \
+  --network "$NETWORK" \
+  -e HOST=db -e PORT=5432 -e USER="$DB_USER" -e PASSWORD="$DB_PASSWORD" \
+  -v "$ROOT_DIR/custom-addons:/mnt/extra-addons:ro" \
+  -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
+  "$ODOO_IMAGE" odoo shell \
+  --addons-path="$ODOO_CI_ADDONS_PATH" -d "$DATABASE" \
+  --no-http --workers=0 < scripts/test_observability_concurrency.py
+
 printf '==> Updating every custom module on the disposable database\n'
 UPGRADE_LOG="$(mktemp)"
 if ! docker run --rm \

@@ -1,11 +1,12 @@
 from copy import deepcopy
 
 from odoo.exceptions import AccessError, ValidationError
-from odoo.tests.common import TransactionCase
+from odoo.tests.common import TransactionCase, tagged
 
 from ..models.observability import INCIDENT_HASH_KEYS, KPI_HASH_KEYS, _hash
 
 
+@tagged("post_install", "-at_install")
 class TestKyyowObservability(TransactionCase):
     def _with_projection(self, payload, keys):
         normalized = dict(payload)
@@ -141,3 +142,36 @@ class TestKyyowObservability(TransactionCase):
         payload["dimensions"] = {"api_token": "must-not-enter-odoo"}
         with self.assertRaises(ValidationError):
             model._from_payload(payload)
+
+    def test_incident_replay_retains_original_receipt_after_update(self):
+        model = self.env['kyyow.observability.incident'].sudo()
+        events = self.env['kyyow.observability.incident.event'].sudo()
+        first = self._incident()
+        record, _ = model._from_payload(first)
+        event = events.search([('event_id', '=', first['event_id'])])
+        receipt = deepcopy(event.receipt)
+        later = self._with_projection({**first, 'event_id': 'later-event',
+            'resource_version': 2, 'state': 'acknowledged',
+            'correlation_id': 'later-correlation'}, INCIDENT_HASH_KEYS)
+        model._from_payload(later)
+        _, duplicate = model._from_payload(first)
+        self.assertTrue(duplicate)
+        self.assertEqual(event.receipt, receipt)
+        self.assertEqual(receipt['state'], 'firing')
+        self.assertEqual(receipt['resource_version'], 1)
+        self.assertEqual(receipt['correlation_id'], first['correlation_id'])
+        self.assertEqual(receipt['operation'], 'odoo.observability.incidents.upsert')
+        with self.assertRaises(AccessError):
+            event.write({'receipt': {}})
+
+    def test_unknown_sensitive_and_wrong_operation_fields_are_rejected(self):
+        for model_name, payload in (
+            ('kyyow.observability.kpi.snapshot', self._kpi()),
+            ('kyyow.observability.incident', self._incident()),
+        ):
+            model = self.env[model_name].sudo()
+            for key in ('unknown', 'password', 'logs', 'traces', 'raw_samples', 'message_body'):
+                with self.subTest(model=model_name, key=key), self.assertRaises(ValidationError):
+                    model._from_payload({**payload, key: 'prohibited'})
+            with self.assertRaises(ValidationError):
+                model._from_payload({**payload, 'operation': 'unknown.operation'})
