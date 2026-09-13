@@ -27,6 +27,18 @@ codestra.odoo.agent.provisioning_requested
 codestra.odoo.agent.activation_email_requested
 ```
 
+## Middleware handoff
+
+Odoo is the producer for both public event types. Middleware owns the
+`POST /api/v1/odoo/events` receiver: it authenticates the bearer token and
+HMAC envelope, validates the agent-specific payload, and atomically records the
+event in its durable inbox, immutable ledger, and publication outbox.
+
+This handoff is intentionally not a direct Odoo-to-Klyrow call. Middleware
+downstream processing must complete the governed provisioning and provider
+read-back steps before it emits any email command. Receipt at Middleware does
+not activate an identity, send mail, or enable production dialing.
+
 Delivery acknowledgement means only that Middleware durably accepted the event.
 The Odoo outbox remains `PROCESSING` at the integration level until the normal
 result inbox receives verified provider read-back. No password, bearer token,

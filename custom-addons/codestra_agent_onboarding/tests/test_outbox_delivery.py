@@ -9,6 +9,7 @@ from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 
 from ..models.outbox_delivery import (
+    AGENT_EVENT_TYPES,
     MIDDLEWARE_EVENT_PATH,
     _event_document,
     _event_endpoint,
@@ -30,16 +31,7 @@ class TestAgentOnboardingOutboxDelivery(TransactionCase):
             organization_public_id="tenant-1",
             correlation_id="correlation-agent-onboarding-1",
             causation_id=False,
-            payload_json={
-                "schema_version": "1.0",
-                "event_type": event_type,
-                "login": {"identifier": "agent@example.invalid"},
-                "controls": {
-                    "create_disabled": True,
-                    "plaintext_password_allowed": False,
-                    "production_dialing": False,
-                },
-            },
+            payload_json=self._payload(event_type),
             aggregate_type="codestra.agent.onboarding",
             aggregate_uuid="6ab16b7e-362f-4b18-94ae-9f14b2478ad8",
             business_unit_code="COD",
@@ -50,6 +42,85 @@ class TestAgentOnboardingOutboxDelivery(TransactionCase):
             ),
             payload_hash="a" * 64,
             schema_version="1.0",
+        )
+
+    def _payload(self, event_type):
+        context = {
+            "onboarding_uuid": "onboarding-1",
+            "onboarding_number": "ONB-1",
+            "desired_state_version": 1,
+            "provisioning_request_id": 42,
+            "provisioning_request_number": "REQ-1",
+            "membership_uuid": "membership-1",
+            "employee_id": "EMP-1",
+            "odoo_user_id": 7,
+            "login_identifier": "agent@example.invalid",
+            "business_unit_code": "COD",
+            "campaign_code": "CAMPAIGN-1",
+            "campaign_workspace_uuid": "workspace-1",
+            "campaign_scope_version": 1,
+            "role": "agent",
+            "role_template": {"code": "agent", "version": 1},
+        }
+        if event_type == "agent.activation-email.requested.v1":
+            return {
+                "schema_version": "1.0",
+                "event_type": event_type,
+                **context,
+                "delivery": {
+                    "channel": "email",
+                    "provider": "klyrow",
+                    "mode": "keycloak_execute_actions_email",
+                    "template_key": "agent-welcome-v1",
+                    "recipient": "agent@example.invalid",
+                    "preferred_language": "en_US",
+                },
+                "login": {
+                    "identifier": "agent@example.invalid",
+                    "url": "https://login.example.invalid/activate",
+                    "required_actions": ["UPDATE_PASSWORD", "CONFIGURE_TOTP"],
+                    "expires_in_minutes": 30,
+                },
+                "controls": {
+                    "one_time_action_required": True,
+                    "plaintext_password_allowed": False,
+                    "link_persistence_allowed": False,
+                    "activate_immediately": False,
+                    "production_dialing": False,
+                },
+            }
+        return {
+            "schema_version": "1.0",
+            "event_type": event_type,
+            **context,
+            "recipient_email": "agent@example.invalid",
+            "targets": ["odoo", "keycloak", "email_provider"],
+            "telephony_assignment": {
+                "extension": None,
+                "webrtc_enabled": False,
+                "sms_enabled": False,
+                "webrtc_max_devices": 1,
+            },
+            "controls": {
+                "create_disabled": True,
+                "activate_immediately": False,
+                "send_activation_email": False,
+                "plaintext_password_allowed": False,
+                "browser_campaign_selection_allowed": False,
+                "change_agent_campaign": False,
+                "production_dialing": False,
+                "live_call_control": False,
+                "webrtc_credential_issuance": False,
+            },
+        }
+
+    def test_public_agent_event_type_set_is_exact(self):
+        self.assertEqual(
+            set(AGENT_EVENT_TYPES.values()),
+            {
+                "codestra.odoo.agent.provisioning_requested",
+                "codestra.odoo.agent.activation_email_requested",
+            },
         )
 
     def test_event_document_is_canonical_and_preserves_no_credentials(self):
