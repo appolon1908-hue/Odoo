@@ -140,10 +140,11 @@ class CodestraVicidialCallWorkspace(models.Model):
         self.sudo().write({"disposition_id": disposition.id, "notes": notes or self.notes,
                            "sub_disposition_id": False, "wrap_up_completed_at": completed_at,
                            "wrap_up_seconds": seconds})
-        self.env["codestra.integration.audit"].sudo().create({
-            "actor_user_id": self.env.user.id, "action": "call.disposition", "model_name": self._name,
-            "record_res_id": self.id, "correlation_id": self.correlation_id,
-            "after_json": json.dumps({"command_id": command.id, "disposition": disposition.code}),
-            "success": True,
-        })
+        self.env["cc.audit.event"].sudo()._append_event(
+            event_type="call.disposition", action="call.disposition", result="success",
+            target_model=self._name, target_record_id=self.id,
+            idempotency_key="workspace-disposition:" + idempotency_key,
+            correlation_id=self.correlation_id,
+            metadata={"command_id": command.id, "disposition": disposition.code},
+        )
         return True

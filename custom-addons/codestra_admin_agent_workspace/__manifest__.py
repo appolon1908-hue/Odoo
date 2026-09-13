@@ -14,6 +14,7 @@
         "codestra_cc_crm",
         "codestra_vicidial_crm",
         "codestra_cc_security",
+        "codestra_cc_audit",
         "mail",
     ],
     "data": [

@@ -85,6 +85,12 @@ class TestAgentWorkspaceCallOwnership(TransactionCase):
             )
         self.assertEqual(self.env["codestra.call.control.command"].sudo().search_count([("idempotency_key", "=", key)]), 1)
         self.assertTrue(self.call_a.wrap_up_completed_at)
+        audit = self.env["cc.audit.event"].sudo().search([
+            ("idempotency_key", "=", "workspace-disposition:" + key),
+        ])
+        self.assertEqual(len(audit), 1)
+        self.assertEqual(audit.actor_id, self.agent_a_user)
+        self.assertEqual(audit.target_record_id, self.call_a.id)
         self.assertEqual(self.call_a.disposition_id, disposition)
         self.assertEqual(self.call_a.notes, "Synthetic wrap-up note")
 
