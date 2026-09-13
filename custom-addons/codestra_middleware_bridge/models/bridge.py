@@ -213,7 +213,14 @@ class EmailDeliveryStatus(models.Model):
     provider = fields.Char(required=True, readonly=True, default="klyrow")
     event_type = fields.Char(required=True, readonly=True)
     status = fields.Selection(
-        [("delivered", "Delivered"), ("bounced", "Bounced"), ("deferred", "Deferred")],
+        [
+            ("accepted", "Accepted"), ("queued", "Queued"),
+            ("provider_accepted", "Provider Accepted"),
+            ("delivered", "Delivered"), ("deferred", "Deferred"),
+            ("bounced", "Bounced"), ("complained", "Complained"),
+            ("suppressed", "Suppressed"), ("rejected", "Rejected"),
+            ("failed", "Failed"),
+        ],
         required=True, readonly=True, index=True,
     )
     occurred_at = fields.Datetime(required=True, readonly=True)

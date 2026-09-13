@@ -18,3 +18,8 @@ access_crm_unit_service,crm.unit.service,call_center_core.model_call_center_busi
 access_crm_tag_service,crm.tag.service,sales_team.model_crm_tag,codestra_middleware_bridge.group_codestra_crm_api,1,0,0,0
 access_crm_stage_service,crm.stage.service,crm.model_crm_stage,codestra_middleware_bridge.group_codestra_crm_api,1,0,0,0
 access_crm_utm_source_service,crm.utm.source.service,utm.model_utm_source,codestra_middleware_bridge.group_codestra_crm_api,1,0,0,0
+access_crm_customer_profile_service,crm.customer.profile.service,codestra_cc_crm.model_cc_customer_profile,codestra_middleware_bridge.group_codestra_crm_api,1,1,1,0
+access_crm_message_service,crm.message.service,mail.model_mail_message,codestra_middleware_bridge.group_codestra_crm_api,1,1,1,0
+access_crm_activity_service,crm.activity.service,mail.model_mail_activity,codestra_middleware_bridge.group_codestra_crm_api,1,1,1,0
+access_crm_ticket_service,crm.ticket.service,codestra_cc_helpdesk.model_cc_helpdesk_ticket,codestra_middleware_bridge.group_codestra_crm_api,1,1,1,0
+access_crm_ticket_queue_service,crm.ticket.queue.service,codestra_cc_helpdesk.model_cc_helpdesk_queue,codestra_middleware_bridge.group_codestra_crm_api,1,0,0,0

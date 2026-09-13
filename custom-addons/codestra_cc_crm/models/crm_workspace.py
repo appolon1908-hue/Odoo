@@ -208,7 +208,7 @@ class CcCustomerProfile(models.Model):
                 "integration_key": integration_key or str(uuid.uuid4()),
                 "name": partner.display_name,
                 "email_masked": _mask_email(partner.email),
-                "phone_masked": _mask_phone(partner.phone or partner.mobile),
+                "phone_masked": _mask_phone(partner.phone),
                 "partner_reference_hash": _sha256(
                     f"{campaign.workspace_uuid}:{partner.id}"
                 ),
