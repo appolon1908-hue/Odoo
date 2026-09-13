@@ -15,6 +15,7 @@ from odoo.exceptions import AccessError, ConcurrencyError, UserError, Validation
 
 
 MAX_EVENT_BYTES = 1_048_576
+MAX_JSON_DEPTH = 64
 MAX_RESULTS = 1_000
 ALLOWED_EVENT_TYPES = frozenset(
     {
@@ -87,22 +88,41 @@ REVIEWER_GROUP = "codestra_kyqra_review_hub.group_kyqra_reviewer"
 SERVICE_GROUP = "codestra_kyqra_review_hub.group_kyqra_service"
 
 
-def _contains_nul(value):
-    if isinstance(value, str):
-        return "\x00" in value
-    if isinstance(value, dict):
-        return any(
-            _contains_nul(key) or _contains_nul(child)
-            for key, child in value.items()
-        )
-    if isinstance(value, (list, tuple)):
-        return any(_contains_nul(child) for child in value)
-    return False
+def _validate_json_tree(value):
+    pending = [(value, 1)]
+    while pending:
+        current, depth = pending.pop()
+        if isinstance(current, str):
+            if "\x00" in current:
+                raise ValidationError(
+                    _("Kyqra payload must not contain NUL characters.")
+                )
+            continue
+        if isinstance(current, dict):
+            if depth > MAX_JSON_DEPTH:
+                raise ValidationError(
+                    _(
+                        "Kyqra payload exceeds the maximum JSON nesting depth of %s."
+                    )
+                    % MAX_JSON_DEPTH
+                )
+            child_depth = depth + 1
+            pending.extend((key, child_depth) for key in current)
+            pending.extend((child, child_depth) for child in current.values())
+        elif isinstance(current, (list, tuple)):
+            if depth > MAX_JSON_DEPTH:
+                raise ValidationError(
+                    _(
+                        "Kyqra payload exceeds the maximum JSON nesting depth of %s."
+                    )
+                    % MAX_JSON_DEPTH
+                )
+            child_depth = depth + 1
+            pending.extend((child, child_depth) for child in current)
 
 
 def _canonical_json(value):
-    if _contains_nul(value):
-        raise ValidationError(_("Kyqra payload must not contain NUL characters."))
+    _validate_json_tree(value)
     try:
         return json.dumps(
             value,
@@ -468,6 +488,7 @@ class CodestraKyqraBatch(models.Model):
     def _validate_event(self, envelope):
         if not isinstance(envelope, dict):
             raise ValidationError(_("Kyqra event envelope must be an object."))
+        _validate_json_tree(envelope)
         if _contains_forbidden_key(envelope):
             raise ValidationError(_("Kyqra event contains forbidden secret material."))
         encoded = _canonical_json(envelope)

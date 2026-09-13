@@ -4,6 +4,8 @@ import uuid
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests.common import TransactionCase, tagged
 
+from ..models.kyqra_data import MAX_JSON_DEPTH
+
 
 @tagged("post_install", "-at_install")
 class TestCodestraKyqraData(TransactionCase):
@@ -329,6 +331,29 @@ class TestCodestraKyqraData(TransactionCase):
                     invalid["payload"]["results"][0]["data"][chr(0xD800)] = "value"
                 with self.assertRaisesRegex(ValidationError, "valid JSON"):
                     self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
+
+    def test_json_nesting_depth_is_bounded_before_recursive_validation(self):
+        accepted = self._event(
+            event_id="kyqra-depth-boundary",
+            idempotency_key="kyqra-depth-boundary-idem",
+        )
+        nested = "leaf"
+        for _index in range(MAX_JSON_DEPTH - 5):
+            nested = [nested]
+        accepted["payload"]["results"][0]["data"]["nested"] = nested
+        created = self.env["codestra.kyqra.batch"].apply_middleware_event(accepted)
+        self.assertEqual(created["action"], "created")
+
+        rejected = self._event(
+            event_id="kyqra-depth-exceeded",
+            idempotency_key="kyqra-depth-exceeded-idem",
+        )
+        nested = "leaf"
+        for _index in range(MAX_JSON_DEPTH - 4):
+            nested = [nested]
+        rejected["payload"]["results"][0]["data"]["nested"] = nested
+        with self.assertRaisesRegex(ValidationError, "maximum JSON nesting depth"):
+            self.env["codestra.kyqra.batch"].apply_middleware_event(rejected)
 
     def test_source_url_authority_and_encoding_are_strict(self):
         for source_url in (
