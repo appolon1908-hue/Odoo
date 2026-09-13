@@ -66,7 +66,7 @@ def _expected_token():
             not path_value
             or path.is_symlink()
             or not S_ISREG(stat_result.st_mode)
-            or stat_result.st_mode & 0o027
+            or stat_result.st_mode & 0o077
         ):
             raise OSError
         token = path.read_text(encoding="utf-8").strip()
@@ -112,7 +112,7 @@ def _sms_outbox_counts():
 def _agent_onboarding_counts():
     Onboarding = request.env["codestra.agent.onboarding"].sudo()
     backlog = Onboarding.search_count(
-        [("state", "in", ("draft", "in_review", "approved", "provisioning"))]
+        [("state", "in", ("draft", "in_review", "approved", "provisioning", "offboarding"))]
     )
     errors = Onboarding.search_count([("state", "=", "failed")])
     return backlog, errors
@@ -148,7 +148,7 @@ def _render(started_at):
         "# HELP codestra_up Odoo process responded to this scrape (always 1 if reached).",
         "# TYPE codestra_up gauge",
         f"codestra_up {up}",
-        "# HELP codestra_ready Odoo database readiness (SELECT 1 succeeded).",
+        "# HELP codestra_ready Odoo database readiness (ORM read succeeded).",
         "# TYPE codestra_ready gauge",
         f"codestra_ready {ready}",
         "# HELP codestra_sms_outbox_backlog SMS outbox rows not yet delivered or failed.",

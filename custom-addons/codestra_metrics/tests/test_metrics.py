@@ -84,7 +84,7 @@ class TestCodestraMetrics(HttpCase):
         )
 
         expected_onboarding_backlog = self.env["codestra.agent.onboarding"].search_count([
-            ("state", "in", ("draft", "in_review", "approved", "provisioning"))
+            ("state", "in", ("draft", "in_review", "approved", "provisioning", "offboarding"))
         ])
         self.assertGreaterEqual(expected_onboarding_backlog, 1)
         self.assertIn(
@@ -92,3 +92,12 @@ class TestCodestraMetrics(HttpCase):
         )
 
         self.assertIn("codestra_metrics_scrape_duration_seconds", body)
+
+    def test_group_readable_token_file_is_unavailable(self):
+        self._set_token_file_param(self.token_path)
+        try:
+            os.chmod(self.token_path, 0o640)
+            response = self._get(headers={"Authorization": "Bearer " + self.token})
+            self.assertEqual(response.status_code, 503)
+        finally:
+            os.chmod(self.token_path, 0o600)
