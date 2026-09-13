@@ -45,5 +45,21 @@
     "private_authentication",
     "alert_delivery",
     "restore_and_rollback"
-  ]
+  ],
+  "observability_sync_contract": "api/contracts/kyyow-observability-sync-v1.json",
+  "observability_projection": {
+    "api_owner": "appolon1908-hue/Middleware-",
+    "business_record_owner": "appolon1908-hue/Odoo",
+    "queue": "Middleware.odoo_result_delivery",
+    "write_path": "Middleware Odoo result worker only",
+    "direct_collector_odoo_write": false,
+    "operations": [
+      "odoo.observability.kpis.create",
+      "odoo.observability.incidents.upsert",
+      "odoo.observability.kpis.read",
+      "odoo.observability.incidents.read",
+      "odoo.observability.sync.read"
+    ],
+    "activation": "OIDC service identity, tenant allowlist, signed request binding, registry approval, Odoo ORM"
+  }
 }
