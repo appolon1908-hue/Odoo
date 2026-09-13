@@ -5,6 +5,8 @@ import json
 import re
 import urllib.parse
 
+from psycopg2.errors import SerializationFailure, UniqueViolation
+
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
@@ -539,21 +541,18 @@ class CodestraKyqraBatch(models.Model):
                 batch = batch_model.with_context(**{INTERNAL_CONTEXT: _INTERNAL_CAPABILITY}).create(
                     values
                 )
-        except Exception as exc:
-            if getattr(exc, "pgcode", None) != "23505":
+        except UniqueViolation as exc:
+            if exc.diag.constraint_name not in {
+                "codestra_kyqra_batch_event_unique",
+                "codestra_kyqra_batch_idempotency_unique",
+            }:
                 raise
-            existing = batch_model.search(
-                [
-                    ("tenant_id", "=", normalized["tenant_id"]),
-                    ("event_id", "=", normalized["event_id"]),
-                ],
-                limit=1,
-            )
-            if not existing or existing.event_digest != normalized["digest"]:
-                raise ValidationError(
-                    _("Concurrent Kyqra event reservation conflicted.")
-                )
-            return self._result(existing, "duplicate")
+            # A savepoint rollback preserves Odoo's REPEATABLE READ snapshot.
+            # Let Odoo retry the whole transaction, then the ordinary event and
+            # idempotency lookups above decide duplicate versus payload conflict.
+            raise SerializationFailure(
+                "Concurrent Kyqra reservation requires a fresh transaction."
+            ) from exc
         entity_model = self.env["codestra.kyqra.entity"].sudo()
         evidence_model = self.env["codestra.kyqra.evidence"].sudo()
         for item in normalized["results"]:

@@ -86,6 +86,15 @@ def main() -> int:
             f"{CANONICAL_MODULE_COUNT} modules; got {registry_count}"
         )
 
+    # New reviewed addons are not part of the immutable 33-module import.
+    additional = payload.get("additional_strict_overrides", {})
+    if not isinstance(additional, dict):
+        errors.append("additional_strict_overrides must be an object")
+        additional = {}
+    if set(additional) & (set(modules) | set(overrides)):
+        errors.append("additional overrides cannot replace canonical registry entries")
+    overrides = {**additional, **overrides}
+
     for name, expected in sorted(modules.items()):
         if not validate_module_name(name, errors):
             continue

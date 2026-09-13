@@ -148,5 +148,20 @@
         {"path": "tests/test_moneybee_crm.py", "kind": "odoo_test_driver_exception", "reason": "Imports only IntegrityError to verify database uniqueness inside a rolled-back synthetic Odoo savepoint; no connection is opened."}
       ]
     }
+  },
+  "additional_strict_overrides": {
+    "codestra_kyqra_review_hub": {
+      "base_tree": "93ed2c44e0208abc733d1ef5f189973857e9c2d1",
+      "current_tree": "90a775c61d9cf19ff65888d2709c1d6bf5e0d52e",
+      "reason": "PR #134 retries only the two batch reservation unique constraints through Odoo whole-transaction retry. Driver imports contain exception classes only; no external database connection or new write authority.",
+      "pull_request": 134,
+      "integration_boundary_exceptions": [
+        {
+          "path": "models/kyqra_data.py",
+          "kind": "odoo_internal_driver_exception",
+          "reason": "Convert only known batch reservation UniqueViolation constraints into SerializationFailure so Odoo retries using a fresh snapshot."
+        }
+      ]
+    }
   }
 }
