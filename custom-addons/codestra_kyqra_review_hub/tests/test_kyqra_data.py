@@ -225,6 +225,53 @@ class TestCodestraKyqraData(TransactionCase):
         with self.assertRaises(ValidationError):
             self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
 
+    def test_source_url_authority_and_encoding_are_strict(self):
+        for source_url in (
+            "https://example.invalid:bad/path",
+            "https://exa mple.invalid/path",
+            "https://example.invalid:70000/path",
+            "https://example.invalid:/path",
+            "https://bad_label.example/path",
+            "https://999.999.999.999/path",
+            "https://example.invalid/%ZZ",
+            "https://example.invalid/path%0d%0anext",
+            "https://example.invalid/%C3%28",
+            "https://example.invalid\\@attacker.invalid/path",
+            "https://[not-ipv6]/path",
+        ):
+            with self.subTest(source_url=source_url):
+                invalid = copy.deepcopy(self._event())
+                result = invalid["payload"]["results"][0]
+                result["source_url"] = source_url
+                result["provenance"]["source_url"] = source_url
+                with self.assertRaises(ValidationError):
+                    self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
+
+        for index, source_url in enumerate(
+            (
+                "https://example.invalid:8443/path?page=2&sort=name",
+                "https://xn--bcher-kva.example/path",
+                "https://[2001:db8::1]:443/path",
+            ),
+            start=1,
+        ):
+            with self.subTest(source_url=source_url):
+                event = self._event(
+                    event_id=f"kyqra-url-event-{index}",
+                    idempotency_key=f"kyqra-url-idem-{index}",
+                )
+                item = event["payload"]["results"][0]
+                item["source_url"] = source_url
+                item["provenance"]["source_url"] = source_url
+                created = self.env["codestra.kyqra.batch"].apply_middleware_event(
+                    event
+                )
+                entity = self.env["codestra.kyqra.batch"].browse(
+                    created["batch_id"]
+                ).entity_ids
+                self.assertEqual(entity.source_url, source_url)
+                self.assertEqual(entity.evidence_ids.source_url, source_url)
+
     def test_invalid_rfc3339_timestamps_fail_closed(self):
         for field_name, invalid_value in (
             ("occurred_at", "unknown"),

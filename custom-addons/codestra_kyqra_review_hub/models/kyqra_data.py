@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import re
+import unicodedata
 import urllib.parse
 from datetime import datetime, timezone
 
@@ -60,6 +62,8 @@ RFC3339_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}"
     r"(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$"
 )
+HOST_LABEL_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
+INVALID_PERCENT_ESCAPE_RE = re.compile(r"%(?![0-9A-Fa-f]{2})")
 INTERNAL_CONTEXT = "codestra_kyqra_internal"
 # Process-local capability; RPC context values cannot supply this object identity.
 _INTERNAL_CAPABILITY = object()
@@ -102,16 +106,66 @@ def _identifier(value, label):
     return value
 
 
+def _has_unsafe_url_character(value):
+    return any(
+        character == "\\"
+        or character.isspace()
+        or unicodedata.category(character).startswith("C")
+        for character in value
+    )
+
+
+def _valid_hostname(hostname):
+    if not hostname or "%" in hostname:
+        return False
+    try:
+        ipaddress.ip_address(hostname)
+        return True
+    except ValueError:
+        pass
+    candidate = hostname[:-1] if hostname.endswith(".") else hostname
+    try:
+        ascii_hostname = candidate.encode("idna").decode("ascii")
+    except UnicodeError:
+        return False
+    if not ascii_hostname or len(ascii_hostname) > 253:
+        return False
+    labels = ascii_hostname.split(".")
+    if all(label.isdigit() for label in labels):
+        return False
+    return all(HOST_LABEL_RE.fullmatch(label) is not None for label in labels)
+
+
 def _safe_url(value, label):
     value = _text(value, label, 2_048)
-    parsed = urllib.parse.urlsplit(value)
+    if _has_unsafe_url_character(value) or INVALID_PERCENT_ESCAPE_RE.search(value):
+        raise ValidationError(_("%s must be a well-formed HTTPS URL.") % label)
+    try:
+        parsed = urllib.parse.urlsplit(value)
+        hostname = parsed.hostname
+        port = parsed.port
+    except (UnicodeError, ValueError) as exc:
+        raise ValidationError(_("%s must be a well-formed HTTPS URL.") % label) from exc
     if (
         parsed.scheme != "https"
-        or not parsed.hostname
+        or not parsed.netloc
+        or not hostname
         or parsed.username
         or parsed.password
+        or parsed.netloc.endswith(":")
+        or (port is not None and port == 0)
+        or not _valid_hostname(hostname)
     ):
-        raise ValidationError(_("%s must be an HTTPS URL without credentials.") % label)
+        raise ValidationError(
+            _("%s must be a well-formed HTTPS URL without credentials.") % label
+        )
+    for component in (parsed.netloc, parsed.path, parsed.query, parsed.fragment):
+        try:
+            decoded_component = urllib.parse.unquote(component, errors="strict")
+        except UnicodeDecodeError as exc:
+            raise ValidationError(_("%s must be a well-formed HTTPS URL.") % label) from exc
+        if _has_unsafe_url_character(decoded_component):
+            raise ValidationError(_("%s must be a well-formed HTTPS URL.") % label)
     for component in (parsed.query, parsed.fragment):
         try:
             parameters = urllib.parse.parse_qsl(
