@@ -1,0 +1,119 @@
+<odoo>
+  <!-- Admin Console: KPI-tile dashboard over codestra.tenant. Scoping
+       (platform_admin/operator see every tenant, tenant_admin only their
+       own) is NOT a new record rule - it is the existing
+       rule_tenant_scope from codestra_identity_provisioning/security/
+       rbac_security.xml, inherited automatically because this is the same
+       codestra.tenant recordset. platform_operator gets no write controls
+       here (codestra.tenant.write() already requires Platform Admin/Super
+       Admin authority in tenant.py's own write() override - unmodified,
+       just relied on). Mirrors codestra-platform's React
+       PlatformAdminOverview/TenantAdminOverview/PlatformOperatorOverview
+       KPI content; exact visual styling does not need to match. -->
+  <record id="view_codestra_tenant_admin_console_kanban" model="ir.ui.view">
+    <field name="name">codestra.tenant.admin.console.kanban</field>
+    <field name="model">codestra.tenant</field>
+    <field name="arch" type="xml">
+      <kanban create="0" delete="0">
+        <field name="name"/>
+        <field name="code"/>
+        <field name="status"/>
+        <field name="workspace_platform_user_count"/>
+        <field name="workspace_active_agent_count"/>
+        <field name="workspace_campaign_count"/>
+        <field name="workspace_drift_count"/>
+        <templates>
+          <t t-name="card">
+            <div class="oe_kanban_card oe_kanban_global_click p-2">
+              <div class="d-flex justify-content-between">
+                <strong><field name="name"/></strong>
+                <span t-attf-class="badge #{record.status.raw_value == 'active' ? 'text-bg-success' : 'text-bg-warning'}">
+                  <field name="status"/>
+                </span>
+              </div>
+              <div class="text-muted"><field name="code"/></div>
+              <div class="row mt-2">
+                <div class="col-6">
+                  <div class="fw-bold"><field name="workspace_platform_user_count"/></div>
+                  <div class="small text-muted">Platform Users</div>
+                </div>
+                <div class="col-6">
+                  <div class="fw-bold"><field name="workspace_active_agent_count"/></div>
+                  <div class="small text-muted">Active Agents</div>
+                </div>
+                <div class="col-6">
+                  <div class="fw-bold"><field name="workspace_campaign_count"/></div>
+                  <div class="small text-muted">Campaigns</div>
+                </div>
+                <div class="col-6">
+                  <div t-attf-class="fw-bold #{record.workspace_drift_count.raw_value ? 'text-danger' : ''}">
+                    <field name="workspace_drift_count"/>
+                  </div>
+                  <div class="small text-muted">Provisioning Drift</div>
+                </div>
+              </div>
+            </div>
+          </t>
+        </templates>
+      </kanban>
+    </field>
+  </record>
+
+  <record id="view_codestra_tenant_admin_console_form" model="ir.ui.view">
+    <field name="name">codestra.tenant.admin.console.form</field>
+    <field name="model">codestra.tenant</field>
+    <field name="arch" type="xml">
+      <form edit="0" delete="0" string="Tenant Overview">
+        <sheet>
+          <div class="oe_title">
+            <h1><field name="name"/></h1>
+          </div>
+          <group>
+            <field name="code"/>
+            <field name="status" widget="badge"/>
+          </group>
+          <group col="4" string="KPIs">
+            <field name="workspace_platform_user_count"/>
+            <field name="workspace_active_agent_count"/>
+            <field name="workspace_campaign_count"/>
+            <field name="workspace_drift_count"/>
+          </group>
+          <field name="platform_user_ids" readonly="1">
+            <list create="0">
+              <field name="name"/>
+              <field name="primary_email"/>
+              <field name="status"/>
+              <field name="provisioning_drift_status"/>
+            </list>
+          </field>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_admin_console" model="ir.actions.act_window">
+    <field name="name">Admin Console</field>
+    <field name="res_model">codestra.tenant</field>
+    <field name="view_mode">kanban,form</field>
+  </record>
+  <record id="action_admin_console_kanban_view" model="ir.actions.act_window.view">
+    <field name="sequence">1</field>
+    <field name="view_mode">kanban</field>
+    <field name="view_id" ref="view_codestra_tenant_admin_console_kanban"/>
+    <field name="act_window_id" ref="action_admin_console"/>
+  </record>
+  <record id="action_admin_console_form_view" model="ir.actions.act_window.view">
+    <field name="sequence">2</field>
+    <field name="view_mode">form</field>
+    <field name="view_id" ref="view_codestra_tenant_admin_console_form"/>
+    <field name="act_window_id" ref="action_admin_console"/>
+  </record>
+
+  <!-- Nested under the existing "Platform Administration" menu root
+       (codestra_identity_provisioning/views/platform_admin_menu.xml)
+       rather than a new competing menu tree, ahead of the existing
+       "Tenants" raw list at sequence 10. -->
+  <menuitem id="menu_admin_console" name="Dashboard"
+            parent="codestra_identity_provisioning.menu_platform_administration_root"
+            action="action_admin_console" sequence="5"/>
+</odoo>
