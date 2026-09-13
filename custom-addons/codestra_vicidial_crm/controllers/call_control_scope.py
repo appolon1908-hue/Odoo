@@ -17,10 +17,15 @@ class ScopedCallControlAPI(CallControlAPI):
     def match(
         self,
         number,
-        call_id,
+        call_id=None,
         campaign_code=None,
         business_unit_id=None,
     ):
+        if not call_id:
+            # Pre-dial matching has no call to scope yet. Keep using the base
+            # endpoint contract; business-unit scoping applies to rematches.
+            return super().match(number, campaign_code=campaign_code)
+
         call = self._owned_call(call_id)
         Call = request.env["codestra.vicidial.call"]
 
