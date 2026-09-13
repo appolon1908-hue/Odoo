@@ -270,7 +270,12 @@ def _contains_forbidden_key(value):
                 return True
             if _contains_forbidden_key(child):
                 return True
-    elif isinstance(value, list):
+    elif isinstance(value, (list, tuple)):
+        if len(value) >= 2 and len(value) % 2 == 0 and any(
+            isinstance(value[index], str) and _is_forbidden_key(value[index])
+            for index in range(0, len(value), 2)
+        ):
+            return True
         return any(_contains_forbidden_key(child) for child in value)
     return False
 

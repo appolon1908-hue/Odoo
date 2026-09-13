@@ -231,6 +231,28 @@ class TestCodestraKyqraData(TransactionCase):
                     ValidationError, "forbidden secret material"
                 ):
                     self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
+        for headers in (
+            [["Authorization", "Bearer secret"]],
+            [["Accept", "application/json"], ["x-api-key", "secret"]],
+            ["Accept", "application/json", "clientSecret", "secret"],
+        ):
+            with self.subTest(headers=headers):
+                invalid = copy.deepcopy(self._event())
+                invalid["payload"]["results"][0]["data"]["headers"] = headers
+                with self.assertRaisesRegex(
+                    ValidationError, "forbidden secret material"
+                ):
+                    self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
+        valid = self._event(
+            event_id="kyqra-benign-headers",
+            idempotency_key="kyqra-benign-headers-idem",
+        )
+        valid["payload"]["results"][0]["data"]["headers"] = [
+            ["Accept", "application/json"],
+            ["X-Trace-Id", "trace-1"],
+        ]
+        created = self.env["codestra.kyqra.batch"].apply_middleware_event(valid)
+        self.assertEqual(created["action"], "created")
         invalid = copy.deepcopy(self._event())
         invalid["payload"]["results"][0]["source_url"] = "http://example.invalid/page"
         with self.assertRaises(ValidationError):
