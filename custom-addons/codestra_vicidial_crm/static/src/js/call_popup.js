@@ -187,10 +187,10 @@ export class CodestraCallPopup extends Component {
             this.ui.dialpad.error = this.ui.dialpad.reason || "Outbound calling is disabled.";
             return;
         }
-        const match = await this.resolveDialpad();
-        if (!match) return;
         this.ui.dialpad.busy = true;
         try {
+            const match = await this.resolveDialpad();
+            if (!match) return;
             const result = await this.rpc("/codestra/call-control/v1/outbound", {
                 destination: this.ui.dialpad.number,
                 campaign_id: this.ui.dialpad.campaignId,
