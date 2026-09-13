@@ -71,6 +71,9 @@ python3 -I scripts/validate_integration_boundary.py
 printf '==> Validating the four-repository platform control plane\n'
 python3 -I scripts/validate_platform_control_plane.py
 
+printf '==> Validating the observability control plane\n'
+python3 -I scripts/validate_observability_control_plane.py
+
 printf '==> Reviewing every custom Odoo module\n'
 python3 -I scripts/review_modules.py --strict
 
