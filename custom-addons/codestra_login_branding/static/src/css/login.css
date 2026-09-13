@@ -19,7 +19,8 @@
     --codestra-border: rgba(255, 255, 255, 0.12);
     --codestra-border-strong: rgba(255, 255, 255, 0.18);
     --codestra-gold: #0f5eea;
-    --codestra-gold-hover: #3b82f6;
+    --codestra-gold-hover: #0b4cc2;
+    --codestra-accent-text: #93c5fd;
     --codestra-text: #ffffff;
     --codestra-text-soft: #e5eaf1;
     --codestra-muted: #94a3b8;
@@ -156,7 +157,7 @@
 
 .codestra-auth-body .codestra-eyebrow {
     margin: 0;
-    color: var(--codestra-gold);
+    color: var(--codestra-accent-text);
     font-size: 0.75rem;
     font-weight: 800;
     letter-spacing: 0.16em;
@@ -314,7 +315,7 @@
 
 .codestra-auth-body .input-group .btn:hover,
 .codestra-auth-body .input-group .btn:focus-visible {
-    color: var(--codestra-gold);
+    color: var(--codestra-accent-text);
 }
 
 .codestra-auth-body .codestra-login-button {
@@ -356,7 +357,7 @@
 
 .codestra-auth-body .btn-link,
 .codestra-auth-body a {
-    color: var(--codestra-gold);
+    color: var(--codestra-accent-text);
 }
 
 .codestra-auth-body .btn-link:hover,
