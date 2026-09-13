@@ -215,6 +215,7 @@ if ((${#module_names[@]} == 0)); then
   exit 1
 fi
 module_csv="$(IFS=,; printf '%s' "${module_names[*]}")"
+ODOO_CI_ADDONS_PATH="${ODOO_CI_ADDONS_PATH:-/usr/lib/python3/dist-packages/odoo/addons,/mnt/extra-addons}"
 test_tags=""
 for module_name in "${module_names[@]}"; do
   if [[ -n "$test_tags" ]]; then
@@ -239,6 +240,7 @@ if ! docker run --rm \
   -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
   "$ODOO_TEST_IMAGE" \
   -- \
+  --addons-path="$ODOO_CI_ADDONS_PATH" \
   -d "$DATABASE" \
   --db-filter="^${DATABASE}$" \
   --init="$module_csv" \
@@ -281,6 +283,16 @@ printf 'ODOO_BROWSER_SKIPS=0\n'
 printf 'ODOO_MODULE_INSTALL_AND_TEST=PASS\n'
 printf 'CUSTOM_MODULES_TESTED=%s\n' "${#module_names[@]}"
 
+# Use a normal registry after TransactionCase releases its process-wide lock.
+docker run --rm -i \
+  --network "$NETWORK" \
+  -e HOST=db -e PORT=5432 -e USER="$DB_USER" -e PASSWORD="$DB_PASSWORD" \
+  -v "$ROOT_DIR/custom-addons:/mnt/extra-addons:ro" \
+  -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
+  "$ODOO_IMAGE" odoo shell \
+  --addons-path="$ODOO_CI_ADDONS_PATH" -d "$DATABASE" \
+  --no-http --workers=0 < scripts/test_observability_concurrency.py
+
 printf '==> Updating every custom module on the disposable database\n'
 UPGRADE_LOG="$(mktemp)"
 if ! docker run --rm \
@@ -293,6 +305,7 @@ if ! docker run --rm \
   -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
   "$ODOO_IMAGE" \
   -- \
+  --addons-path="$ODOO_CI_ADDONS_PATH" \
   -d "$DATABASE" \
   --db-filter="^${DATABASE}$" \
   --update="$module_csv" \
@@ -347,6 +360,7 @@ docker run --rm -i \
   -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
   "$ODOO_IMAGE" \
   -- \
+  --addons-path="$ODOO_CI_ADDONS_PATH" \
   shell -d "$DATABASE" --no-http \
   < "$ROOT_DIR/scripts/ensure_codestra_admin.py"
 
@@ -369,6 +383,7 @@ run_database_audits() {
     -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
     "$ODOO_IMAGE" \
     -- \
+  --addons-path="$ODOO_CI_ADDONS_PATH" \
     shell -d "$target_database" --no-http \
     < "$ROOT_DIR/scripts/audit_odoo_state.py"
 
@@ -408,6 +423,7 @@ sentinel_output="$(docker run --rm -i \
   -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
   "$ODOO_IMAGE" \
   -- \
+  --addons-path="$ODOO_CI_ADDONS_PATH" \
   shell -d "$DATABASE" --no-http \
   < "$ROOT_DIR/scripts/create_filestore_restore_sentinel.py" 2>&1)"
 printf '%s\n' "$sentinel_output"
@@ -482,6 +498,7 @@ docker run --rm -i \
   -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
   "$ODOO_IMAGE" \
   -- \
+  --addons-path="$ODOO_CI_ADDONS_PATH" \
   shell -d "$RESTORE_DATABASE" --no-http \
   < "$ROOT_DIR/scripts/audit_filestore_restore.py"
 
