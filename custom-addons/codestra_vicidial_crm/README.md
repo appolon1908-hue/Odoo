@@ -68,3 +68,34 @@ reconciliation-required and are never retried blindly.
 Run the exact controlled test once, verify the internal adapter read-back, then
 repeat the same correlation/idempotency test. Do not enable PSTN dialing until
 both runs have authoritative evidence and independent review.
+
+
+## Automatic TEST_SYN preflight repair
+
+The browser matcher can repair one legacy CRM row whose stored normalized-phone
+projection and TEST_SYN assignment are both missing. This behavior is disabled
+by default; enable it with the Odoo system parameter
+`codestra.telephony.auto_repair_owned_test_syn_leads=true`.
+
+The repair runs only for `TEST_SYN` in `test` mode, only when the authenticated
+agent has exactly one active campaign, and only while the runtime
+`codestra.telephony.external_effects_enabled` value is false-like. The immutable
+calling-contract pin also keeps external effects disabled. The raw phone,
+including a supported `00` international form, must resolve to exactly one
+active lead and no contact; malformed raw values fail closed. The lead must be
+owned by the caller, belong to an authorized company and business unit, have no
+campaign assignment, and not be DNC.
+
+When installed global campaign rules hide that otherwise eligible pre-repair
+row from an ordinary agent, the repair additionally requires exactly one
+active, same-business-unit canonical `TEST_SYN` campaign that explicitly
+authorizes that user. A constrained elevated ORM write may then bind only that
+canonical campaign, the two legacy TEST_SYN fields, and the normalized phone;
+a row already visible to the user stays on the ordinary ORM path. Destination
+and lead rows are serialized first. After either path, the lead must be visible
+again without elevation and the ordinary campaign-scoped matcher must return it
+as the sole exact result, or the request rolls back.
+
+Matching never creates a call, command, integration event, audit event, or
+external effect. Any ambiguity or failed guard preserves the normal
+`match=none` result.

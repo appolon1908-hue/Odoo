@@ -106,6 +106,284 @@ class CallControlAPI(http.Controller):
             raise ValidationError("A valid Idempotency-Key is required.")
         return key
 
+    @staticmethod
+    def _automatic_test_syn_repair_enabled():
+        params = request.env["ir.config_parameter"].sudo()
+        enabled = str(
+            params.get_param(
+                "codestra.telephony.auto_repair_owned_test_syn_leads"
+            )
+            or ""
+        ).strip().lower()
+        external_effects = str(
+            params.get_param("codestra.telephony.external_effects_enabled")
+            or ""
+        ).strip().lower()
+        return enabled == "true" and external_effects in {
+            "",
+            "0",
+            "false",
+            "no",
+            "off",
+        }
+
+    @staticmethod
+    def _single_test_syn_campaign(agent, campaign_code):
+        active_campaigns = agent.campaign_ids.filtered(lambda item: item.active)
+        if len(active_campaigns) != 1:
+            return False
+        campaign = active_campaigns[:1]
+        if (
+            campaign_code != "TEST_SYN"
+            or campaign.campaign_id != "TEST_SYN"
+            or campaign.mode != "test"
+        ):
+            return False
+        return campaign
+
+    @staticmethod
+    def _authorized_canonical_test_syn_campaign(campaign_code, lead):
+        if (
+            "call_center_campaign_id" not in lead._fields
+            or "call.center.campaign" not in request.env
+        ):
+            return False
+
+        Campaign = request.env["call.center.campaign"]
+        required_fields = {
+            "active",
+            "authorized_user_ids",
+            "business_unit_id",
+            "code",
+            "state",
+        }
+        if not required_fields.issubset(Campaign._fields):
+            return False
+        if not Campaign.check_access_rights("read", raise_exception=False):
+            return False
+
+        identity_domain = [("code", "=", campaign_code)]
+        if "vicidial_campaign_id" in Campaign._fields:
+            identity_domain = [
+                "|",
+                ("code", "=", campaign_code),
+                ("vicidial_campaign_id", "=", campaign_code),
+            ]
+        try:
+            campaigns = Campaign.search(
+                [
+                    ("active", "=", True),
+                    ("state", "=", "active"),
+                    ("business_unit_id", "=", lead.business_unit_id.id),
+                    ("authorized_user_ids", "in", request.env.user.id),
+                    *identity_domain,
+                ],
+                limit=2,
+            )
+        except AccessError:
+            return False
+        if len(campaigns) != 1:
+            return False
+        campaign = campaigns[:1]
+        if (
+            campaign.business_unit_id != lead.business_unit_id
+            or request.env.user not in campaign.authorized_user_ids
+        ):
+            return False
+        return campaign
+
+    def _auto_repair_owned_test_syn_lead(self, number, campaign_code, agent):
+        """Repair one stale, owner-controlled TEST_SYN lead and nothing broader."""
+        if not self._automatic_test_syn_repair_enabled():
+            return False
+        if not self._single_test_syn_campaign(agent, campaign_code):
+            return False
+
+        Call = request.env["codestra.vicidial.call"]
+        Lead = request.env["crm.lead"]
+        Partner = request.env["res.partner"]
+        if not Lead.check_access_rights("read", raise_exception=False):
+            return False
+        if not Lead.check_access_rights("write", raise_exception=False):
+            return False
+
+        normalized = Call.normalize_number(number)
+        digits = normalized.removeprefix("+")
+        variants = [digits, "00" + digits]
+        if len(digits) == 11 and digits.startswith("1"):
+            variants.append(digits[1:])
+        variants = tuple(dict.fromkeys(variants))
+
+        # Serialize by destination so concurrent requests cannot authorize two
+        # stale rows before either normalized projection becomes visible.
+        request.env.cr.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+            ("codestra:auto-test-syn:" + normalized,),
+        )
+        if Lead.sudo().search_count([("x_phone_e164", "=", normalized)]):
+            return False
+        if Partner.sudo().search_count(
+            [("x_codestra_phone_e164", "=", normalized)]
+        ):
+            return False
+
+        # Stored projections can be stale. Compare normalized raw digits only to
+        # discover IDs, then reapply ownership, scope, and ordinary ORM access.
+        request.env.cr.execute(
+            """
+            SELECT id
+              FROM crm_lead
+             WHERE active IS TRUE
+               AND phone IS NOT NULL
+               AND regexp_replace(phone, '[^0-9]', '', 'g') IN %s
+             ORDER BY id
+             LIMIT 3
+            """,
+            (variants,),
+        )
+        raw_ids = [row[0] for row in request.env.cr.fetchall()]
+        if len(raw_ids) != 1:
+            return False
+
+        request.env.cr.execute(
+            """
+            SELECT id
+              FROM res_partner
+             WHERE active IS TRUE
+               AND regexp_replace(COALESCE(phone, ''), '[^0-9]', '', 'g') IN %s
+             LIMIT 1
+            """,
+            (variants,),
+        )
+        if request.env.cr.fetchone():
+            return False
+
+        request.env.cr.execute(
+            "SELECT id FROM crm_lead WHERE id = %s FOR UPDATE",
+            (raw_ids[0],),
+        )
+        domain = [
+            ("id", "=", raw_ids[0]),
+            ("active", "=", True),
+            ("user_id", "=", request.env.user.id),
+            ("x_phone_e164", "=", False),
+            ("vicidial_campaign_id", "=", False),
+            ("x_vicidial_campaign_id", "=", False),
+        ]
+        if "call_center_campaign_id" in Lead._fields:
+            domain.append(("call_center_campaign_id", "=", False))
+
+        visible_lead = Lead.search(domain, limit=1)
+        candidate = visible_lead or Lead.sudo().browse(raw_ids[0]).exists()
+        if not candidate:
+            return False
+        if (
+            not candidate.active
+            or candidate.user_id != request.env.user
+            or candidate.x_phone_e164
+            or candidate.vicidial_campaign_id
+            or candidate.x_vicidial_campaign_id
+        ):
+            return False
+        if (
+            "call_center_campaign_id" in candidate._fields
+            and candidate.call_center_campaign_id
+        ):
+            return False
+        try:
+            candidate_normalized = Call.normalize_number(candidate.phone)
+        except ValidationError:
+            return False
+        if candidate_normalized != normalized:
+            return False
+        if self._blocked_destination(candidate):
+            return False
+        if not candidate.business_unit_id:
+            return False
+        if candidate.company_id and candidate.company_id not in request.env.user.company_ids:
+            return False
+        if "call_center_business_unit_ids" in request.env.user._fields:
+            authorized_units = request.env.user.call_center_business_unit_ids
+            if (
+                candidate.business_unit_id not in authorized_units
+                and not request.env.user.has_group("base.group_system")
+            ):
+                return False
+
+        canonical_campaign = False
+        if not visible_lead:
+            if not request.env.user.has_group("codestra_vicidial_crm.group_agent"):
+                return False
+            canonical_campaign = self._authorized_canonical_test_syn_campaign(
+                campaign_code, candidate
+            )
+            if not canonical_campaign:
+                return False
+
+        values = {
+            "vicidial_campaign_id": campaign_code,
+            "x_vicidial_campaign_id": campaign_code,
+        }
+        if canonical_campaign:
+            values["call_center_campaign_id"] = canonical_campaign.id
+        write_target = visible_lead or candidate.sudo()
+        flush_fields = [
+            "x_phone_e164",
+            "vicidial_campaign_id",
+            "x_vicidial_campaign_id",
+        ]
+        if canonical_campaign:
+            flush_fields.append("call_center_campaign_id")
+
+        with request.env.cr.savepoint():
+            write_target.write(values)
+            write_target._compute_codestra_phone()
+            write_target.flush_recordset(flush_fields)
+            write_target.invalidate_recordset(flush_fields)
+            if write_target.x_phone_e164 != normalized:
+                raise ValidationError(
+                    "Automatic CRM phone normalization could not be verified."
+                )
+            if (
+                write_target.vicidial_campaign_id != campaign_code
+                or write_target.x_vicidial_campaign_id != campaign_code
+                or (
+                    canonical_campaign
+                    and write_target.call_center_campaign_id != canonical_campaign
+                )
+            ):
+                raise ValidationError(
+                    "Automatic CRM campaign assignment could not be verified."
+                )
+            lead = Lead.search([("id", "=", write_target.id)], limit=1)
+            if not lead:
+                raise ValidationError(
+                    "Automatic CRM record-rule visibility could not be verified."
+                )
+        return lead
+
+    def _match_customer(self, number, campaign_code, agent):
+        Call = request.env["codestra.vicidial.call"]
+        result = Call.match_customer(number, campaign_code)
+        if result["match"] != "none":
+            return result
+        repaired = self._auto_repair_owned_test_syn_lead(
+            number, campaign_code, agent
+        )
+        if not repaired:
+            return result
+        verified = Call.match_customer(number, campaign_code)
+        targets = [
+            item
+            for item in verified.get("matches", [])
+            if item.get("model") == "lead" and item.get("id") == repaired.id
+        ]
+        if verified.get("match") != "exact" or len(targets) != 1:
+            raise ValidationError(
+                "Automatic CRM target repair could not be verified."
+            )
+        return verified
+
     @http.route("/codestra/call-control/v1/current", type="jsonrpc", auth="user", methods=["POST"])
     def current(self):
         agent = self._agent()
@@ -127,8 +405,8 @@ class CallControlAPI(http.Controller):
 
     @http.route("/codestra/call-control/v1/match", type="jsonrpc", auth="user", methods=["POST"])
     def match(self, number, campaign_code=None):
-        self._agent()
-        return request.env["codestra.vicidial.call"].match_customer(number, campaign_code)
+        agent = self._agent()
+        return self._match_customer(number, campaign_code, agent)
 
     @http.route("/codestra/call-control/v1/dialpad", type="jsonrpc", auth="user", methods=["POST"])
     def dialpad(self):
@@ -186,10 +464,10 @@ class CallControlAPI(http.Controller):
             if field in record._fields
         )
 
-    def _resolve_destination(self, destination, campaign_id):
+    def _resolve_destination(self, destination, campaign_id, agent):
         call_model = request.env["codestra.vicidial.call"]
         normalized = call_model.normalize_number(destination)
-        result = call_model.match_customer(normalized, campaign_id)
+        result = self._match_customer(normalized, campaign_id, agent)
         if result["match"] != "exact":
             raise AccessError("Dialer requires one exact CRM contact or lead match.")
         target = result["matches"][0]
@@ -226,14 +504,16 @@ class CallControlAPI(http.Controller):
             if self._blocked_destination(lead):
                 raise AccessError("This CRM lead is not eligible for outbound calling.")
             normalized = request.env["codestra.vicidial.call"].normalize_number(destination or lead.phone)
-            matches = request.env["codestra.vicidial.call"].match_customer(normalized, campaign_id)
+            matches = self._match_customer(normalized, campaign_id, agent)
             if matches["match"] != "exact" or not any(
                 item["model"] == "lead" and item["id"] == lead.id for item in matches["matches"]
             ):
                 raise AccessError("The selected lead is not an exact authorized dial target.")
             contact = lead.partner_id
         else:
-            normalized, lead, contact = self._resolve_destination(destination, campaign_id)
+            normalized, lead, contact = self._resolve_destination(
+                destination, campaign_id, agent
+            )
 
         # Serialize dial requests for this agent. Transport idempotency handles
         # an exact request replay; the active-call lookup also collapses two
