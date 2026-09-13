@@ -8,10 +8,10 @@ import unicodedata
 import urllib.parse
 from datetime import datetime, timezone
 
-from psycopg2.errors import SerializationFailure, UniqueViolation
+from psycopg2.errors import UniqueViolation
 
 from odoo import _, api, fields, models
-from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.exceptions import AccessError, ConcurrencyError, UserError, ValidationError
 
 
 MAX_EVENT_BYTES = 1_048_576
@@ -736,7 +736,7 @@ class CodestraKyqraBatch(models.Model):
             # A savepoint rollback preserves Odoo's REPEATABLE READ snapshot.
             # Let Odoo retry the whole transaction, then the ordinary event and
             # idempotency lookups above decide duplicate versus payload conflict.
-            raise SerializationFailure(
+            raise ConcurrencyError(
                 "Concurrent Kyqra reservation requires a fresh transaction."
             ) from exc
         entity_model = self.env["codestra.kyqra.entity"].sudo()
