@@ -40,12 +40,14 @@ FORBIDDEN_KEYS = frozenset(
         "provider_token",
         "refresh_token",
         "secret",
+        "secret_key",
         "session_token",
         "set_cookie",
         "token",
     }
 )
 FORBIDDEN_KEY_SUFFIXES = (
+    "_access_key",
     "_api_key",
     "_authorization",
     "_cookie",
@@ -54,6 +56,7 @@ FORBIDDEN_KEY_SUFFIXES = (
     "_password",
     "_private_key",
     "_secret",
+    "_secret_key",
     "_token",
 )
 FORBIDDEN_COMPACT_KEYS = frozenset(key.replace("_", "") for key in FORBIDDEN_KEYS)
@@ -89,9 +92,10 @@ def _canonical_json(value):
 
 
 def _text(value, label, maximum=256):
-    if not isinstance(value, str) or not value.strip():
+    if not isinstance(value, str) or not value:
         raise ValidationError(_("%s must be a non-empty string.") % label)
-    value = value.strip()
+    if value != value.strip():
+        raise ValidationError(_("%s must not contain surrounding whitespace.") % label)
     if len(value) > maximum:
         raise ValidationError(_("%s exceeds its maximum length.") % label)
     return value

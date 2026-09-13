@@ -196,6 +196,10 @@ class TestCodestraKyqraData(TransactionCase):
             "apikey",
             "accesstoken",
             "clientsecret",
+            "AWS_SECRET_ACCESS_KEY",
+            "awssecretaccesskey",
+            "serviceSecretKey",
+            "tenant-access-key",
             "provider-token",
             "userPassword",
         ):
@@ -214,6 +218,9 @@ class TestCodestraKyqraData(TransactionCase):
             "https://example.invalid/page?apikey=secret",
             "https://example.invalid/page?accesstoken=secret",
             "https://example.invalid/page?clientsecret=secret",
+            "https://example.invalid/page?AWS_SECRET_ACCESS_KEY=secret",
+            "https://example.invalid/page?awssecretaccesskey=secret",
+            "https://example.invalid/page?serviceSecretKey=secret",
             "https://example.invalid/page?x-api-key=secret",
             "https://example.invalid/page?safe=value;token=secret",
             "https://example.invalid/page?api%5Fkey=secret",
@@ -281,11 +288,19 @@ class TestCodestraKyqraData(TransactionCase):
                 self.assertEqual(entity.source_url, source_url)
                 self.assertEqual(entity.evidence_ids.source_url, source_url)
 
+    def test_retained_identifier_whitespace_fails_closed(self):
+        invalid = copy.deepcopy(self._event())
+        invalid["event_id"] = " kyqra-event-1 "
+        with self.assertRaises(ValidationError):
+            self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
+
     def test_invalid_rfc3339_timestamps_fail_closed(self):
         for field_name, invalid_value in (
             ("occurred_at", "unknown"),
             ("received_at", "2026-09-12T12:00:01"),
             ("occurred_at", "2026-02-30T12:00:00Z"),
+            ("occurred_at", " 2026-09-12T12:00:00Z"),
+            ("received_at", "\n2026-09-12T12:00:01Z\r"),
         ):
             with self.subTest(field_name=field_name, invalid_value=invalid_value):
                 invalid = copy.deepcopy(self._event())
