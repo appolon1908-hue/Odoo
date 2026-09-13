@@ -50,6 +50,12 @@ def load_registry() -> tuple[dict[str, str], dict[str, dict[str, Any]]]:
         return {}, {}
     modules = payload.get("modules", {})
     overrides = payload.get("strict_mission_overrides", {})
+    additional = payload.get("additional_strict_overrides", {})
+    if isinstance(additional, dict) and isinstance(overrides, dict) and isinstance(modules, dict):
+        # The baseline validator rejects overlaps; never let an additional
+        # declaration replace the authority of a canonical module here.
+        overrides = {**{key: value for key, value in additional.items()
+                        if key not in modules and key not in overrides}, **overrides}
     return (
         modules if isinstance(modules, dict) else {},
         overrides if isinstance(overrides, dict) else {},

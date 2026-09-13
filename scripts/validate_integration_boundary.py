@@ -170,6 +170,14 @@ def load_review_registry(
         errors.append("strict_mission_overrides must be an object")
         overrides = {}
 
+    additional = payload.get("additional_strict_overrides", {})
+    if not isinstance(additional, dict):
+        errors.append("additional_strict_overrides must be an object")
+        additional = {}
+    if set(additional) & (set(modules) | set(overrides)):
+        errors.append("additional overrides cannot replace canonical registry entries")
+    overrides = {**additional, **overrides}
+
     pinned: set[str] = set()
     exact_overrides: set[str] = set()
     exception_map: dict[str, dict[str, set[str]]] = {}

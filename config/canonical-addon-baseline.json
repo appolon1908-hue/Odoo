@@ -148,5 +148,25 @@
         {"path": "tests/test_moneybee_crm.py", "kind": "odoo_test_driver_exception", "reason": "Imports only IntegrityError to verify database uniqueness inside a rolled-back synthetic Odoo savepoint; no connection is opened."}
       ]
     }
+  },
+  "additional_strict_overrides": {
+    "codestra_observability_integration": {
+      "base_tree": "12d5d5ff8fb0133f2cd2ca5bb3b40e4edadea69d",
+      "current_tree": "3332e9e09f886612b9d3d77c4a67308628edc903",
+      "reason": "PR #136 adds immutable per-event receipts, strict field validation and concurrent delivery handling. Business writes remain through Odoo ORM. The only raw SQL is a parameterized SELECT FOR UPDATE using the existing Odoo cursor; imported driver exceptions trigger whole-transaction retries without opening a database connection. Internal ORM writes require a process-local capability identity rather than a caller-supplied RPC context boolean.",
+      "pull_request": 136,
+      "integration_boundary_exceptions": [
+        {
+          "path": "models/observability.py",
+          "kind": "odoo_cursor_locking",
+          "reason": "Lock the tenant-scoped incident row on the existing Odoo cursor before comparing resource versions, preventing concurrent state regression."
+        },
+        {
+          "path": "models/observability.py",
+          "kind": "odoo_internal_driver_exception",
+          "reason": "Catch only unique constraints belonging to projection records and raise SerializationFailure so Odoo retries with a fresh transaction snapshot; no external database connections."
+        }
+      ]
+    }
   }
 }
