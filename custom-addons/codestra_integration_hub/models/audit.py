@@ -91,11 +91,11 @@ class IntegrationAudit(models.Model):
         writer.env.cr.execute(
             """
             SELECT id
-              FROM ir_module_module
+              FROM codestra_integration_audit_chain_lock
              WHERE name = %s
              FOR UPDATE
             """,
-            ["codestra_integration_hub"],
+            ["global"],
         )
         if not writer.env.cr.fetchone():
             raise ValidationError("Integration audit chain lock is unavailable.")
