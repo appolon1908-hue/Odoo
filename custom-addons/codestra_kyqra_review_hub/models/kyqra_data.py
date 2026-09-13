@@ -31,6 +31,8 @@ FORBIDDEN_KEYS = frozenset(
 IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$")
 HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 INTERNAL_CONTEXT = "codestra_kyqra_internal"
+# Process-local capability; RPC context values cannot supply this object identity.
+_INTERNAL_CAPABILITY = object()
 REVIEWER_GROUP = "codestra_kyqra_review_hub.group_kyqra_reviewer"
 SERVICE_GROUP = "codestra_kyqra_review_hub.group_kyqra_service"
 
@@ -191,7 +193,7 @@ class CodestraKyqraBatch(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         if not (
-            self.env.context.get(INTERNAL_CONTEXT)
+            self.env.context.get(INTERNAL_CONTEXT) is _INTERNAL_CAPABILITY
             and self.env.user.has_group(SERVICE_GROUP)
         ):
             raise AccessError(
@@ -208,7 +210,7 @@ class CodestraKyqraBatch(models.Model):
 
     def write(self, values):
         if not (
-            self.env.context.get(INTERNAL_CONTEXT)
+            self.env.context.get(INTERNAL_CONTEXT) is _INTERNAL_CAPABILITY
             and self.env.user.has_group(REVIEWER_GROUP)
         ):
             raise AccessError(_("Kyqra batch evidence is immutable."))
@@ -534,7 +536,7 @@ class CodestraKyqraBatch(models.Model):
         }
         try:
             with self.env.cr.savepoint():
-                batch = batch_model.with_context(**{INTERNAL_CONTEXT: True}).create(
+                batch = batch_model.with_context(**{INTERNAL_CONTEXT: _INTERNAL_CAPABILITY}).create(
                     values
                 )
         except Exception as exc:
@@ -555,10 +557,10 @@ class CodestraKyqraBatch(models.Model):
         entity_model = self.env["codestra.kyqra.entity"].sudo()
         evidence_model = self.env["codestra.kyqra.evidence"].sudo()
         for item in normalized["results"]:
-            entity = entity_model.with_context(**{INTERNAL_CONTEXT: True}).create(
+            entity = entity_model.with_context(**{INTERNAL_CONTEXT: _INTERNAL_CAPABILITY}).create(
                 self._entity_values(batch, item)
             )
-            evidence_model.with_context(**{INTERNAL_CONTEXT: True}).create(
+            evidence_model.with_context(**{INTERNAL_CONTEXT: _INTERNAL_CAPABILITY}).create(
                 self._evidence_values(entity, item)
             )
         return self._result(batch, "created")
@@ -572,14 +574,14 @@ class CodestraKyqraBatch(models.Model):
         if any(batch.state != "review_pending" for batch in self):
             raise UserError(_("Only review-pending batches can be approved."))
         now = fields.Datetime.now()
-        self.with_context(**{INTERNAL_CONTEXT: True}).write(
+        self.with_context(**{INTERNAL_CONTEXT: _INTERNAL_CAPABILITY}).write(
             {
                 "state": "approved",
                 "reviewed_by_id": self.env.user.id,
                 "reviewed_at": now,
             }
         )
-        self.mapped("entity_ids").with_context(**{INTERNAL_CONTEXT: True}).write(
+        self.mapped("entity_ids").with_context(**{INTERNAL_CONTEXT: _INTERNAL_CAPABILITY}).write(
             {
                 "review_state": "approved",
                 "reviewed_by_id": self.env.user.id,
@@ -593,14 +595,14 @@ class CodestraKyqraBatch(models.Model):
         if any(batch.state != "review_pending" for batch in self):
             raise UserError(_("Only review-pending batches can be rejected."))
         now = fields.Datetime.now()
-        self.with_context(**{INTERNAL_CONTEXT: True}).write(
+        self.with_context(**{INTERNAL_CONTEXT: _INTERNAL_CAPABILITY}).write(
             {
                 "state": "rejected",
                 "reviewed_by_id": self.env.user.id,
                 "reviewed_at": now,
             }
         )
-        self.mapped("entity_ids").with_context(**{INTERNAL_CONTEXT: True}).write(
+        self.mapped("entity_ids").with_context(**{INTERNAL_CONTEXT: _INTERNAL_CAPABILITY}).write(
             {
                 "review_state": "rejected",
                 "reviewed_by_id": self.env.user.id,
@@ -673,7 +675,7 @@ class CodestraKyqraEntity(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         if not (
-            self.env.context.get(INTERNAL_CONTEXT)
+            self.env.context.get(INTERNAL_CONTEXT) is _INTERNAL_CAPABILITY
             and self.env.user.has_group(SERVICE_GROUP)
         ):
             raise AccessError(
@@ -686,7 +688,7 @@ class CodestraKyqraEntity(models.Model):
 
     def write(self, values):
         if not (
-            self.env.context.get(INTERNAL_CONTEXT)
+            self.env.context.get(INTERNAL_CONTEXT) is _INTERNAL_CAPABILITY
             and self.env.user.has_group(REVIEWER_GROUP)
         ):
             raise AccessError(_("Kyqra entity evidence is immutable."))
@@ -706,7 +708,7 @@ class CodestraKyqraEntity(models.Model):
         if any(entity.batch_id.state != "review_pending" for entity in self):
             raise UserError(_("The batch must remain review pending."))
         now = fields.Datetime.now()
-        self.with_context(**{INTERNAL_CONTEXT: True}).write(
+        self.with_context(**{INTERNAL_CONTEXT: _INTERNAL_CAPABILITY}).write(
             {
                 "review_state": "approved",
                 "reviewed_by_id": self.env.user.id,
@@ -723,7 +725,7 @@ class CodestraKyqraEntity(models.Model):
         if any(entity.batch_id.state != "review_pending" for entity in self):
             raise UserError(_("The batch must remain review pending."))
         now = fields.Datetime.now()
-        self.with_context(**{INTERNAL_CONTEXT: True}).write(
+        self.with_context(**{INTERNAL_CONTEXT: _INTERNAL_CAPABILITY}).write(
             {
                 "review_state": "rejected",
                 "reviewed_by_id": self.env.user.id,
@@ -762,7 +764,7 @@ class CodestraKyqraEvidence(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         if not (
-            self.env.context.get(INTERNAL_CONTEXT)
+            self.env.context.get(INTERNAL_CONTEXT) is _INTERNAL_CAPABILITY
             and self.env.user.has_group(SERVICE_GROUP)
         ):
             raise AccessError(
