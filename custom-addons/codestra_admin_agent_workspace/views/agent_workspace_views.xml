@@ -1,0 +1,140 @@
+<odoo>
+  <!-- Disposition wizard: the one writable surface an agent has, per
+       workspace_disposition_wizard.py's own docstring. -->
+  <record id="view_workspace_disposition_wizard_form" model="ir.ui.view">
+    <field name="name">codestra.workspace.disposition.wizard.form</field>
+    <field name="model">codestra.workspace.disposition.wizard</field>
+    <field name="arch" type="xml">
+      <form>
+        <group>
+          <field name="call_id" readonly="1"/>
+          <field name="disposition_id"/>
+          <field name="notes"/>
+        </group>
+        <footer>
+          <button string="Apply Disposition" type="object" name="action_submit"
+                  class="btn-primary"/>
+          <button string="Cancel" special="cancel"/>
+        </footer>
+      </form>
+    </field>
+  </record>
+  <record id="action_workspace_disposition_wizard" model="ir.actions.act_window">
+    <field name="name">Apply Disposition</field>
+    <field name="res_model">codestra.workspace.disposition.wizard</field>
+    <field name="view_mode">form</field>
+    <field name="target">new</field>
+  </record>
+
+  <!-- Agent Workspace: three-panel information architecture (Phone |
+       Customer/CRM | Script &amp; Disposition), plus a Lead Details / Recent
+       Activity row below - mirrors codestra-platform's React
+       AgentWorkspace.tsx. A standard Odoo form-view fallback (three
+       side-by-side <group> columns), not a bespoke OWL component - see the
+       PR description for why. -->
+  <record id="view_codestra_vicidial_call_agent_workspace_form" model="ir.ui.view">
+    <field name="name">codestra.vicidial.call.agent.workspace.form</field>
+    <field name="model">codestra.vicidial.call</field>
+    <field name="arch" type="xml">
+      <form create="0" delete="0" edit="0" string="Agent Workspace">
+        <sheet>
+          <div class="oe_title">
+            <h1>
+              <field name="name"/>
+              <field name="workspace_is_active" invisible="1"/>
+              <span class="badge text-bg-success" invisible="not workspace_is_active">
+                Active
+              </span>
+              <span class="badge text-bg-secondary" invisible="workspace_is_active">
+                Not Active
+              </span>
+            </h1>
+          </div>
+          <group col="3">
+            <group string="Phone">
+              <field name="state" widget="badge"/>
+              <field name="workspace_duration_display"/>
+              <field name="agent_id" readonly="1"/>
+              <field name="extension" readonly="1"/>
+              <field name="direction" readonly="1"/>
+            </group>
+            <group string="Customer / CRM">
+              <field name="customer_id" readonly="1"/>
+              <field name="normalized_number" readonly="1"/>
+              <field name="match_status" readonly="1"/>
+              <field name="workspace_lead_id" readonly="1"/>
+              <button name="action_open_workspace_lead" type="object"
+                      string="Open Lead" class="btn-link"
+                      invisible="not workspace_lead_id"/>
+            </group>
+            <group string="Script &amp; Disposition">
+              <div>
+                <p><strong>Opening:</strong> Confirm identity, reference the
+                   matched lead, follow the campaign's approved script.</p>
+              </div>
+              <field name="disposition_id" readonly="1"/>
+              <field name="notes" readonly="1"/>
+              <button name="%(action_workspace_disposition_wizard)d"
+                      type="action" string="Apply Disposition"
+                      class="btn-primary"
+                      context="{'default_call_id': id}"/>
+            </group>
+          </group>
+          <group col="2" string="Lead Details / Recent Activity">
+            <group string="Lead Details">
+              <field name="workspace_lead_id" readonly="1"/>
+              <field name="tenant_id" readonly="1"/>
+              <field name="campaign_code" readonly="1"/>
+            </group>
+            <group string="Recent Activity">
+              <field name="workspace_recent_activity" readonly="1" nolabel="1"/>
+            </group>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="view_codestra_vicidial_call_agent_workspace_list" model="ir.ui.view">
+    <field name="name">codestra.vicidial.call.agent.workspace.list</field>
+    <field name="model">codestra.vicidial.call</field>
+    <field name="arch" type="xml">
+      <list create="0" delete="0" edit="0">
+        <field name="name"/>
+        <field name="state" widget="badge"/>
+        <field name="workspace_duration_display"/>
+        <field name="customer_id"/>
+        <field name="workspace_lead_id"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="action_agent_workspace" model="ir.actions.act_window">
+    <field name="name">Agent Workspace</field>
+    <field name="res_model">codestra.vicidial.call</field>
+    <field name="view_mode">list,form</field>
+    <field name="domain">[('agent_id.odoo_user_id', '=', uid)]</field>
+    <field name="context">{}</field>
+  </record>
+  <record id="action_agent_workspace_list_view" model="ir.actions.act_window.view">
+    <field name="sequence">1</field>
+    <field name="view_mode">list</field>
+    <field name="view_id" ref="view_codestra_vicidial_call_agent_workspace_list"/>
+    <field name="act_window_id" ref="action_agent_workspace"/>
+  </record>
+  <record id="action_agent_workspace_form_view" model="ir.actions.act_window.view">
+    <field name="sequence">2</field>
+    <field name="view_mode">form</field>
+    <field name="view_id" ref="view_codestra_vicidial_call_agent_workspace_form"/>
+    <field name="act_window_id" ref="action_agent_workspace"/>
+  </record>
+
+  <!-- Visibility gate: the same OPERATIONAL_GROUPS set already used in
+       codestra_cc_crm/models/crm_workspace.py, not a new definition of
+       "agent". Per-record scope is the action's own domain above, not
+       this menu group. -->
+  <menuitem id="menu_agent_workspace_root" name="Agent Workspace"
+            action="action_agent_workspace"
+            groups="codestra_cc_security.group_cc_campaign_agent,codestra_cc_security.group_cc_senior_agent,codestra_cc_security.group_cc_campaign_supervisor"
+            sequence="1"/>
+</odoo>
