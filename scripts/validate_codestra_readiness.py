@@ -128,7 +128,7 @@ def main() -> int:
         errors.append(f"cannot read login CSS: {exc}")
         css_text = ""
 
-    for token in ("#07080a", "#f4c223", "#f8fafc", "#a3a8b3"):
+    for token in ("#071426", "#0f5eea", "#ffffff", "#94a3b8"):
         require(
             token in css_text.lower(),
             f"login CSS missing brand token {token}",
