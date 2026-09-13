@@ -283,6 +283,19 @@ printf 'ODOO_BROWSER_SKIPS=0\n'
 printf 'ODOO_MODULE_INSTALL_AND_TEST=PASS\n'
 printf 'CUSTOM_MODULES_TESTED=%s\n' "${#module_names[@]}"
 
+printf '==> Verifying Kyqra delivery with independent committed cursors\n'
+docker run --rm -i \
+  --network "$NETWORK" \
+  -e HOST=db \
+  -e PORT=5432 \
+  -e USER="$DB_USER" \
+  -e PASSWORD="$DB_PASSWORD" \
+  -v "$ROOT_DIR/custom-addons:/mnt/extra-addons:ro" \
+  -v "$ODOO_DATA_VOLUME:/var/lib/odoo" \
+  "$ODOO_TEST_IMAGE" \
+  odoo shell -d "$DATABASE" --no-http \
+  < scripts/test_kyqra_concurrency.py
+
 # Use a normal registry after TransactionCase releases its process-wide lock.
 docker run --rm -i \
   --network "$NETWORK" \

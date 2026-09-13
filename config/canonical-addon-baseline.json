@@ -150,6 +150,19 @@
     }
   },
   "additional_strict_overrides": {
+    "codestra_kyqra_review_hub": {
+      "base_tree": "93ed2c44e0208abc733d1ef5f189973857e9c2d1",
+      "current_tree": "2c040d1eb03126520e2ace4c9d3605e827214d2e",
+      "reason": "PR #134 requests Odoo's supported whole-transaction ConcurrencyError retry only for the two batch reservation unique constraints; rejects normalized, separator-free, object-pair, and sequence-pair secret/access/subscription-key aliases plus credential- and signature-bearing URL parameters and invalid-Unicode/NUL-bearing JSON, and bounds JSON nesting before recursive validation; strictly validates original and decoded source URLs; rejects surrounding whitespace in retained canonical text before immutable storage; normalizes audit timestamps as timezone-aware RFC3339; and prevents batch decisions from overwriting prior entity-level decisions. Driver imports contain exception classes only; no external database connection or new write authority.",
+      "pull_request": 134,
+      "integration_boundary_exceptions": [
+        {
+          "path": "models/kyqra_data.py",
+          "kind": "odoo_internal_driver_exception",
+          "reason": "Convert only known batch reservation UniqueViolation constraints into Odoo ConcurrencyError so service.model.retrying() restarts the whole transaction with a fresh snapshot."
+        }
+      ]
+    },
     "codestra_observability_integration": {
       "base_tree": "12d5d5ff8fb0133f2cd2ca5bb3b40e4edadea69d",
       "current_tree": "3332e9e09f886612b9d3d77c4a67308628edc903",
