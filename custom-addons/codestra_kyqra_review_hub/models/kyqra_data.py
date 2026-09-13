@@ -56,6 +56,10 @@ FORBIDDEN_KEY_SUFFIXES = (
     "_secret",
     "_token",
 )
+FORBIDDEN_COMPACT_KEYS = frozenset(key.replace("_", "") for key in FORBIDDEN_KEYS)
+FORBIDDEN_COMPACT_SUFFIXES = tuple(
+    suffix.replace("_", "") for suffix in FORBIDDEN_KEY_SUFFIXES
+)
 IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$")
 HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 RFC3339_RE = re.compile(
@@ -137,9 +141,11 @@ def _valid_hostname(hostname):
 
 
 def _safe_url(value, label):
-    value = _text(value, label, 2_048)
-    if _has_unsafe_url_character(value) or INVALID_PERCENT_ESCAPE_RE.search(value):
+    if isinstance(value, str) and (
+        _has_unsafe_url_character(value) or INVALID_PERCENT_ESCAPE_RE.search(value)
+    ):
         raise ValidationError(_("%s must be a well-formed HTTPS URL.") % label)
+    value = _text(value, label, 2_048)
     try:
         parsed = urllib.parse.urlsplit(value)
         hostname = parsed.hostname
@@ -192,9 +198,12 @@ def _normalized_key(value):
 
 def _is_forbidden_key(value):
     normalized_key = _normalized_key(value)
+    compact_key = normalized_key.replace("_", "")
     return (
         normalized_key in FORBIDDEN_KEYS
         or normalized_key.endswith(FORBIDDEN_KEY_SUFFIXES)
+        or compact_key in FORBIDDEN_COMPACT_KEYS
+        or compact_key.endswith(FORBIDDEN_COMPACT_SUFFIXES)
     )
 
 

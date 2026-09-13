@@ -193,6 +193,9 @@ class TestCodestraKyqraData(TransactionCase):
             "token",
             "APIKey",
             "clientSecret",
+            "apikey",
+            "accesstoken",
+            "clientsecret",
             "provider-token",
             "userPassword",
         ):
@@ -208,6 +211,9 @@ class TestCodestraKyqraData(TransactionCase):
         for source_url in (
             "https://example.invalid/page?api_key=secret",
             "https://example.invalid/page?APIKey=secret",
+            "https://example.invalid/page?apikey=secret",
+            "https://example.invalid/page?accesstoken=secret",
+            "https://example.invalid/page?clientsecret=secret",
             "https://example.invalid/page?x-api-key=secret",
             "https://example.invalid/page?safe=value;token=secret",
             "https://example.invalid/page?api%5Fkey=secret",
@@ -227,6 +233,9 @@ class TestCodestraKyqraData(TransactionCase):
 
     def test_source_url_authority_and_encoding_are_strict(self):
         for source_url in (
+            " https://example.invalid/path",
+            "https://example.invalid/path ",
+            "\nhttps://example.invalid/path\r",
             "https://example.invalid:bad/path",
             "https://exa mple.invalid/path",
             "https://example.invalid:70000/path",
