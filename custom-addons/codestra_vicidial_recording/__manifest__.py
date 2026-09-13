@@ -1,6 +1,6 @@
 {
     "name": "Codestra VICIdial Recording Reference",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.0.1",
     "summary": "Metadata-only VICIdial recording references and scoped playback",
     "author": "Codestra",
     "license": "LGPL-3",

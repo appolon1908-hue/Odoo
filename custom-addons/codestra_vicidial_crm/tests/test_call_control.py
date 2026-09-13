@@ -104,20 +104,21 @@ class TestCallControl(TransactionCase):
         )
         self.assertEqual(call_control_controller._integration_event_route_values(standalone), {})
 
-    def test_audit_uses_integration_hub_append_contract_when_available(self):
+    def test_audit_uses_append_contract_without_elevating_actor(self):
         audit_record = object()
         captured = {}
 
         class HubAudit:
             def sudo(self):
-                return self
+                raise AssertionError("The controller must not elevate the audit actor.")
 
-            def _append(self, event, action, result, metadata):
+            def _append(self, event, action, result, metadata, **anchors):
                 captured.update(
                     event=event,
                     action=action,
                     result=result,
                     metadata=metadata,
+                    anchors=anchors,
                 )
                 return audit_record
 
@@ -137,22 +138,87 @@ class TestCallControl(TransactionCase):
                 "call.outbound",
                 {"command_id": 77},
                 event=event,
+                actor_role="agent",
             )
 
         self.assertIs(result, audit_record)
+        self.assertEqual(captured["event"], event)
+        self.assertEqual(captured["action"], "call.outbound")
+        self.assertEqual(captured["result"], "success")
         self.assertEqual(
-            captured,
+            captured["metadata"],
             {
-                "event": event,
-                "action": "call.outbound",
-                "result": "success",
-                "metadata": {
-                    "model_name": "codestra.vicidial.call",
-                    "record_res_id": 42,
-                    "after": {"command_id": 77},
-                },
+                "model_name": "codestra.vicidial.call",
+                "record_res_id": 42,
+                "after": {"command_id": 77},
             },
         )
+        self.assertEqual(
+            captured["anchors"],
+            {
+                "actor_role": "agent",
+                "correlation_id": "call-audit-compatibility",
+                "subject_model": "codestra.vicidial.call",
+                "subject_id": 42,
+            },
+        )
+
+    def test_audit_appends_eventless_call_without_event_lookup(self):
+        captured = {}
+
+        class HubAudit:
+            def _append(self, event, action, result, metadata, **anchors):
+                captured.update(event=event, action=action, anchors=anchors)
+                return True
+
+        call = SimpleNamespace(
+            _name="codestra.vicidial.call",
+            id=43,
+            correlation_id="call-audit-eventless",
+        )
+        request = SimpleNamespace(
+            env={"codestra.integration.audit": HubAudit()},
+        )
+
+        with patch.object(call_control_controller, "request", request):
+            self.assertTrue(
+                call_control_controller.CallControlAPI._audit(
+                    call,
+                    "call.workspace.viewed",
+                    {"sequence": 3},
+                    actor_role="agent",
+                )
+            )
+
+        self.assertFalse(captured["event"])
+        self.assertEqual(captured["action"], "call.workspace.viewed")
+        self.assertEqual(captured["anchors"]["correlation_id"], "call-audit-eventless")
+        self.assertEqual(captured["anchors"]["subject_id"], 43)
+
+    def test_model_append_contract_preserves_non_superuser_actor(self):
+        audit = self.env["codestra.integration.audit"].with_user(self.agent_user)._append(
+            False,
+            "call.workspace.viewed",
+            "success",
+            {
+                "model_name": "codestra.vicidial.call",
+                "record_res_id": 99,
+                "after": {"sequence": 1},
+            },
+            actor_role="agent",
+            correlation_id="call-audit-actor",
+            subject_model="codestra.vicidial.call",
+            subject_id=99,
+        )
+
+        self.assertEqual(audit.actor_user_id, self.agent_user)
+        self.assertEqual(audit.action, "call.workspace.viewed")
+        self.assertEqual(audit.correlation_id, "call-audit-actor")
+        self.assertEqual(audit.model_name, "codestra.vicidial.call")
+        self.assertEqual(audit.record_res_id, 99)
+        self.assertEqual(json.loads(audit.after_json), {"sequence": 1})
+        if "actor_role" in audit._fields:
+            self.assertEqual(audit.actor_role, "agent")
 
     def test_number_normalization_and_exact_matching(self):
         partner = self.env["res.partner"].create({"name": "Synthetic Customer", "phone": "+1 (617) 555-0100"})

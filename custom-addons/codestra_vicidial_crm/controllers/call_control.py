@@ -68,35 +68,21 @@ class CallControlAPI(http.Controller):
         return call
 
     @staticmethod
-    def _audit(call, action, after=None, event=None):
-        Audit = request.env["codestra.integration.audit"].sudo()
-        if hasattr(Audit, "_append"):
-            event = event or request.env["codestra.integration.event"].sudo().search(
-                [("correlation_id", "=", call.correlation_id)],
-                order="id desc",
-                limit=1,
-            )
-            if event:
-                return Audit._append(
-                    event,
-                    action,
-                    "success",
-                    {
-                        "model_name": call._name,
-                        "record_res_id": call.id,
-                        "after": after or {},
-                    },
-                )
-        return Audit.create(
+    def _audit(call, action, after=None, *, event=None, actor_role):
+        """Append through the model contract without elevating the request actor."""
+        return request.env["codestra.integration.audit"]._append(
+            event or False,
+            action,
+            "success",
             {
-                "actor_user_id": request.env.user.id,
-                "action": action,
                 "model_name": call._name,
                 "record_res_id": call.id,
-                "correlation_id": call.correlation_id,
-                "after_json": json.dumps(after or {}, sort_keys=True),
-                "success": True,
-            }
+                "after": after or {},
+            },
+            actor_role=actor_role,
+            correlation_id=call.correlation_id,
+            subject_model=call._name,
+            subject_id=call.id,
         )
 
     @staticmethod
@@ -385,6 +371,7 @@ class CallControlAPI(http.Controller):
                     "revision": note.revision,
                     "notes_present": bool(notes),
                 },
+                actor_role="agent",
             )
         else:
             note = request.env["codestra.call.note"].search(
@@ -453,6 +440,7 @@ class CallControlAPI(http.Controller):
                     "disposition": disposition.code,
                     "sub_disposition": sub_disposition.code,
                 },
+                actor_role="agent",
             )
         return {
             "duplicate": duplicate,
@@ -639,7 +627,12 @@ class CallControlAPI(http.Controller):
                 },
             }
         )
-        self._audit(call, "call.workspace.viewed", {"sequence": call.sequence})
+        self._audit(
+            call,
+            "call.workspace.viewed",
+            {"sequence": call.sequence},
+            actor_role="agent",
+        )
         return payload
 
     @http.route(
@@ -681,7 +674,12 @@ class CallControlAPI(http.Controller):
             }
         )
         command._record_callback_result(callback)
-        self._audit(call, "call.callback", {"callback_id": callback.id})
+        self._audit(
+            call,
+            "call.callback",
+            {"callback_id": callback.id},
+            actor_role="agent",
+        )
         return {"duplicate": False, "callback_id": callback.id, "dispatch_enabled": False}
 
     @http.route(
@@ -712,7 +710,12 @@ class CallControlAPI(http.Controller):
             callback.action_cancel()
         else:
             raise ValidationError("Unsupported callback action.")
-        self._audit(call, f"call.callback.{action}", {"callback_id": callback.id})
+        self._audit(
+            call,
+            f"call.callback.{action}",
+            {"callback_id": callback.id},
+            actor_role="agent",
+        )
         return {
             "callback_id": callback.id,
             "status": callback.status,
@@ -766,7 +769,12 @@ class CallControlAPI(http.Controller):
         allowed = {("crm.lead", lead.id), ("res.partner", call.customer_id.id)}
         if (model, int(record_id)) not in allowed:
             raise AccessError("CRM record is not correlated to this call.")
-        self._audit(call, "call.record_opened", {"model": model, "record_id": int(record_id)})
+        self._audit(
+            call,
+            "call.record_opened",
+            {"model": model, "record_id": int(record_id)},
+            actor_role="agent",
+        )
         return {"recorded": True}
 
     @http.route(
@@ -776,10 +784,8 @@ class CallControlAPI(http.Controller):
         methods=["POST"],
     )
     def recording_playback(self, call_id):
-        reviewer = request.env.user.has_group("codestra_vicidial_crm.group_supervisor") or request.env.user.has_group(
-            "codestra_vicidial_crm.group_qa"
-        )
-        call = self._review_call(call_id) if reviewer else self._owned_call(call_id)
+        reviewer_role = self._reviewer_role(required=False)
+        call = self._review_call(call_id) if reviewer_role else self._owned_call(call_id)
         manager = request.env.user.has_group("codestra_vicidial_crm.group_manager")
         if not manager and not request.env.user.can_view_recordings:
             raise AccessError("Recording playback permission is required.")
@@ -823,16 +829,28 @@ class CallControlAPI(http.Controller):
             raise ValidationError("Recording service returned an invalid playback grant.") from exc
         if parsed.scheme != "https" or not parsed.netloc or not (1 <= expires_in <= 120):
             raise ValidationError("Recording service returned an invalid playback grant.")
-        self._audit(call, "call.recording.viewed", {"recording_id": recording.recording_id})
+        self._audit(
+            call,
+            "call.recording.viewed",
+            {"recording_id": recording.recording_id},
+            actor_role=reviewer_role or "agent",
+        )
         return {"playback_url": playback_url, "expires_in": expires_in, "cacheable": False}
 
     @staticmethod
-    def _review_call(call_id):
-        if not (
-            request.env.user.has_group("codestra_vicidial_crm.group_supervisor")
-            or request.env.user.has_group("codestra_vicidial_crm.group_qa")
-        ):
+    def _reviewer_role(required=True):
+        """Return the role used to authorize this review request."""
+        if request.env.user.has_group("codestra_vicidial_crm.group_supervisor"):
+            return "supervisor"
+        if request.env.user.has_group("codestra_vicidial_crm.group_qa"):
+            return "qa"
+        if required:
             raise AccessError("Supervisor or QA access is required.")
+        return False
+
+    @staticmethod
+    def _review_call(call_id):
+        CallControlAPI._reviewer_role()
         call = request.env["codestra.vicidial.call"].search([("call_id", "=", call_id)], limit=1)
         if not call:
             raise AccessError("The call is outside the authorized review scope.")
@@ -916,7 +934,13 @@ class CallControlAPI(http.Controller):
         )
         notes = request.env["codestra.call.note"].search([("call_id", "=", call.id)])
         reviews = request.env["codestra.call.qa.review"].search([("call_id", "=", call.id)])
-        self._audit(call, "call.detail.viewed", {"role": "reviewer"})
+        reviewer_role = self._reviewer_role()
+        self._audit(
+            call,
+            "call.detail.viewed",
+            {"role": reviewer_role},
+            actor_role=reviewer_role,
+        )
         lead = call.crm_lead_id or call.lead_id
         return {
             "call": {
@@ -1052,7 +1076,12 @@ class CallControlAPI(http.Controller):
                 "state": "submitted" if submit else "draft",
             }
         )
-        self._audit(call, "call.qa.scored", {"review_id": review.id, "score": review.score, "state": review.state})
+        self._audit(
+            call,
+            "call.qa.scored",
+            {"review_id": review.id, "score": review.score, "state": review.state},
+            actor_role="qa",
+        )
         return {"review_id": review.id, "score": review.score, "state": review.state}
 
     @http.route(
@@ -1080,7 +1109,13 @@ class CallControlAPI(http.Controller):
                 "comments": comments,
             }
         )
-        self._audit(call, "call.coaching.created", {"coaching_id": coaching.id, "assigned_agent_id": assignee.id})
+        reviewer_role = self._reviewer_role()
+        self._audit(
+            call,
+            "call.coaching.created",
+            {"coaching_id": coaching.id, "assigned_agent_id": assignee.id},
+            actor_role=reviewer_role,
+        )
         return {"coaching_id": coaching.id, "state": coaching.state}
 
     @http.route(
@@ -1094,7 +1129,12 @@ class CallControlAPI(http.Controller):
         if not coaching:
             raise AccessError("Coaching is unavailable.")
         coaching.action_acknowledge()
-        self._audit(coaching.call_id, "call.coaching.acknowledged", {"coaching_id": coaching.id})
+        self._audit(
+            coaching.call_id,
+            "call.coaching.acknowledged",
+            {"coaching_id": coaching.id},
+            actor_role="agent",
+        )
         return {"coaching_id": coaching.id, "state": coaching.state, "acknowledged_at": coaching.acknowledged_at}
 
     @http.route(
@@ -1120,7 +1160,10 @@ class CallControlAPI(http.Controller):
             }
         )
         self._audit(
-            call, "call.follow_up.created", {"activity_id": activity.id, "owner_id": owner.id, "priority": priority}
+            call,
+            "call.follow_up.created",
+            {"activity_id": activity.id, "owner_id": owner.id, "priority": priority},
+            actor_role="agent",
         )
         return {"activity_id": activity.id, "created": True}
 
@@ -1178,5 +1221,6 @@ class CallControlAPI(http.Controller):
             f"call.{action}",
             {"command_id": command.id},
             event=event,
+            actor_role="agent",
         )
         return command, False
