@@ -153,7 +153,10 @@
       "reason": "PR #139 hardens the immutable integration-audit boundary with eventless subject anchors, exact-event binding, explicit pre-elevation actor attribution, redacted base-field projections, and a globally serialized hash tail. The serialized writer locks only the installed codestra_integration_hub row through Odoo's active PostgreSQL transaction before reading the current tail; it opens no external connection and retains the historical hash payload so existing audit chains remain verifiable. Direct create, write, and unlink remain denied, and no integration delivery or external-effect flag is enabled.",
       "pull_request": 139,
       "integration_boundary_exceptions": [
-        {"path": "models/audit.py", "kind": "odoo_cursor_locking", "reason": "The append-only audit writer uses one SELECT FOR UPDATE on the installed codestra_integration_hub row in Odoo's ir_module_module table, through the active transaction cursor, to serialize the global hash-chain tail before the immutable insert. It opens no external database connection."}
+        {"path": "models/audit.py", "kind": "odoo_cursor_locking", "reason": "The append-only audit writer uses one SELECT FOR UPDATE on the installed codestra_integration_hub row in Odoo's ir_module_module table, through the active transaction cursor, to serialize the global hash-chain tail before the immutable insert. It opens no external database connection."},
+        {"path": "models/idempotency.py", "kind": "odoo_internal_driver_exception", "reason": "The ledger imports only IntegrityError to retry a unique-constraint collision inside an Odoo savepoint and never opens a database connection."},
+        {"path": "tests/test_audit.py", "kind": "odoo_test_fixture_sql", "reason": "Rolled-back Odoo tests deliberately mutate synthetic audit projections to certify tamper detection; the post-install concurrency test opens only Registry-managed Odoo cursors against the current test database."},
+        {"path": "tests/test_schema_constraints.py", "kind": "odoo_test_driver_exception", "reason": "The transaction test imports only IntegrityError to assert Integration Hub database constraints inside Odoo savepoints and never opens a database connection."}
       ]
     }
   },
@@ -191,3 +194,4 @@
     }
   }
 }
+
