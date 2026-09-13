@@ -1,0 +1,7 @@
+<odoo>
+  <!-- Reuse the established own-call ACLs and record rules for canonical agents.
+       Senior agents and supervisors already imply this canonical role. -->
+  <record id="codestra_cc_security.group_cc_campaign_agent" model="res.groups">
+    <field name="implied_ids" eval="[(4, ref('codestra_vicidial_crm.group_agent'))]"/>
+  </record>
+</odoo>

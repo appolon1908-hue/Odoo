@@ -26,17 +26,32 @@ class CodestraAgentProvisioningMiddlewareClient(models.AbstractModel):
         onboarding.ensure_one()
         onboarding._require_global_administrator()
         request = onboarding.provisioning_request_id
-        if (onboarding.state != "provisioning" or not request
-                or request.correlation_id != correlation_id
-                or request.state not in {"provisioning", "partially_provisioned", "verification", "awaiting_user_activation", "failed"}
-                or not onboarding.campaign_membership_id
-                or onboarding.campaign_membership_id.state != "pending_sync"):
+        membership = onboarding.campaign_membership_id
+        if (
+            onboarding.state != "provisioning"
+            or not request
+            or not membership
+            or request.correlation_id != correlation_id
+            or request.employee_id != onboarding.employee_id
+            or request.cc_membership_id != membership
+            or request.requested_for != onboarding.employee_id.user_id
+            or request.state
+            not in {
+                "provisioning",
+                "partially_provisioned",
+                "verification",
+                "awaiting_user_activation",
+                "failed",
+            }
+            or membership.state != "pending_sync"
+        ):
             raise AccessError("An approved onboarding workflow is required.")
 
     @api.model
     def _create_request(self, onboarding, payload, *, idempotency_key, correlation_id):
         self._authorize_workflow(onboarding, correlation_id)
-        if not isinstance(payload, dict) or payload.get("request_id") != onboarding.integration_uuid:
+        expected_payload = onboarding._middleware_provisioning_payload()
+        if not isinstance(payload, dict) or payload != expected_payload:
             raise AccessError("Provisioning request identity mismatch.")
         if not isinstance(payload, dict) or not payload.get("request_id"):
             raise ValidationError("Middleware provisioning payload is invalid.")
@@ -44,6 +59,8 @@ class CodestraAgentProvisioningMiddlewareClient(models.AbstractModel):
             raise ValidationError("Middleware provisioning idempotency key is invalid.")
         if not isinstance(correlation_id, str) or not correlation_id:
             raise ValidationError("Middleware provisioning correlation ID is invalid.")
+        if idempotency_key != onboarding._provisioning_idempotency_key():
+            raise AccessError("Provisioning idempotency identity mismatch.")
         return self.env[
             "codestra.middleware.agent.provisioning.transport"
         ].with_user(SUPERUSER_ID)._create_request(
@@ -63,8 +80,10 @@ class CodestraAgentProvisioningMiddlewareClient(models.AbstractModel):
         expected_request_id=None,
     ):
         self._authorize_workflow(onboarding, correlation_id)
-        if (middleware_request_id != onboarding.middleware_request_id
-                or expected_request_id != onboarding.integration_uuid):
+        if (
+            middleware_request_id != onboarding.middleware_request_id
+            or expected_request_id != onboarding.integration_uuid
+        ):
             raise AccessError("Provisioning request identity mismatch.")
         return self.env[
             "codestra.middleware.agent.provisioning.transport"

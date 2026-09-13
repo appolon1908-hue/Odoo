@@ -231,7 +231,13 @@ class CodestraMiddlewareAgentProvisioningTransport(models.AbstractModel):
         return context, self._access_token(configured, context)
 
     @staticmethod
-    def _validate_response(response, *, request_id, correlation_id):
+    def _validate_response(
+        response,
+        *,
+        request_id,
+        correlation_id,
+        middleware_request_id=None,
+    ):
         if not isinstance(response, dict):
             raise MiddlewareProvisioningOutcomeUnknown(
                 "Middleware returned an invalid provisioning response."
@@ -247,7 +253,12 @@ class CodestraMiddlewareAgentProvisioningTransport(models.AbstractModel):
             "steps",
         }
         try:
-            UUID(str(response["middleware_request_id"]))
+            response_middleware_id = UUID(str(response["middleware_request_id"]))
+            expected_middleware_id = (
+                UUID(str(middleware_request_id))
+                if middleware_request_id is not None
+                else None
+            )
         except (AttributeError, KeyError, TypeError, ValueError) as error:
             raise MiddlewareProvisioningOutcomeUnknown(
                 "Middleware returned an invalid provisioning response."
@@ -259,7 +270,13 @@ class CodestraMiddlewareAgentProvisioningTransport(models.AbstractModel):
             or (request_id is not None and response["request_id"] != request_id)
             or response["correlation_id"] != correlation_id
             or not isinstance(response["tenant_id"], str)
+            or not response["tenant_id"]
             or not isinstance(response["employee_id"], str)
+            or not response["employee_id"]
+            or (
+                expected_middleware_id is not None
+                and response_middleware_id != expected_middleware_id
+            )
             or isinstance(response["version"], bool)
             or not isinstance(response["version"], int)
             or response["version"] < 1
@@ -352,4 +369,5 @@ class CodestraMiddlewareAgentProvisioningTransport(models.AbstractModel):
             response,
             request_id=expected_request_id,
             correlation_id=correlation_id,
+            middleware_request_id=request_uuid,
         )

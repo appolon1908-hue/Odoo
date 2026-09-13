@@ -10,7 +10,7 @@ from typing import ClassVar
 
 from odoo import fields, http
 from odoo.http import request
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, ValidationError
 
 PREFIX = "CODESTRA-INTEGRATION-TEST-"
 # PostgreSQL unique_violation. Matched on the driver's SQLSTATE so the
@@ -659,6 +659,101 @@ class CodestraMiddlewareBridge(http.Controller):
         })
         self._apply_crm_compliance(auth, lead, payload, unit)
         return lead, mapping, None
+
+    @http.route(
+        "/codestra/middleware/v1/klyrow/events",
+        type="http",
+        auth="none",
+        methods=["POST"],
+        csrf=False,
+        readonly=False,
+    )
+    def klyrow_event_projection(self):
+        auth, payload, error = self._begin(
+            "klyrow.event.project",
+            allow_event_replay=True,
+            tenant_allowlist_parameter="codestra.klyrow.tenant_ids",
+            service_user_parameter="codestra.klyrow.service_user_id",
+        )
+        if error:
+            return error
+        if (
+            payload.get("event_id") != auth["event_id"]
+            or payload.get("tenant_id") != auth["tenant_id"]
+            or payload.get("correlation_id") != auth["correlation_id"]
+        ):
+            return self._json(409, {"error": "klyrow_projection_binding_conflict"})
+
+        def run():
+            try:
+                projection, outcome = request.env[
+                    "codestra.klyrow.business.projection"
+                ].with_user(auth["user"]).apply_event(payload, auth["request_hash"])
+            except ValidationError:
+                return self._json(422, {"error": "invalid_klyrow_projection"})
+            if not projection and outcome == "tenant_projection_missing":
+                return self._json(404, {"error": "tenant_projection_missing"})
+            return self._complete(
+                auth,
+                "klyrow.event.project",
+                {
+                    "operation_id": payload["operation_id"],
+                    "status": "APPLIED",
+                    "outcome": outcome,
+                    "payload_sha256": auth["request_hash"],
+                    "projection_id": projection.id,
+                    "event_type": projection.event_type,
+                },
+                status=201,
+            )
+
+        return self._serialized(auth, run)
+
+    @http.route(
+        "/codestra/middleware/v1/klyrow/events/<string:operation_id>",
+        type="http",
+        auth="none",
+        methods=["GET"],
+        csrf=False,
+        readonly=True,
+    )
+    def klyrow_event_projection_status(self, operation_id):
+        body = request.httprequest.get_data()
+        if body:
+            return self._json(422, {"error": "status_body_forbidden"})
+        auth, error = self._authenticate(
+            body,
+            tenant_allowlist_parameter="codestra.klyrow.tenant_ids",
+            service_user_parameter="codestra.klyrow.service_user_id",
+        )
+        if error:
+            return error
+        evidence = request.env["codestra.middleware.request"].with_user(
+            auth["user"]
+        ).search(
+            [
+                ("tenant_id", "=", auth["tenant_id"]),
+                ("event_id", "=", auth["event_id"]),
+                ("operation", "=", "klyrow.event.project"),
+            ],
+            limit=1,
+        )
+        if not evidence:
+            return self._json(404, {"error": "klyrow_projection_not_found"})
+        try:
+            result = json.loads(evidence.response_json)
+        except ValueError:
+            return self._json(409, {"error": "klyrow_projection_evidence_invalid"})
+        if result.get("operation_id") != operation_id:
+            return self._json(404, {"error": "klyrow_projection_not_found"})
+        return self._json(
+            200,
+            {
+                "operation_id": operation_id,
+                "status": "APPLIED",
+                "payload_sha256": evidence.request_hash,
+            },
+        )
 
     @http.route("/codestra/middleware/v1/crm/leads", type="http", auth="none", methods=["GET", "POST"], csrf=False, readonly=False)
     def crm_lead_create(self):

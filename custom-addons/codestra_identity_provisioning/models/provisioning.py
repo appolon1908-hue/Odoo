@@ -909,7 +909,14 @@ class ProvisioningRequest(models.Model):
                     ("state", "in", ("reserved", "committed")),
                 ], limit=1)
                 if not existing_assignment:
-                    pool = request.business_unit_id.extension_pool_ids.filtered("active")[:1]
+                    pool = request.extension_pool_id
+                    if pool and not pool.active:
+                        raise UserError(
+                            "The selected SIP extension pool is not active."
+                        )
+                    pool = pool or request.business_unit_id.extension_pool_ids.filtered(
+                        "active"
+                    )[:1]
                     if not pool:
                         raise UserError(
                             "No active SIP extension pool is configured for this "

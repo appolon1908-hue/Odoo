@@ -30,10 +30,11 @@ codestra.odoo.agent.activation_email_requested
 
 ## Middleware handoff
 
-Odoo is the producer for both public event types. Middleware owns the
-`POST /api/v1/odoo/events` receiver: it authenticates the bearer token and
+Odoo is the producer of the remaining activation-email event. Middleware owns
+the `POST /api/v1/odoo/events` receiver: it authenticates the bearer token and
 HMAC envelope, validates the agent-specific payload, and atomically records the
-event in its durable inbox, immutable ledger, and publication outbox.
+event in its durable inbox, immutable ledger, and publication outbox. Initial
+agent provisioning uses the direct, idempotent saga command instead.
 
 This handoff is intentionally not a direct Odoo-to-Klyrow call. Middleware
 downstream processing must complete the governed provisioning and provider

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="rule_codestra_kyqra_batch_company" model="ir.rule">
+    <field name="name">Kyqra batches by allowed company</field>
+    <field name="model_id" ref="model_codestra_kyqra_batch"/>
+    <field name="groups" eval="[(4, ref('codestra_kyqra_review_hub.group_kyqra_reviewer'))]"/>
+    <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+  </record>
+  <record id="rule_codestra_kyqra_entity_company" model="ir.rule">
+    <field name="name">Kyqra entities by allowed company</field>
+    <field name="model_id" ref="model_codestra_kyqra_entity"/>
+    <field name="groups" eval="[(4, ref('codestra_kyqra_review_hub.group_kyqra_reviewer'))]"/>
+    <field name="domain_force">[('batch_id.company_id', 'in', company_ids)]</field>
+  </record>
+  <record id="rule_codestra_kyqra_evidence_company" model="ir.rule">
+    <field name="name">Kyqra evidence by allowed company</field>
+    <field name="model_id" ref="model_codestra_kyqra_evidence"/>
+    <field name="groups" eval="[(4, ref('codestra_kyqra_review_hub.group_kyqra_reviewer'))]"/>
+    <field name="domain_force">[('entity_id.batch_id.company_id', 'in', company_ids)]</field>
+  </record>
+</odoo>
