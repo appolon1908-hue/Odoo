@@ -94,6 +94,16 @@ class TestCallControl(TransactionCase):
             "sequence": sequence,
         }
 
+    def test_integration_event_route_values_are_schema_aware(self):
+        extended = SimpleNamespace(_fields={"source": object(), "destination": object()})
+        standalone = SimpleNamespace(_fields={})
+
+        self.assertEqual(
+            call_control_controller._integration_event_route_values(extended),
+            {"source": "odoo", "destination": "middleware"},
+        )
+        self.assertEqual(call_control_controller._integration_event_route_values(standalone), {})
+
     def test_number_normalization_and_exact_matching(self):
         partner = self.env["res.partner"].create({"name": "Synthetic Customer", "phone": "+1 (617) 555-0100"})
         result = self.env["codestra.vicidial.call"].match_customer("617-555-0100")
