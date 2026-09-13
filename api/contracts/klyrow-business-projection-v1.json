@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0",
+  "producer": "codestra-middleware",
+  "consumer": "odoo-19",
+  "write_route": "POST /codestra/middleware/v1/klyrow/events",
+  "readback_route": "GET /codestra/middleware/v1/klyrow/events/{operation_id}",
+  "authentication": {
+    "method": "tenant-bound HMAC-SHA256",
+    "service_user_parameter": "codestra.klyrow.service_user_id",
+    "tenant_allowlist_parameter": "codestra.klyrow.tenant_ids",
+    "required_headers": [
+      "X-Codestra-Timestamp",
+      "X-Codestra-Event-ID",
+      "X-Codestra-Signature",
+      "X-Tenant-ID",
+      "X-Correlation-ID",
+      "Idempotency-Key"
+    ]
+  },
+  "event_types": [
+    "klyrow.tenant.created",
+    "klyrow.tenant.updated",
+    "klyrow.subscription.changed",
+    "klyrow.usage.daily",
+    "klyrow.kpi.daily",
+    "klyrow.campaign.summary",
+    "klyrow.domain.status",
+    "klyrow.provider.health",
+    "klyrow.account.held",
+    "klyrow.account.released"
+  ],
+  "idempotency": {
+    "event_id_globally_unique": true,
+    "idempotency_key_tenant_scoped": true,
+    "same_event_same_hash": "recorded response",
+    "same_event_different_hash": "409"
+  },
+  "projection": {
+    "model": "codestra.klyrow.business.projection",
+    "unique_identity": ["tenant_id", "event_family", "logical_key"],
+    "missing_tenant_response": 404,
+    "stale_update": "accepted_without_regression",
+    "direct_klyrow_access": false
+  },
+  "production": {
+    "authorized": false,
+    "upstream_odoo_write_gate": false
+  }
+}
