@@ -9,6 +9,19 @@ from odoo.exceptions import AccessError, ValidationError
 from odoo.http import request
 
 
+ACTIVE_CALL_STATES = (
+    "new",
+    "initiating",
+    "ringing",
+    "offered",
+    "answering",
+    "connected",
+    "held",
+    "transferring",
+    "ending",
+)
+
+
 class CallControlAPI(http.Controller):
     @staticmethod
     def _agent():
@@ -195,9 +208,30 @@ class CallControlAPI(http.Controller):
         else:
             normalized, lead, contact = self._resolve_destination(destination, campaign_id)
 
+        # Serialize dial requests for this agent. Transport idempotency handles
+        # an exact request replay; the active-call lookup also collapses two
+        # independently keyed requests (double-clicks or separate browser tabs).
+        request.env.cr.execute(
+            "SELECT id FROM codestra_vicidial_agent WHERE id = %s FOR UPDATE",
+            (agent.id,),
+        )
         prior = request.env["codestra.call.control.command"].search([("idempotency_key", "=", key)], limit=1)
         if prior:
             return {"duplicate": True, "call": prior.call_id.agent_payload()}
+        active = request.env["codestra.vicidial.call"].sudo().search(
+            [
+                ("agent_id", "=", agent.id),
+                ("tenant_id", "=", agent.tenant_id),
+                ("direction", "=", "outbound"),
+                ("campaign_id", "=", campaign.id),
+                ("destination", "=", normalized),
+                ("state", "in", ACTIVE_CALL_STATES),
+            ],
+            order="create_date desc",
+            limit=1,
+        )
+        if active:
+            return {"duplicate": True, "call": active.agent_payload()}
         public_id = str(uuid.uuid4())
         correlation = "call-" + public_id
         display_name = lead.display_name if lead else contact.display_name
