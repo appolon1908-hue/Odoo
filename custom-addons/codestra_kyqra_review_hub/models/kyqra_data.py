@@ -68,6 +68,8 @@ FORBIDDEN_URL_PARAMETER_SUFFIXES = ("_sig", "_signature")
 FORBIDDEN_COMPACT_URL_PARAMETER_SUFFIXES = tuple(
     suffix.replace("_", "") for suffix in FORBIDDEN_URL_PARAMETER_SUFFIXES
 )
+SECRET_NAME_FIELDS = frozenset({"key", "name"})
+SECRET_VALUE_FIELDS = frozenset({"value", "values"})
 IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$")
 HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 RFC3339_RE = re.compile(
@@ -83,7 +85,22 @@ REVIEWER_GROUP = "codestra_kyqra_review_hub.group_kyqra_reviewer"
 SERVICE_GROUP = "codestra_kyqra_review_hub.group_kyqra_service"
 
 
+def _contains_nul(value):
+    if isinstance(value, str):
+        return "\x00" in value
+    if isinstance(value, dict):
+        return any(
+            _contains_nul(key) or _contains_nul(child)
+            for key, child in value.items()
+        )
+    if isinstance(value, (list, tuple)):
+        return any(_contains_nul(child) for child in value)
+    return False
+
+
 def _canonical_json(value):
+    if _contains_nul(value):
+        raise ValidationError(_("Kyqra payload must not contain NUL characters."))
     try:
         return json.dumps(
             value,
@@ -233,6 +250,21 @@ def _is_forbidden_url_parameter(value):
 
 def _contains_forbidden_key(value):
     if isinstance(value, dict):
+        normalized_items = [
+            (_normalized_key(key), child) for key, child in value.items()
+        ]
+        has_named_secret = any(
+            normalized_key in SECRET_NAME_FIELDS
+            and isinstance(child, str)
+            and _is_forbidden_key(child)
+            for normalized_key, child in normalized_items
+        )
+        has_secret_value = any(
+            normalized_key in SECRET_VALUE_FIELDS
+            for normalized_key, _child in normalized_items
+        )
+        if has_named_secret and has_secret_value:
+            return True
         for key, child in value.items():
             if _is_forbidden_key(key):
                 return True

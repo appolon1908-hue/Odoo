@@ -208,6 +208,29 @@ class TestCodestraKyqraData(TransactionCase):
                 invalid["payload"]["results"][0]["data"][secret_key] = "secret"
                 with self.assertRaises(ValidationError):
                     self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
+        for name_field, value_field, secret_name in (
+            ("name", "value", "Authorization"),
+            ("key", "values", "APIKey"),
+            ("Name", "Value", "clientSecret"),
+        ):
+            with self.subTest(
+                name_field=name_field,
+                value_field=value_field,
+                secret_name=secret_name,
+            ):
+                invalid = copy.deepcopy(self._event())
+                secret_value = (
+                    ["Bearer secret"]
+                    if value_field.lower() == "values"
+                    else "Bearer secret"
+                )
+                invalid["payload"]["results"][0]["data"]["headers"] = [
+                    {name_field: secret_name, value_field: secret_value}
+                ]
+                with self.assertRaisesRegex(
+                    ValidationError, "forbidden secret material"
+                ):
+                    self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
         invalid = copy.deepcopy(self._event())
         invalid["payload"]["results"][0]["source_url"] = "http://example.invalid/page"
         with self.assertRaises(ValidationError):
@@ -247,6 +270,25 @@ class TestCodestraKyqraData(TransactionCase):
         with self.assertRaisesRegex(
             ValidationError, "credential-bearing URL parameters"
         ):
+            self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
+
+    def test_nul_characters_fail_closed_before_storage(self):
+        invalid = copy.deepcopy(self._event())
+        invalid["payload"]["results"][0]["data"]["name"] = "Acme\x00Corp"
+        with self.assertRaisesRegex(ValidationError, "NUL characters"):
+            self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
+
+        invalid = copy.deepcopy(self._event())
+        invalid["metadata"]["transport"] = {
+            "name": "safe",
+            "value": "bad\x00value",
+        }
+        with self.assertRaisesRegex(ValidationError, "NUL characters"):
+            self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
+
+        invalid = copy.deepcopy(self._event())
+        invalid["metadata"]["bad\x00key"] = "value"
+        with self.assertRaisesRegex(ValidationError, "NUL characters"):
             self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
 
     def test_source_url_authority_and_encoding_are_strict(self):
