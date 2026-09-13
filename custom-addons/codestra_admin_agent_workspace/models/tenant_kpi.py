@@ -57,9 +57,10 @@ class CodestraTenantWorkspaceKpi(models.Model):
         "platform_user_ids.membership_ids.campaign_id",
     )
     def _compute_workspace_kpis(self):
-        Membership = self.env["cc.campaign.membership"]
+        self.check_access("read")
+        Membership = self.env["cc.campaign.membership"].sudo()
         for tenant in self:
-            users = tenant.platform_user_ids
+            users = tenant.sudo().platform_user_ids
             tenant.workspace_platform_user_count = len(users)
             tenant.workspace_drift_count = len(
                 users.filtered(lambda u: u.provisioning_drift_status == "drift")

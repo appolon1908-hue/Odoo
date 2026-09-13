@@ -1,3 +1,5 @@
+import uuid
+
 from odoo import api, fields, models
 
 
@@ -17,6 +19,7 @@ class CodestraWorkspaceDispositionWizard(models.TransientModel):
     call_id = fields.Many2one("codestra.vicidial.call", required=True)
     disposition_id = fields.Many2one("codestra.vicidial.disposition")
     notes = fields.Text()
+    idempotency_key = fields.Char(default=lambda self: str(uuid.uuid4()), required=True, readonly=True, copy=False)
 
     @api.model
     def default_get(self, field_names):
@@ -31,5 +34,6 @@ class CodestraWorkspaceDispositionWizard(models.TransientModel):
         self.call_id.action_apply_workspace_disposition(
             disposition_id=self.disposition_id.id or None,
             notes=self.notes,
+            idempotency_key=self.idempotency_key,
         )
         return {"type": "ir.actions.act_window_close"}

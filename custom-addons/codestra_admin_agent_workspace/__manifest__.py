@@ -17,6 +17,7 @@
         "mail",
     ],
     "data": [
+        "security/workspace_roles.xml",
         "security/ir.model.access.csv",
         "views/agent_workspace_views.xml",
         "views/admin_console_views.xml",

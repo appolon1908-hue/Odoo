@@ -1,7 +1,7 @@
 import uuid
 
 from odoo import SUPERUSER_ID, fields
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 
@@ -26,6 +26,9 @@ class TestAgentWorkspaceCallOwnership(TransactionCase):
         cls.call_a = cls.env["codestra.vicidial.call"].sudo().create({
             "name": "CALL-A-" + cls._rand(),
             "agent_id": cls.agent_a.id,
+            "campaign_id": cls.campaign.id,
+            "call_id": "workspace-call-a",
+            "correlation_id": str(uuid.uuid4()),
             "tenant_id": "COD",
             "keycloak_subject": cls.agent_a_user.keycloak_subject,
             "state": "connected",
@@ -49,11 +52,6 @@ class TestAgentWorkspaceCallOwnership(TransactionCase):
             "login": f"workspace-agent-{label.lower()}-{cls._rand()}@example.invalid",
             "group_ids": [(6, 0, [
                 cls.env.ref("codestra_cc_security.group_cc_campaign_agent").id,
-                # codestra.vicidial.agent/call's own ACL (access_call_user in
-                # codestra_vicidial_crm/security/ir.model.access.csv) grants
-                # read to this group specifically - group_cc_campaign_agent
-                # alone does not cover this older, separate model family.
-                cls.env.ref("codestra_vicidial_crm.group_agent").id,
             ])],
         })
         user.write({
@@ -71,7 +69,7 @@ class TestAgentWorkspaceCallOwnership(TransactionCase):
 
     def test_agent_workspace_domain_scopes_to_own_calls_only(self):
         Call = self.env["codestra.vicidial.call"].with_user(self.agent_a_user)
-        own_calls = Call.search([("agent_id.odoo_user_id", "=", self.agent_a_user.id)])
+        own_calls = Call.search([])
         self.assertEqual(own_calls, self.call_a)
         self.assertNotIn(self.call_b, own_calls)
 
@@ -79,11 +77,42 @@ class TestAgentWorkspaceCallOwnership(TransactionCase):
         disposition = self.env["codestra.vicidial.disposition"].create({
             "name": "Interested", "code": "WS-INT-" + self._rand(),
         })
-        self.call_a.with_user(self.agent_a_user).action_apply_workspace_disposition(
-            disposition_id=disposition.id, notes="Synthetic wrap-up note",
-        )
+        self.call_a.sudo().write({"state": "completed", "wrap_up_started_at": fields.Datetime.now()})
+        key = str(uuid.uuid4())
+        for _ in range(2):
+            self.call_a.with_user(self.agent_a_user).action_apply_workspace_disposition(
+                disposition_id=disposition.id, notes="Synthetic wrap-up note", idempotency_key=key,
+            )
+        self.assertEqual(self.env["codestra.call.control.command"].sudo().search_count([("idempotency_key", "=", key)]), 1)
+        self.assertTrue(self.call_a.wrap_up_completed_at)
         self.assertEqual(self.call_a.disposition_id, disposition)
         self.assertEqual(self.call_a.notes, "Synthetic wrap-up note")
+
+    def test_explicit_lead_is_used_without_customer_matching(self):
+        lead = self.env["crm.lead"].create({"name": "Workspace explicit lead"})
+        self.call_a.write({"crm_lead_id": lead.id, "customer_id": False})
+        self.assertEqual(self.call_a.workspace_lead_id, lead)
+
+    def test_disposition_requires_terminal_state_and_notes(self):
+        disposition = self.env["codestra.vicidial.disposition"].create({
+            "name": "Needs note", "code": "WS-NOTE-" + self._rand(), "requires_note": True,
+        })
+        call = self.call_a.with_user(self.agent_a_user)
+        with self.assertRaises(ValidationError):
+            call.action_apply_workspace_disposition(disposition.id, "note", str(uuid.uuid4()))
+        self.call_a.sudo().write({"state": "completed"})
+        with self.assertRaises(ValidationError):
+            call.action_apply_workspace_disposition(disposition.id, "", str(uuid.uuid4()))
+        allowed = self.env["codestra.vicidial.disposition"].create({
+            "name": "Other allowed", "code": "WS-OTHER-" + self._rand(),
+        })
+        self.campaign.allowed_disposition_ids = [(6, 0, [allowed.id])]
+        with self.assertRaises(AccessError):
+            call.action_apply_workspace_disposition(disposition.id, "note", str(uuid.uuid4()))
+        self.campaign.allowed_disposition_ids = [(5, 0, 0)]
+        disposition.active = False
+        with self.assertRaises(AccessError):
+            call.action_apply_workspace_disposition(disposition.id, "note", str(uuid.uuid4()))
 
     def test_agent_cannot_apply_disposition_to_anothers_call(self):
         disposition = self.env["codestra.vicidial.disposition"].create({
@@ -237,6 +266,9 @@ class TestAdminConsoleTenantScope(TransactionCase):
             {"platform_user_id": agent_identity.id}
         )
         self.tenant_a.invalidate_recordset()
-        self.assertEqual(self.tenant_a.workspace_active_agent_count, 1)
-        self.assertEqual(self.tenant_a.workspace_campaign_count, 1)
-        self.assertEqual(self.tenant_a.workspace_drift_count, 0)
+        for viewer in (self.tenant_admin_user, self.platform_operator_user):
+            tenant = self.tenant_a.with_user(viewer)
+            tenant.invalidate_recordset()
+            self.assertEqual(tenant.workspace_active_agent_count, 1)
+            self.assertEqual(tenant.workspace_campaign_count, 1)
+            self.assertEqual(tenant.workspace_drift_count, 0)

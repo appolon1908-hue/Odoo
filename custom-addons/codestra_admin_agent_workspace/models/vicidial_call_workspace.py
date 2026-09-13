@@ -1,3 +1,7 @@
+import hashlib
+import json
+
+from odoo.exceptions import AccessError, ValidationError
 from odoo import _, api, fields, models
 
 # codestra.vicidial.call has no method for agent-initiated mute/hold/
@@ -28,7 +32,7 @@ class CodestraVicidialCallWorkspace(models.Model):
         "crm.lead",
         compute="_compute_workspace_fields",
         string="Matched Lead",
-        help="crm.lead sharing this call's customer_id, most recently "
+        help="The explicitly linked lead, falling back to the customer's most recently "
         "written first. Read-only projection for display; opening the full "
         "lead record (action_open_workspace_lead) is the supported way to "
         "edit lead fields, activities, or chatter.",
@@ -45,7 +49,7 @@ class CodestraVicidialCallWorkspace(models.Model):
         "chatter/activities.",
     )
 
-    @api.depends("state", "answered_at", "ended_at", "customer_id")
+    @api.depends("state", "answered_at", "ended_at", "customer_id", "crm_lead_id", "lead_id")
     def _compute_workspace_fields(self):
         now = fields.Datetime.now()
         for call in self:
@@ -57,7 +61,7 @@ class CodestraVicidialCallWorkspace(models.Model):
                 call.workspace_duration_display = "%02d:%02d" % divmod(seconds, 60)
             else:
                 call.workspace_duration_display = "00:00"
-            lead = (
+            lead = call.crm_lead_id or call.lead_id or (
                 self.env["crm.lead"].search(
                     [("partner_id", "=", call.customer_id.id)],
                     order="write_date desc", limit=1,
@@ -98,27 +102,48 @@ class CodestraVicidialCallWorkspace(models.Model):
             "res_id": self.workspace_lead_id.id,
         }
 
-    def action_apply_workspace_disposition(self, disposition_id=None, notes=None):
-        """Record disposition_id/notes for the agent's own call.
-
-        codestra.vicidial.call's own ACL grants group_agent read-only
-        access (access_call_user, custom-addons/codestra_vicidial_crm/
-        security/ir.model.access.csv) - deliberately not widened here, so
-        this is only reachable through the wizard in
-        workspace_disposition_wizard.py, whose own (new, ungoverned) ACL
-        is what actually lets an agent trigger it. _check_call_owner()
-        (defined on the base model this class extends) is the real
-        authorization check; sudo() only reaches the write this
-        already-authorized caller needs, the same pattern
-        codestra.platform.user.action_ensure_odoo_access() uses.
-        """
+    def action_apply_workspace_disposition(self, disposition_id=None, notes=None, idempotency_key=None):
+        """Apply the governed terminal-call workflow with durable replay evidence."""
         self.ensure_one()
+        self.check_access("read")
         self._check_call_owner()
-        values = {}
-        if disposition_id is not None:
-            values["disposition_id"] = disposition_id
-        if notes is not None:
-            values["notes"] = notes
-        if values:
-            self.sudo().write(values)
+        if not isinstance(idempotency_key, str) or not 16 <= len(idempotency_key) <= 255:
+            raise ValidationError("A valid Idempotency-Key is required.")
+        # Serialize retries and competing outcomes for this call. Odoo retries
+        # serialization failures with a fresh transaction snapshot.
+        self.lock_for_update()
+        self.invalidate_recordset()
+        if self.state not in {"completed", "failed", "missed", "rejected", "cancelled", "transferred"}:
+            raise ValidationError("Disposition is available only after a terminal call event.")
+        disposition = self.env["codestra.vicidial.disposition"].browse(disposition_id).exists()
+        if not disposition or not disposition.active or (
+                self.campaign_id.allowed_disposition_ids
+                and disposition not in self.campaign_id.allowed_disposition_ids):
+            raise AccessError("Disposition is not valid for this campaign.")
+        if disposition.requires_note and not (notes or "").strip():
+            raise ValidationError("This disposition requires notes.")
+        raw = json.dumps({"disposition_id": disposition.id, "notes": notes or ""}, sort_keys=True)
+        digest = hashlib.sha256((str(self.id) + "\ndisposition\n" + raw).encode()).hexdigest()
+        Command = self.env["codestra.call.control.command"].sudo()
+        prior = Command.search([("idempotency_key", "=", idempotency_key)], limit=1)
+        if prior:
+            if prior.request_hash != digest or prior.call_id != self or prior.actor_id != self.env.user:
+                raise ValidationError("Idempotency-Key conflicts with a different command.")
+            return True
+        completed_at = fields.Datetime.now()
+        seconds = max(0, int((completed_at - self.wrap_up_started_at).total_seconds())) if self.wrap_up_started_at else 0
+        command = Command.create({
+            "idempotency_key": idempotency_key, "request_hash": digest,
+            "call_id": self.id, "action": "disposition", "actor_id": self.env.user.id,
+            "correlation_id": self.correlation_id, "payload_json": raw, "state": "confirmed",
+        })
+        self.sudo().write({"disposition_id": disposition.id, "notes": notes or self.notes,
+                           "sub_disposition_id": False, "wrap_up_completed_at": completed_at,
+                           "wrap_up_seconds": seconds})
+        self.env["codestra.integration.audit"].sudo().create({
+            "actor_user_id": self.env.user.id, "action": "call.disposition", "model_name": self._name,
+            "record_res_id": self.id, "correlation_id": self.correlation_id,
+            "after_json": json.dumps({"command_id": command.id, "disposition": disposition.code}),
+            "success": True,
+        })
         return True
