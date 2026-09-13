@@ -13,6 +13,9 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
 
+# Process-local identity cannot be supplied through an RPC context.
+_INTERNAL_PROJECTION_WRITE = object()
+
 EVENT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$")
 IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$")
 DIGEST_RE = re.compile(r"^(?:sha256:)?[0-9a-f]{64}$")
@@ -479,12 +482,12 @@ class KyyowObservabilityKpiSnapshot(models.Model):
             if existing.projection_hash != clean["projection_hash"]:
                 raise ValidationError("KPI event replay has a different payload")
             return existing, True
-        record = self.with_context(codestra_observability_service=True).create(clean)
+        record = self.with_context(codestra_observability_service=_INTERNAL_PROJECTION_WRITE).create(clean)
         return record, False
 
     @api.model_create_multi
     def create(self, values_list):
-        if not self.env.context.get("codestra_observability_service"):
+        if self.env.context.get("codestra_observability_service") is not _INTERNAL_PROJECTION_WRITE:
             raise AccessError("KPI snapshots are service-managed and immutable.")
         prepared = []
         for values in values_list:
@@ -660,12 +663,12 @@ class KyyowObservabilityIncident(models.Model):
         }
         values["updated_at"] = fields.Datetime.now()
         if incident:
-            incident.with_context(codestra_observability_service=True).write(values)
+            incident.with_context(codestra_observability_service=_INTERNAL_PROJECTION_WRITE).write(values)
         else:
             incident = self.with_context(
-                codestra_observability_service=True
+                codestra_observability_service=_INTERNAL_PROJECTION_WRITE
             ).create(values)
-        event_model.with_context(codestra_observability_service=True).create(
+        event_model.with_context(codestra_observability_service=_INTERNAL_PROJECTION_WRITE).create(
             {
                 "event_id": clean["event_id"],
                 "receipt": {
@@ -694,15 +697,15 @@ class KyyowObservabilityIncident(models.Model):
 
     @api.model_create_multi
     def create(self, values_list):
-        if not self.env.context.get("codestra_observability_service"):
+        if self.env.context.get("codestra_observability_service") is not _INTERNAL_PROJECTION_WRITE:
             raise AccessError("Incidents are service-managed and immutable.")
         return super().create([_storage_values(values) for values in values_list])
 
     def write(self, values):
-        if not self.env.context.get("codestra_observability_service"):
+        if self.env.context.get("codestra_observability_service") is not _INTERNAL_PROJECTION_WRITE:
             raise AccessError("Incidents are service-managed and immutable.")
         protected = set(values) - {"updated_at"}
-        if protected and not self.env.context.get("codestra_observability_service"):
+        if protected and self.env.context.get("codestra_observability_service") is not _INTERNAL_PROJECTION_WRITE:
             raise AccessError("Incident state is service-managed.")
         return super().write(_storage_values(values))
 
@@ -781,7 +784,7 @@ class KyyowObservabilityIncidentEvent(models.Model):
 
     @api.model_create_multi
     def create(self, values_list):
-        if not self.env.context.get("codestra_observability_service"):
+        if self.env.context.get("codestra_observability_service") is not _INTERNAL_PROJECTION_WRITE:
             raise AccessError("Incident transitions are service-managed and immutable.")
         return super().create([_storage_values(values) for values in values_list])
 

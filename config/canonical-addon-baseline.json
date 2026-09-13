@@ -151,8 +151,8 @@
   "additional_strict_overrides": {
     "codestra_observability_integration": {
       "base_tree": "12d5d5ff8fb0133f2cd2ca5bb3b40e4edadea69d",
-      "current_tree": "b8719e9abd051bafe25de52affc7c49c14c717dd",
-      "reason": "PR #136 adds immutable per-event receipts, strict field validation and concurrent delivery handling. Business writes remain through Odoo ORM. The only raw SQL is a parameterized SELECT FOR UPDATE using the existing Odoo cursor; imported driver exceptions trigger whole-transaction retries without opening a database connection.",
+      "current_tree": "3332e9e09f886612b9d3d77c4a67308628edc903",
+      "reason": "PR #136 adds immutable per-event receipts, strict field validation and concurrent delivery handling. Business writes remain through Odoo ORM. The only raw SQL is a parameterized SELECT FOR UPDATE using the existing Odoo cursor; imported driver exceptions trigger whole-transaction retries without opening a database connection. Internal ORM writes require a process-local capability identity rather than a caller-supplied RPC context boolean.",
       "pull_request": 136,
       "integration_boundary_exceptions": [
         {
