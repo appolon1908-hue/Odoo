@@ -255,7 +255,10 @@ class TestCodestraAgentOnboarding(TransactionCase):
             "middleware_request_id": str(uuid.uuid4()),
             "request_id": onboarding.integration_uuid,
             "tenant_id": "codestra-test",
-            "employee_id": request_record.employee_id.codestra_employee_number,
+            # The governed start action reserves the employee number immediately
+            # before it calls Middleware, so the mock binds its response to the
+            # final outbound payload below rather than this pre-reservation value.
+            "employee_id": False,
             "state": "PARTIAL",
             "correlation_id": request_record.correlation_id,
             "version": 1,
@@ -272,7 +275,13 @@ class TestCodestraAgentOnboarding(TransactionCase):
             "steps": [],
         }
         client = self.env["codestra.agent.provisioning.middleware.client"]
-        with patch.object(type(client), "_create_request", return_value=response):
+
+        def middleware_response(_onboarding, payload, **_kwargs):
+            return {**response, "employee_id": payload["employee_id"]}
+
+        with patch.object(
+            type(client), "_create_request", side_effect=middleware_response
+        ):
             onboarding.with_user(self.approver).action_start_provisioning()
         onboarding.invalidate_recordset(
             [
@@ -771,6 +780,9 @@ class TestCodestraAgentOnboarding(TransactionCase):
     def test_middleware_accepts_an_accepted_nonterminal_response(self):
         onboarding = self._new_onboarding(email="async.middleware@example.invalid")
         request_record = self._prepare(onboarding)
+        request_record.with_user(self.approver).action_approve()
+        request_record.with_user(SUPERUSER_ID).action_reserve_identifiers()
+        request_record.employee_id.invalidate_recordset(["codestra_employee_number"])
         middleware_request_id = str(uuid.uuid4())
         response = {
             "middleware_request_id": middleware_request_id,
@@ -920,6 +932,10 @@ class TestCodestraAgentOnboarding(TransactionCase):
         with self.assertRaisesRegex(ValueError, "middleware_keycloak_subject_mismatch"):
             onboarding._apply_middleware_result(
                 {**base, "keycloak_subject": str(uuid.uuid4())}
+            )
+        with self.assertRaisesRegex(ValueError, "middleware_employee_binding_mismatch"):
+            onboarding._apply_middleware_result(
+                {**base, "employee_id": "OTHER-EMPLOYEE"}
             )
 
     def test_membership_channel_ids_reflect_created_channels(self):
