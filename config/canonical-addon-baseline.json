@@ -151,7 +151,7 @@
     },
     "codestra_integration_hub": {
       "base_tree": "f4db314a557fdf2a9e0aac81ed5543d1994f7f70",
-      "current_tree": "69f5419208c4cc803d128b5a2a5ddecf482dcdf0",
+      "current_tree": "0a258ab374623899f8c93f7956cda353a7b4786f",
       "reason": "PR #139 hardens the immutable integration-audit boundary with eventless subject anchors, exact-event binding, explicit pre-elevation actor attribution, redacted base-field projections, and a globally serialized hash tail. The serialized writer locks only the installed codestra_integration_hub row through Odoo's active PostgreSQL transaction before reading the current tail; it opens no external connection and retains the historical hash payload so existing audit chains remain verifiable. Direct create, write, and unlink remain denied, and no integration delivery or external-effect flag is enabled.",
       "pull_request": 139,
       "integration_boundary_exceptions": [

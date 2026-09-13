@@ -1,6 +1,7 @@
 {
     "name": "Codestra Integration Hub",
     "version": "19.0.1.0.2",
+    "summary": "Governed integration events, delivery, idempotency, and immutable audit",
     "author": "Codestra",
     "category": "Codestra/Integration",
     "license": "LGPL-3",
