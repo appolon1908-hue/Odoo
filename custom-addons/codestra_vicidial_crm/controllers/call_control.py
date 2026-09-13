@@ -22,6 +22,15 @@ ACTIVE_CALL_STATES = (
 )
 
 
+def _integration_event_route_values(event_model):
+    """Populate integration-hub routing aliases only when that extension is installed."""
+    aliases = {
+        "source": "odoo",
+        "destination": "middleware",
+    }
+    return {name: value for name, value in aliases.items() if name in event_model._fields}
+
+
 class CallControlAPI(http.Controller):
     @staticmethod
     def _agent():
@@ -1122,12 +1131,14 @@ class CallControlAPI(http.Controller):
             }
         )
         if telephony_action:
-            request.env["codestra.integration.event"].sudo().create(
+            Event = request.env["codestra.integration.event"].sudo()
+            Event.create(
                 {
                     "name": f"Call control {action}",
                     "event_type": f"call.command.{action}",
                     "source_system": "odoo",
                     "destination_system": "middleware",
+                    **_integration_event_route_values(Event),
                     "direction": "outbound",
                     "correlation_id": call.correlation_id,
                     "idempotency_key": "command:" + key,
