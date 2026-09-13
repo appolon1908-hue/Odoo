@@ -1,7 +1,7 @@
 import copy
 import uuid
 
-from odoo.exceptions import AccessError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests.common import TransactionCase, tagged
 
 
@@ -118,6 +118,36 @@ class TestCodestraKyqraData(TransactionCase):
         self.assertFalse(batch.allow_external_contact)
         self.assertTrue(batch.review_required)
 
+    def test_batch_actions_preserve_existing_entity_decisions(self):
+        rejected_result = self.env["codestra.kyqra.batch"].apply_middleware_event(
+            self._event()
+        )
+        rejected_batch = self.env["codestra.kyqra.batch"].browse(
+            rejected_result["batch_id"]
+        )
+        rejected_entity = rejected_batch.entity_ids
+        rejected_entity.action_reject()
+        with self.assertRaises(UserError):
+            rejected_batch.action_approve()
+        self.assertEqual(rejected_batch.state, "review_pending")
+        self.assertEqual(rejected_entity.review_state, "rejected")
+
+        approved_result = self.env["codestra.kyqra.batch"].apply_middleware_event(
+            self._event(
+                event_id="kyqra-event-2",
+                idempotency_key="kyqra-idem-2",
+            )
+        )
+        approved_batch = self.env["codestra.kyqra.batch"].browse(
+            approved_result["batch_id"]
+        )
+        approved_entity = approved_batch.entity_ids
+        approved_entity.action_approve()
+        with self.assertRaises(UserError):
+            approved_batch.action_reject()
+        self.assertEqual(approved_batch.state, "review_pending")
+        self.assertEqual(approved_entity.review_state, "approved")
+
     def test_direct_mutation_and_deletion_are_blocked(self):
         result = self.env["codestra.kyqra.batch"].apply_middleware_event(self._event())
         batch = self.env["codestra.kyqra.batch"].browse(result["batch_id"])
@@ -173,6 +203,25 @@ class TestCodestraKyqraData(TransactionCase):
                     self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
         invalid = copy.deepcopy(self._event())
         invalid["payload"]["results"][0]["source_url"] = "http://example.invalid/page"
+        with self.assertRaises(ValidationError):
+            self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
+        for source_url in (
+            "https://example.invalid/page?api_key=secret",
+            "https://example.invalid/page?APIKey=secret",
+            "https://example.invalid/page?x-api-key=secret",
+            "https://example.invalid/page?safe=value;token=secret",
+            "https://example.invalid/page?api%5Fkey=secret",
+            "https://example.invalid/page#access_token=secret",
+        ):
+            with self.subTest(source_url=source_url):
+                invalid = copy.deepcopy(self._event())
+                invalid["payload"]["results"][0]["source_url"] = source_url
+                with self.assertRaises(ValidationError):
+                    self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
+        invalid = copy.deepcopy(self._event())
+        invalid["payload"]["results"][0]["provenance"]["source_url"] = (
+            "https://example.invalid/page?token=secret"
+        )
         with self.assertRaises(ValidationError):
             self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
 

@@ -112,6 +112,21 @@ def _safe_url(value, label):
         or parsed.password
     ):
         raise ValidationError(_("%s must be an HTTPS URL without credentials.") % label)
+    for component in (parsed.query, parsed.fragment):
+        try:
+            parameters = urllib.parse.parse_qsl(
+                component.replace(";", "&"),
+                keep_blank_values=True,
+                max_num_fields=100,
+            )
+        except ValueError as exc:
+            raise ValidationError(
+                _("%s contains an invalid or excessive URL parameter set.") % label
+            ) from exc
+        if any(_is_forbidden_key(key) for key, _value in parameters):
+            raise ValidationError(
+                _("%s must not contain credential-bearing URL parameters.") % label
+            )
     return value
 
 
@@ -121,14 +136,18 @@ def _normalized_key(value):
     return re.sub(r"[^a-z0-9]+", "_", key.lower()).strip("_")
 
 
+def _is_forbidden_key(value):
+    normalized_key = _normalized_key(value)
+    return (
+        normalized_key in FORBIDDEN_KEYS
+        or normalized_key.endswith(FORBIDDEN_KEY_SUFFIXES)
+    )
+
+
 def _contains_forbidden_key(value):
     if isinstance(value, dict):
         for key, child in value.items():
-            normalized_key = _normalized_key(key)
-            if (
-                normalized_key in FORBIDDEN_KEYS
-                or normalized_key.endswith(FORBIDDEN_KEY_SUFFIXES)
-            ):
+            if _is_forbidden_key(key):
                 return True
             if _contains_forbidden_key(child):
                 return True
@@ -433,6 +452,15 @@ class CodestraKyqraBatch(models.Model):
             ):
                 raise ValidationError(_("%s.provenance must contain strings.") % label)
             provenance = dict(item["provenance"])
+            if "source_url" in provenance:
+                provenance_url = _safe_url(
+                    provenance["source_url"], f"{label}.provenance.source_url"
+                )
+                if provenance_url != source_url:
+                    raise ValidationError(
+                        _("%s provenance source URL must match source_url.") % label
+                    )
+                provenance["source_url"] = provenance_url
             if "captured_at" in provenance:
                 provenance["captured_at"] = _rfc3339(
                     provenance["captured_at"], f"{label}.provenance.captured_at"
@@ -643,6 +671,11 @@ class CodestraKyqraBatch(models.Model):
         self._assert_reviewer()
         if any(batch.state != "review_pending" for batch in self):
             raise UserError(_("Only review-pending batches can be approved."))
+        entities = self.mapped("entity_ids")
+        if any(entity.review_state != "review_pending" for entity in entities):
+            raise UserError(
+                _("All entities must remain review pending before batch approval.")
+            )
         now = fields.Datetime.now()
         self.with_context(**{INTERNAL_CONTEXT: _INTERNAL_CAPABILITY}).write(
             {
@@ -651,7 +684,7 @@ class CodestraKyqraBatch(models.Model):
                 "reviewed_at": now,
             }
         )
-        self.mapped("entity_ids").with_context(**{INTERNAL_CONTEXT: _INTERNAL_CAPABILITY}).write(
+        entities.with_context(**{INTERNAL_CONTEXT: _INTERNAL_CAPABILITY}).write(
             {
                 "review_state": "approved",
                 "reviewed_by_id": self.env.user.id,
@@ -664,6 +697,11 @@ class CodestraKyqraBatch(models.Model):
         self._assert_reviewer()
         if any(batch.state != "review_pending" for batch in self):
             raise UserError(_("Only review-pending batches can be rejected."))
+        entities = self.mapped("entity_ids")
+        if any(entity.review_state != "review_pending" for entity in entities):
+            raise UserError(
+                _("All entities must remain review pending before batch rejection.")
+            )
         now = fields.Datetime.now()
         self.with_context(**{INTERNAL_CONTEXT: _INTERNAL_CAPABILITY}).write(
             {
@@ -672,7 +710,7 @@ class CodestraKyqraBatch(models.Model):
                 "reviewed_at": now,
             }
         )
-        self.mapped("entity_ids").with_context(**{INTERNAL_CONTEXT: _INTERNAL_CAPABILITY}).write(
+        entities.with_context(**{INTERNAL_CONTEXT: _INTERNAL_CAPABILITY}).write(
             {
                 "review_state": "rejected",
                 "reviewed_by_id": self.env.user.id,
