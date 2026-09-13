@@ -111,3 +111,51 @@ test("a successful two-way call event still populates history and clears any pri
     assert.equal(popup.ui.error, "");
     assert.deepEqual(popup.ui.history, [{ id: 1 }]);
 });
+
+
+test("dialpad call locks before lookup so rapid double-clicks queue once", async () => {
+    let releaseMatch;
+    const matchPending = new Promise((resolve) => {
+        releaseMatch = resolve;
+    });
+    const { popup, requests } = await popupHarness({
+        "/codestra/call-control/v1/match": () => matchPending,
+        "/codestra/call-control/v1/outbound": () => ({
+            duplicate: false,
+            call: { call_id: "call-double-click", state: "initiating" },
+        }),
+    });
+    Object.assign(popup.ui.dialpad, {
+        enabled: true,
+        number: "+16175550101",
+        campaignId: "TEST_SYN",
+    });
+    popup.handleCall = async () => {};
+
+    const first = popup.dialpadCall();
+    const second = popup.dialpadCall();
+    await second;
+
+    assert.equal(popup.ui.dialpad.busy, true);
+    assert.equal(
+        requests.filter(({ route }) => route === "/codestra/call-control/v1/match").length,
+        1
+    );
+    assert.equal(
+        requests.filter(({ route }) => route === "/codestra/call-control/v1/outbound").length,
+        0
+    );
+
+    releaseMatch({
+        match: "exact",
+        matches: [{ model: "lead", id: 101, name: "Synthetic Dialpad Duplicate" }],
+    });
+    await first;
+
+    const outbound = requests.filter(
+        ({ route }) => route === "/codestra/call-control/v1/outbound"
+    );
+    assert.equal(outbound.length, 1);
+    assert.equal(outbound[0].params.idempotency_key, "test-id");
+    assert.equal(popup.ui.dialpad.busy, false);
+});
