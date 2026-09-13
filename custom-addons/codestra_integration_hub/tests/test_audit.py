@@ -4,7 +4,13 @@ import uuid
 from odoo import SUPERUSER_ID, api
 from odoo.exceptions import AccessError, ValidationError
 from odoo.modules.registry import Registry
-from odoo.tests.common import TransactionCase, new_test_user, tagged
+from odoo.tests.common import (
+    BaseCase,
+    TransactionCase,
+    get_db_name,
+    new_test_user,
+    tagged,
+)
 
 
 class TestAudit(TransactionCase):
@@ -147,20 +153,48 @@ class TestAudit(TransactionCase):
 
 
 @tagged("-at_install", "post_install")
-class TestAuditConcurrency(TransactionCase):
-    def test_parallel_transactions_cannot_fork_the_hash_chain(self):
-        Audit = self.env["codestra.integration.audit"].sudo()
-        dbname = self.env.cr.dbname
-        tail = Audit.search([], order="id desc", limit=1).record_hash or ""
+class TestAuditConcurrency(BaseCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.registry = Registry(get_db_name())
         token = uuid.uuid4().hex
-        correlations = [f"corr-parallel-{token}-one", f"corr-parallel-{token}-two"]
+        cls.correlations = [
+            f"corr-parallel-{token}-one",
+            f"corr-parallel-{token}-two",
+        ]
+        cls.addClassCleanup(cls._remove_test_audits)
+
+    @classmethod
+    def _remove_test_audits(cls):
+        with cls.registry.cursor() as cr:
+            cr.execute(
+                """
+                DELETE FROM codestra_integration_audit
+                 WHERE correlation_id IN %s
+                """,
+                [tuple(cls.correlations)],
+            )
+
+    def test_parallel_transactions_cannot_fork_the_hash_chain(self):
+        with self.registry.cursor() as cr:
+            env = api.Environment(cr, SUPERUSER_ID, {})
+            tail = (
+                env["codestra.integration.audit"]
+                .sudo()
+                .search([], order="id desc", limit=1)
+                .record_hash
+                or ""
+            )
+
         barrier = threading.Barrier(2)
         errors = []
 
         def append_in_transaction(correlation_id):
             try:
-                with Registry(dbname).cursor() as cr:
+                with self.registry.cursor() as cr:
                     env = api.Environment(cr, SUPERUSER_ID, {})
+                    cr.execute("SET LOCAL lock_timeout = '10s'")
                     barrier.wait(timeout=10)
                     env["codestra.integration.audit"]._append(
                         False,
@@ -182,7 +216,7 @@ class TestAuditConcurrency(TransactionCase):
 
         workers = [
             threading.Thread(target=append_in_transaction, args=(correlation_id,))
-            for correlation_id in correlations
+            for correlation_id in self.correlations
         ]
         for worker in workers:
             worker.start()
@@ -191,13 +225,18 @@ class TestAuditConcurrency(TransactionCase):
 
         self.assertFalse(any(worker.is_alive() for worker in workers), "Concurrent append workers did not finish.")
         self.assertFalse(errors, repr(errors))
-        self.env.invalidate_all()
-        records = Audit.search(
-            [("correlation_id", "in", correlations)],
-            order="id asc",
-        )
-        self.assertEqual(len(records), 2)
-        self.assertEqual(records[0].previous_hash, tail)
-        self.assertEqual(records[1].previous_hash, records[0].record_hash)
-        self.assertTrue(Audit.verify_chain())
+        with self.registry.cursor() as cr:
+            env = api.Environment(cr, SUPERUSER_ID, {})
+            Audit = env["codestra.integration.audit"].sudo()
+            records = Audit.search(
+                [("correlation_id", "in", self.correlations)],
+                order="id asc",
+            )
+            self.assertEqual(len(records), 2)
+            self.assertEqual(records[0].previous_hash, tail)
+            self.assertEqual(
+                records[1].previous_hash,
+                records[0].record_hash,
+            )
+            self.assertTrue(Audit.verify_chain())
 
