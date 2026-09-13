@@ -86,6 +86,33 @@ class TestKlyrowBusinessProjection(TransactionCase):
         with self.assertRaises(ValidationError):
             model.apply_event(update, "not-a-sha256")
 
+    def test_projection_accepts_the_full_upstream_identifier_contract(self):
+        model = self.env["codestra.klyrow.business.projection"]
+        tenant_id = "t" * 200
+        event_id = "evt_" + "e" * 196
+        correlation_id = "c" * 200
+        causation_id = "a" * 200
+        payload = self.payload(
+            "klyrow.tenant.created",
+            operation="7",
+            event="7",
+            data={"tenant_id": tenant_id, "enabled": True},
+        )
+        payload.update(
+            {
+                "tenant_id": tenant_id,
+                "event_id": event_id,
+                "correlation_id": correlation_id,
+                "causation_id": causation_id,
+            }
+        )
+        projection, outcome = model.apply_event(payload, "7" * 64)
+        self.assertEqual(outcome, "created")
+        self.assertEqual(projection.tenant_id, tenant_id)
+        self.assertEqual(projection.last_event_id, event_id)
+        self.assertEqual(projection.correlation_id, correlation_id)
+        self.assertEqual(projection.causation_id, causation_id)
+
     def test_stale_projection_does_not_regress_and_records_cannot_be_deleted(self):
         model = self.env["codestra.klyrow.business.projection"]
         tenant, _ = model.apply_event(

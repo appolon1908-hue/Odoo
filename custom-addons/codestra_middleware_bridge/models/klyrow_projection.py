@@ -114,15 +114,15 @@ class KlyrowBusinessProjection(models.Model):
         if len(raw_data.encode()) > 65536:
             raise ValidationError("Klyrow projection data is too large")
 
-        tenant_id = _text(payload.get("tenant_id"), "tenant_id", 128)
+        tenant_id = _text(payload.get("tenant_id"), "tenant_id", 200)
         operation_id = _text(payload.get("operation_id"), "operation_id", 35)
         if not re.fullmatch(r"op_[0-9a-f]{32}", operation_id):
             raise ValidationError("operation_id is invalid")
-        event_id = _text(payload.get("event_id"), "event_id", 128)
-        correlation_id = _text(payload.get("correlation_id"), "correlation_id", 180)
+        event_id = _text(payload.get("event_id"), "event_id", 200)
+        correlation_id = _text(payload.get("correlation_id"), "correlation_id", 200)
         causation_id = payload.get("causation_id")
         if causation_id is not None:
-            causation_id = _text(causation_id, "causation_id", 180)
+            causation_id = _text(causation_id, "causation_id", 200)
         occurred_at = _timestamp(payload.get("occurred_at"), "occurred_at")
 
         family = event_type.split(".")[1]
