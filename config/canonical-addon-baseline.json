@@ -159,7 +159,7 @@
         {
           "path": "models/kyqra_data.py",
           "kind": "odoo_internal_driver_exception",
-          "reason": "Convert only known batch reservation UniqueViolation constraints into SerializationFailure so Odoo retries using a fresh snapshot."
+          "reason": "Convert only known batch reservation UniqueViolation constraints into Odoo ConcurrencyError so service.model.retrying() restarts the whole transaction with a fresh snapshot."
         }
       ]
     },
