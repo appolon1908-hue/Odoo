@@ -16,11 +16,14 @@ from __future__ import annotations
 
 import ast
 import json
+import hashlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "contracts" / "observability-control-plane.v1.json"
 ADDONS = ROOT / "custom-addons"
+SOURCE_COMMIT = '4809fde4e7ffb2476ffe4858b76da7df51f3db3c'
+CONTRACT_SHA256 = 'a7f9767b353fa30e9122d275bf5ae4ca6bfe8036653f3658d7787b6d8694f197'
 
 # A route is treated as "Alertmanager-shaped" if its handler mentions any
 # of these - the same vocabulary Alertmanager's own native webhook payload
@@ -37,23 +40,27 @@ def fail(message: str) -> None:
     raise SystemExit(f"OBSERVABILITY_CONTROL_PLANE=FAIL {message}")
 
 
-def find_metrics_route(source: str, path: str) -> bool:
-    tree = ast.parse(source)
-    for node in ast.walk(tree):
+def route_paths(source: str) -> set[str]:
+    paths = set()
+    for node in ast.walk(ast.parse(source)):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         for decorator in node.decorator_list:
-            if not (
-                isinstance(decorator, ast.Call)
-                and isinstance(decorator.func, ast.Attribute)
-                and decorator.func.attr == "route"
-                and decorator.args
-                and isinstance(decorator.args[0], ast.Constant)
-                and decorator.args[0].value == path
-            ):
+            if not (isinstance(decorator, ast.Call)
+                    and isinstance(decorator.func, ast.Attribute)
+                    and decorator.func.attr == "route"):
                 continue
-            return True
-    return False
+            value = decorator.args[0] if decorator.args else next(
+                (kw.value for kw in decorator.keywords if kw.arg == "route"), None
+            )
+            values = value.elts if isinstance(value, (ast.List, ast.Tuple)) else [value]
+            paths.update(v.value for v in values
+                         if isinstance(v, ast.Constant) and isinstance(v.value, str))
+    return paths
+
+
+def find_metrics_route(source: str, path: str) -> bool:
+    return path in route_paths(source)
 
 
 def main() -> int:
@@ -65,8 +72,10 @@ def main() -> int:
         fail("Middleware is not the declared canonical owner")
     if contract.get("source_repository") != "appolon1908-hue/Middleware-":
         fail("pinned contract is missing its source_repository pin")
-    if not contract.get("source_commit"):
-        fail("pinned contract is missing its source_commit pin")
+    if contract.get("source_commit") != SOURCE_COMMIT:
+        fail("pinned contract source_commit differs from the reviewed source")
+    if hashlib.sha256(CONTRACT.read_bytes()).hexdigest() != CONTRACT_SHA256:
+        fail("pinned canonical contract bytes have drifted")
 
     odoo_endpoints = contract.get("endpoints", {}).get("appolon1908-hue/Odoo")
     if odoo_endpoints is None:
@@ -92,6 +101,9 @@ def main() -> int:
     metrics_found = False
     for controller_path in ADDONS.rglob("controllers/*.py"):
         text = controller_path.read_text(encoding="utf-8", errors="replace")
+        for path in route_paths(text):
+            if "alertmanager" in path.casefold():
+                fail(f"{controller_path.relative_to(ROOT)} declares a prohibited Alertmanager receiver")
         for marker in ALERTMANAGER_PAYLOAD_MARKERS:
             if marker in text:
                 fail(
