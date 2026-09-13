@@ -75,7 +75,7 @@ def _protected_value(path_value, label):
             not path.is_absolute()
             or path.is_symlink()
             or not path.is_file()
-            or mode & 0o027
+            or mode & 0o077
         ):
             raise OSError
         value = path.read_text(encoding="utf-8").strip()
@@ -271,7 +271,7 @@ class CodestraMiddlewareAgentProvisioningTransport(models.AbstractModel):
         return response
 
     @api.model
-    def create_request(self, payload, *, idempotency_key, correlation_id):
+    def _create_request(self, payload, *, idempotency_key, correlation_id):
         if not isinstance(payload, dict) or not payload.get("request_id"):
             raise ValidationError("Middleware provisioning payload is invalid.")
         if not isinstance(idempotency_key, str) or len(idempotency_key) < 16:
@@ -303,7 +303,7 @@ class CodestraMiddlewareAgentProvisioningTransport(models.AbstractModel):
         )
 
     @api.model
-    def reconcile_request(
+    def _reconcile_request(
         self,
         middleware_request_id,
         *,

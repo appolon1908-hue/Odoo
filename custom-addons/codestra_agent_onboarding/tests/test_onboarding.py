@@ -272,7 +272,7 @@ class TestCodestraAgentOnboarding(TransactionCase):
             "steps": [],
         }
         client = self.env["codestra.agent.provisioning.middleware.client"]
-        with patch.object(type(client), "create_request", return_value=response):
+        with patch.object(type(client), "_create_request", return_value=response):
             onboarding.with_user(self.approver).action_start_provisioning()
         onboarding.invalidate_recordset(
             [
@@ -396,7 +396,7 @@ class TestCodestraAgentOnboarding(TransactionCase):
             "steps": [],
         }
         client = self.env["codestra.agent.provisioning.middleware.client"]
-        with patch.object(type(client), "reconcile_request", return_value=response) as reconcile:
+        with patch.object(type(client), "_reconcile_request", return_value=response) as reconcile:
             onboarding.with_user(self.approver).action_start_provisioning()
         reconcile.assert_called_once()
         self.assertEqual(onboarding.middleware_version, 2)
@@ -1077,3 +1077,34 @@ class TestCodestraAgentOnboarding(TransactionCase):
                 "starts_at": fields.Datetime.now(),
                 "platform_user_id": platform_user.id,
             })
+
+
+    def test_provisioning_transport_is_private_to_rpc(self):
+        from odoo.orm.utils import check_method_name
+        for model_name in ("codestra.agent.provisioning.middleware.client",
+                           "codestra.middleware.agent.provisioning.transport"):
+            model = self.env[model_name]
+            for method in ("create_request", "reconcile_request"):
+                self.assertFalse(hasattr(model, method))
+                with self.assertRaises(AccessError):
+                    check_method_name("_" + method)
+
+    def test_transport_requires_approved_onboarding(self):
+        onboarding = self._new_onboarding().with_user(self.approver)
+        client = self.env["codestra.agent.provisioning.middleware.client"].with_user(self.approver)
+        with self.assertRaises(AccessError):
+            client._create_request(onboarding, {"request_id": onboarding.integration_uuid},
+                                   idempotency_key=str(uuid.uuid4()), correlation_id="unapproved")
+
+    def test_provisioning_credentials_reject_group_read(self):
+        import tempfile
+        from pathlib import Path
+        from odoo.addons.codestra_middleware_bridge.models.agent_provisioning_transport import _protected_value
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "credential"
+            path.write_text("synthetic-runtime-test-value")
+            path.chmod(0o640)
+            with self.assertRaises(ValidationError):
+                _protected_value(str(path), "test")
+            path.chmod(0o600)
+            self.assertEqual(_protected_value(str(path), "test"), "synthetic-runtime-test-value")

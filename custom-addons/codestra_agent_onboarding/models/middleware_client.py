@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from odoo import SUPERUSER_ID, api, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 
 from odoo.addons.codestra_middleware_bridge.models.agent_provisioning_transport import (
     MiddlewareProvisioningOutcomeUnknown,
@@ -22,7 +22,22 @@ class CodestraAgentProvisioningMiddlewareClient(models.AbstractModel):
     _description = "Canonical Middleware Agent Provisioning Client"
 
     @api.model
-    def create_request(self, payload, *, idempotency_key, correlation_id):
+    def _authorize_workflow(self, onboarding, correlation_id):
+        onboarding.ensure_one()
+        onboarding._require_global_administrator()
+        request = onboarding.provisioning_request_id
+        if (onboarding.state != "provisioning" or not request
+                or request.correlation_id != correlation_id
+                or request.state not in {"provisioning", "partially_provisioned", "verification", "awaiting_user_activation", "failed"}
+                or not onboarding.campaign_membership_id
+                or onboarding.campaign_membership_id.state != "pending_sync"):
+            raise AccessError("An approved onboarding workflow is required.")
+
+    @api.model
+    def _create_request(self, onboarding, payload, *, idempotency_key, correlation_id):
+        self._authorize_workflow(onboarding, correlation_id)
+        if not isinstance(payload, dict) or payload.get("request_id") != onboarding.integration_uuid:
+            raise AccessError("Provisioning request identity mismatch.")
         if not isinstance(payload, dict) or not payload.get("request_id"):
             raise ValidationError("Middleware provisioning payload is invalid.")
         if not isinstance(idempotency_key, str) or len(idempotency_key) < 16:
@@ -31,24 +46,29 @@ class CodestraAgentProvisioningMiddlewareClient(models.AbstractModel):
             raise ValidationError("Middleware provisioning correlation ID is invalid.")
         return self.env[
             "codestra.middleware.agent.provisioning.transport"
-        ].with_user(SUPERUSER_ID).create_request(
+        ].with_user(SUPERUSER_ID)._create_request(
             payload,
             idempotency_key=idempotency_key,
             correlation_id=correlation_id,
         )
 
     @api.model
-    def reconcile_request(
+    def _reconcile_request(
         self,
+        onboarding,
         middleware_request_id,
         *,
         correlation_id,
         reason,
         expected_request_id=None,
     ):
+        self._authorize_workflow(onboarding, correlation_id)
+        if (middleware_request_id != onboarding.middleware_request_id
+                or expected_request_id != onboarding.integration_uuid):
+            raise AccessError("Provisioning request identity mismatch.")
         return self.env[
             "codestra.middleware.agent.provisioning.transport"
-        ].with_user(SUPERUSER_ID).reconcile_request(
+        ].with_user(SUPERUSER_ID)._reconcile_request(
             middleware_request_id,
             correlation_id=correlation_id,
             reason=reason,

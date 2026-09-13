@@ -1553,17 +1553,19 @@ class CodestraAgentOnboardingProvisioning(models.Model):
             )
             client = self.env[
                 "codestra.agent.provisioning.middleware.client"
-            ].with_user(SUPERUSER_ID)
+            ]
             try:
                 if record.middleware_request_id:
-                    response = client.reconcile_request(
+                    response = client._reconcile_request(
+                        record,
                         record.middleware_request_id,
                         correlation_id=request_record.correlation_id,
                         reason="Odoo administrator requested provisioning reconciliation.",
                         expected_request_id=record.integration_uuid,
                     )
                 else:
-                    response = client.create_request(
+                    response = client._create_request(
+                        record,
                         record._middleware_provisioning_payload(),
                         idempotency_key=record._provisioning_idempotency_key(),
                         correlation_id=request_record.correlation_id,
