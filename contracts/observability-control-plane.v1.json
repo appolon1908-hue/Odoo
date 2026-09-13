@@ -1,0 +1,222 @@
+{
+  "schema_version": "1.0",
+  "contract_id": "codestra.observability-control-plane",
+  "status": "PARTIALLY_LIVE",
+  "canonical_owner": "appolon1908-hue/Middleware-",
+  "repositories": {
+    "metrics_and_alerting_authority": "appolon1908-hue/Middleware-",
+    "edge_routing_authority": "appolon1908-hue/Caddy",
+    "business_authority": "appolon1908-hue/Odoo",
+    "orchestration": "appolon1908-hue/N8N",
+    "gateway_authority": "appolon1908-hue/Kong"
+  },
+  "services": [
+    {
+      "service": "prometheus",
+      "repo": "appolon1908-hue/Codestra-Prometheus",
+      "role": "collects_and_calculates_technical_metrics_and_alerts",
+      "direction": "pull_scrape",
+      "public_route_allowed": false
+    },
+    {
+      "service": "alertmanager",
+      "repo": "appolon1908-hue/Codestra-Alertmanager",
+      "role": "sends_alerts_to_middleware_only",
+      "direction": "push",
+      "public_route_allowed": false,
+      "authorized_receiver": "appolon1908-hue/Middleware-",
+      "authorized_receiver_client_id": "alertmanager-service"
+    },
+    {
+      "service": "grafana",
+      "repo": "appolon1908-hue/Codestra-Grafana-",
+      "role": "read_only_display_of_odoo_health_latency_errors_backlog_and_alerts",
+      "direction": "pull_query",
+      "data_source": "prometheus",
+      "public_route_allowed": true,
+      "write_capable": false
+    },
+    {
+      "service": "loki",
+      "repo": "appolon1908-hue/Codestra-Loki",
+      "role": "collects_telemetry_logs_only",
+      "direction": "push_from_alloy",
+      "public_route_allowed": false
+    },
+    {
+      "service": "tempo",
+      "repo": "appolon1908-hue/Codestra-Tempo",
+      "role": "collects_telemetry_traces_only",
+      "direction": "push_from_alloy_or_otlp",
+      "public_route_allowed": false
+    },
+    {
+      "service": "alloy",
+      "repo": "appolon1908-hue/Codestra-Alloy",
+      "role": "collects_telemetry_only",
+      "direction": "pull_and_forward",
+      "public_route_allowed": false
+    },
+    {
+      "service": "telemetry",
+      "repo": "appolon1908-hue/Codestra-Telemetry",
+      "role": "collects_telemetry_only",
+      "direction": "pull_and_forward",
+      "public_route_allowed": false
+    },
+    {
+      "service": "node-exporter",
+      "repo": "appolon1908-hue/Codestra-Node-Exporter",
+      "role": "collects_telemetry_only",
+      "direction": "pull_scrape",
+      "public_route_allowed": false
+    },
+    {
+      "service": "cadvisor",
+      "repo": "appolon1908-hue/Codestra-cAdvisor",
+      "role": "collects_telemetry_only",
+      "direction": "pull_scrape",
+      "public_route_allowed": false
+    },
+    {
+      "service": "postgres-exporter",
+      "repo": "appolon1908-hue/Codestra-Postgres-Exporter",
+      "role": "collects_telemetry_only",
+      "direction": "pull_scrape",
+      "public_route_allowed": false
+    },
+    {
+      "service": "redis-exporter",
+      "repo": "appolon1908-hue/Codestra-Redis-Exporter",
+      "role": "collects_telemetry_only",
+      "direction": "pull_scrape",
+      "public_route_allowed": false
+    },
+    {
+      "service": "blackbox-exporter",
+      "repo": "appolon1908-hue/Codestra-Blackbox-Exporter",
+      "role": "collects_telemetry_only_health_probes",
+      "direction": "pull_probe",
+      "public_route_allowed": false
+    },
+    {
+      "service": "superset",
+      "repo": "appolon1908-hue/Superset",
+      "role": "read_only_business_analytics",
+      "direction": "pull_query",
+      "data_source": "appolon1908-hue/Odoo api/contracts/reporting-metrics-v1.json",
+      "data_source_status": "schema_only_unimplemented",
+      "public_route_allowed": true,
+      "write_capable": false
+    },
+    {
+      "service": "openbao",
+      "repo": "appolon1908-hue/Codestra-OpenBao",
+      "role": "secrets_management_only",
+      "direction": "pull_fetch_credentials",
+      "public_route_allowed": true,
+      "write_capable": "credentials_only"
+    }
+  ],
+  "endpoints": {
+    "appolon1908-hue/Middleware-": {
+      "status": "live",
+      "processes": [
+        {
+          "process": "middleware-api",
+          "entrypoint": "app.appolon_factory.create_app",
+          "metrics_path": "/metrics",
+          "metrics_auth": "monitoring-readonly scope",
+          "metrics_backend": "prometheus_client (app/observability.py)"
+        },
+        {
+          "process": "middleware-observability-alerts",
+          "entrypoint": "app.observability_alerts.create_app",
+          "health_path": "/health",
+          "readiness_path": "/readiness",
+          "version_path": "/version",
+          "capabilities_path": "/capabilities",
+          "metrics_path": "/metrics",
+          "alertmanager_webhook_path": "/v1/integrations/alertmanager/events",
+          "alertmanager_status_webhook_path": "/v1/integrations/alertmanager/status-events",
+          "alertmanager_client_id": "alertmanager-service",
+          "deprecated_aliases": [
+            "/v1/observability/alerts"
+          ]
+        }
+      ]
+    },
+    "appolon1908-hue/Odoo": {
+      "status": "pending_merge",
+      "pull_request": 132,
+      "head_sha": "fdde30ad57f8fa769789f9c35f684ca1f5a044c9",
+      "metrics_path": "/codestra/metrics",
+      "metrics_owning_addon": "codestra_metrics",
+      "note": "call_center_campaign (canonical-baseline-governed) already serves a thinner /metrics with codestra_odoo_outbox_pending/codestra_odoo_result_inbox_total. Not consolidated - tracked here as known duplication, not drift, until whoever owns that governed addon's strict-mission-override review consolidates them.",
+      "superset_business_metrics_contract": "api/contracts/reporting-metrics-v1.json",
+      "superset_business_metrics_status": "schema_only_unimplemented",
+      "alertmanager_receiver_present": false
+    },
+    "appolon1908-hue/N8N": {
+      "status": "live",
+      "scrape_contract": "observability/n8n-scrape-contract.v1.json",
+      "metrics_path": "/metrics",
+      "health_path": "/healthz",
+      "readiness_path": "/healthz/readiness",
+      "components": [
+        "main",
+        "webhook",
+        "worker"
+      ],
+      "alert_observer_contract": "contracts/observability-alert-observer.v1.json",
+      "alertmanager_receiver_present": false,
+      "receives_alert_state_only_via": "appolon1908-hue/Middleware- authenticated event handoff (observability.alert.accepted.v1 / .delivery-status.v1 / .reconciliation-required.v1)"
+    },
+    "appolon1908-hue/Kong": {
+      "status": "live",
+      "metrics_path": ":8100/metrics",
+      "reference_doc": "docs/observability/prometheus.md",
+      "note": "Informational only - Kong is not a pinned consumer of this contract and is not modified as part of introducing it."
+    }
+  },
+  "ownership_rules": [
+    {
+      "id": "alertmanager_middleware_only",
+      "assertion": "Only appolon1908-hue/Middleware- may register a route that receives Alertmanager's native webhook payload shape. No route in Odoo, N8N, or Kong may do this.",
+      "checkable": true,
+      "checked_by": "each pinned repo's own validate_observability_control_plane.py, scoped to that repo's own codebase"
+    },
+    {
+      "id": "grafana_read_only",
+      "assertion": "Grafana holds no write-capable credential against any service in this contract; it only queries Prometheus/Loki/Tempo as declared in the services list.",
+      "checkable": false
+    },
+    {
+      "id": "telemetry_collectors_read_only",
+      "assertion": "Alloy/Loki/Tempo/node-exporter/cadvisor/postgres-exporter/redis-exporter/blackbox-exporter only pull or receive pushed telemetry; no app repo accepts admin or write commands originating from them.",
+      "checkable": false
+    },
+    {
+      "id": "superset_read_only_business_analytics",
+      "assertion": "Superset only reads business-analytics data (Odoo's reporting-metrics-v1.json contract, once implemented); it is not a technical-metrics or alerting consumer.",
+      "checkable": false
+    },
+    {
+      "id": "openbao_secrets_only",
+      "assertion": "OpenBao is consulted only for credential material by any service in this contract; no business or observability data is read from or written to OpenBao.",
+      "checkable": false
+    },
+    {
+      "id": "prometheus_private_scrape",
+      "assertion": "Every /metrics endpoint listed in this contract is reachable only over a private network; none may be exposed through a public Caddy route.",
+      "checkable": false,
+      "enforced_by": "appolon1908-hue/Caddy config/observability-exposure.v1.json"
+    }
+  ],
+  "safety": {
+    "deployment_permitted_by_contract": false
+  },
+  "source_repository": "appolon1908-hue/Middleware-",
+  "source_pull_request": 268,
+  "source_commit": "4809fde4e7ffb2476ffe4858b76da7df51f3db3c"
+}
