@@ -119,7 +119,6 @@ class TestAgentOnboardingOutboxDelivery(TransactionCase):
         self.assertEqual(
             set(AGENT_EVENT_TYPES.values()),
             {
-                "codestra.odoo.agent.provisioning_requested",
                 "codestra.odoo.agent.activation_email_requested",
             },
         )
@@ -136,8 +135,11 @@ class TestAgentOnboardingOutboxDelivery(TransactionCase):
         self.assertEqual(document["idempotency_key"], document["event_id"])
         self.assertEqual(document["tenant_id"], "tenant-1")
         self.assertTrue(
-            document["payload"]["controls"]["create_disabled"]
+            document["payload"]["controls"]["one_time_action_required"]
         )
+        self.assertFalse(document["payload"]["controls"]["activate_immediately"])
+        self.assertFalse(document["payload"]["controls"]["link_persistence_allowed"])
+        self.assertFalse(document["payload"]["controls"]["plaintext_password_allowed"])
         encoded = json.dumps(document, sort_keys=True)
         for forbidden in (
             '"password"',
