@@ -1,3 +1,4 @@
+import json
 import uuid
 from datetime import timedelta
 from types import SimpleNamespace
@@ -92,6 +93,16 @@ class TestCallControl(TransactionCase):
             "state": state,
             "sequence": sequence,
         }
+
+    def test_integration_event_route_values_are_schema_aware(self):
+        extended = SimpleNamespace(_fields={"source": object(), "destination": object()})
+        standalone = SimpleNamespace(_fields={})
+
+        self.assertEqual(
+            call_control_controller._integration_event_route_values(extended),
+            {"source": "odoo", "destination": "middleware"},
+        )
+        self.assertEqual(call_control_controller._integration_event_route_values(standalone), {})
 
     def test_number_normalization_and_exact_matching(self):
         partner = self.env["res.partner"].create({"name": "Synthetic Customer", "phone": "+1 (617) 555-0100"})
@@ -241,6 +252,81 @@ class TestCallControl(TransactionCase):
         self.assertEqual(result["call"]["direction"], "outbound")
         self.assertEqual(result["call"]["caller_number"], lead_number)
         self.assertEqual(result["call"]["lead"]["id"], lead.id)
+
+    def test_dialpad_outbound_reuses_nonterminal_call_across_keys(self):
+        lead_number = "+16175550101"
+        dial_destination = "(617) 555-0101"
+        self.env["crm.lead"].create(
+            {
+                "name": "Synthetic Dialpad Duplicate",
+                "user_id": self.agent_user.id,
+                "phone": lead_number,
+                "business_unit_id": self.unit.id,
+                "vicidial_campaign_id": "TEST_SYN",
+                "x_vicidial_campaign_id": "TEST_SYN",
+            }
+        )
+        controller = call_control_controller.CallControlAPI()
+        with (
+            patch.object(
+                call_control_controller,
+                "request",
+                SimpleNamespace(env=self.env(user=self.agent_user.id)),
+            ),
+            patch.object(controller, "_feature", return_value=True),
+        ):
+            first = controller.outbound(
+                destination=dial_destination,
+                campaign_id="TEST_SYN",
+                idempotency_key="dialpad-business-state-one",
+            )
+            replay = controller.outbound(
+                destination=dial_destination,
+                campaign_id="TEST_SYN",
+                idempotency_key="dialpad-business-state-one",
+            )
+            second_key = controller.outbound(
+                destination=dial_destination,
+                campaign_id="TEST_SYN",
+                idempotency_key="dialpad-business-state-two",
+            )
+
+        self.assertFalse(first["duplicate"])
+        self.assertTrue(replay["duplicate"])
+        self.assertTrue(second_key["duplicate"])
+        self.assertEqual(first["call"]["call_id"], replay["call"]["call_id"])
+        self.assertEqual(first["call"]["call_id"], second_key["call"]["call_id"])
+
+        call = self.env["codestra.vicidial.call"].search(
+            [("call_id", "=", first["call"]["call_id"])]
+        )
+        self.assertEqual(len(call), 1)
+        self.assertEqual(call.destination, lead_number)
+        self.assertEqual(call.campaign_id, self.campaign)
+
+        command = self.env["codestra.call.control.command"].search(
+            [("call_id", "=", call.id), ("action", "=", "outbound")]
+        )
+        self.assertEqual(len(command), 1)
+        self.assertEqual(command.idempotency_key, "dialpad-business-state-one")
+        self.assertEqual(command.call_id, call)
+
+        event = self.env["codestra.integration.event"].search(
+            [
+                ("correlation_id", "=", call.correlation_id),
+                ("event_type", "=", "call.command.outbound"),
+            ]
+        )
+        self.assertEqual(len(event), 1)
+        envelope = json.loads(event.payload_json)
+        self.assertEqual(
+            envelope,
+            {
+                "action": "outbound",
+                "call_id": call.call_id,
+                "command_id": command.id,
+            },
+        )
 
     def test_dialpad_outbound_rejects_ambiguous_number(self):
         first_number = "+1" + "809" + "555" + "0199"
