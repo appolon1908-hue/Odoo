@@ -43,6 +43,7 @@ FORBIDDEN_KEYS = frozenset(
         "secret_key",
         "session_token",
         "set_cookie",
+        "subscription_key",
         "token",
     }
 )
@@ -57,6 +58,7 @@ FORBIDDEN_KEY_SUFFIXES = (
     "_private_key",
     "_secret",
     "_secret_key",
+    "_subscription_key",
     "_token",
 )
 FORBIDDEN_COMPACT_KEYS = frozenset(key.replace("_", "") for key in FORBIDDEN_KEYS)
@@ -109,7 +111,7 @@ def _canonical_json(value):
             separators=(",", ":"),
             allow_nan=False,
         ).encode("utf-8")
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, UnicodeError) as exc:
         raise ValidationError(_("Kyqra payload must be valid JSON.")) from exc
 
 

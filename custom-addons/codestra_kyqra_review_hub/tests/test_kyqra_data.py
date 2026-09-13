@@ -199,6 +199,9 @@ class TestCodestraKyqraData(TransactionCase):
             "AWS_SECRET_ACCESS_KEY",
             "awssecretaccesskey",
             "serviceSecretKey",
+            "subscription_key",
+            "subscriptionkey",
+            "Ocp-Apim-Subscription-Key",
             "tenant-access-key",
             "provider-token",
             "userPassword",
@@ -212,6 +215,7 @@ class TestCodestraKyqraData(TransactionCase):
             ("name", "value", "Authorization"),
             ("key", "values", "APIKey"),
             ("Name", "Value", "clientSecret"),
+            ("name", "value", "Ocp-Apim-Subscription-Key"),
         ):
             with self.subTest(
                 name_field=name_field,
@@ -233,6 +237,7 @@ class TestCodestraKyqraData(TransactionCase):
                     self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
         for headers in (
             [["Authorization", "Bearer secret"]],
+            [["Ocp-Apim-Subscription-Key", "secret"]],
             [["Accept", "application/json"], ["x-api-key", "secret"]],
             ["Accept", "application/json", "clientSecret", "secret"],
         ):
@@ -266,6 +271,7 @@ class TestCodestraKyqraData(TransactionCase):
             "https://example.invalid/page?AWS_SECRET_ACCESS_KEY=secret",
             "https://example.invalid/page?awssecretaccesskey=secret",
             "https://example.invalid/page?serviceSecretKey=secret",
+            "https://example.invalid/page?Ocp-Apim-Subscription-Key=secret",
             "https://account.blob.core.windows.net/object?sv=1&sig=secret",
             "https://example.invalid/page?Signature=secret",
             "https://example.invalid/page?X-Amz-Signature=secret",
@@ -312,6 +318,17 @@ class TestCodestraKyqraData(TransactionCase):
         invalid["metadata"]["bad\x00key"] = "value"
         with self.assertRaisesRegex(ValidationError, "NUL characters"):
             self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
+
+    def test_unpaired_unicode_surrogates_fail_closed_before_storage(self):
+        for location in ("metadata_value", "data_key"):
+            with self.subTest(location=location):
+                invalid = copy.deepcopy(self._event())
+                if location == "metadata_value":
+                    invalid["metadata"]["poison"] = chr(0xD800)
+                else:
+                    invalid["payload"]["results"][0]["data"][chr(0xD800)] = "value"
+                with self.assertRaisesRegex(ValidationError, "valid JSON"):
+                    self.env["codestra.kyqra.batch"].apply_middleware_event(invalid)
 
     def test_source_url_authority_and_encoding_are_strict(self):
         for source_url in (
