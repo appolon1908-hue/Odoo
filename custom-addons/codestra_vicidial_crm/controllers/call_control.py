@@ -92,6 +92,34 @@ class CallControlAPI(http.Controller):
             raise ValidationError("A valid Idempotency-Key is required.")
         return key
 
+    @staticmethod
+    def _auto_repair_owned_test_syn_lead(number, campaign_code, agent):
+        return request.env[
+            "codestra.vicidial.test.syn.repair"
+        ].repair_owned_lead(number, campaign_code, agent)
+
+    def _match_customer(self, number, campaign_code, agent):
+        Call = request.env["codestra.vicidial.call"]
+        result = Call.match_customer(number, campaign_code)
+        if result["match"] != "none":
+            return result
+        repaired = self._auto_repair_owned_test_syn_lead(
+            number, campaign_code, agent
+        )
+        if not repaired:
+            return result
+        verified = Call.match_customer(number, campaign_code)
+        targets = [
+            item
+            for item in verified.get("matches", [])
+            if item.get("model") == "lead" and item.get("id") == repaired.id
+        ]
+        if verified.get("match") != "exact" or len(targets) != 1:
+            raise ValidationError(
+                "Automatic CRM target repair could not be verified."
+            )
+        return verified
+
     @http.route("/codestra/call-control/v1/current", type="jsonrpc", auth="user", methods=["POST"])
     def current(self):
         agent = self._agent()
@@ -113,8 +141,8 @@ class CallControlAPI(http.Controller):
 
     @http.route("/codestra/call-control/v1/match", type="jsonrpc", auth="user", methods=["POST"])
     def match(self, number, campaign_code=None):
-        self._agent()
-        return request.env["codestra.vicidial.call"].match_customer(number, campaign_code)
+        agent = self._agent()
+        return self._match_customer(number, campaign_code, agent)
 
     @http.route("/codestra/call-control/v1/dialpad", type="jsonrpc", auth="user", methods=["POST"])
     def dialpad(self):
@@ -172,10 +200,10 @@ class CallControlAPI(http.Controller):
             if field in record._fields
         )
 
-    def _resolve_destination(self, destination, campaign_id):
+    def _resolve_destination(self, destination, campaign_id, agent):
         call_model = request.env["codestra.vicidial.call"]
         normalized = call_model.normalize_number(destination)
-        result = call_model.match_customer(normalized, campaign_id)
+        result = self._match_customer(normalized, campaign_id, agent)
         if result["match"] != "exact":
             raise AccessError("Dialer requires one exact CRM contact or lead match.")
         target = result["matches"][0]
@@ -212,14 +240,16 @@ class CallControlAPI(http.Controller):
             if self._blocked_destination(lead):
                 raise AccessError("This CRM lead is not eligible for outbound calling.")
             normalized = request.env["codestra.vicidial.call"].normalize_number(destination or lead.phone)
-            matches = request.env["codestra.vicidial.call"].match_customer(normalized, campaign_id)
+            matches = self._match_customer(normalized, campaign_id, agent)
             if matches["match"] != "exact" or not any(
                 item["model"] == "lead" and item["id"] == lead.id for item in matches["matches"]
             ):
                 raise AccessError("The selected lead is not an exact authorized dial target.")
             contact = lead.partner_id
         else:
-            normalized, lead, contact = self._resolve_destination(destination, campaign_id)
+            normalized, lead, contact = self._resolve_destination(
+                destination, campaign_id, agent
+            )
 
         # Serialize dial requests for this agent. Transport idempotency handles
         # an exact request replay; the active-call lookup also collapses two
@@ -1224,3 +1254,4 @@ class CallControlAPI(http.Controller):
             actor_role="agent",
         )
         return command, False
+
