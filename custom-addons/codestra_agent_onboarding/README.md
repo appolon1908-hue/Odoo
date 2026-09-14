@@ -6,8 +6,8 @@ governed contact-center identity and campaign assignment.
 ## Authority and lifecycle
 
 Odoo owns the employee, the canonical `cc.campaign.membership`, the selected
-role, the requested systems, and the approval evidence. The module never writes
-to VICIdial, Keycloak, Klyrow, SIP, or Middleware directly.
+role, the requested systems, and the approval evidence. Middleware is the sole
+provisioning executor for Keycloak, VICIdial, Klyrow, Telnexa, and WebRTC.
 
 The supported flow is:
 
@@ -21,13 +21,41 @@ draft
 → create one durable provisioning request
 → independent approval
 → reserve identifiers
-→ emit agent.provisioning.requested.v1
-→ external create-disabled + verification
-→ matched Odoo/Keycloak/Middleware/VICIdial read-back
+→ POST the canonical Middleware agent-provisioning request
+→ Middleware executes the create-disabled saga and channel adapters
+→ authenticated Middleware response read-back through the provisioning transport
+→ matched Odoo/Keycloak/Middleware/VICIdial/Klyrow/Telnexa status
 → emit agent.activation-email.requested.v1
 → Keycloak creates a one-time action email delivered through Klyrow
 → explicit final activation
 ```
+
+```mermaid
+flowchart TD
+    A[Super Admin submits onboarding] --> B{Readiness and scope valid?}
+    B -- No --> X[Reject without external effects]
+    B -- Yes --> C[Create inactive user, membership, request, and channel intents]
+    C --> D{Independent approver authorizes?}
+    D -- No --> X
+    D -- Yes --> E[Reserve employee, VICIdial, and exact SIP identifiers]
+    E --> F[Send one idempotent canonical Middleware command]
+    F --> G{Saga ID returned?}
+    G -- No --> H[Retry the same command and idempotency key]
+    G -- Yes --> I[Reconcile only that immutable saga ID]
+    H --> F
+    I --> J{All mandatory read-back verified?}
+    J -- No --> K[Partial or failed; activation blocked]
+    J -- Yes --> L[Queue one-time Keycloak activation email]
+    L --> M[Explicitly activate user and channels]
+```
+
+The Middleware saga ID, Odoo request ID, tenant, employee, correlation ID,
+Keycloak subject, and response version are immutable bindings. A replay is
+accepted only when the version and canonical response hash match. Older
+versions are ignored, while conflicting versions or identities fail closed.
+Middleware step history is collapsed to the latest result per channel.
+Closed kill switches, skipped mandatory work, pending provider approval, and
+extension read-back mismatches never count as verified.
 
 A prepared campaign assignment is immutable. Moving an agent to another
 campaign uses the canonical revoke-then-grant reassignment workflow.
@@ -74,17 +102,53 @@ All external identities are requested in disabled state. No source flag enables
 live dialing, live call control, external email delivery, or production
 activation.
 
+## Canonical Middleware integration
+
+The provisioning button calls exactly:
+
+```text
+POST https://<middleware>/platform/v1/agent-provisioning/requests
+```
+
+Odoo sends one idempotent command using the `provisioning-service` Keycloak
+client and never receives provider credentials. Configure the endpoint and
+client through protected runtime variables:
+
+```text
+CODESTRA_MIDDLEWARE_AGENT_PROVISIONING_URL=https://<middleware>/platform/v1/agent-provisioning/requests
+CODESTRA_MIDDLEWARE_AGENT_PROVISIONING_TOKEN_URL=https://auth.codestra.co/realms/codestra/protocol/openid-connect/token
+CODESTRA_MIDDLEWARE_AGENT_PROVISIONING_AUDIENCE=middleware-api
+CODESTRA_MIDDLEWARE_AGENT_PROVISIONING_CLIENT_ID=provisioning-service
+CODESTRA_MIDDLEWARE_AGENT_PROVISIONING_CLIENT_SECRET_FILE=/run/secrets/middleware-agent-provisioning-client
+CODESTRA_MIDDLEWARE_AGENT_PROVISIONING_CA_FILE=/run/secrets/internal-integration-ca.crt
+CODESTRA_MIDDLEWARE_AGENT_PROVISIONING_SCOPE=identity.request
+```
+
+If the initial POST outcome is unavailable before Odoo learns the Middleware
+saga ID, Odoo retries the same request with the same idempotency key. Once the
+saga ID is known, every retry uses
+`POST /platform/v1/agent-provisioning/requests/{id}/reconcile`, and the response
+must return that exact saga ID. The response is applied only when its request,
+tenant, employee, correlation, version, and stored identity bindings match;
+provider credentials are never returned to Odoo.
+
+Odoo's reserved SIP extension is sent as the exact extension for Middleware to
+adopt. Odoo commits that reservation and links it to the phone/WebRTC channel
+records only after Middleware returns matching extension evidence. A different
+extension leaves access ineffective and records a read-back mismatch.
+
 ## Durable integration
 
-Two immutable, idempotent events use the existing
-`codestra.runtime.integration.outbox`:
+The old provisioning POST to `/api/v1/odoo/events` is retired. New onboarding
+records do not create `agent.provisioning.requested.v1` outbox rows. The
+existing outbox remains only for the separate secure activation-email event:
 
-- `agent.provisioning.requested.v1`
 - `agent.activation-email.requested.v1`
 
-Retries return the same event and cannot create duplicate users or duplicate
-welcome emails. Result processing remains owned by the established integration
-result inbox and Middleware/provisioning-service workflow.
+Middleware owns saga idempotency and its own signed callback outbox. Retries
+return the same saga and cannot create duplicate users or duplicate provider
+identities. Historical provisioning outbox rows fail closed as retired and are
+never posted to the dead endpoint.
 
 ## Verification
 
@@ -95,9 +159,9 @@ Run the module tests together with the repository source gates:
 ```
 
 The tests cover readiness, disabled user creation, one-campaign membership,
-independent approval, identifier reservation, idempotent outbox production,
-credential-free activation-email payloads, read-back gating, and immutable
-campaign assignment.
+independent approval, identifier reservation, idempotent Middleware commands,
+credential-free activation-email outbox payloads, read-back gating, and
+immutable campaign assignment.
 
 
 ### September 5 source reconciliation

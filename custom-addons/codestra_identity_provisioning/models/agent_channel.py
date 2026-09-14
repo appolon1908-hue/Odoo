@@ -32,9 +32,9 @@ class CodestraAgentChannel(models.Model):
 
     ``state`` may only be changed through a governed transition (see
     ``TRANSITION_CAPABILITY``): ``_apply_step_evidence`` (real read-back
-    evidence from ``codestra.provisioning.request.apply_service_callback``,
-    for the ``email``/``phone`` channels that actually have a corresponding
-    provisioning step today) and ``_mark_effective`` (called from
+    evidence from an authenticated provisioning-service callback or the
+    canonical Middleware provisioning response for email, SMS, phone, and
+    WebRTC) and ``_mark_effective`` (called from
     ``codestra.agent.onboarding.action_activate`` once the campaign
     membership itself is fully active and synced). A bare write to
     ``state`` - even by a Super Admin - is rejected outside those paths.
@@ -47,13 +47,9 @@ class CodestraAgentChannel(models.Model):
         effective_X = agent_X_switch AND campaign_X_policy
                       AND global_PSTN_gate AND successful_readback
 
-    -- the global-PSTN-safety-gate term requires a live Middleware
-    integration that does not exist yet and stays out of scope for this
-    model; ``sms``/``webrtc`` channels have no external provisioning step at
-    all today (this module never issues WebRTC credentials or sends SMS
-    itself), so for those two ``successful_readback`` can only ever be
-    satisfied by the governed ``_mark_effective`` activation path, not by
-    real external evidence.
+    -- the global-PSTN-safety-gate and successful-readback terms are supplied
+    by the canonical Middleware saga. This model still issues no WebRTC
+    credential, sends no SMS/email, and performs no provider mutation itself.
     """
 
     _name = "codestra.agent.channel"
@@ -294,10 +290,10 @@ class CodestraAgentChannel(models.Model):
         error_code=None,
         error_sanitized=None,
     ):
-        """Apply real read-back evidence from a provisioning-service
-        callback step to this channel (``email``/``phone`` only - those are
-        the only channel types with a corresponding provisioning step
-        today). Requires a SHA-256 evidence hash on success.
+        """Apply real read-back evidence from a provisioning-service step.
+
+        Email, SMS, phone, and WebRTC all use this same governed transition.
+        A successful transition requires a SHA-256 evidence hash.
         """
         self.ensure_one()
         if verified:

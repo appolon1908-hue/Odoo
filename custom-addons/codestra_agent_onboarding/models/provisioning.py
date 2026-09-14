@@ -7,8 +7,15 @@ import uuid
 from odoo import SUPERUSER_ID, _, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
+from odoo.addons.codestra_cc_identity.models.identity import IDENTITY_WRITE_CAPABILITY
+
 from odoo.addons.codestra_identity_provisioning.models.provisioning import (
     normalize_identifier,
+)
+
+from .middleware_client import (
+    AgentProvisioningOutcomeUnknown,
+    AgentProvisioningRejected,
 )
 
 
@@ -19,6 +26,7 @@ ROLE_GROUP_XMLIDS = {
     "supervisor": "codestra_cc_security.group_cc_campaign_supervisor",
 }
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+VICIDIAL_USER_PATTERN = re.compile(r"^[A-Z]{3}[0-9]{4,12}$")
 IMMUTABLE_ASSIGNMENT_FIELDS = {
     "company_id",
     "integration_uuid",
@@ -44,6 +52,9 @@ IMMUTABLE_ASSIGNMENT_FIELDS = {
     "needs_vicidial",
     "webrtc_enabled",
     "sms_enabled",
+    "sms_sender",
+    "sms_sender_type",
+    "sms_countries",
     "incoming_calls_enabled",
     "outgoing_calls_enabled",
 }
@@ -58,6 +69,9 @@ COMMUNICATION_CHANNEL_FIELDS = {
     "needs_sip_endpoint",
     "webrtc_enabled",
     "sms_enabled",
+    "sms_sender",
+    "sms_sender_type",
+    "sms_countries",
     "incoming_calls_enabled",
     "outgoing_calls_enabled",
 }
@@ -66,6 +80,51 @@ ACTIVATION_EMAIL_EVENT = "agent.activation-email.requested.v1"
 EVENT_SCHEMA_VERSION = "1.0"
 ONBOARDING_LINK_CAPABILITY = object()
 ONBOARDING_VERSION_CAPABILITY = object()
+MIDDLEWARE_READBACK_CAPABILITY = object()
+MIDDLEWARE_FIELDS = {
+    "middleware_request_id",
+    "middleware_correlation_id",
+    "middleware_state",
+    "middleware_version",
+    "middleware_last_sync_at",
+    "middleware_last_error_code",
+    "middleware_last_error_summary",
+    "middleware_channel_status",
+    "middleware_payload_hash",
+    "keycloak_subject",
+}
+MIDDLEWARE_STATES = {
+    "NOT_STARTED",
+    "REQUESTED",
+    "VALIDATING",
+    "IDENTITY",
+    "ENTITLEMENTS",
+    "CHANNEL_PROVISIONING",
+    "READBACK",
+    "EFFECTIVE",
+    "PARTIAL",
+    "FAILED",
+    "RECONCILING",
+    "SUSPENDED",
+    "REVOKED",
+    "UNKNOWN",
+}
+MIDDLEWARE_STEP_TARGETS = {
+    ("keycloak", "create_user"): ("keycloak", "upsert_identity"),
+    ("keycloak", "assign_approved_roles"): ("agent_desktop", "assign_roles"),
+    ("keycloak", "readback"): ("verification", "verify_all"),
+    ("vicidial", "sync_agent"): ("vicidial", "upsert_agent"),
+    ("vicidial", "reserve_extension"): ("sip", "upsert_endpoint"),
+    ("vicidial", "adopt_extension"): ("sip", "upsert_endpoint"),
+    ("vicidial", "provision_phone"): ("sip", "upsert_endpoint"),
+    ("vicidial", "provision_webrtc"): ("sip", "upsert_endpoint"),
+    ("klyrow", "provision_sender_identity"): ("email", "upsert_mailbox"),
+    ("telnexa", "provision_sender_profile"): ("sms", "upsert_sender_profile"),
+    ("odoo", "upsert_user"): ("odoo", "upsert_user"),
+    ("odoo", "provision_voicemail"): ("voicemail", "provision_mailbox"),
+    ("odoo", "grant_recording_access"): ("recording_access", "grant_access"),
+    ("odoo", "grant_monitoring_access"): ("monitoring_access", "grant_access"),
+}
 
 
 def _canonical_json(value):
@@ -199,10 +258,15 @@ class CodestraAgentOnboardingProvisioning(models.Model):
     )
     needs_company_email = fields.Boolean(default=True, tracking=True)
     needs_sip_endpoint = fields.Boolean(default=True, tracking=True)
+    incoming_calls_enabled = fields.Boolean(default=False, tracking=True)
+    outgoing_calls_enabled = fields.Boolean(default=False, tracking=True)
     needs_voicemail = fields.Boolean(default=True, tracking=True)
     needs_recording_access = fields.Boolean(tracking=True)
     needs_monitoring_access = fields.Boolean(tracking=True)
     needs_agent_desktop = fields.Boolean(default=True, tracking=True)
+    sms_sender = fields.Char(copy=False, tracking=True)
+    sms_sender_type = fields.Char(default="alphanumeric", copy=False)
+    sms_countries = fields.Json(default=list, copy=False)
     needs_keycloak = fields.Boolean(default=True, tracking=True)
     needs_vicidial = fields.Boolean(default=True, tracking=True)
     campaign_membership_id = fields.Many2one(
@@ -227,6 +291,24 @@ class CodestraAgentOnboardingProvisioning(models.Model):
     access_request_prepared_at = fields.Datetime(readonly=True, copy=False)
     provisioning_started_at = fields.Datetime(readonly=True, copy=False)
     activation_email_requested_at = fields.Datetime(readonly=True, copy=False)
+    middleware_request_id = fields.Char(readonly=True, copy=False, index=True, tracking=True)
+    middleware_correlation_id = fields.Char(readonly=True, copy=False, index=True)
+    middleware_state = fields.Selection(
+        [(state, state.replace("_", " ").title()) for state in sorted(MIDDLEWARE_STATES)],
+        default="NOT_STARTED",
+        required=True,
+        readonly=True,
+        copy=False,
+        index=True,
+        tracking=True,
+    )
+    middleware_version = fields.Integer(default=0, readonly=True, copy=False)
+    middleware_last_sync_at = fields.Datetime(readonly=True, copy=False)
+    middleware_last_error_code = fields.Char(readonly=True, copy=False)
+    middleware_last_error_summary = fields.Text(readonly=True, copy=False)
+    middleware_channel_status = fields.Json(default=list, readonly=True, copy=False)
+    middleware_payload_hash = fields.Char(size=64, readonly=True, copy=False, index=True)
+    keycloak_subject = fields.Char(readonly=True, copy=False, index=True)
 
     _integration_uuid_unique = models.Constraint(
         "unique(integration_uuid)",
@@ -271,6 +353,12 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                         )
                     )
         if (
+            MIDDLEWARE_FIELDS.intersection(values)
+            and self.env.context.get("_codestra_middleware_readback_capability")
+            is not MIDDLEWARE_READBACK_CAPABILITY
+        ):
+            raise AccessError(_("Middleware read-back fields are system managed."))
+        if (
             SYSTEM_LINK_FIELDS.intersection(values)
             and self.env.context.get("_codestra_onboarding_link_capability")
             is not ONBOARDING_LINK_CAPABILITY
@@ -287,6 +375,11 @@ class CodestraAgentOnboardingProvisioning(models.Model):
     def _write_system_links(self, values):
         return self.with_context(
             _codestra_onboarding_link_capability=ONBOARDING_LINK_CAPABILITY
+        ).write(values)
+
+    def _write_middleware(self, values):
+        return self.with_context(
+            _codestra_middleware_readback_capability=MIDDLEWARE_READBACK_CAPABILITY
         ).write(values)
 
     @api.onchange("employee_id")
@@ -322,6 +415,14 @@ class CodestraAgentOnboardingProvisioning(models.Model):
         "role_template_id",
         "activation_email",
         "needs_vicidial",
+        "sms_enabled",
+        "sms_sender",
+        "sms_sender_type",
+        "sms_countries",
+        "needs_sip_endpoint",
+        "webrtc_enabled",
+        "incoming_calls_enabled",
+        "outgoing_calls_enabled",
     )
     def _check_assignment_scope(self):
         for record in self:
@@ -329,6 +430,19 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 record.activation_email.strip()
             ):
                 raise ValidationError(_("The activation email address is invalid."))
+            if record.sms_enabled and not (record.sms_sender or "").strip():
+                raise ValidationError(_("SMS provisioning requires an approved sender."))
+            if (
+                (record.incoming_calls_enabled or record.outgoing_calls_enabled)
+                and not record.needs_sip_endpoint
+            ):
+                raise ValidationError(_("Call permissions require a SIP endpoint."))
+            if record.webrtc_enabled and not record.needs_sip_endpoint:
+                raise ValidationError(_("WebRTC provisioning requires a SIP endpoint."))
+            if record.needs_sip_endpoint and not record.needs_vicidial:
+                raise ValidationError(
+                    _("SIP/WebRTC provisioning requires the VICIdial adapter.")
+                )
             campaign = record.campaign_id
             if not campaign:
                 continue
@@ -642,6 +756,11 @@ class CodestraAgentOnboardingProvisioning(models.Model):
         }
         for channel_type, source_field in self._CHANNEL_DESIRED_SOURCE_FIELD.items():
             desired = bool(getattr(self, source_field))
+            binding_values = {
+                "membership_id": self.campaign_membership_id.id,
+                "provisioning_request_id": self.provisioning_request_id.id,
+                "correlation_id": self.provisioning_request_id.correlation_id,
+            }
             voice_values = (
                 {
                     "incoming_allowed": self.incoming_calls_enabled,
@@ -654,7 +773,11 @@ class CodestraAgentOnboardingProvisioning(models.Model):
             if channel:
                 changes = {
                     key: value
-                    for key, value in {"desired_enabled": desired, **voice_values}.items()
+                    for key, value in {
+                        **binding_values,
+                        "desired_enabled": desired,
+                        **voice_values,
+                    }.items()
                     if channel[key] != value
                 }
                 if changes:
@@ -663,8 +786,7 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 Channel.create(
                     {
                         "employee_id": self.employee_id.id,
-                        "membership_id": self.campaign_membership_id.id,
-                        "provisioning_request_id": self.provisioning_request_id.id or False,
+                        **binding_values,
                         "channel_type": channel_type,
                         "desired_enabled": desired,
                         **voice_values,
@@ -697,6 +819,11 @@ class CodestraAgentOnboardingProvisioning(models.Model):
     def _ensure_provisioning_request(self, user, membership):
         self.ensure_one()
         key = self._provisioning_idempotency_key()
+        extension_pool = (
+            self.business_unit_id.extension_pool_ids.filtered("active")[:1]
+            if self.needs_sip_endpoint
+            else self.env["codestra.extension.pool"]
+        )
         Request = self.env["codestra.provisioning.request"].with_context(
             active_test=False
         )
@@ -705,6 +832,8 @@ class CodestraAgentOnboardingProvisioning(models.Model):
             if (
                 existing.employee_id != self.employee_id
                 or existing.cc_membership_id != membership
+                or existing.needs_sms != self.sms_enabled
+                or existing.extension_pool_id != extension_pool
                 or self.with_user(SUPERUSER_ID).campaign_id.legacy_campaign_id
                 not in existing.with_user(SUPERUSER_ID).campaign_ids
             ):
@@ -722,6 +851,7 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 "request_type": "onboard",
                 "employee_id": self.employee_id.id,
                 "personal_email": self.activation_email.strip().lower(),
+                "requested_by": self.env.user.id,
                 "requested_for": user.id,
                 "supervisor_id": self.supervisor_id.id,
                 "company_id": self.company_id.id,
@@ -743,10 +873,13 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 "timezone": self.timezone or "UTC",
                 "needs_company_email": self.needs_company_email,
                 "needs_sip_endpoint": self.needs_sip_endpoint,
+                "extension_pool_id": extension_pool.id or False,
                 "needs_voicemail": self.needs_voicemail,
                 "needs_recording_access": self.needs_recording_access,
                 "needs_monitoring_access": self.needs_monitoring_access,
                 "needs_agent_desktop": self.needs_agent_desktop,
+                "needs_sms": self.sms_enabled,
+                "sms_sender": self.sms_sender.strip() if self.sms_sender else False,
                 "needs_keycloak": self.needs_keycloak,
                 "needs_vicidial": self.needs_vicidial,
                 "idempotency_key": key,
@@ -845,7 +978,17 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 raise ValidationError(
                     _("The VICIdial username was not reserved.")
                 )
-            values["vicidial_user"] = username
+            # Middleware/VICIdial's public contract requires the canonical
+            # three-letter business-unit prefix to be uppercase.
+            vicidial_user = username.upper()
+            if not VICIDIAL_USER_PATTERN.fullmatch(vicidial_user):
+                raise ValidationError(
+                    _(
+                        "The reserved VICIdial username does not satisfy the "
+                        "Middleware identity contract."
+                    )
+                )
+            values["vicidial_user"] = vicidial_user
             values["vicidial_user_group"] = (
                 self.role_template_id.vicidial_user_group
             )
@@ -861,9 +1004,687 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 raise ValidationError(
                     _("The SIP extension was not reserved.")
                 )
-            values["extension"] = assignment.extension
+            values.update(
+                {
+                    "extension": assignment.extension,
+                    "phone_assignment_id": assignment.id,
+                }
+            )
+            assignment.with_user(SUPERUSER_ID).write(
+                {
+                    "vicidial_user": values.get("vicidial_user") or False,
+                    "incoming_allowed": self.incoming_calls_enabled,
+                    "outgoing_allowed": self.outgoing_calls_enabled,
+                    "webrtc_enabled": self.webrtc_enabled,
+                }
+            )
+            self.env["codestra.agent.channel"].with_user(SUPERUSER_ID).search(
+                [
+                    ("employee_id", "=", self.employee_id.id),
+                    ("channel_type", "in", ["phone", "webrtc"]),
+                ]
+            ).write(
+                {
+                    "extension_assignment_id": assignment.id,
+                    "membership_id": membership.id,
+                    "provisioning_request_id": request_record.id,
+                    "correlation_id": request_record.correlation_id,
+                }
+            )
         if values:
             membership.write(values)
+
+    def _middleware_tenant_id(self):
+        self.ensure_one()
+        tenant = self.env["ir.config_parameter"].with_user(SUPERUSER_ID).get_param(
+            "codestra.middleware.tenant_id"
+        )
+        if not tenant:
+            raise ValidationError(
+                _("The Middleware tenant identity is not configured.")
+            )
+        return tenant.strip()
+
+    def _middleware_supervisor_subject(self):
+        self.ensure_one()
+        supervisor = self.supervisor_id.with_user(SUPERUSER_ID)
+        if "keycloak_subject" in supervisor._fields and supervisor.keycloak_subject:
+            return supervisor.keycloak_subject
+        membership = self.env["cc.campaign.membership"].with_user(SUPERUSER_ID).search(
+            [
+                ("user_id", "=", supervisor.id),
+                ("campaign_id", "=", self.campaign_id.id),
+                ("role", "=", "supervisor"),
+                ("state", "in", ["pending_sync", "active", "suspended"]),
+            ],
+            order="id desc",
+            limit=1,
+        )
+        return membership.keycloak_subject or False
+
+    def _middleware_existing_extension(self):
+        self.ensure_one()
+        if not self.needs_sip_endpoint:
+            return False
+        assignment = self.env["codestra.extension.assignment"].with_user(
+            SUPERUSER_ID
+        ).search(
+            [
+                ("request_id", "=", self.provisioning_request_id.id),
+                ("state", "in", ["reserved", "committed"]),
+            ],
+            limit=1,
+        )
+        links = self.env["codestra.identity.link"].with_user(SUPERUSER_ID).search(
+            [
+                ("employee_id", "=", self.employee_id.id),
+                ("system", "=", "sip"),
+                ("state", "in", ["pending", "active", "suspended"]),
+                ("is_primary", "=", True),
+            ],
+            order="created_at desc, id desc",
+            limit=1,
+        )
+        if not assignment:
+            raise ValidationError(
+                _("Reserve the approved SIP extension before provisioning.")
+            )
+        if links and assignment and links.extension != assignment.extension:
+            raise ValidationError(
+                _(
+                    "The reserved SIP extension conflicts with the existing "
+                    "identity link. Reconcile the assignment before provisioning."
+                )
+            )
+        # Odoo owns identifier reservation. Middleware adopts this exact number
+        # and returns it as read-back evidence instead of allocating a second,
+        # divergent extension from its own pool.
+        return assignment.extension
+
+    def _middleware_provisioning_payload(self):
+        """Translate the reviewed Odoo assignment into Middleware's one command."""
+        self.ensure_one()
+        record = self.with_user(SUPERUSER_ID)
+        employee = record.employee_id
+        employee_number = (employee.codestra_employee_number or "").strip()
+        if not employee_number:
+            raise ValidationError(
+                _("Reserve the employee identifier before starting Middleware provisioning.")
+            )
+        request_record = record.provisioning_request_id
+        membership = record.campaign_membership_id
+        campaign = record.campaign_id
+        legacy = campaign.legacy_campaign_id
+        campaign_id = (legacy.vicidial_campaign_id or campaign.code or "").strip()
+        if not campaign_id:
+            raise ValidationError(_("The approved campaign has no Middleware identifier."))
+        parts = (employee.name or "").strip().split()
+        first_name = parts[0] if parts else ""
+        last_name = " ".join(parts[1:]) if len(parts) > 1 else ""
+        channels = {
+            "odoo": True,
+            "phone": bool(record.needs_sip_endpoint),
+            "webrtc": bool(record.webrtc_enabled),
+            "sms": bool(record.sms_enabled),
+            "email": bool(record.needs_company_email),
+        }
+        return {
+            "request_id": record.integration_uuid,
+            "tenant_id": record._middleware_tenant_id(),
+            "employee_id": employee_number,
+            "identity": {
+                "email": record.activation_email.strip().lower(),
+                "first_name": first_name,
+                "last_name": last_name,
+            },
+            "campaigns": [
+                {
+                    "campaign_id": campaign_id,
+                    "role": record.campaign_role,
+                    "vicidial_user_id": membership.vicidial_user or None,
+                    "vicidial_user_group": membership.vicidial_user_group or None,
+                    "vicidial_supervisor_subject": record._middleware_supervisor_subject()
+                    or None,
+                    "campaign_email": (
+                        record.activation_email.strip().lower()
+                        if record.needs_company_email
+                        else None
+                    ),
+                    "sms_sender": record.sms_sender.strip() if record.sms_sender else None,
+                    "sms_sender_type": record.sms_sender_type or "alphanumeric",
+                    "sms_countries": list(record.sms_countries or []),
+                }
+            ],
+            "channels": channels,
+            "entitlements": {
+                "agent_desktop": bool(record.needs_agent_desktop),
+                "voicemail": bool(record.needs_voicemail),
+                "recording_access": bool(record.needs_recording_access),
+                "monitoring_access": bool(record.needs_monitoring_access),
+            },
+            "telephony": {
+                "existing_extension": record._middleware_existing_extension() or None,
+                "incoming_allowed": bool(record.incoming_calls_enabled),
+                "outgoing_allowed": bool(record.outgoing_calls_enabled),
+                "max_webrtc_sessions": 1,
+                "extension_pool": (
+                    request_record.extension_pool_id.code
+                    if request_record.extension_pool_id
+                    else legacy.extension_pool
+                ),
+            },
+        }
+
+    @staticmethod
+    def _middleware_safe_error(value):
+        value = re.sub(
+            r"(?i)\b(password|token|secret|credential|authorization)\s*[:=]\s*[^\s,;]+",
+            r"\1=[REDACTED]",
+            str(value or ""),
+        )
+        return value[:500]
+
+    @staticmethod
+    def _middleware_step_state(value, readback_state=None):
+        state = str(value or "").lower()
+        if state == "succeeded":
+            if str(readback_state or "").lower().endswith(
+                ("_requested", "_pending")
+            ):
+                return "verification_pending", "pending"
+            return "verified", "verified"
+        if state == "skipped":
+            # Middleware uses skipped for closed kill switches and disabled
+            # capabilities. A requested mandatory step is therefore not proof
+            # of provisioning and must never satisfy the activation gate.
+            return "blocked", "failed"
+        if state == "failed":
+            return "failed", "failed"
+        if state == "blocked":
+            return "blocked", "failed"
+        if state in {"retry", "retry_wait", "retry_scheduled"}:
+            return "retry_scheduled", "pending"
+        if state in {"running", "pending", "reserved"}:
+            return "running", "pending"
+        return "pending", "pending"
+
+    @staticmethod
+    def _middleware_channel_status_from_steps(steps):
+        channel_by_step = {
+            ("odoo", "upsert_user"): "odoo",
+            ("keycloak", "upsert_identity"): "keycloak",
+            ("email", "upsert_mailbox"): "email",
+            ("klyrow", "provision_sender_identity"): "email",
+            ("sms", "upsert_sender_profile"): "sms",
+            ("telnexa", "provision_sender_profile"): "sms",
+            ("vicidial", "upsert_agent"): "phone",
+            ("vicidial", "sync_agent"): "phone",
+            ("vicidial", "reserve_extension"): "phone",
+            ("vicidial", "adopt_extension"): "phone",
+            ("vicidial", "provision_phone"): "phone",
+            ("sip", "upsert_endpoint"): "phone",
+            ("vicidial", "provision_webrtc"): "webrtc",
+            ("agent_desktop", "assign_roles"): "agent_desktop",
+        }
+        rows = {}
+        for item in steps:
+            channel = channel_by_step.get((item["system"], item["operation"]))
+            if not channel:
+                continue
+            state = str(item["state"] or "").lower()
+            readback_state = str(item.get("readback_state") or "").lower()
+            confirmed = state in {
+                "succeeded",
+                "verified",
+            } and not readback_state.endswith(("_requested", "_pending"))
+            rows[channel] = {
+                "channel": channel,
+                "desired_enabled": True,
+                "requested_state": "requested",
+                "provisioned_state": state or "pending",
+                "effective_access": confirmed,
+                "provider": item["system"],
+                "provider_reference": item["external_reference"] or False,
+                "last_error_code": item["error_code"] or False,
+                "last_error_summary": item["error_summary"] or False,
+                "last_verified_at": item.get("completed_at") or False,
+            }
+        # Middleware returns ordered, append-only step history. Keep only the
+        # latest observation for each channel so a stale skipped/failed attempt
+        # cannot shadow a later successful reconciliation.
+        return [rows[channel] for channel in sorted(rows)]
+
+    @classmethod
+    def _middleware_normalized_result(cls, payload):
+        steps = payload.get("steps")
+        if steps is None:
+            steps = payload.get("step_results")
+        if not isinstance(steps, list):
+            raise ValueError("invalid_middleware_steps")
+        normalized_steps = []
+        for item in steps:
+            if not isinstance(item, dict):
+                raise ValueError("invalid_middleware_step")
+            normalized_steps.append(
+                {
+                    "system": item.get("system") or item.get("target_system"),
+                    "operation": item.get("operation"),
+                    "state": item.get("state"),
+                    "external_reference": item.get("external_reference")
+                    or item.get("external_id"),
+                    "error_code": item.get("error_code"),
+                    "error_summary": item.get("error_summary"),
+                    "attempt": item.get("attempt") or item.get("attempt_count") or 1,
+                    "readback_state": item.get("readback_state"),
+                    "completed_at": item.get("completed_at"),
+                }
+            )
+        channels = payload.get("channels")
+        if channels is None:
+            channels = cls._middleware_channel_status_from_steps(normalized_steps)
+        if not isinstance(channels, list):
+            raise ValueError("invalid_middleware_channels")
+        return {
+            "middleware_request_id": str(payload.get("middleware_request_id") or ""),
+            "request_id": str(payload.get("request_id") or ""),
+            "tenant_id": str(payload.get("tenant_id") or ""),
+            "employee_id": str(payload.get("employee_id") or ""),
+            "correlation_id": str(payload.get("correlation_id") or ""),
+            "state": str(payload.get("state") or ""),
+            "version": payload.get("version"),
+            "keycloak_subject": payload.get("keycloak_subject") or False,
+            "last_error_code": payload.get("last_error_code") or False,
+            "last_error_summary": payload.get("last_error_summary") or False,
+            "channels": channels,
+            "odoo": payload.get("odoo") or {},
+            "steps": normalized_steps,
+        }
+
+    @classmethod
+    def _middleware_result_hash(cls, payload):
+        return _sha256(_canonical_json(cls._middleware_normalized_result(payload)))
+
+    def _apply_middleware_result(self, payload, *, authenticated_tenant=None):
+        """Apply a terminal/observed Middleware version exactly once."""
+        self.ensure_one()
+        normalized = self._middleware_normalized_result(payload)
+        if normalized["request_id"] != self.integration_uuid:
+            raise ValueError("middleware_request_binding_mismatch")
+        if authenticated_tenant and normalized["tenant_id"] != authenticated_tenant:
+            raise ValueError("middleware_tenant_mismatch")
+        if normalized["tenant_id"] != self._middleware_tenant_id():
+            raise ValueError("middleware_tenant_mismatch")
+        request_record = self.provisioning_request_id
+        if not request_record or not self.campaign_membership_id:
+            raise ValueError("middleware_odoo_record_incomplete")
+        binding = normalized["odoo"]
+        if not isinstance(binding, dict) or not binding:
+            raise ValueError("invalid_middleware_odoo_binding")
+        if (
+            binding.get("onboarding_uuid") != self.integration_uuid
+            or str(binding.get("provisioning_request_id")) != str(request_record.id)
+            or binding.get("membership_uuid")
+            != self.campaign_membership_id.identity_uuid
+            or binding.get("desired_state_version") != self.desired_state_version
+        ):
+            raise ValueError("middleware_odoo_binding_mismatch")
+        if (
+            normalized["correlation_id"]
+            != request_record.correlation_id
+        ):
+            raise ValueError("middleware_correlation_mismatch")
+        if normalized["state"] not in (MIDDLEWARE_STATES - {"NOT_STARTED", "UNKNOWN"}):
+            raise ValueError("invalid_middleware_state")
+        try:
+            version = int(normalized["version"])
+        except (TypeError, ValueError) as error:
+            raise ValueError("invalid_middleware_version") from error
+        if version < 1:
+            raise ValueError("invalid_middleware_version")
+        try:
+            middleware_id = str(uuid.UUID(normalized["middleware_request_id"]))
+        except (AttributeError, TypeError, ValueError) as error:
+            raise ValueError("invalid_middleware_request_id") from error
+        if self.middleware_request_id and middleware_id != self.middleware_request_id:
+            raise ValueError("middleware_request_identity_mismatch")
+        expected_employee_id = (self.employee_id.codestra_employee_number or "").strip()
+        if not expected_employee_id or normalized["employee_id"] != expected_employee_id:
+            raise ValueError("middleware_employee_binding_mismatch")
+        incoming_subject = normalized["keycloak_subject"]
+        if incoming_subject and (
+            not isinstance(incoming_subject, str)
+            or not incoming_subject.strip()
+            or incoming_subject != incoming_subject.strip()
+            or len(incoming_subject) > 64
+        ):
+            raise ValueError("invalid_middleware_keycloak_subject")
+        if (
+            self.keycloak_subject
+            and incoming_subject
+            and str(incoming_subject) != self.keycloak_subject
+        ):
+            raise ValueError("middleware_keycloak_subject_mismatch")
+        bound_subject = incoming_subject or self.keycloak_subject or False
+        if normalized["state"] == "EFFECTIVE" and self.needs_keycloak and (
+            not isinstance(bound_subject, str) or not bound_subject.strip()
+        ):
+            raise ValueError("middleware_keycloak_subject_required")
+        result_hash = self._middleware_result_hash(payload)
+        if version < self.middleware_version:
+            return {
+                "state": "stale",
+                "middleware_state": self.middleware_state,
+                "middleware_version": self.middleware_version,
+            }
+        if version == self.middleware_version and self.middleware_payload_hash:
+            if self.middleware_payload_hash != result_hash:
+                raise ValueError("middleware_version_conflict")
+            return {
+                "state": "replayed",
+                "middleware_state": self.middleware_state,
+                "middleware_version": self.middleware_version,
+            }
+
+        step_rows = request_record.step_ids.with_user(SUPERUSER_ID)
+        extension_readback_mismatch = False
+        extension_operations = {
+            "reserve_extension", "adopt_extension", "provision_phone",
+        }
+        # These operations all observe the one approved Odoo reservation.
+        # Collapse append-only history before writing steps or assignments so
+        # superseded results cannot commit an extension or poison a later retry.
+        latest_extension_index = max(
+            (
+                index for index, item in enumerate(normalized["steps"])
+                if item["system"] == "vicidial"
+                and item["operation"] in extension_operations
+            ),
+            default=-1,
+        )
+        for index, item in enumerate(normalized["steps"]):
+            is_extension_step = (
+                item["system"] == "vicidial"
+                and item["operation"] in extension_operations
+            )
+            if is_extension_step and index != latest_extension_index:
+                continue
+            target = MIDDLEWARE_STEP_TARGETS.get(
+                (item["system"], item["operation"])
+            )
+            if not target:
+                continue
+            target_system, target_operation = target
+            step = step_rows.filtered(
+                lambda row: row.target_system == target_system
+                and row.operation == target_operation
+            )[:1]
+            if not step:
+                continue
+            step_state, verification_state = self._middleware_step_state(
+                item["state"], item["readback_state"]
+            )
+            try:
+                attempt_count = max(1, int(item["attempt"] or 1))
+            except (TypeError, ValueError):
+                attempt_count = 1
+            error_code = re.sub(
+                r"[^A-Z0-9_.-]", "_", str(item["error_code"] or "").upper()
+            )[:64]
+            values = {
+                "state": step_state,
+                "attempt_count": max(step.attempt_count, attempt_count),
+                "external_reference": item["external_reference"] or False,
+                "response_hash": _sha256(_canonical_json(item)),
+                "last_error_code": error_code or False,
+                "last_error_sanitized": (
+                    self._middleware_safe_error(item["error_summary"])
+                    if item["error_summary"]
+                    else False
+                ),
+                "verification_state": verification_state,
+                "completed_at": fields.Datetime.now()
+                if str(item["state"] or "").lower()
+                in {"succeeded", "failed", "blocked", "skipped"}
+                else False,
+            }
+            step.write(values)
+
+            if (
+                is_extension_step
+                and step_state == "verified"
+            ):
+                assignment = self.env["codestra.extension.assignment"].with_user(
+                    SUPERUSER_ID
+                ).search(
+                    [
+                        ("request_id", "=", request_record.id),
+                        ("state", "in", ["reserved", "committed"]),
+                    ],
+                    limit=1,
+                )
+                if (
+                    not assignment
+                    or str(item["external_reference"] or "")
+                    != assignment.extension
+                ):
+                    extension_readback_mismatch = True
+                    step.write(
+                        {
+                            "state": "failed",
+                            "verification_state": "failed",
+                            "last_error_code": "EXTENSION_READBACK_MISMATCH",
+                            "last_error_sanitized": (
+                                "Middleware extension read-back did not match the "
+                                "approved Odoo reservation."
+                            ),
+                        }
+                    )
+                else:
+                    assignment_values = {
+                        "provider_reference": item["external_reference"],
+                    }
+                    if assignment.state != "committed":
+                        assignment_values.update(
+                            {
+                                "state": "committed",
+                                "committed_at": fields.Datetime.now(),
+                            }
+                        )
+                    assignment.write(assignment_values)
+
+        state = normalized["state"]
+        request_record.invalidate_recordset(["mandatory_steps_complete"])
+        locally_effective = (
+            state == "EFFECTIVE"
+            and request_record.mandatory_steps_complete
+            and not extension_readback_mismatch
+        )
+        if state == "EFFECTIVE":
+            request_state = (
+                "awaiting_user_activation"
+                if locally_effective
+                else "verification"
+            )
+        elif state == "PARTIAL":
+            request_state = "partially_provisioned"
+        elif state == "FAILED":
+            request_state = "failed"
+        elif state == "SUSPENDED":
+            request_state = "suspended"
+        elif state == "REVOKED":
+            request_state = "terminated"
+        else:
+            request_state = "provisioning"
+        request_record.with_user(SUPERUSER_ID).write(
+            {
+                "state": request_state,
+                "last_error_code": (
+                    re.sub(
+                        r"[^A-Z0-9_.-]", "_", str(normalized["last_error_code"] or "").upper()
+                    )[:64]
+                    or False
+                ),
+                "last_error_sanitized": (
+                    self._middleware_safe_error(normalized["last_error_summary"])
+                    if normalized["last_error_summary"]
+                    else False
+                ),
+            }
+        )
+
+        channel_status = []
+        for item in normalized["channels"]:
+            if not isinstance(item, dict):
+                continue
+            channel_status.append(
+                {
+                    "channel": str(item.get("channel") or "")[:32],
+                    "desired_enabled": bool(item.get("desired_enabled")),
+                    "requested_state": str(item.get("requested_state") or "")[:64]
+                    or False,
+                    "provisioned_state": str(item.get("provisioned_state") or "")[:64]
+                    or False,
+                    "effective_access": bool(item.get("effective_access")),
+                    "provider": str(item.get("provider") or "")[:32] or False,
+                    "provider_reference": str(item.get("provider_reference") or "")[:255]
+                    or False,
+                    "last_error_code": str(item.get("last_error_code") or "")[:64] or False,
+                    "last_error_summary": self._middleware_safe_error(
+                        item.get("last_error_summary")
+                    )
+                    if item.get("last_error_summary")
+                    else False,
+                    "last_verified_at": item.get("last_verified_at") or False,
+                }
+            )
+
+        if extension_readback_mismatch:
+            for status in channel_status:
+                if status["channel"] in {"phone", "webrtc"}:
+                    status.update(
+                        {
+                            "effective_access": False,
+                            "provisioned_state": "failed",
+                            "last_error_code": "EXTENSION_READBACK_MISMATCH",
+                            "last_error_summary": (
+                                "Middleware extension read-back did not match the "
+                                "approved Odoo reservation."
+                            ),
+                        }
+                    )
+
+        agent_channels = {
+            channel.channel_type: channel
+            for channel in self.env["codestra.agent.channel"].with_user(
+                SUPERUSER_ID
+            ).search(
+                [
+                    ("employee_id", "=", self.employee_id.id),
+                    ("membership_id", "=", self.campaign_membership_id.id),
+                ]
+            )
+        }
+        for status in channel_status:
+            channel = agent_channels.get(status["channel"])
+            if not channel or not channel.desired_enabled:
+                continue
+            observed_state = str(status["provisioned_state"] or "").lower()
+            if status["effective_access"]:
+                channel._apply_step_evidence(
+                    verified=True,
+                    evidence_hash=result_hash,
+                    provider_reference=status["provider_reference"],
+                )
+            elif observed_state in {"failed", "blocked", "skipped"}:
+                channel._apply_step_evidence(
+                    verified=False,
+                    provider_reference=status["provider_reference"],
+                    error_code=status["last_error_code"],
+                    error_sanitized=status["last_error_summary"],
+                )
+            channel.write(
+                {
+                    "provider": status["provider"],
+                    "external_system": status["provider"],
+                    "last_provisioning_job_id": middleware_id,
+                }
+            )
+
+        membership = self.campaign_membership_id
+        membership_values = {}
+        if normalized["keycloak_subject"]:
+            membership_values["keycloak_subject"] = str(normalized["keycloak_subject"])[:64]
+        email_status = next(
+            (item for item in channel_status if item["channel"] == "email"), None
+        )
+        if email_status and email_status["effective_access"]:
+            membership_values["campaign_email_identity"] = (
+                email_status["provider_reference"] or False
+            )
+        membership_values["last_sync_status"] = (
+            "matched"
+            if locally_effective
+            else "failed"
+            if state == "FAILED"
+            else "mismatch"
+            if state in {"PARTIAL", "EFFECTIVE"}
+            else "pending"
+        )
+        membership_values["read_back_evidence"] = (
+            "middleware:%s#%s" % (middleware_id, result_hash)
+        )
+        membership.with_user(SUPERUSER_ID).with_context(
+            _cc_identity_write_capability=IDENTITY_WRITE_CAPABILITY,
+            cc_membership_transition=True,
+        ).write(membership_values)
+
+        if state == "FAILED":
+            self._write_system_links(
+                {
+                    "state": "failed",
+                    "failure_reason": self._middleware_safe_error(
+                        normalized["last_error_summary"] or "Middleware provisioning failed."
+                    ),
+                }
+            )
+        else:
+            self._write_system_links(
+                {"state": "provisioning", "failure_reason": False}
+            )
+        self._write_middleware(
+            {
+                "middleware_request_id": middleware_id,
+                "middleware_correlation_id": normalized["correlation_id"],
+                "middleware_state": state,
+                "middleware_version": version,
+                "middleware_last_sync_at": fields.Datetime.now(),
+                "middleware_last_error_code": normalized["last_error_code"] or False,
+                "middleware_last_error_summary": (
+                    self._middleware_safe_error(normalized["last_error_summary"])
+                    if normalized["last_error_summary"]
+                    else False
+                ),
+                "middleware_channel_status": channel_status,
+                "middleware_payload_hash": result_hash,
+                "keycloak_subject": bound_subject,
+            }
+        )
+        request_record._audit(
+            "middleware.agent_provisioning.readback",
+            "accepted",
+            after={
+                "middleware_request_id": middleware_id,
+                "middleware_state": state,
+                "middleware_version": version,
+                "channel_count": len(channel_status),
+            },
+        )
+        return {
+            "state": "accepted",
+            "middleware_state": state,
+            "middleware_request_id": middleware_id,
+            "middleware_version": version,
+        }
 
     def _provisioning_event_payload(self):
         self.ensure_one()
@@ -914,10 +1735,11 @@ class CodestraAgentOnboardingProvisioning(models.Model):
         }
 
     def action_start_provisioning(self):
-        self._require_state("approved", "provisioning")
+        self.ensure_one()
+        self._require_state("approved", "provisioning", "failed")
         self._require_global_administrator()
         for record in self:
-            if record.provisioning_outbox_id:
+            if record.middleware_state == "EFFECTIVE":
                 continue
             if (
                 not record.provisioning_request_id
@@ -949,7 +1771,13 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                 # ACLs are intentionally service-only. The caller has already passed
                 # both the global-admin and provisioning-approval gates above.
                 request_record.with_user(SUPERUSER_ID).action_reserve_identifiers()
-            if request_record.state != "provisioning":
+            if request_record.state not in {
+                "provisioning",
+                "partially_provisioned",
+                "verification",
+                "awaiting_user_activation",
+                "failed",
+            }:
                 raise ValidationError(
                     _("The provisioning request must be approved and prepared.")
                 )
@@ -963,26 +1791,44 @@ class CodestraAgentOnboardingProvisioning(models.Model):
                         "synchronization."
                     )
                 )
-            payload = record._provisioning_event_payload()
-            event = record._create_integration_event(
-                PROVISION_EVENT,
-                payload,
-                _sha256(
-                    "%s|%s|%s"
-                    % (
-                        record.integration_uuid,
-                        record.desired_state_version,
-                        PROVISION_EVENT,
-                    )
-                ),
-            )
             record._write_system_links(
                 {
                     "state": "provisioning",
-                    "provisioning_outbox_id": event.id,
                     "provisioning_started_at": fields.Datetime.now(),
                 }
             )
+            client = self.env[
+                "codestra.agent.provisioning.middleware.client"
+            ]
+            try:
+                if record.middleware_request_id:
+                    response = client._reconcile_request(
+                        record,
+                        record.middleware_request_id,
+                        correlation_id=request_record.correlation_id,
+                        reason="Odoo administrator requested provisioning reconciliation.",
+                        expected_request_id=record.integration_uuid,
+                    )
+                else:
+                    response = client._create_request(
+                        record,
+                        record._middleware_provisioning_payload(),
+                        idempotency_key=record._provisioning_idempotency_key(),
+                        correlation_id=request_record.correlation_id,
+                    )
+            except AgentProvisioningOutcomeUnknown as error:
+                record._write_middleware(
+                    {
+                        "middleware_state": "RECONCILING",
+                        "middleware_last_sync_at": fields.Datetime.now(),
+                        "middleware_last_error_code": "OUTCOME_UNKNOWN",
+                        "middleware_last_error_summary": str(error),
+                    }
+                )
+                continue
+            except AgentProvisioningRejected:
+                raise
+            record._apply_middleware_result(response)
         return True
 
     def _activation_email_payload(self):

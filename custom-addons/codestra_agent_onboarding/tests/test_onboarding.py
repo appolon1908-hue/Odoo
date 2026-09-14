@@ -1,4 +1,5 @@
 import uuid
+from unittest.mock import patch
 
 from odoo import SUPERUSER_ID, fields
 from odoo.exceptions import AccessError, ValidationError
@@ -171,6 +172,9 @@ class TestCodestraAgentOnboarding(TransactionCase):
             "codestra.integration.organization_public_id", "codestra-test"
         )
         cls.env["ir.config_parameter"].with_user(SUPERUSER_ID).set_param(
+            "codestra.middleware.tenant_id", "codestra-test"
+        )
+        cls.env["ir.config_parameter"].with_user(SUPERUSER_ID).set_param(
             "codestra.agent.activation.login_url",
             "https://auth.codestra.co/contact-center/agent",
         )
@@ -245,11 +249,71 @@ class TestCodestraAgentOnboarding(TransactionCase):
         )
         return request_record
 
-    def _start(self, onboarding):
+    def _middleware_binding(self, onboarding):
+        return {
+            "onboarding_uuid": onboarding.integration_uuid,
+            "provisioning_request_id": str(onboarding.provisioning_request_id.id),
+            "membership_uuid": onboarding.campaign_membership_id.identity_uuid,
+            "desired_state_version": onboarding.desired_state_version,
+        }
+
+    def _middleware_readback(self, onboarding, **updates):
+        return {
+            "middleware_request_id": onboarding.middleware_request_id,
+            "request_id": onboarding.integration_uuid,
+            "tenant_id": "codestra-test",
+            "employee_id": onboarding.employee_id.codestra_employee_number,
+            "state": "PARTIAL",
+            "correlation_id": onboarding.provisioning_request_id.correlation_id,
+            "version": onboarding.middleware_version + 1,
+            "keycloak_subject": onboarding.keycloak_subject,
+            "odoo": self._middleware_binding(onboarding),
+            "steps": [],
+            **updates,
+        }
+
+    def _start(self, onboarding, *, include_keycloak_subject=True):
         request_record = self._prepare(onboarding)
-        onboarding.with_user(self.approver).action_start_provisioning()
+        response = {
+            "middleware_request_id": str(uuid.uuid4()),
+            "request_id": onboarding.integration_uuid,
+            "tenant_id": "codestra-test",
+            # The governed start action reserves the employee number immediately
+            # before it calls Middleware, so the mock binds its response to the
+            # final outbound payload below rather than this pre-reservation value.
+            "employee_id": False,
+            "state": "PARTIAL",
+            "correlation_id": request_record.correlation_id,
+            "version": 1,
+            "keycloak_subject": str(uuid.uuid4()) if include_keycloak_subject else False,
+            "last_error_code": "KILL_SWITCH_CLOSED",
+            "last_error_summary": "channel writes are disabled in the test runtime",
+            "odoo": {
+                "onboarding_uuid": onboarding.integration_uuid,
+                "provisioning_request_id": str(request_record.id),
+                "membership_uuid": onboarding.campaign_membership_id.identity_uuid,
+                "desired_state_version": onboarding.desired_state_version,
+            },
+            "channels": [],
+            "steps": [],
+        }
+        client = self.env["codestra.agent.provisioning.middleware.client"]
+
+        def middleware_response(_onboarding, payload, **_kwargs):
+            return {**response, "employee_id": payload["employee_id"]}
+
+        with patch.object(
+            type(client), "_create_request", side_effect=middleware_response
+        ):
+            onboarding.with_user(self.approver).action_start_provisioning()
         onboarding.invalidate_recordset(
-            ["state", "provisioning_outbox_id", "campaign_membership_id"]
+            [
+                "state",
+                "provisioning_outbox_id",
+                "campaign_membership_id",
+                "middleware_request_id",
+                "middleware_state",
+            ]
         )
         request_record.invalidate_recordset(["state", "step_ids"])
         return request_record
@@ -299,6 +363,8 @@ class TestCodestraAgentOnboarding(TransactionCase):
             onboarding.campaign_membership_id.campaign_id, self.campaign
         )
         self.assertEqual(request_record.state, "pending_approval")
+        self.assertEqual(request_record.requested_by, self.requester)
+        self.assertEqual(request_record.extension_pool_id, self.extension_pool)
         self.assertEqual(
             request_record.cc_membership_id, onboarding.campaign_membership_id
         )
@@ -327,45 +393,47 @@ class TestCodestraAgentOnboarding(TransactionCase):
         with self.assertRaises(AccessError):
             onboarding.with_user(self.requester).action_start_provisioning()
 
-    def test_provisioning_emits_one_secret_free_disabled_event(self):
+    def test_provisioning_calls_canonical_middleware_saga(self):
         onboarding = self._new_onboarding()
         request_record = self._start(onboarding)
-        event = onboarding.provisioning_outbox_id
-        payload = event.payload_json
 
         self.assertEqual(onboarding.state, "provisioning")
-        self.assertEqual(request_record.state, "provisioning")
+        self.assertEqual(request_record.state, "partially_provisioned")
         self.assertEqual(onboarding.campaign_membership_id.state, "pending_sync")
-        self.assertEqual(event.event_type, "agent.provisioning.requested.v1")
-        self.assertEqual(event.delivery_state, "pending")
-        self.assertTrue(payload["controls"]["create_disabled"])
-        self.assertFalse(payload["controls"]["activate_immediately"])
-        self.assertFalse(payload["controls"]["send_activation_email"])
-        self.assertFalse(payload["controls"]["plaintext_password_allowed"])
-        self.assertFalse(payload["controls"]["production_dialing"])
-        self.assertEqual(payload["employee_display_name"], "New Campaign Agent")
-        self.assertEqual(payload["vicidial_campaign_id"], "ONB0001")
-        self.assertEqual(payload["vicidial_user_group"], "ONB_AGENT")
+        self.assertEqual(onboarding.middleware_state, "PARTIAL")
+        self.assertTrue(onboarding.middleware_request_id)
+        self.assertTrue(onboarding.keycloak_subject)
+        self.assertFalse(onboarding.provisioning_outbox_id)
         self.assertTrue(onboarding.campaign_membership_id.vicidial_user)
         self.assertEqual(
             onboarding.campaign_membership_id.vicidial_user_group, "ONB_AGENT"
         )
 
-        forbidden = {
-            "password",
-            "temporary_password",
-            "token",
-            "secret",
-            "private_key",
-            "activation_link",
-            "action_link",
-            "reset_link",
+        response = {
+            "middleware_request_id": onboarding.middleware_request_id,
+            "request_id": onboarding.integration_uuid,
+            "tenant_id": "codestra-test",
+            "employee_id": request_record.employee_id.codestra_employee_number,
+            "state": "PARTIAL",
+            "correlation_id": request_record.correlation_id,
+            "version": 2,
+            "keycloak_subject": onboarding.keycloak_subject,
+            "last_error_code": "KILL_SWITCH_CLOSED",
+            "last_error_summary": "still gated",
+            "odoo": {
+                "onboarding_uuid": onboarding.integration_uuid,
+                "provisioning_request_id": str(request_record.id),
+                "membership_uuid": onboarding.campaign_membership_id.identity_uuid,
+                "desired_state_version": onboarding.desired_state_version,
+            },
+            "channels": [],
+            "steps": [],
         }
-        self.assertFalse(forbidden.intersection(_nested_keys(payload)))
-
-        first_event = event
-        onboarding.with_user(self.approver).action_start_provisioning()
-        self.assertEqual(onboarding.provisioning_outbox_id, first_event)
+        client = self.env["codestra.agent.provisioning.middleware.client"]
+        with patch.object(type(client), "_reconcile_request", return_value=response) as reconcile:
+            onboarding.with_user(self.approver).action_start_provisioning()
+        reconcile.assert_called_once()
+        self.assertEqual(onboarding.middleware_version, 2)
         self.assertEqual(
             self.env["codestra.runtime.integration.outbox"].search_count(
                 [
@@ -374,7 +442,7 @@ class TestCodestraAgentOnboarding(TransactionCase):
                     ("event_type", "=", "agent.provisioning.requested.v1"),
                 ]
             ),
-            1,
+            0,
         )
 
     def test_activation_email_waits_for_complete_readback(self):
@@ -535,7 +603,7 @@ class TestCodestraAgentOnboarding(TransactionCase):
         onboarding = self._new_onboarding()
         onboarding.write({"needs_recording_access": True, "needs_monitoring_access": True})
         provision = self._start(onboarding)
-        targets = set(onboarding.provisioning_outbox_id.payload_json["targets"])
+        targets = set(onboarding._provisioning_event_payload()["targets"])
         optional = {"voicemail", "recording_access", "monitoring_access"}
         self.assertTrue(optional <= targets)
         self.assertTrue(optional <= set(provision.step_ids.mapped("target_system")))
@@ -610,7 +678,8 @@ class TestCodestraAgentOnboarding(TransactionCase):
     def test_extension_is_reserved_and_synced_to_membership(self):
         onboarding = self._new_onboarding()
         self._start(onboarding)
-        extension = onboarding.campaign_membership_id.extension
+        membership = onboarding.campaign_membership_id
+        extension = membership.extension
         self.assertTrue(extension)
         self.assertTrue(
             self.extension_pool.start_extension
@@ -622,10 +691,25 @@ class TestCodestraAgentOnboarding(TransactionCase):
         )
         self.assertEqual(len(assignment), 1)
         self.assertEqual(assignment.extension, extension)
+        self.assertEqual(membership.phone_assignment_id, assignment)
+        for channel_type in ("phone", "webrtc"):
+            channel = self._channel(onboarding, channel_type)
+            self.assertEqual(channel.extension_assignment_id, assignment)
+            self.assertEqual(channel.provisioning_request_id, onboarding.provisioning_request_id)
+            self.assertEqual(
+                channel.correlation_id,
+                onboarding.provisioning_request_id.correlation_id,
+            )
 
     def test_webrtc_and_sms_flags_flow_to_membership_and_event_payload(self):
         onboarding = self._new_onboarding(email="webrtc.agent@example.invalid")
-        onboarding.write({"webrtc_enabled": True, "sms_enabled": True})
+        onboarding.write(
+            {
+                "webrtc_enabled": True,
+                "sms_enabled": True,
+                "sms_sender": "CODESTRA",
+            }
+        )
         self._start(onboarding)
         membership = onboarding.campaign_membership_id
         self.assertTrue(self._channel(onboarding, "webrtc").desired_enabled)
@@ -668,6 +752,317 @@ class TestCodestraAgentOnboarding(TransactionCase):
                 {"needs_sip_endpoint": False, "outgoing_calls_enabled": True}
             )
 
+    def test_webrtc_and_sip_require_the_current_vicidial_transport(self):
+        onboarding = self._new_onboarding(email="webrtc.no.sip@example.invalid")
+        with self.assertRaises(ValidationError):
+            onboarding.write({"needs_sip_endpoint": False, "webrtc_enabled": True})
+
+        onboarding = self._new_onboarding(email="sip.no.vicidial@example.invalid")
+        with self.assertRaises(ValidationError):
+            onboarding.write({"needs_vicidial": False})
+
+    def test_middleware_payload_preserves_approved_call_permissions(self):
+        onboarding = self._new_onboarding(email="calling.payload@example.invalid")
+        onboarding.write({
+            "incoming_calls_enabled": True,
+            "outgoing_calls_enabled": False,
+        })
+        self._start(onboarding)
+        payload = onboarding._middleware_provisioning_payload()
+        self.assertTrue(payload["telephony"]["incoming_allowed"])
+        self.assertFalse(payload["telephony"]["outgoing_allowed"])
+        self.assertEqual(
+            payload["telephony"]["existing_extension"],
+            onboarding.campaign_membership_id.extension,
+        )
+        self.assertRegex(
+            payload["campaigns"][0]["vicidial_user_id"],
+            r"^[A-Z]{3}[0-9]{4,12}$",
+        )
+
+    def test_middleware_payload_preserves_optional_entitlements(self):
+        onboarding = self._new_onboarding(email="entitlements.payload@example.invalid")
+        onboarding.write({
+            "needs_agent_desktop": False,
+            "needs_voicemail": True,
+            "needs_recording_access": True,
+            "needs_monitoring_access": True,
+        })
+        self._start(onboarding)
+        payload = onboarding._middleware_provisioning_payload()
+        self.assertEqual(
+            payload["entitlements"],
+            {
+                "agent_desktop": False,
+                "voicemail": True,
+                "recording_access": True,
+                "monitoring_access": True,
+            },
+        )
+
+    def test_middleware_accepts_an_accepted_nonterminal_response(self):
+        onboarding = self._new_onboarding(email="async.middleware@example.invalid")
+        request_record = self._prepare(onboarding)
+        request_record.with_user(self.approver).action_approve()
+        request_record.with_user(SUPERUSER_ID).action_reserve_identifiers()
+        request_record.employee_id.invalidate_recordset(["codestra_employee_number"])
+        middleware_request_id = str(uuid.uuid4())
+        response = {
+            "middleware_request_id": middleware_request_id,
+            "request_id": onboarding.integration_uuid,
+            "tenant_id": "codestra-test",
+            "employee_id": request_record.employee_id.codestra_employee_number,
+            "state": "READBACK",
+            "correlation_id": request_record.correlation_id,
+            "version": 1,
+            "odoo": self._middleware_binding(onboarding),
+            "keycloak_subject": False,
+            "last_error_code": False,
+            "last_error_summary": False,
+            "channels": [],
+            "steps": [],
+        }
+        result = onboarding._apply_middleware_result(response)
+        self.assertEqual(result["state"], "accepted")
+        self.assertEqual(onboarding.middleware_request_id, middleware_request_id)
+        self.assertEqual(onboarding.middleware_state, "READBACK")
+        self.assertEqual(request_record.state, "provisioning")
+
+    def test_middleware_step_history_keeps_only_the_latest_channel_result(self):
+        rows = self.env[
+            "codestra.agent.onboarding"
+        ]._middleware_channel_status_from_steps(
+            [
+                {
+                    "system": "klyrow",
+                    "operation": "provision_sender_identity",
+                    "state": "skipped",
+                    "external_reference": False,
+                    "error_code": "KILL_SWITCH_CLOSED",
+                    "error_summary": "disabled",
+                    "readback_state": False,
+                    "completed_at": "2026-09-13T10:00:00Z",
+                },
+                {
+                    "system": "klyrow",
+                    "operation": "provision_sender_identity",
+                    "state": "succeeded",
+                    "external_reference": "sender-new",
+                    "error_code": False,
+                    "error_summary": False,
+                    "readback_state": "sender_identity_active",
+                    "completed_at": "2026-09-13T10:01:00Z",
+                },
+            ]
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["channel"], "email")
+        self.assertEqual(rows[0]["provider_reference"], "sender-new")
+        self.assertTrue(rows[0]["effective_access"])
+
+    def test_skipped_and_requested_steps_never_satisfy_verification(self):
+        onboarding = self.env["codestra.agent.onboarding"]
+        self.assertEqual(
+            onboarding._middleware_step_state("skipped", "kill_switch_closed"),
+            ("blocked", "failed"),
+        )
+        self.assertEqual(
+            onboarding._middleware_step_state(
+                "succeeded", "sender_profile_requested"
+            ),
+            ("verification_pending", "pending"),
+        )
+
+    def test_middleware_commits_only_the_exact_reserved_extension(self):
+        onboarding = self._new_onboarding(email="extension.readback@example.invalid")
+        request_record = self._start(onboarding)
+        assignment = onboarding.campaign_membership_id.phone_assignment_id
+        response = {
+            "middleware_request_id": onboarding.middleware_request_id,
+            "request_id": onboarding.integration_uuid,
+            "tenant_id": "codestra-test",
+            "employee_id": request_record.employee_id.codestra_employee_number,
+            "state": "PARTIAL",
+            "correlation_id": request_record.correlation_id,
+            "version": 2,
+            "odoo": self._middleware_binding(onboarding),
+            "keycloak_subject": onboarding.keycloak_subject,
+            "steps": [
+                {
+                    "system": "vicidial",
+                    "operation": "adopt_extension",
+                    "state": "succeeded",
+                    "external_reference": assignment.extension,
+                    "readback_state": "phone_active",
+                }
+            ],
+        }
+        onboarding._apply_middleware_result(response)
+        assignment.invalidate_recordset(["state", "committed_at"])
+        self.assertEqual(assignment.state, "committed")
+        self.assertTrue(assignment.committed_at)
+        self.assertEqual(self._channel(onboarding, "phone").state, "provisioned")
+
+    def test_middleware_extension_mismatch_fails_closed(self):
+        onboarding = self._new_onboarding(email="extension.mismatch@example.invalid")
+        request_record = self._start(onboarding)
+        assignment = onboarding.campaign_membership_id.phone_assignment_id
+        response = {
+            "middleware_request_id": onboarding.middleware_request_id,
+            "request_id": onboarding.integration_uuid,
+            "tenant_id": "codestra-test",
+            "employee_id": request_record.employee_id.codestra_employee_number,
+            "state": "PARTIAL",
+            "correlation_id": request_record.correlation_id,
+            "version": 2,
+            "odoo": self._middleware_binding(onboarding),
+            "keycloak_subject": onboarding.keycloak_subject,
+            "steps": [
+                {
+                    "system": "vicidial",
+                    "operation": "adopt_extension",
+                    "state": "succeeded",
+                    "external_reference": "9999",
+                    "readback_state": "phone_active",
+                }
+            ],
+        }
+        onboarding._apply_middleware_result(response)
+        assignment.invalidate_recordset(["state"])
+        request_record.invalidate_recordset(["mandatory_steps_complete"])
+        phone = self._channel(onboarding, "phone")
+        phone.invalidate_recordset(["state", "last_error_code"])
+        self.assertEqual(assignment.state, "reserved")
+        self.assertEqual(phone.state, "failed")
+        self.assertEqual(phone.last_error_code, "EXTENSION_READBACK_MISMATCH")
+        self.assertFalse(request_record.mandatory_steps_complete)
+
+    def test_middleware_saga_and_keycloak_identities_are_immutable(self):
+        onboarding = self._new_onboarding(email="immutable.saga@example.invalid")
+        request_record = self._start(onboarding)
+        base = {
+            "middleware_request_id": onboarding.middleware_request_id,
+            "request_id": onboarding.integration_uuid,
+            "tenant_id": "codestra-test",
+            "employee_id": request_record.employee_id.codestra_employee_number,
+            "state": "PARTIAL",
+            "correlation_id": request_record.correlation_id,
+            "version": 2,
+            "odoo": self._middleware_binding(onboarding),
+            "keycloak_subject": onboarding.keycloak_subject,
+            "steps": [],
+        }
+        with self.assertRaisesRegex(ValueError, "middleware_request_identity_mismatch"):
+            onboarding._apply_middleware_result(
+                {**base, "middleware_request_id": str(uuid.uuid4())}
+            )
+        with self.assertRaisesRegex(ValueError, "middleware_keycloak_subject_mismatch"):
+            onboarding._apply_middleware_result(
+                {**base, "keycloak_subject": str(uuid.uuid4())}
+            )
+        with self.assertRaisesRegex(ValueError, "middleware_employee_binding_mismatch"):
+            onboarding._apply_middleware_result(
+                {**base, "employee_id": "OTHER-EMPLOYEE"}
+            )
+
+    def test_middleware_rejects_missing_or_incomplete_odoo_binding(self):
+        onboarding = self._new_onboarding(email="required.binding@example.invalid")
+        request_record = self._start(onboarding)
+        response = self._middleware_readback(onboarding, state="EFFECTIVE")
+        missing = dict(response)
+        missing.pop("odoo")
+        cases = [missing, {**response, "odoo": {}}, {**response, "odoo": None}]
+        for field in self._middleware_binding(onboarding):
+            binding = self._middleware_binding(onboarding)
+            binding.pop(field)
+            cases.append({**response, "odoo": binding})
+        before = request_record.step_ids.read(["state", "verification_state"])
+        for invalid in cases:
+            with self.subTest(binding=invalid.get("odoo")):
+                with self.assertRaisesRegex(ValueError, "middleware_odoo_binding"):
+                    onboarding._apply_middleware_result(invalid)
+                self.assertEqual(onboarding.middleware_version, 1)
+                self.assertEqual(request_record.state, "partially_provisioned")
+                self.assertNotEqual(onboarding.campaign_membership_id.last_sync_status, "matched")
+                self.assertEqual(
+                    request_record.step_ids.read(["state", "verification_state"]), before
+                )
+
+    def test_middleware_effective_requires_a_keycloak_subject(self):
+        onboarding = self._new_onboarding(email="required.subject@example.invalid")
+        request_record = self._start(onboarding, include_keycloak_subject=False)
+        self.assertTrue(onboarding.needs_keycloak)
+        # Even complete step evidence cannot substitute for the immutable identity.
+        request_record.step_ids.with_user(SUPERUSER_ID).write(
+            {"state": "verified", "verification_state": "verified"}
+        )
+        self.assertTrue(request_record.mandatory_steps_complete)
+        response = self._middleware_readback(onboarding, state="EFFECTIVE")
+        for subject in (None, False, "", "   ", 123, "x" * 65):
+            with self.subTest(subject=subject):
+                with self.assertRaisesRegex(ValueError, "middleware_keycloak_subject"):
+                    onboarding._apply_middleware_result({**response, "keycloak_subject": subject})
+                self.assertEqual(onboarding.middleware_version, 1)
+                self.assertEqual(request_record.state, "partially_provisioned")
+                self.assertFalse(onboarding.keycloak_subject)
+                self.assertNotEqual(onboarding.campaign_membership_id.last_sync_status, "matched")
+        missing = dict(response)
+        missing.pop("keycloak_subject")
+        with self.assertRaisesRegex(ValueError, "middleware_keycloak_subject_required"):
+            onboarding._apply_middleware_result(missing)
+        with self.assertRaises(ValidationError):
+            onboarding.with_user(self.approver).action_request_activation_email()
+        subject = str(uuid.uuid4())
+        onboarding._apply_middleware_result({**response, "keycloak_subject": subject})
+        self.assertEqual(onboarding.keycloak_subject, subject)
+        self.assertEqual(onboarding.campaign_membership_id.keycloak_subject, subject)
+        self.assertEqual(request_record.state, "awaiting_user_activation")
+        # Later observations may omit a subject already bound to this same saga.
+        followup = self._middleware_readback(onboarding, state="EFFECTIVE")
+        followup.pop("keycloak_subject")
+        onboarding._apply_middleware_result(followup)
+        self.assertEqual(onboarding.keycloak_subject, subject)
+
+    def test_middleware_extension_history_uses_latest_adoption(self):
+        for old_operation in ("adopt_extension", "reserve_extension"):
+            with self.subTest(old_operation=old_operation):
+                onboarding = self._new_onboarding(
+                    email="latest.%s@example.invalid" % old_operation
+                )
+                self._start(onboarding)
+                assignment = onboarding.campaign_membership_id.phone_assignment_id
+                response = self._middleware_readback(onboarding, steps=[
+                    {"system": "vicidial", "operation": old_operation,
+                     "state": "succeeded", "external_reference": "9999",
+                     "readback_state": "phone_active", "attempt": 1},
+                    {"system": "vicidial", "operation": "adopt_extension",
+                     "state": "succeeded", "external_reference": assignment.extension,
+                     "readback_state": "phone_active", "attempt": 2},
+                ])
+                onboarding._apply_middleware_result(response)
+                self.assertEqual(assignment.state, "committed")
+                self.assertEqual(assignment.provider_reference, assignment.extension)
+                phone = self._channel(onboarding, "phone")
+                self.assertEqual(phone.state, "provisioned")
+                self.assertFalse(phone.last_error_code)
+
+    def test_middleware_latest_extension_failure_does_not_commit_old_success(self):
+        onboarding = self._new_onboarding(email="latest.failure@example.invalid")
+        self._start(onboarding)
+        assignment = onboarding.campaign_membership_id.phone_assignment_id
+        response = self._middleware_readback(onboarding, steps=[
+            {"system": "vicidial", "operation": "adopt_extension",
+             "state": "succeeded", "external_reference": assignment.extension,
+             "readback_state": "phone_active", "attempt": 1},
+            {"system": "vicidial", "operation": "adopt_extension",
+             "state": "failed", "external_reference": assignment.extension,
+             "error_code": "READBACK_FAILED", "attempt": 2},
+        ])
+        onboarding._apply_middleware_result(response)
+        self.assertEqual(assignment.state, "reserved")
+        self.assertFalse(assignment.committed_at)
+        self.assertEqual(self._channel(onboarding, "phone").state, "failed")
+
     def test_membership_channel_ids_reflect_created_channels(self):
         onboarding = self._new_onboarding(email="channel.reflection@example.invalid")
         self._start(onboarding)
@@ -689,7 +1084,11 @@ class TestCodestraAgentOnboarding(TransactionCase):
             with self.subTest(field=field_name), self.assertRaises(AccessError):
                 onboarding.with_user(self.non_admin_manager).write({field_name: value})
         onboarding.with_user(self.requester).write(
-            {"webrtc_enabled": True, "sms_enabled": True}
+            {
+                "webrtc_enabled": True,
+                "sms_enabled": True,
+                "sms_sender": "CODESTRA",
+            }
         )
         self.assertTrue(onboarding.webrtc_enabled)
         self.assertTrue(onboarding.sms_enabled)
@@ -978,3 +1377,62 @@ class TestCodestraAgentOnboarding(TransactionCase):
                 "starts_at": fields.Datetime.now(),
                 "platform_user_id": platform_user.id,
             })
+
+
+    def test_provisioning_transport_is_private_to_rpc(self):
+        from odoo.orm.utils import check_method_name
+        for model_name in ("codestra.agent.provisioning.middleware.client",
+                           "codestra.middleware.agent.provisioning.transport"):
+            model = self.env[model_name]
+            for method in ("create_request", "reconcile_request"):
+                self.assertFalse(hasattr(model, method))
+                with self.assertRaises(AccessError):
+                    check_method_name("_" + method)
+
+    def test_transport_requires_approved_onboarding(self):
+        onboarding = self._new_onboarding().with_user(self.approver)
+        client = self.env["codestra.agent.provisioning.middleware.client"].with_user(self.approver)
+        with self.assertRaises(AccessError):
+            client._create_request(onboarding, {"request_id": onboarding.integration_uuid},
+                                   idempotency_key=str(uuid.uuid4()), correlation_id="unapproved")
+
+    def test_provisioning_credentials_reject_group_read(self):
+        import tempfile
+        from pathlib import Path
+        from odoo.addons.codestra_middleware_bridge.models.agent_provisioning_transport import (
+            _protected_value,
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "credential"
+            path.write_text("synthetic-runtime-test-value")
+            path.chmod(0o640)
+            with self.assertRaises(ValidationError):
+                _protected_value(str(path), "test")
+            path.chmod(0o600)
+            self.assertEqual(_protected_value(str(path), "test"), "synthetic-runtime-test-value")
+
+    def test_reconcile_response_must_return_the_requested_middleware_saga(self):
+        from odoo.addons.codestra_middleware_bridge.models.agent_provisioning_transport import (
+            MiddlewareProvisioningOutcomeUnknown,
+        )
+
+        expected = str(uuid.uuid4())
+        response = {
+            "middleware_request_id": str(uuid.uuid4()),
+            "request_id": str(uuid.uuid4()),
+            "tenant_id": "codestra-test",
+            "employee_id": "COD00001",
+            "state": "PARTIAL",
+            "correlation_id": str(uuid.uuid4()),
+            "version": 1,
+            "steps": [],
+        }
+        transport = self.env["codestra.middleware.agent.provisioning.transport"]
+        with self.assertRaises(MiddlewareProvisioningOutcomeUnknown):
+            transport._validate_response(
+                response,
+                request_id=response["request_id"],
+                correlation_id=response["correlation_id"],
+                middleware_request_id=expected,
+            )

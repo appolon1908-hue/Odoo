@@ -11,6 +11,7 @@ from odoo.tests.common import TransactionCase
 from ..models.outbox_delivery import (
     AGENT_EVENT_TYPES,
     MIDDLEWARE_EVENT_PATH,
+    RETIRED_AGENT_EVENT_TYPES,
     _event_document,
     _event_endpoint,
     _signed_headers,
@@ -21,7 +22,7 @@ from ..models.outbox_delivery import (
 
 @tagged("post_install", "-at_install")
 class TestAgentOnboardingOutboxDelivery(TransactionCase):
-    def _event(self, event_type="agent.provisioning.requested.v1"):
+    def _event(self, event_type="agent.activation-email.requested.v1"):
         return SimpleNamespace(
             event_type=event_type,
             event_uuid="9d4f15f7-339e-4d46-b754-1c6418b9daf1",
@@ -118,7 +119,6 @@ class TestAgentOnboardingOutboxDelivery(TransactionCase):
         self.assertEqual(
             set(AGENT_EVENT_TYPES.values()),
             {
-                "codestra.odoo.agent.provisioning_requested",
                 "codestra.odoo.agent.activation_email_requested",
             },
         )
@@ -130,16 +130,16 @@ class TestAgentOnboardingOutboxDelivery(TransactionCase):
                 2026, 9, 4, 16, 1, tzinfo=timezone.utc
             ),
         )
-        self.assertEqual(
-            document["event_type"],
-            "codestra.odoo.agent.provisioning_requested",
-        )
+        self.assertEqual(document["event_type"], "codestra.odoo.agent.activation_email_requested")
         self.assertEqual(document["source"], "odoo-integration")
         self.assertEqual(document["idempotency_key"], document["event_id"])
         self.assertEqual(document["tenant_id"], "tenant-1")
         self.assertTrue(
-            document["payload"]["controls"]["create_disabled"]
+            document["payload"]["controls"]["one_time_action_required"]
         )
+        self.assertFalse(document["payload"]["controls"]["activate_immediately"])
+        self.assertFalse(document["payload"]["controls"]["link_persistence_allowed"])
+        self.assertFalse(document["payload"]["controls"]["plaintext_password_allowed"])
         encoded = json.dumps(document, sort_keys=True)
         for forbidden in (
             '"password"',
@@ -159,6 +159,11 @@ class TestAgentOnboardingOutboxDelivery(TransactionCase):
             document["event_type"],
             "codestra.odoo.agent.activation_email_requested",
         )
+
+    def test_provisioning_event_is_retired(self):
+        self.assertIn("agent.provisioning.requested.v1", RETIRED_AGENT_EVENT_TYPES)
+        with self.assertRaises(ValidationError):
+            _event_document(self._event("agent.provisioning.requested.v1"))
 
     def test_signed_headers_match_middleware_v1_contract(self):
         event = _event_document(self._event())
