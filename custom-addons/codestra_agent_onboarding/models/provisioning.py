@@ -1318,9 +1318,9 @@ class CodestraAgentOnboardingProvisioning(models.Model):
         if not request_record or not self.campaign_membership_id:
             raise ValueError("middleware_odoo_record_incomplete")
         binding = normalized["odoo"]
-        if not isinstance(binding, dict):
+        if not isinstance(binding, dict) or not binding:
             raise ValueError("invalid_middleware_odoo_binding")
-        if binding and (
+        if (
             binding.get("onboarding_uuid") != self.integration_uuid
             or str(binding.get("provisioning_request_id")) != str(request_record.id)
             or binding.get("membership_uuid")
@@ -1351,6 +1351,13 @@ class CodestraAgentOnboardingProvisioning(models.Model):
         if not expected_employee_id or normalized["employee_id"] != expected_employee_id:
             raise ValueError("middleware_employee_binding_mismatch")
         incoming_subject = normalized["keycloak_subject"]
+        if incoming_subject and (
+            not isinstance(incoming_subject, str)
+            or not incoming_subject.strip()
+            or incoming_subject != incoming_subject.strip()
+            or len(incoming_subject) > 64
+        ):
+            raise ValueError("invalid_middleware_keycloak_subject")
         if (
             self.keycloak_subject
             and incoming_subject
@@ -1358,6 +1365,10 @@ class CodestraAgentOnboardingProvisioning(models.Model):
         ):
             raise ValueError("middleware_keycloak_subject_mismatch")
         bound_subject = incoming_subject or self.keycloak_subject or False
+        if normalized["state"] == "EFFECTIVE" and self.needs_keycloak and (
+            not isinstance(bound_subject, str) or not bound_subject.strip()
+        ):
+            raise ValueError("middleware_keycloak_subject_required")
         result_hash = self._middleware_result_hash(payload)
         if version < self.middleware_version:
             return {
@@ -1376,7 +1387,27 @@ class CodestraAgentOnboardingProvisioning(models.Model):
 
         step_rows = request_record.step_ids.with_user(SUPERUSER_ID)
         extension_readback_mismatch = False
-        for item in normalized["steps"]:
+        extension_operations = {
+            "reserve_extension", "adopt_extension", "provision_phone",
+        }
+        # These operations all observe the one approved Odoo reservation.
+        # Collapse append-only history before writing steps or assignments so
+        # superseded results cannot commit an extension or poison a later retry.
+        latest_extension_index = max(
+            (
+                index for index, item in enumerate(normalized["steps"])
+                if item["system"] == "vicidial"
+                and item["operation"] in extension_operations
+            ),
+            default=-1,
+        )
+        for index, item in enumerate(normalized["steps"]):
+            is_extension_step = (
+                item["system"] == "vicidial"
+                and item["operation"] in extension_operations
+            )
+            if is_extension_step and index != latest_extension_index:
+                continue
             target = MIDDLEWARE_STEP_TARGETS.get(
                 (item["system"], item["operation"])
             )
@@ -1419,12 +1450,7 @@ class CodestraAgentOnboardingProvisioning(models.Model):
             step.write(values)
 
             if (
-                item["system"] == "vicidial"
-                and item["operation"] in {
-                    "reserve_extension",
-                    "adopt_extension",
-                    "provision_phone",
-                }
+                is_extension_step
                 and step_state == "verified"
             ):
                 assignment = self.env["codestra.extension.assignment"].with_user(
@@ -1469,7 +1495,9 @@ class CodestraAgentOnboardingProvisioning(models.Model):
         state = normalized["state"]
         request_record.invalidate_recordset(["mandatory_steps_complete"])
         locally_effective = (
-            state == "EFFECTIVE" and request_record.mandatory_steps_complete
+            state == "EFFECTIVE"
+            and request_record.mandatory_steps_complete
+            and not extension_readback_mismatch
         )
         if state == "EFFECTIVE":
             request_state = (

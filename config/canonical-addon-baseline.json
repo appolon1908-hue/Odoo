@@ -1,38 +1,9 @@
 {
-  "additional_strict_overrides": {
-    "codestra_kyqra_review_hub": {
-      "base_tree": "93ed2c44e0208abc733d1ef5f189973857e9c2d1",
-      "current_tree": "2c040d1eb03126520e2ace4c9d3605e827214d2e",
-      "integration_boundary_exceptions": [
-        {
-          "kind": "odoo_internal_driver_exception",
-          "path": "models/kyqra_data.py",
-          "reason": "Convert only known batch reservation UniqueViolation constraints into Odoo ConcurrencyError so service.model.retrying() restarts the whole transaction with a fresh snapshot."
-        }
-      ],
-      "pull_request": 134,
-      "reason": "PR #134 requests Odoo's supported whole-transaction ConcurrencyError retry only for the two batch reservation unique constraints; rejects normalized, separator-free, object-pair, and sequence-pair secret/access/subscription-key aliases plus credential- and signature-bearing URL parameters and invalid-Unicode/NUL-bearing JSON, and bounds JSON nesting before recursive validation; strictly validates original and decoded source URLs; rejects surrounding whitespace in retained canonical text before immutable storage; normalizes audit timestamps as timezone-aware RFC3339; and prevents batch decisions from overwriting prior entity-level decisions. Driver imports contain exception classes only; no external database connection or new write authority."
-    },
-    "codestra_observability_integration": {
-      "base_tree": "12d5d5ff8fb0133f2cd2ca5bb3b40e4edadea69d",
-      "current_tree": "3332e9e09f886612b9d3d77c4a67308628edc903",
-      "integration_boundary_exceptions": [
-        {
-          "kind": "odoo_cursor_locking",
-          "path": "models/observability.py",
-          "reason": "Lock the tenant-scoped incident row on the existing Odoo cursor before comparing resource versions, preventing concurrent state regression."
-        },
-        {
-          "kind": "odoo_internal_driver_exception",
-          "path": "models/observability.py",
-          "reason": "Catch only unique constraints belonging to projection records and raise SerializationFailure so Odoo retries with a fresh transaction snapshot; no external database connections."
-        }
-      ],
-      "pull_request": 136,
-      "reason": "PR #136 adds immutable per-event receipts, strict field validation and concurrent delivery handling. Business writes remain through Odoo ORM. The only raw SQL is a parameterized SELECT FOR UPDATE using the existing Odoo cursor; imported driver exceptions trigger whole-transaction retries without opening a database connection. Internal ORM writes require a process-local capability identity rather than a caller-supplied RPC context boolean."
-    }
-  },
+  "schema_version": 2,
+  "source_commit": "9674951f4b2c9c53f88412885ed5c96fcb0769cc",
+  "source_pull_request": 9,
   "module_count": 33,
+  "policy": "An unchanged pinned subtree may retain its separately reviewed Odoo hook and local ORM-locking implementation. Any subtree change removes the exception, must be declared as a strict mission override, and must pass the current strict module review at its exact tree SHA. Narrow integration-boundary exceptions must be path-specific, reasoned, structurally validated, and invalidated by any subtree change.",
   "modules": {
     "call_center_compliance": "85610757c8f9bd140611b6ca99e435283b803e63",
     "call_center_lead_validation": "a401fa2f26c86b585c1826aa6c434d4876d03c09",
@@ -46,7 +17,6 @@
     "codestra_analytics_reporting": "d46d50da27725bab9b5b8bae85e55e902cd3e068",
     "codestra_base": "8bf385e37463092ad45d86fd0f474a41d2f87828",
     "codestra_daily_reporting": "d28b3589c50fbc566218eef123ca4f13a2c1646d",
-    "codestra_integration_hub": "f4db314a557fdf2a9e0aac81ed5543d1994f7f70",
     "codestra_ivr_control": "3b27a0bfe3501da52f205cacf756cd8741fdf9f5",
     "codestra_lead_automation": "30b65a165e91988e8be9edc0c97aef9c19059194",
     "codestra_social_orchestration": "1850feb3a99c90babccb9a3ec79d30374f0c0bd9",
@@ -55,10 +25,6 @@
     "codestra_transcription": "634c568ca1af3e527b1cd8172010cafa2dc5b6da",
     "codestra_vicidial_connector": "44ca7d4ff9f2afd6241faaeac28843ac4976188c"
   },
-  "policy": "An unchanged pinned subtree may retain its separately reviewed Odoo hook and local ORM-locking implementation. Any subtree change removes the exception, must be declared as a strict mission override, and must pass the current strict module review at its exact tree SHA. Narrow integration-boundary exceptions must be path-specific, reasoned, structurally validated, and invalidated by any subtree change.",
-  "schema_version": 2,
-  "source_commit": "9674951f4b2c9c53f88412885ed5c96fcb0769cc",
-  "source_pull_request": 9,
   "strict_mission_overrides": {
     "call_center_campaign": {
       "base_tree": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
@@ -169,12 +135,6 @@
       "pull_request": 64,
       "reason": "Preserve the reviewed read-only integration operations dashboard while replacing its repository-owned SCSS with standards-based CSS, advancing the module version, and documenting the browser-asset boundary so production requests do not depend on a custom Sass compiler path."
     },
-    "codestra_lead_ingestion": {
-      "base_tree": "071935b8becbaa636b656d05a040d4650b15ae24",
-      "current_tree": "8a3aceebe0ab64fa155139621ae6410a8b7f2bb7",
-      "pull_request": 67,
-      "reason": "Make the synthetic legacy lead-ingestion fixture explicitly unmanaged before its active-state setup; automatic design approval and live activation guards remain unchanged. Advance the addon patch version and subject this changed subtree to the full strict review. Preserve the existing authentication-reference field masking through an Odoo inherited-view attribute operation, avoiding a false hardcoded-password match without suppressing any scanner rule."
-    },
     "codestra_mail_inbox": {
       "allow_post_init_hook": true,
       "base_tree": "396f22ab185e538e4781b4d75a8ae01b5ae0eeff",
@@ -194,6 +154,89 @@
       ],
       "pull_request": 135,
       "reason": "Preserve the reviewed Stage 3 destination, centralize tenant-bound intake identity plus fail-closed CRM consent and suppression handling, and bind the CRM upsert command to an explicit read/write cursor. PR #80 also binds audited CRM command-status reconciliation to a writable request cursor to avoid read-only retries. PR #84 additionally confines global credential/principal fallback to the named default tenant, requires explicit mappings for secondary tenants, and binds stored replay responses to their tenant while preserving controlled global event-ID collision rejection before business mutation. PR #127 additionally repairs canonical-vs-legacy business-unit record-rule mapping and adds business-unit-scoped CRM lead listing plus customer profile, note, task, and helpdesk-ticket HTTP surfaces for the existing governed Middleware service identity and adds the helpdesk dependency while preserving tenant authorization, idempotency, and existing external-effect boundaries. PR #131 extends the existing authenticated email-event callback authority to project the canonical transactional lifecycle into the same durable outbox used for Odoo reconciliation, with strict tenant, message, and correlation binding, monotonic state transitions, and no new route or outbound-delivery authority. PR #141 adds the tenant-bound, idempotent Klyrow business-event projection and signed outcome-readback routes, preserves request evidence, rejects missing tenant projections for retry, and grants no direct Klyrow or production activation authority. PR #135 adds the protected direct agent-provisioning transport with bounded responses, strict endpoint and credential-file validation, immutable saga/request/tenant/employee/correlation bindings, exact reconcile-ID validation, and idempotent unknown-outcome recovery; external effects remain fail-closed. It keeps the transport private to RPC and rejects every group/world-readable credential file."
+    },
+    "codestra_odoo_certification": {
+      "base_tree": "fa57c82248ff878aaa18933fefc9eba6bbc45e61",
+      "current_tree": "852c5524878651a525a542777e25d22ef69e41d3",
+      "pull_request": 21,
+      "reason": "Preserve the disabled synthetic-company hierarchy and make TEST_SYN disposition certification deterministic across canonical business codes and physical VICIdial status aliases."
+    },
+    "codestra_vicidial_crm": {
+      "base_tree": "cf0783918b94c3e396d24ebe868c4fb04096e4a1",
+      "current_tree": "4f28c2f3ecf33e37ed71d18befa67ee859747dae",
+      "reason": "Preserve the reviewed Odoo 19 VICIdial staging, reconciliation, idempotency, click-to-call, and constrained Middleware boundaries while adding the governed AMI lifecycle projection, transaction-scoped mapped-agent row serialization, business-unit-scoped customer matching, immutable identity binding, strict monotonic sequencing, exact retryable sequence-gap evidence, terminal stale/lifecycle/identity conflict evidence, retry-safe rejection, the existing assigned-agent Odoo Bus screen pop, immutable assigned-call business-unit/campaign/number rebinding for browser rematch, and the canonical offered-to-ringing progression without permitting terminal regression. Preserve merged PR #79 durable click-to-call reservations, dispatch failure handling, call-row locking and lifecycle terminal precedence alongside the governed projection and campaign-scoped rematch. PR #80 also declares the authenticated row-locking event projection writable to avoid read-only retries. PR #84 additionally rejects every telephony HTTP redirect and bounds response parsing, preserving unknown-outcome reconciliation and preventing bearer forwarding outside the reviewed endpoint. PR #88 restricts service-credential dispatch to Python with Odoo RPC privacy, rejects malformed pre-dispatch request identity and JSON, and preserves reconciliation for duplicate/non-finite or mismatched acknowledgements; add real-registry regression tests without changing existing path-specific exceptions or activation gates. PR #91 adds the canonical command envelope and treats every terminal response reporting a placed call or external effect as an unknown outcome requiring reconciliation, including contradictory policy denials. Acquire a dedicated scoped OIDC service token from deployment-controlled secret files before canonical dispatch, and enforce the contract idempotency bounds before any network activity. PR #108 adds a TEST_SYN-only internal alias transport with exact Middleware host and route pinning, route-specific OIDC scope, fixed appolon/6901 identity, duplicate-safe durable dispatch, and explicit rejection of Server-B or PSTN targets; PR #102 adds the guarded canonical realtime read side with one-use tickets, ordered event validation, durable reconciliation, and a fail-closed browser projection; no live capability is enabled. The realtime test fixture explicitly binds canonical authorized users so the server-derived scope matches the reviewed authorization relation. PR #113 returns a structured fail-closed dialpad state for unmapped or tenant-invalid browser users instead of surfacing an opaque JSON-RPC error; no call-control gate or external effect is enabled. The cross-unit realtime fixture now authorizes its synthetic user for the alternate unit before exercising the server-derived default-unit rejection. PR #115 guards the bus-driven handleCall() screen-pop path so a transient agent/tenant-binding failure during match or history lookup surfaces on the call popup instead of rejecting, and prefers the underlying exception's message over Odoo's generic JSON-RPC wrapper text in every existing popup error path; no call-control gate or external effect is enabled. PR #116 adds the Telephony Assignment authority: every agent has exactly one Odoo extension and one primary campaign; campaign extension pools auto-allocate while excluding 6101; WebRTC remains a separate Super-Admin-only device opt-in with a one-endpoint projection limit; agent/supervisor writes to extension, campaign, supervisor, call permissions, and WebRTC are blocked; supervisors retain read-only campaign visibility; disabling WebRTC queues credential revocation without storing credentials in Odoo; extension replacement releases the old projection and emits a single ordered revoke-release-provision command; outgoing browser calling requires both WebRTC and outgoing-call permission. No PSTN, generic VICIdial writes, email, SMS, or unrelated delivery capability is enabled. A follow-up commit on PR #116 fixes a circular module dependency (codestra_vicidial_crm depending on codestra_identity_provisioning closed a cycle back through call_center_campaign and codestra_integration_hub) by replacing the cross-module extension-pool reference with self-contained range fields on codestra.vicidial.campaign; 6101 remains hard-excluded from auto-allocation. PR #126 incorporates the lifecycle-vocabulary synchronization and retires the unused weaker /codestra/api/v1/call-events duplicate with an explicit 410 in favor of the canonical Middleware event projection; the reviewed scoping, sequencing, idempotency, terminal-regression, and external-effect gates remain unchanged and no live capability is added. PR #137 restores the pre-dial match contract by allowing the inherited route to delegate requests without a call ID to the existing authenticated matcher, while preserving all owned-call, tenant, business-unit, campaign, and number checks for post-identification rematches; the destination-first outbound contract remains backward-compatible and no external call capability or feature flag is enabled. It also closes the dialpad double-click race by setting the browser in-flight guard before number matching and serializing server-side outbound reservations on the authenticated agent row; exact-key replays and independently keyed requests for the same non-terminal agent/destination/campaign return the existing call, so only one call, command, and correlation event are created. PR #138 preserves the correlation-only call-command envelope while populating the integration-hub source and destination routing aliases when that extension is installed, preventing required-field rollback without changing feature flags or enabling external effects. PR #139 routes call-control audit records through the Integration Hub's supported append-only hash-chain contract when installed, binds telephony audits to their exact command event, and preserves the standalone audit fallback without changing feature flags or enabling external effects. The PR #139 hardening follow-up establishes one audit append facade for standalone and Integration Hub deployments; binds call-command audits only to the exact event created in the same transaction; anchors inbound and workspace audits directly to their call without fabricating lifecycle events; preserves explicit agent, supervisor, and QA attribution before the internal write elevation; and migrates reconciliation resolution auditing away from forbidden direct inserts. No telephony, PSTN, email, SMS, or external-effect gate is enabled. PR #140 replaces legacy TEST_SYN fallback scans with bounded stored B-tree digit projections on crm.lead and res.partner, routes repair through a dedicated fail-closed service, takes a non-blocking transaction-scoped destination advisory lock plus a sole-candidate row lock, repeats uniqueness, ownership, company, business-unit, DNC, campaign, and ordinary-user visibility checks after locking, and has the controller verify a fresh exact match before returning. The additive projections require a codestra_vicidial_crm module upgrade; the repair flag remains disabled by default, external effects must be off, and no call, command, integration event, audit, PSTN, email, or SMS effect is created.",
+      "pull_request": 140,
+      "integration_boundary_exceptions": [
+        {
+          "path": "controllers/call_control.py",
+          "kind": "odoo_cursor_locking",
+          "reason": "The authenticated outbound controller locks its already-authorized Odoo agent row with SELECT FOR UPDATE on the current request cursor before idempotency and active-call lookup, serializing concurrent reservations without any external database connection."
+        },
+        {
+          "path": "models/test_syn_repair.py",
+          "kind": "odoo_cursor_locking",
+          "reason": "The fail-closed TEST_SYN repair service uses one non-blocking transaction advisory-lock SELECT and one SELECT FOR UPDATE on the sole indexed CRM candidate through Odoo's active transaction cursor. It opens no external database connection and returns no match on contention."
+        },
+        {
+          "path": "tests/test_call_control.py",
+          "kind": "odoo_test_fixture_sql",
+          "reason": "Rolled-back Odoo transaction tests clear only the stored normalized-phone projection on synthetic leads to reproduce legacy stale data; the post-install lock test uses only Registry-managed cursors against the current test database."
+        },
+        {
+          "path": "controllers/call_event_projection.py",
+          "kind": "odoo_cursor_locking",
+          "reason": "A transaction-scoped SELECT FOR UPDATE lock on the authoritative mapped agent serializes all of that agent's call lifecycle mutations before authoritative call lookup and update, preventing concurrent at-least-once events from regressing or skipping state."
+        },
+        {
+          "path": "models/reconciliation.py",
+          "kind": "odoo_schema_index",
+          "reason": "Odoo model initialization creates reviewed partial unique indexes that enforce active reconciliation and sync-run invariants."
+        },
+        {
+          "path": "tests/test_lead_reconciliation.py",
+          "kind": "odoo_test_driver_exception",
+          "reason": "The test imports only UniqueViolation to assert a partial unique mapping invariant and does not open an external database connection."
+        },
+        {
+          "path": "tests/test_reconciliation.py",
+          "kind": "odoo_test_driver_exception",
+          "reason": "The test imports only IntegrityError to assert call-record database constraints and does not open an external database connection."
+        },
+        {
+          "path": "models/crm_lead.py",
+          "kind": "odoo_cursor_locking",
+          "reason": "Click-to-call reservation creation locks the selected Odoo agent row with SELECT FOR UPDATE on the existing cursor so concurrent UI requests cannot originate two calls."
+        },
+        {
+          "path": "models/core.py",
+          "kind": "odoo_cursor_locking",
+          "reason": "Campaign extension allocation uses only the existing Odoo cursor: one SELECT ... FOR UPDATE locks the owning campaign row (self-contained since this module cannot depend on codestra_identity_provisioning's pool tables without a circular module dependency), followed by one statically inspectable SELECT that picks the lowest free extension within that campaign's own range while excluding 6101 and this module's own active agent/phone assignments. No external database connection or mutation SQL is introduced."
+        }
+      ]
+    },
+    "codestra_vicidial_recording": {
+      "base_tree": "3ef18226525231684891fc59d00d2b365b3350ed",
+      "current_tree": "6eb88cd49ebdfba1f61e4853aa4e9404bcc2eb31",
+      "reason": "PR #116 requires codestra.vicidial.agent records to carry a primary_campaign_id and an explicit or auto-allocated phone_login; update this addon's own test fixture to supply both explicitly (an already-authorized campaign and a synthetic extension) so agent creation continues to pass validation. No production model, controller, security, or view file in this addon changed. PR #139 migrates the authenticated recording metadata and status service routes to the shared append-only audit contract, preserving service attribution and deterministic recording correlation while retaining the existing HMAC, nonce, idempotency, retention, and no-binary-audio boundaries. No recording delivery, PSTN, email, SMS, or other external effect is enabled.",
+      "pull_request": 139,
+      "integration_boundary_exceptions": [
+        {
+          "path": "models/recording.py",
+          "kind": "odoo_schema_index",
+          "reason": "Odoo model initialization creates a reviewed partial unique index on object_version_id via the existing cursor; pre-existing and unchanged by PR #116."
+        },
+        {
+          "path": "tests/test_recording.py",
+          "kind": "odoo_test_driver_exception",
+          "reason": "The test imports only UniqueViolation to assert a database constraint and does not open an external database connection; pre-existing and unchanged by PR #116."
+        }
+      ]
+    },
+    "codestra_lead_ingestion": {
+      "base_tree": "071935b8becbaa636b656d05a040d4650b15ae24",
+      "current_tree": "8a3aceebe0ab64fa155139621ae6410a8b7f2bb7",
+      "pull_request": 67,
+      "reason": "Make the synthetic legacy lead-ingestion fixture explicitly unmanaged before its active-state setup; automatic design approval and live activation guards remain unchanged. Advance the addon patch version and subject this changed subtree to the full strict review. Preserve the existing authentication-reference field masking through an Odoo inherited-view attribute operation, avoiding a false hardcoded-password match without suppressing any scanner rule."
     },
     "codestra_moneybee_crm": {
       "base_tree": "31cebcead3176785e4d7e9f1f38be95c802ef03e",
@@ -218,72 +261,66 @@
       "pull_request": 5,
       "reason": "Add the reviewed MoneyBee CRM identity and immutable command-receipt boundary, derive tenant scope from the authenticated principal's single Odoo company, reject direct RPC mutations with server-only capability tokens, and limit receipts to the exact principal and company."
     },
-    "codestra_odoo_certification": {
-      "base_tree": "fa57c82248ff878aaa18933fefc9eba6bbc45e61",
-      "current_tree": "852c5524878651a525a542777e25d22ef69e41d3",
-      "pull_request": 21,
-      "reason": "Preserve the disabled synthetic-company hierarchy and make TEST_SYN disposition certification deterministic across canonical business codes and physical VICIdial status aliases."
+    "codestra_integration_hub": {
+      "base_tree": "f4db314a557fdf2a9e0aac81ed5543d1994f7f70",
+      "current_tree": "7b95cdf0d7a376a3d29a324f027eedb74a52bcc8",
+      "reason": "PR #139 hardens the immutable integration-audit boundary with eventless subject anchors, exact-event binding, explicit pre-elevation actor attribution, redacted base-field projections, and a globally serialized hash tail. The serialized writer locks only a dedicated, module-owned global chain mutex row through Odoo's active PostgreSQL transaction before reading the current tail; it opens no external connection and retains the historical hash payload so existing audit chains remain verifiable. Direct create, write, and unlink remain denied, and no integration delivery or external-effect flag is enabled.",
+      "pull_request": 139,
+      "integration_boundary_exceptions": [
+        {
+          "path": "models/audit.py",
+          "kind": "odoo_cursor_locking",
+          "reason": "The append-only audit writer uses one SELECT FOR UPDATE on the dedicated module-owned global chain-lock row through Odoo's active transaction cursor before reading the immutable tail. It opens no external database connection."
+        },
+        {
+          "path": "models/idempotency.py",
+          "kind": "odoo_internal_driver_exception",
+          "reason": "The ledger imports only IntegrityError to retry a unique-constraint collision inside an Odoo savepoint and never opens a database connection."
+        },
+        {
+          "path": "tests/test_audit.py",
+          "kind": "odoo_test_fixture_sql",
+          "reason": "Integration tests use only the disposable test database: transactional cases mutate synthetic projections to certify tamper detection, while the BaseCase proof uses two Registry cursors, a FOR UPDATE NOWAIT contention probe, and correlation-scoped tail cleanup."
+        },
+        {
+          "path": "tests/test_schema_constraints.py",
+          "kind": "odoo_test_driver_exception",
+          "reason": "The transaction test imports only IntegrityError to assert Integration Hub database constraints inside Odoo savepoints and never opens a database connection."
+        }
+      ]
+    }
+  },
+  "additional_strict_overrides": {
+    "codestra_kyqra_review_hub": {
+      "base_tree": "93ed2c44e0208abc733d1ef5f189973857e9c2d1",
+      "current_tree": "2c040d1eb03126520e2ace4c9d3605e827214d2e",
+      "integration_boundary_exceptions": [
+        {
+          "kind": "odoo_internal_driver_exception",
+          "path": "models/kyqra_data.py",
+          "reason": "Convert only known batch reservation UniqueViolation constraints into Odoo ConcurrencyError so service.model.retrying() restarts the whole transaction with a fresh snapshot."
+        }
+      ],
+      "pull_request": 134,
+      "reason": "PR #134 requests Odoo's supported whole-transaction ConcurrencyError retry only for the two batch reservation unique constraints; rejects normalized, separator-free, object-pair, and sequence-pair secret/access/subscription-key aliases plus credential- and signature-bearing URL parameters and invalid-Unicode/NUL-bearing JSON, and bounds JSON nesting before recursive validation; strictly validates original and decoded source URLs; rejects surrounding whitespace in retained canonical text before immutable storage; normalizes audit timestamps as timezone-aware RFC3339; and prevents batch decisions from overwriting prior entity-level decisions. Driver imports contain exception classes only; no external database connection or new write authority."
     },
-    "codestra_vicidial_crm": {
-      "base_tree": "cf0783918b94c3e396d24ebe868c4fb04096e4a1",
-      "current_tree": "259162b4708120bd993ab5b99a361c9423cd3aba",
+    "codestra_observability_integration": {
+      "base_tree": "12d5d5ff8fb0133f2cd2ca5bb3b40e4edadea69d",
+      "current_tree": "3332e9e09f886612b9d3d77c4a67308628edc903",
       "integration_boundary_exceptions": [
         {
           "kind": "odoo_cursor_locking",
-          "path": "controllers/call_control.py",
-          "reason": "The authenticated outbound controller locks its already-authorized Odoo agent row with SELECT FOR UPDATE on the current request cursor before idempotency and active-call lookup, serializing concurrent reservations without any external database connection."
+          "path": "models/observability.py",
+          "reason": "Lock the tenant-scoped incident row on the existing Odoo cursor before comparing resource versions, preventing concurrent state regression."
         },
         {
-          "kind": "odoo_cursor_locking",
-          "path": "controllers/call_event_projection.py",
-          "reason": "A transaction-scoped SELECT FOR UPDATE lock on the authoritative mapped agent serializes all of that agent's call lifecycle mutations before authoritative call lookup and update, preventing concurrent at-least-once events from regressing or skipping state."
-        },
-        {
-          "kind": "odoo_schema_index",
-          "path": "models/reconciliation.py",
-          "reason": "Odoo model initialization creates reviewed partial unique indexes that enforce active reconciliation and sync-run invariants."
-        },
-        {
-          "kind": "odoo_test_driver_exception",
-          "path": "tests/test_lead_reconciliation.py",
-          "reason": "The test imports only UniqueViolation to assert a partial unique mapping invariant and does not open an external database connection."
-        },
-        {
-          "kind": "odoo_test_driver_exception",
-          "path": "tests/test_reconciliation.py",
-          "reason": "The test imports only IntegrityError to assert call-record database constraints and does not open an external database connection."
-        },
-        {
-          "kind": "odoo_cursor_locking",
-          "path": "models/crm_lead.py",
-          "reason": "Click-to-call reservation creation locks the selected Odoo agent row with SELECT FOR UPDATE on the existing cursor so concurrent UI requests cannot originate two calls."
-        },
-        {
-          "kind": "odoo_cursor_locking",
-          "path": "models/core.py",
-          "reason": "Campaign extension allocation uses only the existing Odoo cursor: one SELECT ... FOR UPDATE locks the owning campaign row (self-contained since this module cannot depend on codestra_identity_provisioning's pool tables without a circular module dependency), followed by one statically inspectable SELECT that picks the lowest free extension within that campaign's own range while excluding 6101 and this module's own active agent/phone assignments. No external database connection or mutation SQL is introduced."
+          "kind": "odoo_internal_driver_exception",
+          "path": "models/observability.py",
+          "reason": "Catch only unique constraints belonging to projection records and raise SerializationFailure so Odoo retries with a fresh transaction snapshot; no external database connections."
         }
       ],
-      "pull_request": 138,
-      "reason": "Preserve the reviewed Odoo 19 VICIdial staging, reconciliation, idempotency, click-to-call, and constrained Middleware boundaries while adding the governed AMI lifecycle projection, transaction-scoped mapped-agent row serialization, business-unit-scoped customer matching, immutable identity binding, strict monotonic sequencing, exact retryable sequence-gap evidence, terminal stale/lifecycle/identity conflict evidence, retry-safe rejection, the existing assigned-agent Odoo Bus screen pop, immutable assigned-call business-unit/campaign/number rebinding for browser rematch, and the canonical offered-to-ringing progression without permitting terminal regression. Preserve merged PR #79 durable click-to-call reservations, dispatch failure handling, call-row locking and lifecycle terminal precedence alongside the governed projection and campaign-scoped rematch. PR #80 also declares the authenticated row-locking event projection writable to avoid read-only retries. PR #84 additionally rejects every telephony HTTP redirect and bounds response parsing, preserving unknown-outcome reconciliation and preventing bearer forwarding outside the reviewed endpoint. PR #88 restricts service-credential dispatch to Python with Odoo RPC privacy, rejects malformed pre-dispatch request identity and JSON, and preserves reconciliation for duplicate/non-finite or mismatched acknowledgements; add real-registry regression tests without changing existing path-specific exceptions or activation gates. PR #91 adds the canonical command envelope and treats every terminal response reporting a placed call or external effect as an unknown outcome requiring reconciliation, including contradictory policy denials. Acquire a dedicated scoped OIDC service token from deployment-controlled secret files before canonical dispatch, and enforce the contract idempotency bounds before any network activity. PR #108 adds a TEST_SYN-only internal alias transport with exact Middleware host and route pinning, route-specific OIDC scope, fixed appolon/6901 identity, duplicate-safe durable dispatch, and explicit rejection of Server-B or PSTN targets; PR #102 adds the guarded canonical realtime read side with one-use tickets, ordered event validation, durable reconciliation, and a fail-closed browser projection; no live capability is enabled. The realtime test fixture explicitly binds canonical authorized users so the server-derived scope matches the reviewed authorization relation. PR #113 returns a structured fail-closed dialpad state for unmapped or tenant-invalid browser users instead of surfacing an opaque JSON-RPC error; no call-control gate or external effect is enabled. The cross-unit realtime fixture now authorizes its synthetic user for the alternate unit before exercising the server-derived default-unit rejection. PR #115 guards the bus-driven handleCall() screen-pop path so a transient agent/tenant-binding failure during match or history lookup surfaces on the call popup instead of rejecting, and prefers the underlying exception's message over Odoo's generic JSON-RPC wrapper text in every existing popup error path; no call-control gate or external effect is enabled. PR #116 adds the Telephony Assignment authority: every agent has exactly one Odoo extension and one primary campaign; campaign extension pools auto-allocate while excluding 6101; WebRTC remains a separate Super-Admin-only device opt-in with a one-endpoint projection limit; agent/supervisor writes to extension, campaign, supervisor, call permissions, and WebRTC are blocked; supervisors retain read-only campaign visibility; disabling WebRTC queues credential revocation without storing credentials in Odoo; extension replacement releases the old projection and emits a single ordered revoke-release-provision command; outgoing browser calling requires both WebRTC and outgoing-call permission. No PSTN, generic VICIdial writes, email, SMS, or unrelated delivery capability is enabled. A follow-up commit on PR #116 fixes a circular module dependency (codestra_vicidial_crm depending on codestra_identity_provisioning closed a cycle back through call_center_campaign and codestra_integration_hub) by replacing the cross-module extension-pool reference with self-contained range fields on codestra.vicidial.campaign; 6101 remains hard-excluded from auto-allocation. PR #126 incorporates the lifecycle-vocabulary synchronization and retires the unused weaker /codestra/api/v1/call-events duplicate with an explicit 410 in favor of the canonical Middleware event projection; the reviewed scoping, sequencing, idempotency, terminal-regression, and external-effect gates remain unchanged and no live capability is added. PR #137 restores the pre-dial match contract by allowing the inherited route to delegate requests without a call ID to the existing authenticated matcher, while preserving all owned-call, tenant, business-unit, campaign, and number checks for post-identification rematches; the destination-first outbound contract remains backward-compatible and no external call capability or feature flag is enabled. It also closes the dialpad double-click race by setting the browser in-flight guard before number matching and serializing server-side outbound reservations on the authenticated agent row; exact-key replays and independently keyed requests for the same non-terminal agent/destination/campaign return the existing call, so only one call, command, and correlation event are created. PR #138 preserves the correlation-only call-command envelope while populating the integration-hub source and destination routing aliases when that extension is installed, preventing required-field rollback without changing feature flags or enabling external effects."
-    },
-    "codestra_vicidial_recording": {
-      "base_tree": "3ef18226525231684891fc59d00d2b365b3350ed",
-      "current_tree": "56212eb4bcd6d36e68ee999066e46fb67e9f7f8f",
-      "integration_boundary_exceptions": [
-        {
-          "kind": "odoo_schema_index",
-          "path": "models/recording.py",
-          "reason": "Odoo model initialization creates a reviewed partial unique index on object_version_id via the existing cursor; pre-existing and unchanged by PR #116."
-        },
-        {
-          "kind": "odoo_test_driver_exception",
-          "path": "tests/test_recording.py",
-          "reason": "The test imports only UniqueViolation to assert a database constraint and does not open an external database connection; pre-existing and unchanged by PR #116."
-        }
-      ],
-      "pull_request": 116,
-      "reason": "PR #116 requires codestra.vicidial.agent records to carry a primary_campaign_id and an explicit or auto-allocated phone_login; update this addon's own test fixture to supply both explicitly (an already-authorized campaign and a synthetic extension) so agent creation continues to pass validation. No production model, controller, security, or view file in this addon changed."
+      "pull_request": 136,
+      "reason": "PR #136 adds immutable per-event receipts, strict field validation and concurrent delivery handling. Business writes remain through Odoo ORM. The only raw SQL is a parameterized SELECT FOR UPDATE using the existing Odoo cursor; imported driver exceptions trigger whole-transaction retries without opening a database connection. Internal ORM writes require a process-local capability identity rather than a caller-supplied RPC context boolean."
     }
   }
 }

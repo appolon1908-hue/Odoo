@@ -4,4 +4,5 @@ from . import dead_letter
 from . import idempotency
 from . import mapping
 from . import endpoint
+from . import audit_lock
 from . import audit

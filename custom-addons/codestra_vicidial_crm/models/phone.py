@@ -4,6 +4,14 @@ from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
 
+def phone_digits(value):
+    """Return the exact ASCII digit projection used by indexed legacy lookup."""
+    digits = re.sub(r"[^0-9]", "", str(value or ""))
+    # Repair candidates are E.164-sized numbers, optionally prefixed with 00.
+    # Refuse longer data instead of feeding an unbounded value to a B-tree index.
+    return digits if 8 <= len(digits) <= 17 else False
+
+
 def normalize_phone(value):
     value = str(value or "").strip()
     if not value:
@@ -33,10 +41,12 @@ class ResPartner(models.Model):
     _inherit = "res.partner"
 
     x_codestra_phone_e164 = fields.Char(compute="_compute_codestra_phone", store=True, index=True)
+    x_codestra_phone_digits = fields.Char(compute="_compute_codestra_phone", store=True, index=True)
 
     @api.depends("phone")
     def _compute_codestra_phone(self):
         for record in self:
+            record.x_codestra_phone_digits = phone_digits(record.phone)
             try:
                 record.x_codestra_phone_e164 = normalize_phone(record.phone)
             except ValidationError:
