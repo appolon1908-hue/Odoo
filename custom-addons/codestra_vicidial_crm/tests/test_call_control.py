@@ -1,5 +1,4 @@
 import json
-import threading
 import uuid
 from datetime import timedelta
 from types import SimpleNamespace
@@ -9,7 +8,7 @@ from odoo import SUPERUSER_ID, api, fields
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import tagged
 from odoo.modules.registry import Registry
-from odoo.tests.common import TransactionCase
+from odoo.tests.common import BaseCase, TransactionCase, get_db_name
 
 from ..controllers import call_control as call_control_controller
 
@@ -871,59 +870,31 @@ class TestCallControlCanonicalRepair(TransactionCase):
         )
 
 @tagged("post_install", "-at_install")
-class TestTestSynRepairDestinationLock(TransactionCase):
+class TestTestSynRepairDestinationLock(BaseCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.registry = Registry(get_db_name())
+
     def test_destination_contention_returns_without_waiting(self):
-        dbname = self.env.cr.dbname
         normalized = "+18495550198"
-        acquired = threading.Event()
-        release = threading.Event()
-        contender_done = threading.Event()
-        results = {}
-        errors = []
+        with self.registry.cursor() as holder_cr:
+            holder_env = api.Environment(holder_cr, SUPERUSER_ID, {})
+            self.assertTrue(
+                holder_env[
+                    "codestra.vicidial.test.syn.repair"
+                ]._try_lock_destination(normalized)
+            )
 
-        def hold_lock():
-            try:
-                with Registry(dbname).cursor() as cr:
-                    env = api.Environment(cr, SUPERUSER_ID, {})
-                    results["holder"] = env[
+            with self.registry.cursor() as contender_cr:
+                contender_env = api.Environment(
+                    contender_cr,
+                    SUPERUSER_ID,
+                    {},
+                )
+                self.assertFalse(
+                    contender_env[
                         "codestra.vicidial.test.syn.repair"
                     ]._try_lock_destination(normalized)
-                    acquired.set()
-                    release.wait(timeout=10)
-                    cr.rollback()
-            except BaseException as exc:  # pragma: no cover - asserted below
-                errors.append(exc)
-                acquired.set()
-
-        def contend_for_lock():
-            try:
-                acquired.wait(timeout=5)
-                with Registry(dbname).cursor() as cr:
-                    env = api.Environment(cr, SUPERUSER_ID, {})
-                    results["contender"] = env[
-                        "codestra.vicidial.test.syn.repair"
-                    ]._try_lock_destination(normalized)
-                    cr.rollback()
-            except BaseException as exc:  # pragma: no cover - asserted below
-                errors.append(exc)
-            finally:
-                contender_done.set()
-
-        holder = threading.Thread(target=hold_lock)
-        contender = threading.Thread(target=contend_for_lock)
-        holder.start()
-        self.assertTrue(acquired.wait(timeout=5), "The holder did not acquire the destination lock.")
-        contender.start()
-        completed_before_release = contender_done.wait(timeout=5)
-        release.set()
-        holder.join(timeout=10)
-        contender.join(timeout=10)
-
-        self.assertTrue(completed_before_release, "Destination contention blocked instead of failing closed.")
-        self.assertFalse(holder.is_alive())
-        self.assertFalse(contender.is_alive())
-        self.assertFalse(errors, repr(errors))
-        self.assertTrue(results.get("holder"))
-        self.assertFalse(results.get("contender"))
-
+                )
 
