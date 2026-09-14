@@ -244,13 +244,21 @@ class VicidialReconciliationIssue(models.Model):
             values.update(resolved_at=fields.Datetime.now(), resolved_by=self.env.user.id)
         result = super().write(values)
         if "status" in values:
-            self.env["codestra.integration.audit"].create(
-                {
-                    "action": "vicidial_reconciliation_resolution",
-                    "model_name": self._name,
-                    "record_res_id": self.id,
-                    "after_json": self.evidence_json,
-                    "success": True,
-                }
-            )
+            for record in self:
+                self.env["codestra.integration.audit"]._append(
+                    False,
+                    "vicidial_reconciliation_resolution",
+                    "success",
+                    {
+                        "model_name": record._name,
+                        "record_res_id": record.id,
+                        "after": {
+                            "status": record.status,
+                            "evidence_json": record.evidence_json,
+                        },
+                    },
+                    correlation_id=f"reconciliation:{record._name}:{record.id}",
+                    subject_model=record._name,
+                    subject_id=record.id,
+                )
         return result

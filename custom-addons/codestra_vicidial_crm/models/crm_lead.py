@@ -5,7 +5,7 @@ from odoo import SUPERUSER_ID, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.modules.registry import Registry
 
-from .phone import normalize_phone
+from .phone import normalize_phone, phone_digits
 from .middleware_client import OriginateOutcomeUnknown, OriginateRejected
 
 
@@ -34,6 +34,7 @@ class CrmLead(models.Model):
     x_vicidial_vendor_lead_code = fields.Char(index=True)
     x_phone_raw = fields.Char()
     x_phone_e164 = fields.Char(compute="_compute_codestra_phone", store=True, index=True)
+    x_codestra_phone_digits = fields.Char(compute="_compute_codestra_phone", store=True, index=True)
     x_last_call_uniqueid = fields.Char(index=True)
     x_last_call_datetime = fields.Datetime()
     x_last_call_disposition = fields.Char()
@@ -103,6 +104,7 @@ class CrmLead(models.Model):
     @api.depends("phone")
     def _compute_codestra_phone(self):
         for record in self:
+            record.x_codestra_phone_digits = phone_digits(record.phone)
             try:
                 record.x_phone_e164 = normalize_phone(record.phone)
             except ValidationError:
@@ -539,3 +541,4 @@ class ClickToCallDispatch(models.Model):
                 "unknown" if unknown else "rejected",
                 values["originate_result_reason"],
             )
+

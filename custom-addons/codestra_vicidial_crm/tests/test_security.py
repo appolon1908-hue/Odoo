@@ -10,15 +10,19 @@ class TestSecurity(TransactionCase):
             groups="codestra_vicidial_crm.group_manager",
             context={"no_reset_password": True},
         )
-        audit = (
-            self.env["codestra.integration.audit"]
-            .sudo()
-            .create(
-                {
-                    "action": "test",
-                    "success": True,
-                }
-            )
+        audit = self.env["codestra.integration.audit"]._append(
+            False,
+            "test",
+            "success",
+            {
+                "model_name": "res.users",
+                "record_res_id": manager.id,
+                "after": {},
+            },
+            actor_role="system",
+            correlation_id="audit-security-delete-test",
+            subject_model="res.users",
+            subject_id=manager.id,
         )
         with self.assertRaises(AccessError):
             audit.with_user(manager).unlink()
