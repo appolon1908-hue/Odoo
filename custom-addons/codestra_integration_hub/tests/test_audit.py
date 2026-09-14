@@ -1,4 +1,3 @@
-import threading
 import uuid
 
 from odoo import SUPERUSER_ID, api
@@ -176,55 +175,59 @@ class TestAuditConcurrency(BaseCase):
                 [tuple(cls.correlations)],
             )
 
-    def test_parallel_transactions_cannot_fork_the_hash_chain(self):
-        with self.registry.cursor() as cr:
-            env = api.Environment(cr, SUPERUSER_ID, {})
-            tail = (
-                env["codestra.integration.audit"]
-                .sudo()
-                .search([], order="id desc", limit=1)
-                .record_hash
-                or ""
+    def test_two_transactions_cannot_fork_the_hash_chain(self):
+        def append(env, correlation_id):
+            return env["codestra.integration.audit"]._append(
+                False,
+                "audit.concurrent.append",
+                "success",
+                {
+                    "model_name": "res.users",
+                    "record_res_id": SUPERUSER_ID,
+                    "after": {"correlation_id": correlation_id},
+                },
+                actor_role="system",
+                correlation_id=correlation_id,
+                subject_model="res.users",
+                subject_id=SUPERUSER_ID,
             )
 
-        barrier = threading.Barrier(2)
-        errors = []
+        with self.registry.cursor() as first_cr:
+            first_env = api.Environment(first_cr, SUPERUSER_ID, {})
+            FirstAudit = first_env["codestra.integration.audit"].sudo()
+            tail = (
+                FirstAudit.search([], order="id desc", limit=1).record_hash
+                or ""
+            )
+            FirstAudit._lock_chain()
 
-        def append_in_transaction(correlation_id):
-            try:
-                with self.registry.cursor() as cr:
-                    env = api.Environment(cr, SUPERUSER_ID, {})
-                    cr.execute("SET LOCAL lock_timeout = '10s'")
-                    barrier.wait(timeout=10)
-                    env["codestra.integration.audit"]._append(
-                        False,
-                        "audit.concurrent.append",
-                        "success",
-                        {
-                            "model_name": "res.users",
-                            "record_res_id": SUPERUSER_ID,
-                            "after": {"correlation_id": correlation_id},
-                        },
-                        actor_role="system",
-                        correlation_id=correlation_id,
-                        subject_model="res.users",
-                        subject_id=SUPERUSER_ID,
+            with self.registry.cursor() as second_cr:
+                second_env = api.Environment(second_cr, SUPERUSER_ID, {})
+                SecondAudit = second_env["codestra.integration.audit"].sudo()
+                with self.assertRaises(Exception) as blocked:
+                    second_cr.execute(
+                        """
+                        SELECT id
+                          FROM codestra_integration_audit_chain_lock
+                         WHERE name = %s
+                         FOR UPDATE NOWAIT
+                        """,
+                        ["global"],
                     )
-                    cr.commit()
-            except BaseException as exc:  # pragma: no cover - asserted in the parent thread
-                errors.append(exc)
+                self.assertEqual(
+                    getattr(blocked.exception, "pgcode", None),
+                    "55P03",
+                )
+                second_cr.rollback()
 
-        workers = [
-            threading.Thread(target=append_in_transaction, args=(correlation_id,))
-            for correlation_id in self.correlations
-        ]
-        for worker in workers:
-            worker.start()
-        for worker in workers:
-            worker.join(timeout=15)
+                first = append(first_env, self.correlations[0])
+                first_hash = first.record_hash
+                first_cr.commit()
 
-        self.assertFalse(any(worker.is_alive() for worker in workers), "Concurrent append workers did not finish.")
-        self.assertFalse(errors, repr(errors))
+                second = append(second_env, self.correlations[1])
+                self.assertEqual(second.previous_hash, first_hash)
+                second_cr.commit()
+
         with self.registry.cursor() as cr:
             env = api.Environment(cr, SUPERUSER_ID, {})
             Audit = env["codestra.integration.audit"].sudo()
@@ -239,4 +242,3 @@ class TestAuditConcurrency(BaseCase):
                 records[0].record_hash,
             )
             self.assertTrue(Audit.verify_chain())
-

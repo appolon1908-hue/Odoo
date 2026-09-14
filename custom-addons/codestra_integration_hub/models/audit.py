@@ -22,6 +22,21 @@ class IntegrationAudit(models.Model):
     record_hash = fields.Char(required=True, readonly=True, index=True)
 
     @api.model
+    def _lock_chain(self):
+        """Lock the single module-owned mutex for this transaction."""
+        self.env.cr.execute(
+            """
+            SELECT id
+              FROM codestra_integration_audit_chain_lock
+             WHERE name = %s
+             FOR UPDATE
+            """,
+            ["global"],
+        )
+        if not self.env.cr.fetchone():
+            raise ValidationError("Integration audit chain lock is unavailable.")
+
+    @api.model
     def _append(
         self,
         event,
@@ -88,17 +103,7 @@ class IntegrationAudit(models.Model):
             )
 
         writer = self.sudo()
-        writer.env.cr.execute(
-            """
-            SELECT id
-              FROM codestra_integration_audit_chain_lock
-             WHERE name = %s
-             FOR UPDATE
-            """,
-            ["global"],
-        )
-        if not writer.env.cr.fetchone():
-            raise ValidationError("Integration audit chain lock is unavailable.")
+        writer._lock_chain()
 
         previous = writer.search([], order="id desc", limit=1)
         values = {

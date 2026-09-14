@@ -151,13 +151,13 @@
     },
     "codestra_integration_hub": {
       "base_tree": "f4db314a557fdf2a9e0aac81ed5543d1994f7f70",
-      "current_tree": "0d2db4556a98ab43bbd2270bb92f4cf1181ec707",
+      "current_tree": "7b95cdf0d7a376a3d29a324f027eedb74a52bcc8",
       "reason": "PR #139 hardens the immutable integration-audit boundary with eventless subject anchors, exact-event binding, explicit pre-elevation actor attribution, redacted base-field projections, and a globally serialized hash tail. The serialized writer locks only a dedicated, module-owned global chain mutex row through Odoo's active PostgreSQL transaction before reading the current tail; it opens no external connection and retains the historical hash payload so existing audit chains remain verifiable. Direct create, write, and unlink remain denied, and no integration delivery or external-effect flag is enabled.",
       "pull_request": 139,
       "integration_boundary_exceptions": [
         {"path": "models/audit.py", "kind": "odoo_cursor_locking", "reason": "The append-only audit writer uses one SELECT FOR UPDATE on the dedicated module-owned global chain-lock row through Odoo's active transaction cursor before reading the immutable tail. It opens no external database connection."},
         {"path": "models/idempotency.py", "kind": "odoo_internal_driver_exception", "reason": "The ledger imports only IntegrityError to retry a unique-constraint collision inside an Odoo savepoint and never opens a database connection."},
-        {"path": "tests/test_audit.py", "kind": "odoo_test_fixture_sql", "reason": "Integration tests use only the current disposable test database: transactional cases mutate synthetic audit projections to certify tamper detection, while the BaseCase concurrency test sets a local lock timeout and deletes only its correlation-scoped synthetic tail records during cleanup."},
+        {"path": "tests/test_audit.py", "kind": "odoo_test_fixture_sql", "reason": "Integration tests use only the disposable test database: transactional cases mutate synthetic projections to certify tamper detection, while the BaseCase proof uses two Registry cursors, a FOR UPDATE NOWAIT contention probe, and correlation-scoped tail cleanup."},
         {"path": "tests/test_schema_constraints.py", "kind": "odoo_test_driver_exception", "reason": "The transaction test imports only IntegrityError to assert Integration Hub database constraints inside Odoo savepoints and never opens a database connection."}
       ]
     }
