@@ -7,7 +7,7 @@
 | Repository | `appolon1908-hue/Odoo` |
 | Baseline | `main` at `1bad5819889ec83f0c5ab261f2d2fad3be2a4720` |
 | Date | 2026-09-15 |
-| Status | Approved conversational design; pending written-spec review |
+| Status | Revised from Master Mission v1.0; pending written-spec review |
 | Target platform | Self-hosted Odoo 19 |
 | Release posture | Staging-first, fail-closed, production activation not authorized |
 | Specification path | `docs/superpowers/specs/2026-09-15-odoo-unified-campaign-control-plane-design.md` |
@@ -51,6 +51,54 @@ requirement applies until a reviewed architecture decision changes it. This
 document does not authorize live email, live SMS, external PSTN dialing,
 production n8n activation, production campaign activation, trading, lending,
 payments, or direct writes to another system.
+
+### 2.1 Master Mission v1.0 adoption
+
+The user-supplied **Master Mission — Codestra Application Integration Plane,
+Version 1.0, dated 2026-09-15** is adopted as the cross-repository execution
+charter subject to the binding contradiction resolutions in section 4. Its
+repository-aware discovery, ownership, anti-duplication, contract, security,
+testing, staging, completion-report, and production-authorization rules apply
+to this design.
+
+The mission's diagrams are normalized as follows so they describe deployable
+trust boundaries rather than implying that every component is an inline proxy:
+
+```text
+Human/browser: Keycloak issues token or Odoo session
+Public API:    client -> Caddy -> Kong validates token/policy
+              -> Middleware revalidates authorization -> governed adapter
+              -> authoritative application API
+
+Application event: authoritative application transaction + local outbox
+                   -> private authenticated Middleware event ingress + inbox
+                   -> validated subscribers
+                   -> Odoo operational projection
+                   -> approved analytics projection
+                   -> optional approved inactive-by-default n8n automation
+
+Provider callback: provider -> Caddy -> Kong source policy
+                   -> Middleware provider adapter + durable inbox
+                   -> normalized result/event subscribers
+```
+
+Keycloak is the identity and token issuer. It is not synchronously called to
+validate every request; Kong and Middleware validate signed tokens using the
+configured issuer, audience, keys, expiry, authorized party, and scopes.
+Application events do not depend serially on Odoo, n8n, or analytics. Each is
+an authorized subscriber or projection target so one failure cannot corrupt or
+block every other destination.
+
+Telemetry is a separate plane with type-correct paths:
+
+```text
+metrics -> application /metrics -> Prometheus -> Alertmanager and Grafana
+logs    -> application stdout/file -> Alloy -> Loki -> Grafana
+traces  -> application OTLP -> Alloy/OTel Collector -> Tempo -> Grafana
+```
+
+Monitoring components never carry business commands or become business data
+authorities.
 
 ## 3. Baseline findings
 
@@ -107,6 +155,14 @@ The baseline already provides substantial canonical structure:
 | Tenant, company, business unit, and campaign might be inferred by names | All mappings are explicit and fail closed. Browser payloads cannot select or override the authenticated campaign scope. |
 | New `/platform/v1` Odoo routes could be added beside current routes | Odoo preserves `/api/v1/integration/*` as its private Middleware contract. New browser APIs are added only where a native model service cannot satisfy the client, and never duplicate an existing operation. |
 | Business-unit Admin and Closer were treated as established roles | They are not added. Existing platform, tenant, and campaign roles remain canonical. Closing capability is an explicit skill/policy assigned to an existing campaign role, not an implicit new security tier. |
+| The master mission listed an immutable Odoo campaign manifest version | That item is rejected because it conflicts with Middleware manifest authority. Odoo owns `cc.campaign.configuration.version` and references existing immutable returned design-revision evidence; no Odoo manifest owner is created. |
+| Keycloak appeared as an inline request-validation hop | Keycloak issues identities and tokens. Kong validates gateway policy and token claims; Middleware independently revalidates the authorization context. |
+| Odoo, n8n, and analytics appeared as one serial result pipeline | They are independent governed consumers of a durable normalized event. n8n is optional, asynchronous, versioned, allowlisted, and inactive by default. |
+| Prometheus appeared to feed Loki and Tempo | Metrics, logs, and traces use separate pipelines. Prometheus may alert through Alertmanager; Loki stores logs; Tempo stores traces; Grafana visualizes approved data sources. |
+| Public webhook headers assumed every provider supports bearer tokens and Codestra signatures | Each public source uses its strongest supported allowlisted authentication profile: mTLS, OAuth/service token, HMAC signature, or an approved combination. Middleware normalizes identity and verifies replay protection before persistence. Internal Codestra delivery uses the full standard header set. |
+| Both `/internal/v1/*` and root health routes were mandatory | They are logical capabilities. Each repository maps them to one existing canonical route family and publishes that mapping in its service manifest; it does not expose duplicates. |
+| `ODOO_WRITE=false` could disable ordinary Odoo CRM work | No ambiguous global Odoo-write flag is introduced. Existing feature flags govern external application mutations and live side effects; normal authorized Odoo-owned CRM writes remain available. |
+| Business-application outboxes appeared to use the public provider webhook route | Application outboxes use private authenticated Middleware event ingress or an existing equivalent. `/platform/v1/webhooks/{source}/events` is the governed public provider-callback surface only. |
 
 ## 5. Goals
 
@@ -398,6 +454,17 @@ campaign identity, environment, and request/event identity. Stale responses are
 stored as superseded evidence and cannot become current. A workflow asset marked
 effective cannot independently change the campaign operational lifecycle.
 
+### 10.5 Cross-repository integration-readiness lifecycle
+
+The Master Mission's `DRAFT -> VALIDATED -> APPROVED -> PROVISIONING ->
+PROVISIONED_DISABLED -> SYNTHETIC_TESTED -> ACTIVE` sequence is retained as a
+cross-repository integration-readiness projection. It does not replace the
+implemented campaign, configuration, workflow, Middleware revision, provider,
+or domain lifecycles. Odoo derives and displays the readiness projection from
+immutable evidence. `ACTIVE` is unavailable unless a separate explicit
+production authorization permits the relevant side effect; technical
+certification alone is not activation authority.
+
 ## 11. Campaign Studio
 
 The existing campaign facades are expanded into one role-controlled wizard:
@@ -523,6 +590,242 @@ Odoo continues to reject provider webhooks. The retired
 extends the catalog and versioned resource-specific contracts instead of adding
 a generic model writer.
 
+### 13.4 Cross-repository route ownership
+
+The following are logical platform contracts. Every repository must first map
+them to an existing compatible route and canonical contract. A new route is
+allowed only when the owner repository proves the capability is missing and
+documents backward compatibility.
+
+Middleware alone owns the service catalog and governed integration API:
+
+```text
+GET    /platform/v1/services
+POST   /platform/v1/services
+GET    /platform/v1/services/{service_id}
+PATCH  /platform/v1/services/{service_id}
+POST   /platform/v1/services/{service_id}/validate
+POST   /platform/v1/services/{service_id}/activate
+POST   /platform/v1/services/{service_id}/decommission
+GET    /platform/v1/services/{service_id}/dependencies
+GET    /platform/v1/services/{service_id}/health
+
+GET    /platform/v1/integrations/{application_id}/status
+GET    /platform/v1/integrations/{application_id}/capabilities
+POST   /platform/v1/integrations/{application_id}/commands/{command_name}
+GET    /platform/v1/integrations/{application_id}/commands/{command_id}
+GET    /platform/v1/integrations/{application_id}/projections/{resource}/{resource_id}
+POST   /platform/v1/integrations/{application_id}/test
+POST   /platform/v1/integrations/{application_id}/reconcile
+GET    /platform/v1/integrations/{application_id}/drift
+POST   /platform/v1/integrations/{application_id}/disable
+```
+
+`command_name` is selected from a versioned allowlist. It never resolves an
+arbitrary Python function, Odoo model/method, SQL statement, table, URL, or
+source-code symbol.
+
+Each authoritative application backend publishes one mapped private interface,
+using existing equivalent routes where compatible:
+
+```text
+live health; ready health; version; capabilities; metrics;
+submit allowlisted command; read command status; read safe projection;
+consume authenticated Middleware event when the domain requires it
+```
+
+The illustrative `/internal/v1/*` paths in the Master Mission are not a mandate
+to duplicate existing routes. Their chosen mappings are private, gateway and
+network restricted, service authenticated, and recorded in the canonical
+service manifest and OpenAPI contract.
+
+Odoo's optional browser JSON surface maps the logical operations below to
+existing actions/controllers before a new controller is considered:
+
+```text
+GET /cc/api/v1/me/workspace
+GET /cc/api/v1/me/workspace-schema
+GET /cc/api/v1/me/work-queue
+GET /cc/api/v1/me/dashboard-summary
+GET /cc/api/v1/supervisor/live
+GET /cc/api/v1/supervisor/campaign-summary
+GET /cc/api/v1/admin/integrations
+GET /cc/api/v1/admin/provisioning
+GET /cc/api/v1/admin/drift
+```
+
+These are not substitutes for `/api/v1/integration/*`, and native Odoo screens
+use the same model/domain services rather than duplicating controller logic.
+
+### 13.5 Service capability manifest
+
+The implementation plan must locate the existing canonical service-manifest
+format before changing it. Applications publish their own capabilities;
+Middleware is authoritative for activation and integration status. The
+canonical or mapped format must cover:
+
+- stable service ID, display name, owner repository, service type, environment,
+  tenant mode, business owner, and technical owner;
+- runtime service-location reference without an embedded credential;
+- Keycloak audience and required scopes;
+- the single mapped liveness, readiness, version, metrics, OpenAPI, and AsyncAPI
+  locations, with `not_applicable` where justified;
+- dependencies and data classification;
+- allowlisted commands, published events, and consumed events;
+- timeout, retry, circuit-breaker, idempotency, and reconciliation policies;
+- kill-switch name and SLO.
+
+The logical field vocabulary is:
+
+```yaml
+service_id:
+display_name:
+owner_repository:
+service_type:
+environment:
+tenant_mode:
+business_owner:
+technical_owner:
+base_url_secret_ref:
+keycloak_audience:
+required_scopes:
+health_live_path:
+health_ready_path:
+version_path:
+metrics_path:
+openapi_path:
+asyncapi_path:
+dependencies:
+data_classification:
+supported_commands:
+published_events:
+consumed_events:
+timeout_policy:
+retry_policy:
+circuit_breaker_policy:
+idempotency_policy:
+reconciliation_supported:
+kill_switch_name:
+slo:
+```
+
+If the existing canonical format uses different field names, its documented
+one-to-one mapping is extended instead of creating this as a second manifest.
+
+OpenBao references identify credentials and signing material; plaintext secret
+values, tokens, credentials, or URLs containing credentials are prohibited.
+
+### 13.6 Command envelope and trust rules
+
+Every cross-system mutation uses one immutable, schema-versioned command
+envelope containing:
+
+```json
+{
+  "schema_version": "1.0",
+  "command_id": "uuid",
+  "command_type": "application.resource.action",
+  "tenant_id": "tenant-id",
+  "business_unit_id": "business-unit-id-or-null",
+  "application_id": "application-id",
+  "campaign_id": "campaign-id-or-null",
+  "entity_type": "resource",
+  "entity_id": "source-entity-id",
+  "actor": {
+    "subject": "keycloak-subject",
+    "actor_type": "human-or-service",
+    "roles": ["audit-snapshot-only"]
+  },
+  "correlation_id": "uuid",
+  "causation_id": "uuid-or-null",
+  "idempotency_key": "stable-key",
+  "expected_source_version": "version-or-null",
+  "requested_at": "RFC3339 timestamp",
+  "payload_hash": "sha256",
+  "payload": {}
+}
+```
+
+Middleware derives trusted actor, tenant, application, campaign, role, audience,
+and scope context from the authenticated identity and authoritative mappings.
+Client-supplied actor roles are audit claims only and cannot grant authority.
+The owner validates schema and state before mutation, persists asynchronous
+commands durably, applies optimistic concurrency where supported, and retains
+immutable audit metadata. An identical retry returns the stored result. Reuse
+of an idempotency key with a different canonical payload hash returns `409`.
+Secrets never enter the command payload.
+
+### 13.7 Event and projection envelope
+
+Authoritative applications write domain state and an event to a local
+transactional outbox in the same database transaction. They never dual-write
+business state and Middleware over HTTP. The versioned event envelope contains:
+
+```json
+{
+  "schema_version": "1.0",
+  "event_id": "uuid",
+  "event_type": "application.resource.state_changed",
+  "tenant_id": "tenant-id",
+  "business_unit_id": "business-unit-id-or-null",
+  "application_id": "application-id",
+  "campaign_id": "campaign-id-or-null",
+  "entity_type": "resource",
+  "entity_id": "source-entity-id",
+  "source_version": "monotonic-version",
+  "occurred_at": "RFC3339 timestamp",
+  "correlation_id": "uuid",
+  "causation_id": "command-or-event-id",
+  "idempotency_key": "stable-event-key",
+  "payload_hash": "sha256",
+  "payload": {}
+}
+```
+
+Middleware and downstream consumers use durable inboxes, unique event IDs,
+canonical payload-hash comparison, out-of-order protection by source version,
+bounded retry with jitter, dead-letter evidence, authorized replay without a
+new event identity, schema compatibility, readback, and reconciliation. Tenant,
+application, business-unit, and campaign values are mandatory when applicable
+and are validated against explicit bindings rather than trusted from payloads.
+No Kafka, NATS, or other broker is introduced until repository evidence shows
+an adopted authority or measured PostgreSQL-outbox throughput fails an approved
+SLO. n8n is not an event bus.
+
+### 13.8 HTTP result semantics
+
+Owners use one RFC 9457-style problem-details representation and these semantic
+classes: `200` for synchronous success or identical completed replay; `201` for
+owner-created resources; `202` for durable asynchronous acceptance; `400` for
+malformed syntax; `401` for invalid identity; `403` for denied scope; `404` for
+an authorized missing resource; `409` for replay-hash, version, or state
+conflict; `422` for schema/domain rejection; `429` for rate limiting; `502` for
+invalid upstream response; `503` for disabled integration, closed kill switch,
+or unavailable dependency; and `504` for governed timeout. Authentication,
+authorization, schema, domain, and illegal-state errors are never automatically
+retried.
+
+### 13.9 Runtime discovery and public entry points
+
+Known public entry points are configuration inputs, not literals embedded in
+application logic:
+
+```text
+API edge:      https://api.codestra.co
+Odoo CRM:      https://crm.codestra.agency
+Keycloak:      https://auth.codestra.co
+n8n editor:    https://automation.codestra.co
+Browser phone: https://phone.codestra.agency
+```
+
+No Grafana, Superset, provider, or internal application URL is invented by this
+design. The implementation discovers them from the current deployment and
+canonical service registry. Public integration API traffic enters through
+Caddy and Kong. Browser/static delivery and Odoo's interactive web session use
+their approved ingress mappings but cannot bypass Middleware for cross-system
+commands. Databases, monitoring listeners, private provider callbacks, and
+application backends have no ungoverned public route.
+
 ## 14. Application template packs
 
 Initial published template families are created from reviewed fixtures, not
@@ -546,26 +849,119 @@ Existing fixed workflow and staging design fixtures are migrated into draft
 template versions, compared to their current behavior, reviewed, and published
 individually. Migration never makes a provider active.
 
+### 14.1 Governed integration lanes
+
+The application registry and template pack declare capabilities, not generic
+CRUD. The corresponding authoritative backend owns validation and state:
+
+- **Breero:** read-safe service-request, provider, booking, assignment, and
+  status projections; allowlisted assignment/status/follow-up/escalation
+  commands only. Payment, payout, provider, and marketplace ledgers remain in
+  Breero.
+- **Booked4Seasons:** verified-attribution intake into Breero's existing
+  contracts, including consent and idempotency; no booking engine, provider
+  database, or second Breero adapter.
+- **Transportation:** customer, carrier, driver, equipment, quote, shipment,
+  stop, dispatch, tracking, and approved finance projections; governed quote,
+  assignment, dispatch-transition, callback, and escalation commands.
+- **MoneyBee:** lead, application, amount, document, underwriting status, offer,
+  funding, renewal, and complaint projections. Odoo coordinates but never
+  decides underwriting, approval, funding, or ledger state. An existing valid
+  MoneyBee bridge is extended rather than replaced.
+- **Beyvra:** read-safe customer, KYC, compliance, account summary,
+  restrictions, risk, and support projections; approved support commands only.
+  Trading orders, live money, account authority, and compliance overrides stay
+  within Beyvra and governed Middleware contracts.
+- **LARIM-A:** service, provider, quote, booking, availability, visit, review,
+  and case projections; payments, fulfillment, and marketplace truth remain in
+  LARIM-A.
+- **Restaurant:** authorized restaurant, order, reservation, and support
+  projections. Inventory, payment, fulfillment, and restaurant authority remain
+  in the restaurant backend.
+- **Kyqra:** provenance-rich, consent-bearing, deduplicated lead-source events
+  from the proven canonical ingestion owner; never a second CRM.
+- **Klyrow:** tenant/campaign-scoped senders, templates, messages, suppressions,
+  preflight, and delivery callbacks. Live delivery remains disabled.
+- **Telnexa:** tenant/campaign-scoped senders, templates, messages,
+  conversations, suppression, usage, delivery, and inbound projections. Live
+  delivery remains disabled.
+- **VICIdial:** campaign/list/group/script/disposition/agent/phone desired state,
+  readback, and call events. Provision disabled first; external PSTN remains
+  disabled.
+- **n8n:** only approved versioned workflows with one owner, input/output
+  schemas, service identity, idempotency, timeout, retry, and kill switch;
+  installed inactive.
+
+Existing compatible public form operations such as sales contact, demo,
+pricing, electronic-billing application, and electronic-billing registration
+remain at their current canonical routes. They are not duplicated under
+`/platform`. Breero, Booked4Seasons, Beyvra, and any other application
+attribution fails closed until tenant/application context, consent, and
+idempotency are verified.
+
 ## 15. Integration, communications, and webhooks
 
-Outbound cross-system flow is Odoo transaction -> existing Odoo outbox -> Kong
--> Middleware -> governed adapter -> application/provider -> readback. Inbound
-flow is provider/application webhook or outbox -> Kong -> Middleware inbox ->
-normalized result -> Odoo result ingress -> canonical projection -> Odoo bus
-notification.
+An Odoo transaction commits to the existing Odoo outbox. An authorized
+Middleware worker claims it through the existing Odoo private outbox contract
+and then uses the governed adapter to reach the application/provider. This
+preserves the implemented pull/lease/acknowledgement model; no competing Odoo
+push dispatcher is added. A business application's local transactional outbox
+reaches a private, authenticated Middleware event-ingress mapping. Public
+provider callbacks enter through Caddy -> Kong -> the one mapped Middleware
+provider endpoint -> durable inbox. Both paths produce validated normalized
+results/events. Odoo receives only the authorized subset through its existing
+result ingress, applies a canonical projection, and publishes campaign-scoped
+bus notifications.
 
 All commands/events carry schema version, event/command identity, tenant,
-company, business unit, application, campaign, entity, correlation, causation,
+business unit, application, campaign, entity, correlation, causation,
 idempotency key, payload hash, timestamp, and source version where applicable.
+Odoo company is enforced through the authoritative tenant/company/business-unit
+binding and may be included as versioned metadata only when the receiving
+contract understands it.
 
 Klyrow, Telnexa, and VICIdial provider callbacks terminate at Middleware. Odoo
 receives delivery/call/result projections only. n8n workflows are versioned,
 allowlisted, service-authenticated, idempotent, and installed inactive.
 
+The logical public provider-callback surface is
+`POST /platform/v1/webhooks/{source}/events`, but Middleware must map a compatible
+existing provider-specific endpoint instead of creating both. Every source has
+one allowlisted authentication profile. Where the source supports the Codestra
+standard, the request carries bearer service identity, content type, event ID,
+timestamp, versioned signature and key ID, correlation ID, causation ID, and
+idempotency key. Signatures cover the exact raw body. Sources that cannot issue
+bearer tokens require an approved compensating profile such as mTLS plus HMAC;
+they do not receive an insecure exception.
+
+The normalized Codestra header vocabulary is:
+
+```http
+Authorization: Bearer <service-token>
+Content-Type: application/json
+X-Codestra-Event-Id: <event-id>
+X-Codestra-Timestamp: <unix-or-rfc3339>
+X-Codestra-Signature: <versioned-signature>
+X-Codestra-Key-Id: <active-or-previous-key-id>
+X-Correlation-ID: <correlation-id>
+X-Causation-ID: <causation-id>
+Idempotency-Key: <stable-key>
+```
+
+Middleware rejects expired timestamps, unknown bindings, unsupported content
+types, oversized bodies, invalid signatures, and over-limit sources before
+business processing; it records safe rejection evidence without logging secrets
+or sensitive raw payloads. A valid request is persisted before `202`. Identical
+duplicates return the original acknowledgement, while changed-content reuse of
+an event ID or idempotency key returns `409`. Authorized replay preserves event
+identity.
+
 Current default-off controls remain false, using existing canonical flag names:
-live email, live SMS, callbacks/external side effects, n8n activation, PSTN,
-live call control, lead publication, agent synchronization, production
-eligibility, and campaign live enablement.
+live email, live SMS, callbacks/external application writes, n8n activation,
+PSTN, live call control, lead publication, agent synchronization, production
+eligibility, and campaign live enablement. The generic label `ODOO_WRITE` is not
+introduced because it could be misread as disabling ordinary Odoo-owned CRM
+writes.
 
 ## 16. Dashboard and information delivery
 
@@ -587,10 +983,35 @@ Do not create a dashboard-owned copy of business records.
 - Superset reads minimized historical facts through an approved analytics store
   or reporting replica and is never an operational command surface.
 
+Dashboard datasets carry tenant, application, business-unit, campaign,
+environment, source-version, last-event, projection-lag, and reconciliation
+dimensions as applicable. Keycloak SSO and role mapping govern access; Superset
+also enforces row-level security. Applications never write directly into a
+dashboard UI store.
+
 Every card exposes `last_updated_at` and freshness state. Missing data is
 `STALE` or `DISCONNECTED`, never zero. Customer identifiers, phone/email values,
 message bodies, tokens, signatures, credentials, and recordings are prohibited
 from metric labels and unrestricted logs.
+
+Required freshness objectives are 1-3 seconds for calls and agent presence,
+1-5 seconds for operational record changes, 15-60 seconds for campaign KPI
+aggregation, near-real-time logs/traces/alerts, and 5-15 minutes for historical
+analytics. These are initial SLO objectives, not claims about current runtime
+performance; implementation must establish measurements and error budgets.
+
+Every application exposes or maps exactly one liveness, readiness, version, and
+metrics capability. Instrumentation covers request rate/duration/errors,
+command acceptance/completion/failure, webhook acceptance/rejection/signature
+failure, inbox/outbox depth and oldest age, retries, dead letters,
+reconciliation mismatch, dependency state, circuit-breaker state, data
+freshness, and projection lag. W3C `traceparent` and the Codestra correlation ID
+propagate across supported hops.
+
+Application repositories emit telemetry but do not deploy their own Prometheus,
+Grafana, Loki, Tempo, Alloy, Alertmanager, Superset, or OpenBao stacks. Structured
+logs redact passwords, API keys, tokens, cookies, authorization headers,
+signatures, message bodies, recordings, and sensitive customer/financial data.
 
 ## 17. Security invariants
 
@@ -613,6 +1034,20 @@ from metric labels and unrestricted logs.
    least-privilege scopes.
 10. Configuration publication, access approval, production activation, and
     break-glass follow existing separation-of-duty evidence.
+
+For each integration role, the owning identity configuration reuses or creates
+exactly one Keycloak service client, one application-specific audience, and
+least-privilege scopes for the required commands, projections, events,
+reconciliation, or administration. Service credentials are not shared between
+applications. Kong validation never replaces Middleware authorization.
+Middleware validates issuer, audience, signature, expiry, authorized party,
+scope, tenant, application, campaign, and command binding again before routing.
+
+OpenBao owns credentials, mTLS material, provider secrets, and webhook signing
+keys. Application and Odoo records store only opaque path/secret identifiers.
+Rotation supports active and previous key IDs for a bounded overlap period, and
+negative tests cover wrong issuer, audience, scope, tenant, campaign, signature,
+timestamp, and retired key.
 
 ## 18. Error handling and reliability
 
@@ -679,12 +1114,26 @@ Required automated evidence includes:
 - workspace schema ETag/hash and server-derived scope;
 - every visible native UI menu/action/button through Odoo browser tours;
 - Owl lifecycle/registry failure detection where Owl components are used;
-- outbox idempotency, leasing, acknowledgement, failure, replay, stale result,
-  and reconciliation tests;
+- canonical OpenAPI/AsyncAPI validation, generated-artifact drift, and backward-
+  compatibility tests;
+- command idempotency, concurrent duplicate, payload-hash mismatch, optimistic-
+  concurrency, and illegal-transition tests;
+- outbox transaction rollback, leasing, acknowledgement, failure, replay, stale
+  result, and reconciliation tests;
+- inbox event-ID deduplication, payload-hash mismatch, out-of-order source
+  version, dead-letter, and authorized replay tests;
+- webhook exact-raw-body signature, active/previous key, timestamp expiry,
+  content type, size limit, rate limit, and replay tests;
+- wrong issuer, audience, authorized party, scope, tenant, application,
+  business-unit, campaign, and role tests;
+- timeout, bounded retry, circuit breaker, dependency outage, readback,
+  reconciliation, and kill-switch tests;
 - Middleware contract and normalized result tests;
 - VICIdial/Klyrow/Telnexa/n8n disabled-first and kill-switch tests;
 - dashboard campaign isolation, freshness, stale/disconnected state, and PII
   redaction tests;
+- secret scanning, dependency scanning, structured-log redaction, and telemetry
+  label-cardinality/PII tests;
 - load tests for workspace reads, queue refresh, field writes, event ingestion,
   dashboard aggregation, and outbox workers;
 - backup/restore and module rollback rehearsal on staging.
@@ -738,11 +1187,167 @@ The design is implemented only when all of the following are proven:
 
 ## 23. Repository implementation boundaries
 
-This Odoo specification defines Odoo-owned behavior. The later multi-repository
-implementation plan may assign dependencies to Middleware, Keycloak, Kong,
-Caddy, OpenBao, n8n, VICIdial, Klyrow, Telnexa, application backends, SDK,
-monitoring, and analytics repositories. Those repositories must consume the
-versioned contract and implement only their declared authority. No repository
-may create a self-integration or local clone of another repository's source of
-truth.
+This Odoo specification defines Odoo-owned behavior and the contracts it relies
+on. The later multi-repository implementation plan assigns work only after each
+repository has been inspected at an exact SHA. No repository may create a
+self-integration, local clone of another repository's source of truth, duplicate
+foundation branch, duplicate contract authority, or embedded copy of the shared
+identity, secrets, gateway, monitoring, or analytics platform.
 
+No repository may query or mutate another application's database, expose a
+generic arbitrary-model/method/table/SQL writer, maintain parallel `/v1` and
+`/v2` surfaces without a proven breaking-change migration, duplicate an
+OpenAPI/AsyncAPI source, hand-written SDK, webhook receiver, n8n workflow,
+campaign/customer/workflow/membership/channel owner, or build an adapter whose
+source and target are the same service. Overlap is preserved until consumers,
+data, rollback, and deprecation evidence make removal safe.
+
+### 23.1 Binding ownership matrix
+
+| Repository/service | Authoritative responsibility |
+| --- | --- |
+| `Middleware-` | Service registry, cross-system authorization/orchestration, command routing, event ingress, inbox/outbox coordination, adapters, idempotency, reconciliation, drift, and kill switches |
+| `Odoo` | Campaign control plane, campaign CRM/projections, memberships, agent/supervisor/admin workspaces, tasks, operational communication timeline, desired provisioning state, and reconciliation display |
+| `Keycloak` | Human/service identities, clients, audiences, roles, scopes, MFA, and token issuance |
+| `Kong` | Gateway authentication enforcement, route policy, rate/request limits, and governed ingress |
+| `Caddy` | TLS termination and approved upstream routing; no business logic |
+| `Codestra-OpenBao` | Secret custody, rotation material, and opaque credential references |
+| `N8N` | Approved asynchronous automation only; not business authority, gateway, event bus, or secret store |
+| `Breero.com` | Service requests, providers, bookings, assignments, marketplace, and service-delivery truth |
+| `booked4seasons` | Customer-facing intake that reuses Breero contracts; no second booking backend |
+| `transportation-backend-` | Customers, carriers, drivers, equipment, quotes, shipments, stops, dispatch, and logistics truth |
+| `Moneybee-Backend` | Loan leads/applications/documents, underwriting, offers, funding, renewals, and complaints |
+| `beyvra-backend` | KYC, compliance, accounts, restrictions, support, and trading-domain truth |
+| `LARIM-A-Backend` | Providers, services, quotes, bookings, availability, visits, reviews, and cases |
+| Restaurant frontend and authoritative backend | Restaurant experience, orders, reservations, fulfillment, and restaurant-scoped operations; the frontend is presentation/session only |
+| `kyqra-crawler` | Lead discovery and ingestion source unless repository evidence proves a different canonical owner |
+| `kyqra` | Deprecated by default unless inspection proves a separate valid responsibility; never a second CRM |
+| `klyrow.com` | Email domains/senders/templates/messages, suppressions, delivery events, and deliverability |
+| `telnexa` | SMS senders/templates/messages/conversations, suppressions, usage, delivery events, and inbound SMS |
+| `Vicidialer-Codestra` | Dialer campaigns/lists/groups/scripts/dispositions, agents, phones, active call state, and call events |
+| `SDK-repository` | Generated clients from canonical contracts; never a competing OpenAPI/AsyncAPI authority |
+| Named monitoring repositories | Their named shared monitoring component only; no self-registration clone |
+| Grafana | Operational visualization over approved Prometheus, Loki, Tempo, and Alertmanager data |
+| Superset | Historical analytics over protected minimized analytics data; never an operational command surface |
+
+Frontend repositories contain presentation and session logic only. They never
+hold cross-system credentials, provider adapters, transactional integration
+workflows, or business authority. Similar frontend/backend names are classified
+by evidence before any duplication decision.
+
+### 23.2 Repository-aware execution gate
+
+Every repository receives the same scoped execution protocol:
+
+1. Identify repository and exact baseline from remotes, manifests, package
+   metadata, README, source layout, current branch, worktree, and recent commits.
+2. Read repository instructions and architecture/contract authority before
+   editing.
+3. Inventory existing models, migrations, controllers, schemas, adapters,
+   clients, webhooks, workflows, dashboards, deployment files, tests, and open
+   implementation paths.
+4. Classify every relevant capability as `EXISTING_AND_VALID`,
+   `EXISTING_BUT_PARTIAL`, `EXISTING_BUT_CONFLICTING`,
+   `MISSING_IN_OWNER_REPOSITORY`, `EXTERNAL_DEPENDENCY`, or `NOT_APPLICABLE`.
+5. Determine overlap authority from production usage, migrations, tests,
+   canonical contracts, and repository documents. Preserve the authority,
+   migrate consumers, deprecate obsolete paths, and retain rollback evidence.
+6. Present a concise repository-specific design and file-impact/test plan and
+   obtain explicit approval before implementation.
+7. Change only that repository's owned capability. Record external dependencies
+   and required contracts instead of building local replacements.
+8. Test and report only evidence directly observed at the exact implementation
+   SHA. Never imply another repository was changed, tested, deployed, or
+   certified.
+
+Protected branches, merge, deployment, or production activation require their
+own authorization and green gates. A shared mission prompt is not authorization
+for those actions.
+
+### 23.3 Program gates, not a premature implementation plan
+
+The cross-repository program proceeds through repository truth/ownership,
+contract foundation, identity/secrets/gateway, Middleware core, Odoo control
+plane, application domain interfaces, communications/automation,
+dashboards/observability, contract/security certification, staging end-to-end
+certification, and production handoff. Each repository executes only applicable
+gates. Detailed repository order, file impacts, commits, tests, and handoffs are
+defined in the implementation plan after this written design is approved.
+
+Staging must prove the authorized equivalent of:
+
+```text
+Odoo action -> Odoo outbox -> Middleware governed claim
+-> authoritative application -> readback
+-> application outbox event -> Middleware durable inbox
+-> Odoo timeline/dashboard + monitoring evidence + authorized analytics fact
+```
+
+The same test run proves wrong issuer/audience/scope, wrong tenant/campaign,
+duplicate/replay, payload-hash mismatch, stale source version, invalid or
+expired signature, closed kill switch, disabled integration, provider timeout,
+dead-letter/replay, and reconciliation mismatch all fail safely. n8n is tested
+as an optional inactive subscriber, not as a required hop in this chain.
+
+### 23.4 Completion-report contract
+
+Each repository returns this structure without fabricated counts or evidence:
+
+```text
+APPLICATION INTEGRATION PLANE — REPOSITORY REPORT
+
+Repository:
+Repository role:
+Branch:
+Implementation SHA:
+Baseline SHA:
+Working-tree status:
+
+Authority decision:
+Existing components reused:
+Duplicate components found:
+Duplicate components removed or deprecated:
+Self-integration check:
+
+Models changed:
+Migrations:
+Public endpoints:
+Private endpoints:
+Webhook endpoints:
+Commands:
+Events published:
+Events consumed:
+Projections:
+Dashboard destinations:
+
+Keycloak client/audience/scopes:
+OpenBao secret references:
+Kong/Caddy requirements:
+Middleware dependency:
+Other repository dependencies:
+
+Tests executed:
+Tests passed:
+Tests failed:
+Tests skipped:
+PostgreSQL evidence:
+Contract evidence:
+Security evidence:
+Webhook evidence:
+Reconciliation evidence:
+Dashboard/observability evidence:
+Staging end-to-end evidence:
+
+Default-off flags:
+Kill switches:
+Rollback procedure:
+
+Unresolved blockers:
+Production activation authorized: NO unless explicit evidence exists
+Verdict: PASS / PARTIAL / BLOCKED / FAIL
+```
+
+`PARTIAL`, `BLOCKED`, and `FAIL` remain accurately labeled. Technical
+certification never grants permission for live delivery, dialing, trading,
+financial actions, external writes, merge, deployment, or production
+activation.
