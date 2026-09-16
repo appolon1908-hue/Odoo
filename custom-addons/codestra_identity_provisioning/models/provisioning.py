@@ -719,6 +719,8 @@ class ProvisioningRequest(models.Model):
     needs_recording_access = fields.Boolean()
     needs_monitoring_access = fields.Boolean()
     needs_agent_desktop = fields.Boolean(default=True)
+    needs_sms = fields.Boolean(default=False)
+    sms_sender = fields.Char(copy=False)
     needs_keycloak = fields.Boolean(default=True)
     needs_vicidial = fields.Boolean(default=True)
     idempotency_key = fields.Char(required=True, copy=False, index=True)
@@ -907,7 +909,14 @@ class ProvisioningRequest(models.Model):
                     ("state", "in", ("reserved", "committed")),
                 ], limit=1)
                 if not existing_assignment:
-                    pool = request.business_unit_id.extension_pool_ids.filtered("active")[:1]
+                    pool = request.extension_pool_id
+                    if pool and not pool.active:
+                        raise UserError(
+                            "The selected SIP extension pool is not active."
+                        )
+                    pool = pool or request.business_unit_id.extension_pool_ids.filtered(
+                        "active"
+                    )[:1]
                     if not pool:
                         raise UserError(
                             "No active SIP extension pool is configured for this "
@@ -940,6 +949,8 @@ class ProvisioningRequest(models.Model):
                 operations.append(("sip", "upsert_endpoint"))
             if request.needs_agent_desktop:
                 operations.append(("agent_desktop", "assign_roles"))
+            if request.needs_sms:
+                operations.append(("sms", "upsert_sender_profile"))
             if request.needs_voicemail:
                 operations.append(("voicemail", "provision_mailbox"))
             if request.needs_recording_access:
@@ -1581,6 +1592,7 @@ class ProvisioningStep(models.Model):
     target_system = fields.Selection(
         [("odoo", "Odoo"), ("keycloak", "Keycloak"), ("email", "Email"),
          ("vicidial", "VICIdial"), ("sip", "SIP"),
+         ("sms", "SMS"),
          ("voicemail", "Voicemail"), ("recording", "Recording"),
          ("monitoring", "Monitoring"),
          ("agent_desktop", "Agent Desktop"),

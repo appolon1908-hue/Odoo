@@ -4,9 +4,11 @@ from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from odoo import fields
+from odoo import SUPERUSER_ID, api, fields
 from odoo.exceptions import AccessError, ValidationError
-from odoo.tests.common import TransactionCase
+from odoo.tests import tagged
+from odoo.modules.registry import Registry
+from odoo.tests.common import BaseCase, TransactionCase, get_db_name
 
 from ..controllers import call_control as call_control_controller
 
@@ -94,6 +96,34 @@ class TestCallControl(TransactionCase):
             "sequence": sequence,
         }
 
+    def _stale_unassigned_lead(self, name, phone, user=None):
+        lead = self.env["crm.lead"].create(
+            {
+                "name": name,
+                "user_id": (user or self.agent_user).id,
+                "phone": phone,
+                "business_unit_id": self.unit.id,
+            }
+        )
+        lead.flush_recordset(["x_codestra_phone_digits", "x_phone_e164"])
+        self.env.cr.execute(
+            "UPDATE crm_lead SET x_phone_e164 = NULL WHERE id = %s",
+            (lead.id,),
+        )
+        lead.invalidate_recordset(["x_phone_e164"])
+        self.assertFalse(lead.x_phone_e164)
+        return lead
+
+    def _enable_owned_test_syn_repair(self, external_effects=False):
+        params = self.env["ir.config_parameter"].sudo()
+        params.set_param(
+            "codestra.telephony.auto_repair_owned_test_syn_leads", "true"
+        )
+        params.set_param(
+            "codestra.telephony.external_effects_enabled",
+            "true" if external_effects else "false",
+        )
+
     def test_integration_event_route_values_are_schema_aware(self):
         extended = SimpleNamespace(_fields={"source": object(), "destination": object()})
         standalone = SimpleNamespace(_fields={})
@@ -103,6 +133,122 @@ class TestCallControl(TransactionCase):
             {"source": "odoo", "destination": "middleware"},
         )
         self.assertEqual(call_control_controller._integration_event_route_values(standalone), {})
+
+    def test_audit_uses_append_contract_without_elevating_actor(self):
+        audit_record = object()
+        captured = {}
+
+        class HubAudit:
+            def sudo(self):
+                raise AssertionError("The controller must not elevate the audit actor.")
+
+            def _append(self, event, action, result, metadata, **anchors):
+                captured.update(
+                    event=event,
+                    action=action,
+                    result=result,
+                    metadata=metadata,
+                    anchors=anchors,
+                )
+                return audit_record
+
+        event = SimpleNamespace(id=77)
+        call = SimpleNamespace(
+            _name="codestra.vicidial.call",
+            id=42,
+            correlation_id="call-audit-compatibility",
+        )
+        request = SimpleNamespace(
+            env={"codestra.integration.audit": HubAudit()},
+        )
+
+        with patch.object(call_control_controller, "request", request):
+            result = call_control_controller.CallControlAPI._audit(
+                call,
+                "call.outbound",
+                {"command_id": 77},
+                event=event,
+                actor_role="agent",
+            )
+
+        self.assertIs(result, audit_record)
+        self.assertEqual(captured["event"], event)
+        self.assertEqual(captured["action"], "call.outbound")
+        self.assertEqual(captured["result"], "success")
+        self.assertEqual(
+            captured["metadata"],
+            {
+                "model_name": "codestra.vicidial.call",
+                "record_res_id": 42,
+                "after": {"command_id": 77},
+            },
+        )
+        self.assertEqual(
+            captured["anchors"],
+            {
+                "actor_role": "agent",
+                "correlation_id": "call-audit-compatibility",
+                "subject_model": "codestra.vicidial.call",
+                "subject_id": 42,
+            },
+        )
+
+    def test_audit_appends_eventless_call_without_event_lookup(self):
+        captured = {}
+
+        class HubAudit:
+            def _append(self, event, action, result, metadata, **anchors):
+                captured.update(event=event, action=action, anchors=anchors)
+                return True
+
+        call = SimpleNamespace(
+            _name="codestra.vicidial.call",
+            id=43,
+            correlation_id="call-audit-eventless",
+        )
+        request = SimpleNamespace(
+            env={"codestra.integration.audit": HubAudit()},
+        )
+
+        with patch.object(call_control_controller, "request", request):
+            self.assertTrue(
+                call_control_controller.CallControlAPI._audit(
+                    call,
+                    "call.workspace.viewed",
+                    {"sequence": 3},
+                    actor_role="agent",
+                )
+            )
+
+        self.assertFalse(captured["event"])
+        self.assertEqual(captured["action"], "call.workspace.viewed")
+        self.assertEqual(captured["anchors"]["correlation_id"], "call-audit-eventless")
+        self.assertEqual(captured["anchors"]["subject_id"], 43)
+
+    def test_model_append_contract_preserves_non_superuser_actor(self):
+        audit = self.env["codestra.integration.audit"].with_user(self.agent_user)._append(
+            False,
+            "call.workspace.viewed",
+            "success",
+            {
+                "model_name": "codestra.vicidial.call",
+                "record_res_id": 99,
+                "after": {"sequence": 1},
+            },
+            actor_role="agent",
+            correlation_id="call-audit-actor",
+            subject_model="codestra.vicidial.call",
+            subject_id=99,
+        )
+
+        self.assertEqual(audit.actor_user_id, self.agent_user)
+        self.assertEqual(audit.action, "call.workspace.viewed")
+        self.assertEqual(audit.correlation_id, "call-audit-actor")
+        self.assertEqual(audit.model_name, "codestra.vicidial.call")
+        self.assertEqual(audit.record_res_id, 99)
+        self.assertEqual(json.loads(audit.after_json), {"sequence": 1})
+        if "actor_role" in audit._fields:
+            self.assertEqual(audit.actor_role, "agent")
 
     def test_number_normalization_and_exact_matching(self):
         partner = self.env["res.partner"].create({"name": "Synthetic Customer", "phone": "+1 (617) 555-0100"})
@@ -135,6 +281,223 @@ class TestCallControl(TransactionCase):
         result = self.env["codestra.vicidial.call"].match_customer("+18095550199")
         self.assertEqual(result["match"], "ambiguous")
         self.assertEqual(len(result["matches"]), 2)
+
+    def test_raw_phone_digit_projections_are_stored_and_indexed(self):
+        lead = self.env["crm.lead"].create(
+            {
+                "name": "Indexed lead digits",
+                "phone": "00442079460111",
+                "business_unit_id": self.unit.id,
+            }
+        )
+        partner = self.env["res.partner"].create(
+            {
+                "name": "Indexed partner digits",
+                "phone": "+1 (849) 555-0112",
+            }
+        )
+
+        lead_field = lead._fields["x_codestra_phone_digits"]
+        partner_field = partner._fields["x_codestra_phone_digits"]
+        self.assertTrue(lead_field.store)
+        self.assertTrue(lead_field.index)
+        self.assertTrue(partner_field.store)
+        self.assertTrue(partner_field.index)
+        self.assertEqual(lead.x_codestra_phone_digits, "00442079460111")
+        self.assertEqual(partner.x_codestra_phone_digits, "18495550112")
+
+    def test_match_auto_repairs_one_owned_unassigned_test_syn_lead(self):
+        lead = self._stale_unassigned_lead(
+            "Owned stale TEST_SYN lead",
+            "+1 (849) 555-0191",
+        )
+        self._enable_owned_test_syn_repair()
+        controller = call_control_controller.CallControlAPI()
+
+        with patch.object(
+            call_control_controller,
+            "request",
+            SimpleNamespace(env=self.env(user=self.agent_user.id)),
+        ):
+            result = controller.match("849-555-0191", "TEST_SYN")
+
+        lead.invalidate_recordset(
+            [
+                "x_phone_e164",
+                "vicidial_campaign_id",
+                "x_vicidial_campaign_id",
+            ]
+        )
+        self.assertEqual(result["match"], "exact")
+        self.assertEqual(
+            [(item["model"], item["id"]) for item in result["matches"]],
+            [("lead", lead.id)],
+        )
+        self.assertEqual(lead.x_phone_e164, "+18495550191")
+        self.assertEqual(lead.vicidial_campaign_id, "TEST_SYN")
+        self.assertEqual(lead.x_vicidial_campaign_id, "TEST_SYN")
+        self.assertFalse(
+            self.env["codestra.vicidial.call"].search(
+                [("crm_lead_id", "=", lead.id)]
+            )
+        )
+
+    def test_match_does_not_auto_repair_ambiguous_raw_leads(self):
+        first = self._stale_unassigned_lead(
+            "First stale TEST_SYN lead",
+            "+1 (849) 555-0192",
+        )
+        second = self._stale_unassigned_lead(
+            "Second stale TEST_SYN lead",
+            "849-555-0192",
+        )
+        self._enable_owned_test_syn_repair()
+        controller = call_control_controller.CallControlAPI()
+
+        with patch.object(
+            call_control_controller,
+            "request",
+            SimpleNamespace(env=self.env(user=self.agent_user.id)),
+        ):
+            result = controller.match("849-555-0192", "TEST_SYN")
+
+        self.assertEqual(result["match"], "none")
+        first.invalidate_recordset(["x_phone_e164", "vicidial_campaign_id"])
+        second.invalidate_recordset(["x_phone_e164", "vicidial_campaign_id"])
+        self.assertFalse(first.x_phone_e164)
+        self.assertFalse(second.x_phone_e164)
+        self.assertFalse(first.vicidial_campaign_id)
+        self.assertFalse(second.vicidial_campaign_id)
+
+    def test_match_does_not_auto_repair_another_users_lead(self):
+        lead = self._stale_unassigned_lead(
+            "Other user's stale TEST_SYN lead",
+            "+1 (849) 555-0193",
+            user=self.other_user,
+        )
+        self._enable_owned_test_syn_repair()
+        controller = call_control_controller.CallControlAPI()
+
+        with patch.object(
+            call_control_controller,
+            "request",
+            SimpleNamespace(env=self.env(user=self.agent_user.id)),
+        ):
+            result = controller.match("849-555-0193", "TEST_SYN")
+
+        self.assertEqual(result["match"], "none")
+        lead.invalidate_recordset(["x_phone_e164", "vicidial_campaign_id"])
+        self.assertFalse(lead.x_phone_e164)
+        self.assertFalse(lead.vicidial_campaign_id)
+
+    def test_match_auto_repair_stays_off_when_external_effects_are_enabled(self):
+        lead = self._stale_unassigned_lead(
+            "Externally gated stale TEST_SYN lead",
+            "+1 (849) 555-0194",
+        )
+        self._enable_owned_test_syn_repair(external_effects=True)
+        controller = call_control_controller.CallControlAPI()
+
+        with patch.object(
+            call_control_controller,
+            "request",
+            SimpleNamespace(env=self.env(user=self.agent_user.id)),
+        ):
+            result = controller.match("849-555-0194", "TEST_SYN")
+
+        self.assertEqual(result["match"], "none")
+        lead.invalidate_recordset(["x_phone_e164", "vicidial_campaign_id"])
+        self.assertFalse(lead.x_phone_e164)
+        self.assertFalse(lead.vicidial_campaign_id)
+
+    def test_match_auto_repair_requires_one_active_campaign(self):
+        lead = self._stale_unassigned_lead(
+            "Multi-campaign stale TEST_SYN lead",
+            "+1 (849) 555-0195",
+        )
+        second_campaign = self.env["codestra.vicidial.campaign"].create(
+            {
+                "name": "Second synthetic campaign",
+                "campaign_id": "TEST_SYN_2",
+                "mode": "test",
+            }
+        )
+        self.agent.with_context(
+            telephony_assignment_internal=True,
+            skip_telephony_assignment_events=True,
+        ).write({"campaign_ids": [(4, second_campaign.id)]})
+        self._enable_owned_test_syn_repair()
+        controller = call_control_controller.CallControlAPI()
+
+        with patch.object(
+            call_control_controller,
+            "request",
+            SimpleNamespace(env=self.env(user=self.agent_user.id)),
+        ):
+            result = controller.match("849-555-0195", "TEST_SYN")
+
+        self.assertEqual(result["match"], "none")
+        lead.invalidate_recordset(["x_phone_e164", "vicidial_campaign_id"])
+        self.assertFalse(lead.x_phone_e164)
+        self.assertFalse(lead.vicidial_campaign_id)
+
+    def test_match_auto_repairs_supported_double_zero_phone(self):
+        lead = self._stale_unassigned_lead(
+            "Double-zero stale TEST_SYN lead",
+            "00442079460123",
+        )
+        self._enable_owned_test_syn_repair()
+        controller = call_control_controller.CallControlAPI()
+
+        with patch.object(
+            call_control_controller,
+            "request",
+            SimpleNamespace(env=self.env(user=self.agent_user.id)),
+        ):
+            result = controller.match("+44 20 7946 0123", "TEST_SYN")
+
+        lead.invalidate_recordset(
+            [
+                "x_phone_e164",
+                "vicidial_campaign_id",
+                "x_vicidial_campaign_id",
+            ]
+        )
+        self.assertEqual(result["match"], "exact")
+        self.assertEqual(
+            [(item["model"], item["id"]) for item in result["matches"]],
+            [("lead", lead.id)],
+        )
+        self.assertEqual(lead.x_phone_e164, "+442079460123")
+        self.assertEqual(lead.vicidial_campaign_id, "TEST_SYN")
+        self.assertEqual(lead.x_vicidial_campaign_id, "TEST_SYN")
+
+    def test_match_malformed_raw_phone_fails_closed(self):
+        lead = self._stale_unassigned_lead(
+            "Malformed stale TEST_SYN lead",
+            "849/555/0197",
+        )
+        self._enable_owned_test_syn_repair()
+        controller = call_control_controller.CallControlAPI()
+
+        with patch.object(
+            call_control_controller,
+            "request",
+            SimpleNamespace(env=self.env(user=self.agent_user.id)),
+        ):
+            result = controller.match("849-555-0197", "TEST_SYN")
+
+        lead.invalidate_recordset(
+            [
+                "x_phone_e164",
+                "vicidial_campaign_id",
+                "x_vicidial_campaign_id",
+            ]
+        )
+        self.assertEqual(result["match"], "none")
+        self.assertFalse(lead.x_phone_e164)
+        self.assertFalse(lead.vicidial_campaign_id)
+        self.assertFalse(lead.x_vicidial_campaign_id)
 
     def test_monotonic_transition_duplicate_and_out_of_order(self):
         call = self.call("ordering")
@@ -378,3 +741,160 @@ class TestCallControl(TransactionCase):
         self.assertFalse(result["enabled"])
         self.assertEqual(result["state"], "disabled")
         self.assertIn("not mapped", result["reason"])
+
+
+@tagged("post_install", "-at_install")
+class TestCallControlCanonicalRepair(TransactionCase):
+    def test_hidden_owned_lead_binds_authorized_canonical_test_syn_campaign(self):
+        if "call.center.campaign" not in self.env:
+            self.skipTest("Canonical campaign extension is not installed.")
+
+        canonical = self.env.ref(
+            "codestra_odoo_certification.campaign_test_syn",
+            raise_if_not_found=False,
+        )
+        if not canonical:
+            self.skipTest("Canonical TEST_SYN certification campaign is unavailable.")
+
+        unit = self.env.ref("call_center_core.business_unit_digital")
+        groups = self.env["res.groups"].browse(
+            [
+                self.env.ref("codestra_vicidial_crm.group_agent").id,
+                self.env.ref("call_center_core.group_call_center_agent").id,
+                self.env.ref("sales_team.group_sale_salesman").id,
+            ]
+        )
+        agent_user = self.env["res.users"].create(
+            {
+                "name": "Canonical Repair Agent",
+                "login": "canonical-repair-agent@example.test",
+                "keycloak_subject": str(uuid.UUID(int=6199)),
+                "codestra_tenant_id": "COD",
+                "call_center_business_unit_ids": [(6, 0, [unit.id])],
+                "call_center_default_business_unit_id": unit.id,
+                "group_ids": [(6, 0, groups.ids)],
+            }
+        )
+        canonical.sudo().write(
+            {
+                "active": True,
+                "state": "active",
+                "business_unit_id": unit.id,
+                "authorized_user_ids": [(6, 0, [agent_user.id])],
+            }
+        )
+
+        legacy_campaign = self.env["codestra.vicidial.campaign"].search(
+            [("campaign_id", "=", "TEST_SYN")],
+            limit=1,
+        ) or self.env["codestra.vicidial.campaign"].create(
+            {
+                "name": "Synthetic Test",
+                "campaign_id": "TEST_SYN",
+                "mode": "test",
+            }
+        )
+        lead = self.env["crm.lead"].sudo().create(
+            {
+                "name": "Record-rule-hidden stale TEST_SYN lead",
+                "user_id": agent_user.id,
+                "phone": "00442079460998",
+                "business_unit_id": unit.id,
+                "company_id": self.env.company.id,
+            }
+        )
+        lead.flush_recordset(["x_codestra_phone_digits", "x_phone_e164"])
+        self.env.cr.execute(
+            "UPDATE crm_lead SET x_phone_e164 = NULL WHERE id = %s",
+            (lead.id,),
+        )
+        lead.invalidate_recordset(["x_phone_e164"])
+
+        user_env = self.env(user=agent_user.id)
+        self.assertEqual(
+            user_env["call.center.campaign"].search(
+                [("id", "=", canonical.id)]
+            ),
+            canonical.with_env(user_env),
+        )
+        self.assertFalse(
+            user_env["crm.lead"].search([("id", "=", lead.id)], limit=1)
+        )
+        params = self.env["ir.config_parameter"].sudo()
+        params.set_param(
+            "codestra.telephony.auto_repair_owned_test_syn_leads",
+            "true",
+        )
+        params.set_param(
+            "codestra.telephony.external_effects_enabled",
+            "false",
+        )
+
+        controller = call_control_controller.CallControlAPI()
+        with patch.object(
+            call_control_controller,
+            "request",
+            SimpleNamespace(env=user_env),
+        ):
+            result = controller._match_customer(
+                "+44 20 7946 0998",
+                "TEST_SYN",
+                SimpleNamespace(campaign_ids=legacy_campaign),
+            )
+
+        lead.invalidate_recordset(
+            [
+                "call_center_campaign_id",
+                "vicidial_campaign_id",
+                "x_phone_e164",
+                "x_vicidial_campaign_id",
+            ]
+        )
+        self.assertEqual(result["match"], "exact")
+        self.assertEqual(
+            [(item["model"], item["id"]) for item in result["matches"]],
+            [("lead", lead.id)],
+        )
+        self.assertEqual(lead.call_center_campaign_id, canonical)
+        self.assertEqual(lead.vicidial_campaign_id, "TEST_SYN")
+        self.assertEqual(lead.x_vicidial_campaign_id, "TEST_SYN")
+        self.assertEqual(lead.x_phone_e164, "+442079460998")
+        self.assertEqual(
+            user_env["crm.lead"].search([("id", "=", lead.id)], limit=1).id,
+            lead.id,
+        )
+        self.assertFalse(
+            self.env["codestra.vicidial.call"].sudo().search(
+                [("crm_lead_id", "=", lead.id)]
+            )
+        )
+
+@tagged("post_install", "-at_install")
+class TestTestSynRepairDestinationLock(BaseCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.registry = Registry(get_db_name())
+
+    def test_destination_contention_returns_without_waiting(self):
+        normalized = "+18495550198"
+        with self.registry.cursor() as holder_cr:
+            holder_env = api.Environment(holder_cr, SUPERUSER_ID, {})
+            self.assertTrue(
+                holder_env[
+                    "codestra.vicidial.test.syn.repair"
+                ]._try_lock_destination(normalized)
+            )
+
+            with self.registry.cursor() as contender_cr:
+                contender_env = api.Environment(
+                    contender_cr,
+                    SUPERUSER_ID,
+                    {},
+                )
+                self.assertFalse(
+                    contender_env[
+                        "codestra.vicidial.test.syn.repair"
+                    ]._try_lock_destination(normalized)
+                )
+

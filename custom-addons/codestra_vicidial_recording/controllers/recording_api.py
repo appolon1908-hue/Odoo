@@ -243,20 +243,22 @@ class RecordingAPI(http.Controller):
                 ),
             }
         )
-        request.env["codestra.integration.audit"].sudo().create(
+        request.env["codestra.integration.audit"]._append(
+            False,
+            "recording_metadata_upsert",
+            "success",
             {
-                "action": "recording_metadata_upsert",
                 "model_name": recording._name,
                 "record_res_id": recording.id,
-                "success": True,
-                "after_json": json.dumps(
-                    {
-                        "recording_uid": recording.recording_uid,
-                        "storage_status": recording.storage_status,
-                    },
-                    sort_keys=True,
-                ),
-            }
+                "after": {
+                    "recording_uid": recording.recording_uid,
+                    "storage_status": recording.storage_status,
+                },
+            },
+            actor_role="service",
+            correlation_id=f"recording:{environment}:{recording.recording_uid}",
+            subject_model=recording._name,
+            subject_id=recording.id,
         )
         return request.make_json_response(acknowledgement)
 
@@ -329,20 +331,22 @@ class RecordingAPI(http.Controller):
                         "middleware_acknowledgement_time": acknowledgement_time,
                     }
                 )
-        request.env["codestra.integration.audit"].sudo().create(
+        request.env["codestra.integration.audit"]._append(
+            False,
+            "recording_status_update",
+            "success",
             {
-                "action": "recording_status_update",
                 "model_name": recording._name,
                 "record_res_id": recording.id,
-                "success": True,
-                "after_json": json.dumps(
-                    {
-                        key: value
-                        for key, value in payload.items()
-                        if key not in {"last_error"}
-                    },
-                    sort_keys=True,
-                ),
-            }
+                "after": {
+                    key: value
+                    for key, value in payload.items()
+                    if key not in {"last_error"}
+                },
+            },
+            actor_role="service",
+            correlation_id=f"recording:{environment}:{recording.recording_uid}",
+            subject_model=recording._name,
+            subject_id=recording.id,
         )
         return request.make_json_response(self._ack(recording))

@@ -68,3 +68,45 @@ reconciliation-required and are never retried blindly.
 Run the exact controlled test once, verify the internal adapter read-back, then
 repeat the same correlation/idempotency test. Do not enable PSTN dialing until
 both runs have authoritative evidence and independent review.
+
+
+## Automatic TEST_SYN preflight repair
+
+The browser matcher can repair one legacy CRM row whose stored normalized-phone
+projection and TEST_SYN assignment are both missing. This behavior is disabled
+by default; enable it with the Odoo system parameter
+`codestra.telephony.auto_repair_owned_test_syn_leads=true`.
+
+The repair runs only for `TEST_SYN` in `test` mode, only when the authenticated
+agent has exactly one active campaign, and only while the runtime
+`codestra.telephony.external_effects_enabled` value is false-like. The immutable
+calling-contract pin also keeps external effects disabled. The raw phone,
+including a supported `00` international form, must resolve to exactly one
+active lead and no contact; malformed raw values fail closed. The lead must be
+owned by the caller, belong to an authorized company and business unit, have no
+campaign assignment, and not be DNC.
+
+Raw discovery uses stored, B-tree-indexed ASCII digit projections on both
+`crm.lead` and `res.partner`; it does not use a leading-wildcard predicate or
+a runtime regex table scan. A non-blocking transaction advisory lock serializes
+repair attempts by normalized destination. Lock contention returns the normal
+`match=none` response, so a worker never waits indefinitely.
+
+When installed global campaign rules hide an otherwise eligible pre-repair row
+from an ordinary agent, the repair additionally requires exactly one active,
+same-business-unit canonical `TEST_SYN` campaign that explicitly authorizes
+that user. A constrained elevated ORM write may then bind only that canonical
+campaign and the two legacy TEST_SYN fields; the stored phone projection is
+recomputed from the unchanged raw value. A row already visible to the user
+stays on the ordinary ORM path.
+
+After the sole candidate row is locked, every ownership, company, business-unit,
+DNC, campaign, active-state, raw-phone, contact-collision, and ambiguity guard
+is evaluated again from invalidated records. The write runs in a savepoint, and
+a fresh ordinary-user read plus the normal campaign-scoped matcher must both
+return the same sole lead or the repair rolls back and returns `match=none`.
+
+Matching never creates a call, command, integration event, audit event, or
+external effect. Any ambiguity or failed guard preserves the normal
+`match=none` result.
+

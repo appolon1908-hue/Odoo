@@ -1,0 +1,5 @@
+<odoo noupdate="1">
+  <record id="audit_chain_global_lock" model="codestra.integration.audit.chain.lock">
+    <field name="name">global</field>
+  </record>
+</odoo>
