@@ -126,7 +126,9 @@ def _all_routes():
             routing = getattr(member, "original_routing", None)
             if not routing:
                 continue
-            for route in routing["routes"]:
+            # A route-less @route() override inherits its paths from the parent
+            # controller (Odoo 17+); it declares no routes of its own.
+            for route in routing.get("routes") or []:
                 for verb in routing.get("methods") or ["GET", "POST"]:
                     routes.setdefault((verb, _normalize(route)), module)
         for child in cls.__subclasses__():

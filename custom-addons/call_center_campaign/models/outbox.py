@@ -813,8 +813,18 @@ class CallCenterCampaignOutboxProducer(models.Model):
             "middleware_design_revision",
             "provisioning_state",
         }
+        # A caller may never set integration state. The cc.campaign _inherits
+        # delegation injects the parent's own defaults when it creates this
+        # record, so only a value that differs from the field default is a
+        # claim.
+        defaults = self.default_get(sorted(protected))
         for vals in vals_list:
-            if protected & vals.keys():
+            claimed = {
+                name
+                for name in protected & vals.keys()
+                if vals[name] != defaults.get(name)
+            }
+            if claimed:
                 raise AccessError("Campaign integration state is system controlled.")
             if vals.get("design_automation_enabled"):
                 vals["integration_uuid"] = str(uuid.uuid4())
