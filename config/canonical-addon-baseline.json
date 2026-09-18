@@ -28,7 +28,7 @@
   "strict_mission_overrides": {
     "call_center_campaign": {
       "base_tree": "adee00088aa9ccd0b304d8ded6f9b9797160cef9",
-      "current_tree": "c62974a7f0d2a35fd4e81ba4456cbd284a262462",
+      "current_tree": "f6b8aac1198bebd8f11b21eec6d7e5ef0ce04629",
       "integration_boundary_exceptions": [
         {
           "kind": "odoo_cursor_readiness_probe",
