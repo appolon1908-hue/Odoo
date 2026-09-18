@@ -591,12 +591,21 @@ class CcCampaignLifecycle(models.Model):
                         "skill": rule.skill or None,
                         "is_fallback": rule.is_fallback,
                     }
-                    for rule in self.routing_rule_ids.filtered("active").sorted(
-                        key=lambda rule: (rule.sequence, rule.priority, rule.id)
-                    )
+                    for rule in self._control_routing_rules()
                 ],
             },
         }
+
+    def _control_routing_rules(self):
+        """Routing rules are an optional projection: the routing-rule model is
+        not part of every reviewed baseline, so the snapshot carries an empty
+        list until call.center.campaign exposes routing_rule_ids."""
+        self.ensure_one()
+        if "routing_rule_ids" not in self._fields:
+            return []
+        return self.routing_rule_ids.filtered("active").sorted(
+            key=lambda rule: (rule.sequence, rule.priority, rule.id)
+        )
 
     def _control_validation_errors(self, document):
         self.ensure_one()
