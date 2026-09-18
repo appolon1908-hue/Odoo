@@ -74,12 +74,10 @@ class CrmLeadAutomationResults(models.Model):
 
     def _automation_stage_for_status(self, status):
         self.ensure_one()
+        # crm.stage has no team_id on Odoo 17+ (stages are shared across
+        # teams); the canonical journey status is the only selector.
         Stage = self.env["crm.stage"]
         domain = [("canonical_journey_status_id.code", "=", status)]
-        if self.team_id:
-            domain += ["|", ("team_id", "=", False), ("team_id", "=", self.team_id.id)]
-        else:
-            domain += [("team_id", "=", False)]
         stage = Stage.search(domain, order="sequence, id", limit=1)
         if not stage:
             raise ValidationError("STATUS_UNKNOWN")
